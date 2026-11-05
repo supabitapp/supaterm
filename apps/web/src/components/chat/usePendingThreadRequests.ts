@@ -35,7 +35,7 @@ import {
   carryDisplacedCustomAnswerIntoPrompt,
   derivePendingUserInputProgress,
   projectPendingUserInputAnswer,
-  threadContextsReferencedByAnswer,
+  referenceContextsReferencedByAnswer,
 } from "../../pendingUserInput";
 import {
   questionAttachmentDraftId,
@@ -319,7 +319,7 @@ export function usePendingThreadRequests(input: {
       const draft = useComposerDraftStore.getState().getComposerDraft(target);
       providerAnswers[question.id] = projectPendingUserInputAnswer(
         answers[question.id],
-        draft?.threadContexts ?? [],
+        draft?.referenceContexts ?? [],
       );
       const attachments = draft ? [...draft.images, ...draft.files] : [];
       if (attachments.length === 0) continue;
@@ -419,11 +419,11 @@ export function usePendingThreadRequests(input: {
           activePendingUserInput.requestId,
           questionId,
         );
-        store.addThreadContexts(
+        store.addReferenceContexts(
           composerDraftTarget,
-          threadContextsReferencedByAnswer(
+          referenceContextsReferencedByAnswer(
             displacedAnswer ?? "",
-            store.getComposerDraft(questionTarget)?.threadContexts ?? [],
+            store.getComposerDraft(questionTarget)?.referenceContexts ?? [],
           ),
           { appendReference: false },
         );

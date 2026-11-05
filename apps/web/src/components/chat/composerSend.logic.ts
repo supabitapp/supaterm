@@ -1,14 +1,18 @@
 import type { EnvironmentId, ThreadContextRecord } from "@supaterm/contracts";
 import { collectInlineContextIds } from "../../lib/composerContextReferences";
+import type { ReferenceContextRecord } from "../../lib/composerContextRecords";
 
 /** Attached threads the prompt still links to; replacing linked text leaves stale records. */
 export function referencedThreadContexts(draft: {
   readonly prompt: string;
-  readonly threadContexts: ReadonlyArray<ThreadContextRecord>;
+  readonly referenceContexts: ReadonlyArray<ReferenceContextRecord>;
 }): ReadonlyArray<ThreadContextRecord> {
-  if (draft.threadContexts.length === 0) return [];
+  if (draft.referenceContexts.length === 0) return [];
   const referenced = new Set(collectInlineContextIds(draft.prompt));
-  return draft.threadContexts.filter((record) => referenced.has(record.contextId));
+  return draft.referenceContexts.filter(
+    (record): record is ThreadContextRecord =>
+      record.kind === "thread" && referenced.has(record.contextId),
+  );
 }
 
 /** Why a send waits for the user to pick a machine when no machine was chosen automatically. */

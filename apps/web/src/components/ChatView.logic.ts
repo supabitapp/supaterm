@@ -11,12 +11,12 @@ import {
 } from "@supaterm/shared/orchestrationV2ThreadError";
 import * as Option from "effect/Option";
 import type { ComposerDispatchMode } from "@supaterm/client-runtime/state/composer-dispatch";
-import type { ThreadContextRecord } from "@supaterm/contracts";
 import { removeInlineContextReference } from "~/lib/composerContextReferences";
 import {
   previewAnnotationContextLabel,
   reviewCommentContextLabel,
   terminalContextReference,
+  type ReferenceContextRecord,
 } from "../lib/composerContextRecords";
 import { formatTerminalContextLabel } from "../lib/terminalContext";
 import type { ReviewCommentContext } from "../reviewCommentContext";
@@ -1265,7 +1265,7 @@ export interface ComposerSendContents {
   readonly sendableTerminalContexts: ReadonlyArray<TerminalContextDraft>;
   readonly previewAnnotations: ReadonlyArray<PreviewAnnotationPayload>;
   readonly reviewComments: ReadonlyArray<ReviewCommentContext>;
-  readonly threadContexts: ReadonlyArray<ThreadContextRecord>;
+  readonly referenceContexts: ReadonlyArray<ReferenceContextRecord>;
 }
 
 /**
@@ -1283,7 +1283,7 @@ export function snapshotComposerSend(contents: ComposerSendContents) {
     terminalContexts,
     previewAnnotations: [...contents.previewAnnotations],
     reviewComments: [...contents.reviewComments],
-    threadContexts: [...contents.threadContexts],
+    referenceContexts: [...contents.referenceContexts],
     messageText: contents.terminalContexts
       .filter((context) => !terminalContexts.includes(context))
       .reduce(

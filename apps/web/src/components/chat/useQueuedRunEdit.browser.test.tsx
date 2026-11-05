@@ -167,7 +167,7 @@ const savedContent = (prompt: string) => ({
   terminalContexts: [],
   reviewComments: [],
   previewAnnotations: [],
-  threadContexts: [],
+  referenceContexts: [],
 });
 
 const promptOf = (ref: ScopedThreadRef) =>

@@ -245,7 +245,7 @@ import {
   DraftId,
 } from "../composerDraftStore";
 import { type TerminalContextDraft } from "../lib/terminalContext";
-import { collectInlineContextIds } from "../lib/composerContextReferences";
+import { referencedThreadContexts as threadContextsLinkedByPrompt } from "./chat/composerSend.logic";
 import { selectThreadTerminalUiState, useTerminalUiStateStore } from "../terminalUiStateStore";
 import { useKnownTerminalSessions, useThreadRunningTerminalIds } from "../state/terminalSessions";
 import { useEnvironmentQuery } from "../state/query";
@@ -677,10 +677,7 @@ export default function ChatView(props: ChatViewProps) {
   const referencedThreadContexts = useComposerDraftStore(
     useShallow((store) => {
       const draft = store.getComposerDraft(composerDraftTarget);
-      if (!draft?.threadContexts.length) return [];
-      // Linked prompts can replace text without pruning stored context records.
-      const referenced = new Set(collectInlineContextIds(draft.prompt));
-      return draft.threadContexts.filter((record) => referenced.has(record.contextId));
+      return draft ? threadContextsLinkedByPrompt(draft) : [];
     }),
   );
   const composerHasNonPromptContent = useComposerDraftStore((store) => {

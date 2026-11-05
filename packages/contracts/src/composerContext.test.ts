@@ -112,6 +112,15 @@ const knownRecords: Record<(typeof COMPOSER_CONTEXT_KINDS)[number], Record<strin
     threadId: "thread-1",
     title: "Fix login flow",
   },
+  model: {
+    ...base,
+    kind: "model",
+    label: "Claude Opus 4.5",
+    instanceId: "opencode_work",
+    driver: "opencode",
+    model: "anthropic/claude-opus-4.5",
+    providerName: "OpenCode Work",
+  },
 };
 
 describe("ComposerContextRecord", () => {

@@ -347,7 +347,7 @@ export function useComposerSend(input: ComposerSendInput) {
         filterTerminalContextsWithText(sendCtx.terminalContexts).length > 0 ||
         sendCtx.previewAnnotations.length > 0 ||
         sendCtx.reviewComments.length > 0 ||
-        sendCtx.threadContexts.length > 0
+        sendCtx.referenceContexts.length > 0
       ) {
         toastManager.add(
           stackedThreadToast({
@@ -428,7 +428,7 @@ export function useComposerSend(input: ComposerSendInput) {
       terminalContexts: composerTerminalContexts,
       previewAnnotations: sendContextPreviewAnnotations,
       reviewComments: composerReviewComments,
-      threadContexts: composerThreadContexts,
+      referenceContexts: composerReferenceContexts,
       selectedProvider: ctxSelectedProvider,
       selectedModel: ctxSelectedModel,
       selectedProviderModels: ctxSelectedProviderModels,
@@ -452,7 +452,7 @@ export function useComposerSend(input: ComposerSendInput) {
       : promptRef.current;
     const strandedThread = threadContextsOutsideEnvironment({
       text: promptForSend,
-      records: composerThreadContexts,
+      records: composerReferenceContexts,
       environmentId,
     })[0];
     if (strandedThread) {
@@ -479,7 +479,7 @@ export function useComposerSend(input: ComposerSendInput) {
           terminalContexts: composerTerminalContexts,
           reviewComments: composerReviewComments,
           previewAnnotations: composerPreviewAnnotations,
-          threadContexts: composerThreadContexts,
+          referenceContexts: composerReferenceContexts,
         },
         setThreadError,
       );
@@ -497,7 +497,7 @@ export function useComposerSend(input: ComposerSendInput) {
       elementContextCount:
         composerPreviewAnnotations.length +
         composerReviewComments.length +
-        composerThreadContexts.length,
+        composerReferenceContexts.length,
     });
     const feedbackCommand =
       ctxSelectedProvider === "codex" &&
@@ -506,7 +506,7 @@ export function useComposerSend(input: ComposerSendInput) {
       sendableComposerTerminalContexts.length === 0 &&
       composerPreviewAnnotations.length === 0 &&
       composerReviewComments.length === 0 &&
-      composerThreadContexts.length === 0
+      composerReferenceContexts.length === 0
         ? parseCodexFeedbackCommand(trimmed)
         : null;
     if (feedbackCommand && multipleModelSelections === null) {
@@ -612,7 +612,7 @@ export function useComposerSend(input: ComposerSendInput) {
       sendableTerminalContexts: sendableComposerTerminalContexts,
       previewAnnotations: composerPreviewAnnotations,
       reviewComments: composerReviewComments,
-      threadContexts: composerThreadContexts,
+      referenceContexts: composerReferenceContexts,
     });
     const composerAttachmentsSnapshot = sendSnapshot.attachments;
     const messageTextForSend = sendSnapshot.messageText;
@@ -622,7 +622,7 @@ export function useComposerSend(input: ComposerSendInput) {
       terminalContexts: sendSnapshot.terminalContexts,
       reviewComments: sendSnapshot.reviewComments,
       previewAnnotations: sendSnapshot.previewAnnotations,
-      threadContexts: sendSnapshot.threadContexts,
+      referenceContexts: sendSnapshot.referenceContexts,
       attachments: composerAttachmentsSnapshot.map((attachment) => ({
         attachment,
         attachmentId: attachment.id,

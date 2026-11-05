@@ -8,6 +8,7 @@ import {
   ThreadId,
   TrimmedNonEmptyString,
 } from "./baseSchemas.ts";
+import { ProviderDriverKind, ProviderInstanceId } from "./providerInstance.ts";
 
 /** Image and file records reference `ChatAttachment` ids, never bytes. */
 
@@ -21,6 +22,7 @@ export const COMPOSER_CONTEXT_KINDS = [
   "mention",
   "skill",
   "thread",
+  "model",
 ] as const;
 export type KnownComposerContextKind = (typeof COMPOSER_CONTEXT_KINDS)[number];
 
@@ -208,6 +210,17 @@ export const ThreadContextRecord = Schema.Struct({
 });
 export type ThreadContextRecord = typeof ThreadContextRecord.Type;
 
+/** Names a model for the agent, such as a `delegate_task` target. It never changes the thread's model. */
+export const ModelContextRecord = Schema.Struct({
+  ...recordBase,
+  kind: Schema.Literal("model"),
+  instanceId: ProviderInstanceId,
+  driver: ProviderDriverKind,
+  model: TrimmedNonEmptyString,
+  providerName: ContextLabel,
+});
+export type ModelContextRecord = typeof ModelContextRecord.Type;
+
 const isJson = Schema.is(Schema.Json);
 
 /** Excludes known discriminators so malformed known records fail their own schema. */
@@ -238,6 +251,7 @@ export const KnownComposerContextRecord = Schema.Union([
   MentionContextRecord,
   SkillContextRecord,
   ThreadContextRecord,
+  ModelContextRecord,
 ]);
 export type KnownComposerContextRecord = typeof KnownComposerContextRecord.Type;
 

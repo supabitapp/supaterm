@@ -91,7 +91,7 @@ const sendContext: ReturnType<ChatComposerHandle["getSendContext"]> = {
   terminalContexts: [],
   previewAnnotations: [],
   reviewComments: [],
-  threadContexts: [],
+  referenceContexts: [],
   selectedPromptEffort: null,
   selectedModelSelection: editedModel,
   multipleModelSelections: null,

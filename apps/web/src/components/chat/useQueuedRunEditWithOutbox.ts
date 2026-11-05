@@ -71,7 +71,7 @@ export function useQueuedRunEditWithOutbox(input: Parameters<typeof useQueuedRun
           terminalContexts: sendContext.terminalContexts,
           reviewComments: sendContext.reviewComments,
           previewAnnotations: sendContext.previewAnnotations,
-          threadContexts: sendContext.threadContexts,
+          referenceContexts: sendContext.referenceContexts,
           attachments: addedAttachments.map((attachment) => ({
             attachment,
             attachmentId: attachment.id,

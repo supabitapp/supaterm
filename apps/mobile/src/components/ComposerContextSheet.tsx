@@ -323,6 +323,12 @@ export function ComposerContextSheet(props: {
                 ) : null}
               </View>
             ) : null}
+            {record.kind === "model" ? (
+              <>
+                <ContextField label="Provider" value={record.providerName} />
+                <ContextField label="Model" value={record.model} code />
+              </>
+            ) : null}
             {record.kind === "skill" ? (
               <View className="gap-3">
                 <ContextField label="Skill" value={record.name} />

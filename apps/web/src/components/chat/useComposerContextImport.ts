@@ -112,7 +112,9 @@ export function useComposerContextImport(input: {
   const addComposerDraftPreviewAnnotation = useComposerDraftStore(
     (store) => store.addPreviewAnnotation,
   );
-  const addComposerDraftThreadContexts = useComposerDraftStore((store) => store.addThreadContexts);
+  const addComposerDraftReferenceContexts = useComposerDraftStore(
+    (store) => store.addReferenceContexts,
+  );
   const createAssetUrl = useAtomQueryRunner(assetEnvironment.createUrl, { reportFailure: false });
   const loadThreadTranscript = useAtomCommand(orchestrationEnvironment.threadTranscript, {
     reportFailure: false,
@@ -277,7 +279,7 @@ export function useComposerContextImport(input: {
   const importContextRecords = (
     records: ReadonlyArray<ComposerContextRecord>,
     sourceEnvironmentId: EnvironmentId | null,
-    threadDraftTarget = attachmentDraftTarget,
+    referenceDraftTarget = attachmentDraftTarget,
   ): ReadonlyMap<string, string> => {
     const rewritten = new Map<string, string>();
     const dependentAttachmentLocalIds = new Map<string, string>();
@@ -326,7 +328,7 @@ export function useComposerContextImport(input: {
                     ? existing.record.id
                     : undefined,
                 })
-              : existing?.kind === "thread"
+              : existing?.kind === "thread" || existing?.kind === "model"
                 ? existing.record
                 : existing
                   ? (uploadedContextRecordFromDraft(existing) ?? undefined)
@@ -334,7 +336,8 @@ export function useComposerContextImport(input: {
       if (
         existingRecord &&
         isSameComposerContextPayload(existingRecord, record) &&
-        (record.kind !== "thread" || threadDraftTarget === attachmentDraftTarget)
+        ((record.kind !== "thread" && record.kind !== "model") ||
+          referenceDraftTarget === attachmentDraftTarget)
       ) {
         if (record.kind === "preview-annotation" && record.screenshotContextId) {
           skippedDependentAttachmentIds.add(record.screenshotContextId);
@@ -379,10 +382,11 @@ export function useComposerContextImport(input: {
           rewritten.set(record.contextId, previewAnnotationContextId(annotation.id));
           break;
         }
-        case "thread": {
+        case "thread":
+        case "model": {
           // The agent can only read threads on its own server; a pasted foreign one is dropped.
-          if (record.environmentId !== environmentId) break;
-          addComposerDraftThreadContexts(threadDraftTarget, [record], {
+          if (record.kind === "thread" && record.environmentId !== environmentId) break;
+          addComposerDraftReferenceContexts(referenceDraftTarget, [record], {
             appendReference: false,
           });
           rewritten.set(record.contextId, record.contextId);

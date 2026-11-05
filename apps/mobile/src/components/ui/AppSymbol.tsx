@@ -54,6 +54,7 @@ const ANDROID_ICON_BY_SF_SYMBOL = {
   tag: IconNodes.Tag,
   ticket: IconNodes.Ticket,
   cloud: IconNodes.Cloud,
+  cpu: IconNodes.Cpu,
   cube: IconNodes.Box,
   "chevron.down": IconNodes.ChevronDown,
   "chevron.left": IconNodes.ChevronLeft,

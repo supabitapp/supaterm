@@ -1,9 +1,4 @@
-import type {
-  EnvironmentId,
-  PreviewAnnotationPayload,
-  ThreadContextRecord,
-  ScopedThreadRef,
-} from "@supaterm/contracts";
+import type { EnvironmentId, PreviewAnnotationPayload, ScopedThreadRef } from "@supaterm/contracts";
 import { PROVIDER_SEND_TURN_MAX_ATTACHMENTS } from "@supaterm/contracts";
 import {
   type Dispatch,
@@ -57,6 +52,7 @@ import {
   previewAnnotationContextRecord,
   reviewCommentContextRecord,
   terminalContextRecord,
+  type ReferenceContextRecord,
 } from "~/lib/composerContextRecords";
 import type { ComposerContextRecord } from "@supaterm/contracts";
 import { resizeSnapShotSource } from "../../lib/snapShotSource";
@@ -104,7 +100,7 @@ export function useComposerStash(input: {
   readonly isComposerCollapsedMobile: boolean;
   readonly composerPreviewAnnotations: ReadonlyArray<PreviewAnnotationPayload>;
   readonly composerReviewComments: ReadonlyArray<ReviewCommentContext>;
-  readonly composerThreadContexts: ReadonlyArray<ThreadContextRecord>;
+  readonly composerReferenceContexts: ReadonlyArray<ReferenceContextRecord>;
   readonly attachmentTargetKeyRef: RefObject<string>;
   readonly composerDraftTargetKeyRef: RefObject<string>;
   readonly composerEditorRef: RefObject<ComposerPromptEditorHandle | null>;
@@ -151,7 +147,7 @@ export function useComposerStash(input: {
     isComposerCollapsedMobile,
     composerPreviewAnnotations,
     composerReviewComments,
-    composerThreadContexts,
+    composerReferenceContexts,
     attachmentTargetKeyRef,
     composerDraftTargetKeyRef,
     composerEditorRef,
@@ -179,7 +175,9 @@ export function useComposerStash(input: {
   const clearComposerDraftPromptAndImages = useComposerDraftStore(
     (store) => store.clearComposerPromptAndImages,
   );
-  const setComposerDraftThreadContexts = useComposerDraftStore((store) => store.setThreadContexts);
+  const setComposerDraftReferenceContexts = useComposerDraftStore(
+    (store) => store.setReferenceContexts,
+  );
   const [isStashMenuOpen, setIsStashMenuOpen] = useState(false);
   const [isSendingAllStash, setIsSendingAllStash] = useState(false);
   // Each stash bumps the key; the badge replays its one-shot pulse animation per key.
@@ -609,7 +607,7 @@ export function useComposerStash(input: {
     const images = [...composerImagesRef.current];
     const files = [...composerFilesRef.current];
     const stashedRecords: ComposerContextRecord[] = [
-      ...composerThreadContexts,
+      ...composerReferenceContexts,
       ...composerTerminalContextsRef.current.map(terminalContextRecord),
       ...composerReviewComments.map(reviewCommentContextRecord),
       ...composerPreviewAnnotations.map((annotation) =>
@@ -710,7 +708,7 @@ export function useComposerStash(input: {
       promptRef.current = "";
       clearComposerDraftPromptAndImages(stashTarget);
       clearComposerDraftTerminalContexts(stashTarget);
-      setComposerDraftThreadContexts(stashTarget, []);
+      setComposerDraftReferenceContexts(stashTarget, []);
       for (const comment of composerReviewComments) {
         removeComposerDraftReviewComment(stashTarget, comment.id);
       }

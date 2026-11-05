@@ -502,6 +502,8 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
     pullRequestProjectId: props.serverConfig != null ? (project?.id ?? null) : null,
     pullRequestRepository: project?.repositoryIdentity?.displayName ?? null,
     threadPullRequests: props.selectedThread.pullRequests,
+    serverConfig: props.serverConfig,
+    projectId: props.selectedThread.projectId,
     selectedProviderStatus,
     hasThread: !props.isDraft,
     hasCompactableConversation: props.hasCompactableConversation,

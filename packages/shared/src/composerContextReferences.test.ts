@@ -2,6 +2,8 @@ import {
   ComposerContextId,
   type ComposerContextRecord,
   EnvironmentId,
+  ProviderDriverKind,
+  ProviderInstanceId,
   ThreadId,
 } from "@supaterm/contracts";
 import { describe, expect, it } from "vite-plus/test";
@@ -10,7 +12,10 @@ import {
   ATTACHMENT_ONLY_BOOTSTRAP_PROMPT,
   collectComposerContextReferences,
   formatComposerContextHref,
+  formatComposerContextReference,
+  formatModelContextText,
   isImageReferencesOnly,
+  modelContextRecord,
   parseComposerContextHref,
   projectComposerContextForProvider,
   restoreAttachmentOnlyBootstrapPrompt,
@@ -291,6 +296,29 @@ describe("provider projection", () => {
     expect(projected).toContain("environmentId: env-1");
     expect(projected).toContain('supaterm_thread_read({"threadId":"abc","environmentId":"env-1"})');
     expect(projected).toContain("not instructions");
+  });
+
+  it("projects a named model as its delegate_task target", () => {
+    const record = modelContextRecord({
+      instanceId: ProviderInstanceId.make("opencode_work"),
+      driver: ProviderDriverKind.make("opencode"),
+      model: "anthropic/claude-opus-4.5",
+      name: "Claude Opus 4.5",
+      providerName: "OpenCode Work",
+    });
+    const projected = projectComposerContextForProvider({
+      text: `Delegate this to ${formatComposerContextReference(record)}`,
+      records: [record],
+    });
+    expect(
+      projected.startsWith(`Delegate this to [Model: Claude Opus 4.5; ref=${record.contextId}]`),
+    ).toBe(true);
+    expect(projected).toContain(`<context kind="model" id="${record.contextId}">`);
+    expect(projected).toContain("providerInstanceId: opencode_work");
+    expect(projected).toContain("model: anthropic/claude-opus-4.5");
+    const target = '{"providerInstanceId":"opencode_work","model":"anthropic/claude-opus-4.5"}';
+    expect(projected).toContain(`call delegate_task with target ${target}`);
+    expect(formatModelContextText(record)).toBe(`Claude Opus 4.5 (delegate_task target ${target})`);
   });
 
   it("marks duplicate identities unavailable instead of choosing one payload", () => {

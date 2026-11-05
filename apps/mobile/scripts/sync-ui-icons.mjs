@@ -18,6 +18,7 @@ const icons = await import(
 );
 
 const chipIcons = [
+  "bot",
   "circle-dashed",
   "film",
   "git-merge",

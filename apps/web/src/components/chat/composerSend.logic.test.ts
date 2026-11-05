@@ -1,9 +1,17 @@
-import { EnvironmentId, ThreadId } from "@supaterm/contracts";
+import {
+  EnvironmentId,
+  ProviderDriverKind,
+  ProviderInstanceId,
+  ThreadId,
+} from "@supaterm/contracts";
 import { scopeThreadRef } from "@supaterm/client-runtime/environment";
 import { describe, expect, it } from "vite-plus/test";
 import { formatInlineContextReference } from "../../lib/composerContextReferences";
-import { threadContextReference } from "../../lib/composerContextRecords";
-import { threadContextRecord } from "@supaterm/shared/composerContextReferences";
+import { referenceContextReference } from "../../lib/composerContextRecords";
+import {
+  modelContextRecord,
+  threadContextRecord,
+} from "@supaterm/shared/composerContextReferences";
 import {
   approvalRedirectNotice,
   loadBalancingSendWarning,
@@ -18,9 +26,18 @@ const remoteThread = threadContextRecord(scopeThreadRef(remote, ThreadId.make("b
 
 describe("referencedThreadContexts", () => {
   it("keeps only the attached threads the prompt still links", () => {
-    const prompt = `see ${formatInlineContextReference(threadContextReference(remoteThread))}`;
+    const model = modelContextRecord({
+      instanceId: ProviderInstanceId.make("codex"),
+      driver: ProviderDriverKind.make("codex"),
+      model: "gpt-5.4",
+      name: "GPT-5.4",
+      providerName: "Codex",
+    });
+    const prompt = [remoteThread, model]
+      .map((record) => formatInlineContextReference(referenceContextReference(record)))
+      .join(" ");
     expect(
-      referencedThreadContexts({ prompt, threadContexts: [localThread, remoteThread] }),
+      referencedThreadContexts({ prompt, referenceContexts: [localThread, remoteThread, model] }),
     ).toEqual([remoteThread]);
   });
 });

@@ -1,9 +1,15 @@
+import {
+  isMentionableProvider,
+  matchComposerModelItems,
+  type ComposerModelCandidate,
+} from "@supaterm/client-runtime/composerModelMentions";
 import { matchComposerThreadItems } from "@supaterm/client-runtime/composerThreadItems";
 import { useState } from "react";
 import type {
   EnvironmentId,
   ProjectId,
   ProviderDriverKind,
+  ProviderInstanceId,
   PullRequestListInput,
   ServerProvider,
   ThreadId,
@@ -31,17 +37,41 @@ import {
 } from "~/state/pullRequests";
 import { useEnvironmentQuery } from "~/state/query";
 import { useComposerPathSearch, useDebouncedValue, useThreadSearch } from "~/state/queries";
+import type { AppModelOption } from "../../modelSelection";
+import type { ProviderInstanceEntry } from "../../providerInstances";
 import {
   matchesPullRequestQuery,
   rankPullRequestMatches,
 } from "../pullRequest/pullRequestList.logic";
 import type { ComposerCommandItem } from "./ComposerCommandMenu";
 import { searchSlashCommandItems } from "./composerSlashCommandSearch";
+import { getDisplayModelName } from "./providerIconUtils";
 
 const COMPOSER_PULL_REQUEST_LIST_LIMIT = 99;
 const COMPOSER_PULL_REQUEST_RESULT_LIMIT = 12;
 const EMPTY_PULL_REQUEST_LIST_TARGETS: ReadonlyArray<EnvironmentQueryTarget<PullRequestListInput>> =
   [];
+
+function composerModelCandidates(
+  entries: ReadonlyArray<ProviderInstanceEntry>,
+  modelOptionsByInstance: ReadonlyMap<ProviderInstanceId, ReadonlyArray<AppModelOption>>,
+): ComposerModelCandidate[] {
+  return entries.flatMap((entry) => {
+    if (!isMentionableProvider(entry.snapshot, entry.enabled)) return [];
+    const options = modelOptionsByInstance.get(entry.instanceId) ?? [];
+    return options
+      .filter((option) => !option.isLegacy && !option.isUnavailable)
+      .map((option) => ({
+        instanceId: entry.instanceId,
+        driver: entry.driverKind,
+        providerName: entry.displayName,
+        model: option.slug,
+        name: getDisplayModelName(option),
+        shortName: option.shortName,
+        subProvider: option.subProvider,
+      }));
+  });
+}
 
 /** Builds the @, /, $ and # suggestion lists, running the searches each trigger needs. */
 export function useComposerMenuItems({
@@ -52,6 +82,8 @@ export function useComposerMenuItems({
   pullRequestProjectId,
   pullRequestRepository,
   threadPullRequests,
+  providerInstanceEntries,
+  modelOptionsByInstance,
   compactSlashCommandAvailable,
   sideChatAvailable,
   selectedProvider,
@@ -67,6 +99,8 @@ export function useComposerMenuItems({
   readonly pullRequestProjectId: ProjectId | null;
   readonly pullRequestRepository: string | null;
   readonly threadPullRequests: ReadonlyArray<ThreadPullRequestLink> | undefined;
+  readonly providerInstanceEntries: ReadonlyArray<ProviderInstanceEntry>;
+  readonly modelOptionsByInstance: ReadonlyMap<ProviderInstanceId, ReadonlyArray<AppModelOption>>;
   readonly compactSlashCommandAvailable: boolean;
   readonly sideChatAvailable: boolean;
   readonly selectedProvider: ProviderDriverKind;
@@ -169,6 +203,10 @@ export function useComposerMenuItems({
           query: composerTrigger.query,
           now,
         }),
+        ...matchComposerModelItems(
+          composerModelCandidates(providerInstanceEntries, modelOptionsByInstance),
+          composerTrigger.query,
+        ),
         ...workspaceEntries.entries.map((entry) => ({
           id: `path:${entry.kind}:${entry.path}`,
           type: "path" as const,
