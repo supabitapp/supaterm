@@ -60,6 +60,7 @@ export function PullRequestAvatar(props: {
       style={{ width: size, height: size }}
     >
       <Text
+        allowFontScaling={false}
         className="font-supaterm-medium text-foreground-muted"
         style={{ fontSize: size * 0.45 }}
       >

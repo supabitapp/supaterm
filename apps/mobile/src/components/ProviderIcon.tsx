@@ -188,6 +188,7 @@ export function ProviderInstanceIcon(props: {
             }}
           >
             <Text
+              allowFontScaling={false}
               className={accentColor ? undefined : "text-foreground-muted"}
               style={{
                 fontSize: 7,

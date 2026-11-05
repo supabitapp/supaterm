@@ -32,6 +32,7 @@ export function ComposerInlineControl(props: {
   readonly renderIcon?: (size: number) => ReactNode;
   readonly label: string;
   readonly secondaryLabel?: string;
+  readonly ellipsizeMode?: "middle" | "tail";
   readonly maxWidth?: ViewStyle["maxWidth"];
   readonly onPress?: () => void;
   readonly selected?: boolean;
@@ -49,7 +50,7 @@ export function ComposerInlineControl(props: {
         props.static ? undefined : { disabled: props.disabled, selected: props.selected }
       }
       className={cn(
-        "h-11 flex-row items-center rounded-xl active:bg-subtle",
+        "h-11 min-w-0 shrink flex-row items-center rounded-xl active:bg-subtle",
         props.compact ? "min-w-11 gap-1.5 px-1" : "gap-2 px-2",
       )}
       disabled={props.disabled || props.static}
@@ -79,14 +80,15 @@ export function ComposerInlineControl(props: {
           props.emphasized || props.selected ? "text-foreground" : "text-foreground-muted",
         )}
         numberOfLines={1}
+        ellipsizeMode={props.ellipsizeMode}
       >
         {props.label}
-        {props.secondaryLabel ? (
-          <Text className="font-supaterm-medium text-foreground-muted">
-            {` ${props.secondaryLabel}`}
-          </Text>
-        ) : null}
       </Text>
+      {props.secondaryLabel ? (
+        <Text className="-ml-1 shrink-0 text-sm font-supaterm-medium text-foreground-muted">
+          {props.secondaryLabel}
+        </Text>
+      ) : null}
       {props.showChevron === false ? null : (
         <SymbolView
           name={props.chevronDirection === "right" ? "chevron.right" : "chevron.down"}

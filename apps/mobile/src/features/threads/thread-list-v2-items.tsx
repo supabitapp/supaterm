@@ -178,6 +178,7 @@ const SIDEBAR_V2_ROW_RADIUS = 12;
 
 function ThreadListV2Section(props: {
   readonly label: string;
+  readonly count?: number;
   readonly icon?: ReactNode;
   readonly pane?: "screen" | "sidebar";
   readonly disclosure?: {
@@ -189,6 +190,9 @@ function ThreadListV2Section(props: {
   };
 }) {
   const sidebarPane = props.pane === "sidebar";
+  const textColorClassName = sidebarPane
+    ? "text-drawer-foreground-muted"
+    : "text-foreground-tertiary";
   const className = cn(
     "flex-row items-center gap-2.5",
     !props.disclosure && "mb-1.5 mt-4",
@@ -197,15 +201,16 @@ function ThreadListV2Section(props: {
   const content = (
     <>
       {props.icon}
-      <Text
-        className={cn(
-          "shrink text-xs",
-          sidebarPane ? "text-drawer-foreground-muted" : "text-foreground-tertiary",
+      <View className="shrink flex-row items-center gap-1">
+        <Text className={cn("shrink text-xs", textColorClassName)} numberOfLines={1}>
+          {props.label}
+        </Text>
+        {props.count === undefined ? null : (
+          <Text className={cn("shrink-0 text-xs tabular-nums", textColorClassName)}>
+            ({props.count.toLocaleString()})
+          </Text>
         )}
-        numberOfLines={1}
-      >
-        {props.label}
-      </Text>
+      </View>
       <View className={cn("h-px min-w-2 flex-1", sidebarPane ? "bg-drawer-border" : "bg-border")} />
       {props.disclosure ? (
         <DisclosureChevron
@@ -271,7 +276,8 @@ function ThreadListV2ShelfHeader(
   const label = SHELF_LABEL[props.kind];
   return (
     <ThreadListV2Section
-      label={props.expanded ? label : `${label} (${props.count})`}
+      label={label}
+      count={props.expanded ? undefined : props.count}
       pane={props.pane}
       disclosure={{
         expanded: props.expanded,
@@ -297,7 +303,8 @@ export const ThreadListV2GroupHeader = memo(function ThreadListV2GroupHeader(pro
   const { groupKey, onToggle, project } = props;
   return (
     <ThreadListV2Section
-      label={props.expanded ? props.label : `${props.label} (${props.count})`}
+      label={props.label}
+      count={props.expanded ? undefined : props.count}
       icon={
         project ? (
           <ProjectFavicon
@@ -364,7 +371,7 @@ export const ThreadListV2ShowMoreRow = memo(function ThreadListV2ShowMoreRow(pro
       ? "Loading"
       : props.state === "failed"
         ? "Could not load older threads. Retry"
-        : `Show more (${props.hiddenCount} Done hidden)`;
+        : `Show more (${props.hiddenCount.toLocaleString()} Done hidden)`;
   return (
     <Pressable
       accessibilityRole="button"

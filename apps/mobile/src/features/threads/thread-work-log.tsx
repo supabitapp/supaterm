@@ -62,7 +62,11 @@ import { SupatermIcon } from "../../components/SupatermIcon";
 import { BrowserAppIcon } from "./BrowserAppIcon";
 import { cn } from "../../lib/cn";
 import { THREAD_WORK_ROW_MIN_HEIGHT, type deriveThreadWorkLogSizing } from "../../lib/layout";
-import { type ThreadFeedActivity, workEntryRowLabel } from "../../lib/threadActivity";
+import {
+  type ThreadFeedActivity,
+  workEntryRowDisplay,
+  workEntryRowLabel,
+} from "../../lib/threadActivity";
 import {
   resolveThreadWorkGroupInitialScroll,
   shouldFollowThreadWorkGroupAppend,
@@ -918,7 +922,10 @@ const ThreadWorkLogRow = function ThreadWorkLogRow(
     ? getQuestionAnswerPreview(row.workEntry.questionAnswer)
     : null;
   const accessiblePreview = [previewText, answerPreview].filter(Boolean).join(": ");
-  const displayText = row.groupStandIn?.label ?? workEntryRowLabel(row.workEntry, expanded);
+  const display = row.groupStandIn
+    ? { text: row.groupStandIn.label }
+    : workEntryRowDisplay(row.workEntry, expanded);
+  const displayText = display.text;
   const isSystemNotice = row.projectedItem.item.type === "system_notice";
   const isUsageLimit =
     row.projectedItem.item.type === "error" &&
@@ -1002,6 +1009,7 @@ const ThreadWorkLogRow = function ThreadWorkLogRow(
             </WorkLogIconSlot>
             <WorkLogLabel
               tone={isUsageLimit ? "warning" : iconIsDestructive ? "danger" : "default"}
+              ellipsizeMode={"path" in display ? "middle" : "tail"}
             >
               {displayText}
               {answerPreview ? (

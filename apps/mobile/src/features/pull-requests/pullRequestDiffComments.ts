@@ -79,7 +79,7 @@ export function annotatePullRequestDiff(
     attach(
       anchor,
       `discussion:${thread.id}`,
-      `${first?.author?.login ?? "Discussion"}${thread.isResolved ? " · Resolved" : ""}\n${first?.body ?? ""}\n${thread.commentCount ?? thread.comments.length} comments · Tap to open`,
+      `${first?.author?.login ?? "Discussion"}${thread.isResolved ? " · Resolved" : ""}\n${first?.body ?? ""}\n${formatCommentCount(thread.commentCount ?? thread.comments.length)} · Tap to open`,
       thread.line === null ? "file" : String(thread.line),
     );
   }
@@ -100,4 +100,8 @@ export function annotatePullRequestDiff(
     );
   }
   return { ...data, rows: data.rows.flatMap((row) => [row, ...(anchors.get(row.id) ?? [])]) };
+}
+
+export function formatCommentCount(count: number): string {
+  return `${count.toLocaleString()} ${count === 1 ? "comment" : "comments"}`;
 }

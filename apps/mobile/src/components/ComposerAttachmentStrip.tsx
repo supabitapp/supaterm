@@ -227,7 +227,11 @@ function ComposerFileAttachment(
         >
           <PierreEntryIcon path={attachment.name} kind="file" size={props.compact ? 15 : 22} />
           {!props.compact ? (
-            <Text className="w-full text-center text-2xs text-foreground" numberOfLines={1}>
+            <Text
+              className="w-full text-center text-2xs text-foreground"
+              numberOfLines={1}
+              ellipsizeMode="middle"
+            >
               {attachment.name}
             </Text>
           ) : null}

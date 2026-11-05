@@ -165,7 +165,7 @@ function PullRequestIdentity(props: {
         <PullRequestDiffStats additions={pr.additions} deletions={pr.deletions} compact />
         {"changedFiles" in pr ? (
           <Text className="text-2xs text-foreground-muted">
-            {pr.changedFiles} {pr.changedFiles === 1 ? "file" : "files"}
+            {pr.changedFiles.toLocaleString()} {pr.changedFiles === 1 ? "file" : "files"}
           </Text>
         ) : (
           <View className="h-3 w-12 rounded bg-subtle-strong" />

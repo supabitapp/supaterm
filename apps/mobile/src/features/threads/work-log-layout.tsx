@@ -51,15 +51,17 @@ export function WorkLogPressable({
 export function WorkLogLabel({
   children,
   tone = "default",
+  ellipsizeMode = "tail",
 }: {
   children: ReactNode;
   tone?: "default" | "danger" | "warning";
+  ellipsizeMode?: "middle" | "tail";
 }) {
   return (
     <Text
       selectable={false}
       numberOfLines={1}
-      ellipsizeMode="tail"
+      ellipsizeMode={ellipsizeMode}
       className={cn(
         "min-w-0 flex-1 text-sm text-foreground-muted",
         tone === "danger" && "font-supaterm-medium text-adaptive-rose-600-400",

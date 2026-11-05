@@ -113,12 +113,22 @@ function FileRow(props: {
           {file.path.split("/").at(-1)}
         </Text>
         {props.directory ? (
-          <Text textRole="caption" className="text-foreground-muted" numberOfLines={1}>
+          <Text
+            textRole="caption"
+            className="text-foreground-muted"
+            numberOfLines={1}
+            ellipsizeMode="head"
+          >
             {props.directory}
           </Text>
         ) : null}
         {file.previousPath ? (
-          <Text textRole="caption" className="text-foreground-muted" numberOfLines={1}>
+          <Text
+            textRole="caption"
+            className="text-foreground-muted"
+            numberOfLines={1}
+            ellipsizeMode="middle"
+          >
             Renamed from {file.previousPath}
           </Text>
         ) : null}
@@ -274,7 +284,7 @@ export function usePullRequestFilesSection(params: PullRequestParams) {
               <PullRequestSectionHeading>Changed files</PullRequestSectionHeading>
               {pr ? (
                 <Text textRole="caption" className="text-foreground-muted">
-                  {pr.changedFiles} {pr.changedFiles === 1 ? "file" : "files"}
+                  {pr.changedFiles.toLocaleString()} {pr.changedFiles === 1 ? "file" : "files"}
                 </Text>
               ) : (
                 <View className="h-2.5 w-28 rounded bg-subtle-strong" />

@@ -111,7 +111,7 @@ export function McpAppFullscreenScreen({ route }: McpAppFullscreenScreenProps) {
   return (
     <View className="flex-1 bg-screen" style={{ paddingTop: insets.top }}>
       <View className="h-11 flex-row items-center justify-between px-3">
-        <Text className="text-base font-semibold text-foreground" numberOfLines={1}>
+        <Text className="min-w-0 flex-1 text-base font-semibold text-foreground" numberOfLines={1}>
           {app?.server ?? "App"}
         </Text>
         <Pressable
@@ -119,6 +119,7 @@ export function McpAppFullscreenScreen({ route }: McpAppFullscreenScreenProps) {
           accessibilityLabel="Exit full screen"
           hitSlop={8}
           onPress={onClose}
+          className="shrink-0"
         >
           <SymbolView name="xmark" size={18} tintColor="gray" />
         </Pressable>

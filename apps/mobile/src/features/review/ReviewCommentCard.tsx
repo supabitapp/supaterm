@@ -153,6 +153,7 @@ export const ReviewCommentCard = memo(function ReviewCommentCard(props: {
           <Text
             className="font-mono text-xs"
             numberOfLines={1}
+            ellipsizeMode="middle"
             style={{ color: props.colors.text }}
           >
             {props.comment.filePath}

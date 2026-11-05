@@ -133,7 +133,6 @@ type ArchivedThreadListItem =
   | {
       readonly kind: "thread";
       readonly key: string;
-      readonly environmentLabel: string | null;
       readonly isFirst: boolean;
       readonly isLast: boolean;
       readonly thread: EnvironmentThreadShell;
@@ -177,7 +176,6 @@ function ProjectGroupLabel(props: {
 }
 
 function ArchivedThreadRow(props: {
-  readonly environmentLabel: string | null;
   readonly isFirst: boolean;
   readonly isLast: boolean;
   readonly onDelete: () => void;
@@ -192,9 +190,6 @@ function ArchivedThreadRow(props: {
   const canOperateThread = useEnvironmentScope(
     props.thread.environmentId,
     AuthOrchestrationOperateScope,
-  );
-  const subtitle = [props.environmentLabel, props.thread.branch].filter((part): part is string =>
-    Boolean(part),
   );
   const rowContent = (
     <View
@@ -221,7 +216,7 @@ function ArchivedThreadRow(props: {
             <RelativeTime timestamp={props.thread.archivedAt ?? props.thread.updatedAt} />
           </Text>
         </View>
-        {subtitle.length > 0 ? (
+        {props.thread.branch ? (
           <View className="flex-row items-center gap-1.5">
             <SymbolView
               name="arrow.triangle.branch"
@@ -232,8 +227,9 @@ function ArchivedThreadRow(props: {
             <Text
               className="min-w-0 flex-1 font-mono text-2xs text-foreground-tertiary"
               numberOfLines={1}
+              ellipsizeMode="middle"
             >
-              {subtitle.join(" · ")}
+              {props.thread.branch}
             </Text>
           </View>
         ) : null}
@@ -331,7 +327,6 @@ export function ArchivedThreadsScreen(props: {
         items.push({
           kind: "thread",
           key: `${thread.environmentId}:${thread.id}`,
-          environmentLabel,
           isFirst: index === 0,
           isLast: index === group.threads.length - 1,
           thread,
@@ -368,7 +363,6 @@ export function ArchivedThreadsScreen(props: {
 
     return (
       <ArchivedThreadRow
-        environmentLabel={item.environmentLabel}
         isFirst={item.isFirst}
         isLast={item.isLast}
         onDelete={() => onDeleteThread(item.thread)}
