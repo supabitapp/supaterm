@@ -6,8 +6,9 @@ import type {
   CodexMicroSlotStatus,
   CodexMicroThreadRef,
 } from "@supaterm/contracts";
-import { useEffect, useState, useSyncExternalStore } from "react";
+import { useSyncExternalStore } from "react";
 
+import { useDesktopDeviceState } from "../../hooks/useDesktopDeviceState";
 import { getCodexMicroBridge } from "./codexMicroBridge";
 
 export interface CodexMicroSlotView {
@@ -61,27 +62,5 @@ export function useCodexMicroPressedInput(): CodexMicroPressedInput | null {
 }
 
 export function useCodexMicroDeviceState(): CodexMicroDeviceState | null {
-  const [state, setState] = useState<CodexMicroDeviceState | null>(null);
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- subscribes to the Codex Micro bridge's device state and reads its current state once
-  useEffect(() => {
-    const bridge = getCodexMicroBridge();
-    if (bridge === null) return;
-    let current = true;
-    let pushed = false;
-    const unsubscribe = bridge.onStateChange((next) => {
-      pushed = true;
-      if (current) setState(next);
-    });
-    void bridge.getState().then(
-      (next) => {
-        if (current && !pushed) setState(next);
-      },
-      () => undefined,
-    );
-    return () => {
-      current = false;
-      unsubscribe();
-    };
-  }, []);
-  return state;
+  return useDesktopDeviceState(getCodexMicroBridge());
 }

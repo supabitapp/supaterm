@@ -9,6 +9,7 @@ import * as Schema from "effect/Schema";
 
 import * as ElectronWindow from "../electron/ElectronWindow.ts";
 import * as DesktopIpc from "../ipc/DesktopIpc.ts";
+import * as MainWindowOwner from "../ipc/MainWindowOwner.ts";
 import * as DesktopWindow from "../window/DesktopWindow.ts";
 import * as CodexMicro from "./CodexMicro.ts";
 import * as IpcChannels from "./CodexMicroChannels.ts";
@@ -60,39 +61,14 @@ export const getState = DesktopIpc.makeIpcMethod({
 
 export const makeSetLighting = Effect.gen(function* () {
   const codexMicro = yield* CodexMicro.CodexMicro;
-  const electronWindow = yield* ElectronWindow.ElectronWindow;
-  const runFork = Effect.runForkWith(yield* Effect.context<never>());
-  let owner: Electron.WebContents | undefined;
-  let removeOwnerListeners = () => {};
-  yield* Effect.addFinalizer(() => Effect.sync(() => removeOwnerListeners()));
+  const admit = yield* MainWindowOwner.make(codexMicro.clearVoiceActivity);
 
   return DesktopIpc.makeIpcMethod({
     channel: IpcChannels.CODEX_MICRO_SET_LIGHTING_CHANNEL,
     payload: CodexMicroLightingModel,
     result: Schema.Void,
     handler: Effect.fn("desktop.ipc.codexMicro.setLighting")(function* (model, event) {
-      const main = yield* electronWindow.main;
-      if (
-        event === undefined ||
-        Option.isNone(main) ||
-        main.value.webContents.id !== event.sender.id
-      )
-        return;
-      if (owner !== main.value.webContents) {
-        removeOwnerListeners();
-        const contents = main.value.webContents;
-        owner = contents;
-        const clearVoice = () => {
-          runFork(codexMicro.clearVoiceActivity);
-        };
-        contents.on("destroyed", clearVoice);
-        contents.on("render-process-gone", clearVoice);
-        removeOwnerListeners = () => {
-          contents.removeListener("destroyed", clearVoice);
-          contents.removeListener("render-process-gone", clearVoice);
-        };
-      }
-      yield* codexMicro.setLighting(model);
+      if (yield* admit(event)) yield* codexMicro.setLighting(model);
     }),
   });
 });

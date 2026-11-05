@@ -4,8 +4,8 @@ import type {
   SidePulseLedState,
   SidePulseSettings as SidePulseSettingsValue,
 } from "@supaterm/contracts";
-import { useEffect, useState } from "react";
 
+import { useDesktopDeviceState } from "../../../hooks/useDesktopDeviceState";
 import { updateClientSettings, useClientSettings } from "../../../hooks/useSettings";
 import { cn } from "../../../lib/utils";
 import { Switch } from "../../ui/switch";
@@ -60,30 +60,6 @@ function updateSidePulseSettings(patch: Partial<SidePulseSettingsValue>) {
   return updateClientSettings((current) => ({ sidePulse: { ...current.sidePulse, ...patch } }));
 }
 
-function useSidePulseDeviceState(bridge: DesktopSidePulseBridge): SidePulseDeviceState | null {
-  const [state, setState] = useState<SidePulseDeviceState | null>(null);
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- subscribes to the SidePulse bridge's device state and reads its current state once
-  useEffect(() => {
-    let current = true;
-    let pushed = false;
-    const unsubscribe = bridge.onStateChange((next) => {
-      pushed = true;
-      if (current) setState(next);
-    });
-    void bridge.getState().then(
-      (next) => {
-        if (current && !pushed) setState(next);
-      },
-      () => undefined,
-    );
-    return () => {
-      current = false;
-      unsubscribe();
-    };
-  }, [bridge]);
-  return state;
-}
-
 function connectionSummary(
   enabled: boolean,
   state: SidePulseDeviceState | null,
@@ -125,7 +101,7 @@ export function SidePulseSettings() {
 
 function SidePulseSettingsPage({ bridge }: { readonly bridge: DesktopSidePulseBridge }) {
   const settings = useClientSettings((current) => current.sidePulse);
-  const state = useSidePulseDeviceState(bridge);
+  const state = useDesktopDeviceState(bridge);
   const summary = connectionSummary(settings.enabled, state);
   const devices = settings.enabled && state?.enabled ? state.devices : [];
   const showing = devices.length > 0 ? (state?.ledState ?? null) : null;
