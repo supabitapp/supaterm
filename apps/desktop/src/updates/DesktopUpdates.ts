@@ -796,7 +796,7 @@ export const make = Effect.gen(function* () {
               },
             ),
           }),
-          Effect.onInterrupt(() => resetInstallAction),
+          Effect.onInterrupt(() => resetInstallAction.pipe(Effect.andThen(codexMicro.resume))),
           Effect.catchCause((cause) =>
             Effect.gen(function* () {
               if (Cause.hasInterruptsOnly(cause)) {

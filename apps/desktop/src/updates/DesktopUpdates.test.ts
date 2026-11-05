@@ -481,6 +481,31 @@ describe("DesktopUpdates", () => {
     ).pipe(Effect.provide(Layer.merge(TestClock.layer(), harness.layer)));
   });
 
+  it.effect("resumes the keyboard when an install is interrupted", () => {
+    const quitStarted = Deferred.makeUnsafe<void>();
+    const harness = makeHarness({
+      quitAndInstall: Deferred.succeed(quitStarted, undefined).pipe(Effect.andThen(Effect.never)),
+    });
+
+    return Effect.scoped(
+      Effect.gen(function* () {
+        const updates = yield* DesktopUpdates.DesktopUpdates;
+        yield* updates.configure;
+        harness.emit("update-downloaded", { version: "1.2.4" });
+        yield* flushCallbacks;
+
+        const install = yield* updates.install.pipe(Effect.forkChild);
+        yield* Deferred.await(quitStarted);
+        yield* Fiber.interrupt(install);
+        assert.deepEqual(harness.installSteps, [
+          "pauseCodexMicro",
+          "quitAndInstall",
+          "resumeCodexMicro",
+        ]);
+      }),
+    ).pipe(Effect.provide(Layer.merge(TestClock.layer(), harness.layer)));
+  });
+
   it.effect("keeps the disabled primary stopped when quitAndInstall fails", () => {
     const harness = makeHarness({
       backendDesiredRunning: false,
