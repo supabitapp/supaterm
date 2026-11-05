@@ -4,7 +4,7 @@ import { isLiveSubagentTurnItem } from "@supaterm/client-runtime/state/subagentR
 import * as DateTime from "effect/DateTime";
 import * as Equal from "effect/Equal";
 import {
-  assistantCitationMessageText,
+  assistantCitationExcerpt,
   collectAssistantCitations,
 } from "@supaterm/shared/assistantCitations";
 import { shallow } from "zustand/vanilla/shallow";
@@ -2544,8 +2544,11 @@ function visibleUserMessageText(text: string): string {
   let visible = "";
   let cursor = 0;
   for (const match of collectAssistantCitations(text)) {
+    const comment = match.citation.comment?.trim();
+    const excerpt = assistantCitationExcerpt(match.citation);
     visible +=
-      linkLabels(text.slice(cursor, match.start)) + assistantCitationMessageText(match.citation);
+      linkLabels(text.slice(cursor, match.start)) +
+      (comment ? `\n${excerpt}\n${comment}\n` : excerpt);
     cursor = match.end;
   }
   return visible + linkLabels(text.slice(cursor));

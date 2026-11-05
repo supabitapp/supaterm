@@ -5573,7 +5573,7 @@ describe("subagent continued by a later turn", () => {
 });
 
 describe("shouldCollapseUserMessage", () => {
-  it("measures a quote chip by its label, not its encoded link", () => {
+  it("measures a quote by its rendered lines, not its encoded link", () => {
     const quote = "A long assistant paragraph that the user quoted. ".repeat(40);
     const citation = serializeAssistantCitation({
       version: 1,
@@ -5590,5 +5590,6 @@ describe("shouldCollapseUserMessage", () => {
 
     expect(shouldCollapseUserMessage(`${citation} Can you expand on this?`)).toBe(false);
     expect(shouldCollapseUserMessage(`${citation} ${"More text. ".repeat(60)}`)).toBe(true);
+    expect(shouldCollapseUserMessage(Array(5).fill(citation).join(" "))).toBe(true);
   });
 });

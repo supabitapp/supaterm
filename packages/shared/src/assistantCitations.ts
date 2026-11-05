@@ -109,7 +109,7 @@ export function assistantCitationExcerpt(citation: AssistantCitation): string {
   return citationPreview(citation.text);
 }
 
-export function assistantCitationMessageText(citation: AssistantCitation): string {
+export function assistantCitationSearchText(citation: AssistantCitation): string {
   return assistantCitationExcerpt(citation) + (citation.comment?.trim() ?? "");
 }
 
