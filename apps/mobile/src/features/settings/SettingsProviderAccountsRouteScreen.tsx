@@ -31,6 +31,8 @@ import {
 } from "./components/SettingsEnvironmentFilterHeader";
 import { SettingsScreen } from "./components/SettingsScreen";
 import { SettingsSection } from "./components/SettingsSection";
+import { AddClaudeAccount, ClaudeAccount } from "./ClaudeAccounts";
+import { CLAUDE_DRIVER } from "./claude-accounts";
 import { useSettingsEnvironmentFilter, type SettingsTarget } from "./settings-environment-filter";
 const TERMINAL_CONTROL_SEQUENCE = new RegExp(
   `${String.fromCharCode(0x1b)}\\[[0-?]*[ -/]*[@-~]`,
@@ -62,56 +64,78 @@ export function SettingsProviderAccountsRouteScreen() {
               Select a connected environment with the filter above.
             </Text>
           ) : (
-            selectedTargets.map((environment) => {
-              const providers = (
-                providersByEnvironment.get(environment.environmentId) ?? []
-              ).filter(
-                (provider) =>
-                  provider.setup?.canAuthenticate ||
-                  (provider.driver === "acpRegistry" && provider.installed),
-              );
-              return (
-                <SettingsSection key={environment.environmentId} title={environment.label}>
-                  {!permittedEnvironments.has(environment.environmentId) ? (
-                    <View className="gap-1 p-4">
-                      <Text className="text-base font-supaterm-medium text-foreground">
-                        Limited permissions
-                      </Text>
-                      <Text className="text-sm text-foreground-muted">
-                        {`This session can view ${environment.label}'s providers but can't change their settings.`}
-                      </Text>
-                    </View>
-                  ) : (
-                    <>
-                      {providers.map((provider, index) => (
-                        <ProviderAccount
-                          key={provider.instanceId}
-                          environment={environment}
-                          provider={provider}
-                          isLast={index === providers.length - 1}
-                        />
-                      ))}
-                      {providers.length === 0 ? (
-                        <View className="gap-1 p-4">
-                          <Text className="text-base font-supaterm-medium text-foreground">
-                            No accounts to connect
-                          </Text>
-                          <Text className="text-sm text-foreground-muted">
-                            Add a provider in web or desktop Settings → Providers.
-                          </Text>
-                        </View>
-                      ) : null}
-                    </>
-                  )}
-                </SettingsSection>
-              );
-            })
+            selectedTargets.map((environment) => (
+              <SettingsSection key={environment.environmentId} title={environment.label}>
+                {!permittedEnvironments.has(environment.environmentId) ? (
+                  <View className="gap-1 p-4">
+                    <Text className="text-base font-supaterm-medium text-foreground">
+                      Limited permissions
+                    </Text>
+                    <Text className="text-sm text-foreground-muted">
+                      {`This session can view ${environment.label}'s providers but can't change their settings.`}
+                    </Text>
+                  </View>
+                ) : (
+                  <EnvironmentProviders
+                    environment={environment}
+                    providers={providersByEnvironment.get(environment.environmentId) ?? []}
+                  />
+                )}
+              </SettingsSection>
+            ))
           )}
         </ScreenScrollView>
       </SettingsScreen>
     </>
   );
 }
+function canManageProvider(provider: ServerProvider) {
+  return (
+    provider.setup?.canAuthenticate === true ||
+    (provider.driver === "acpRegistry" && provider.installed)
+  );
+}
+
+function EnvironmentProviders({
+  environment,
+  providers,
+}: {
+  readonly environment: SettingsTarget;
+  readonly providers: ReadonlyArray<ServerProvider>;
+}) {
+  const accounts = providers.filter(canManageProvider);
+  // Claude has no in-app sign-in; each account is its own instance on a signed-in config folder.
+  const claudeAccounts = providers.filter(
+    (provider) => provider.driver === CLAUDE_DRIVER && !canManageProvider(provider),
+  );
+  return (
+    <>
+      {accounts.map((provider, index) => (
+        <ProviderAccount
+          key={provider.instanceId}
+          environment={environment}
+          provider={provider}
+          isLast={index === accounts.length - 1}
+        />
+      ))}
+      {accounts.length === 0 ? (
+        <View className="gap-1 p-4">
+          <Text className="text-base font-supaterm-medium text-foreground">
+            No accounts to connect
+          </Text>
+          <Text className="text-sm text-foreground-muted">
+            Add a provider in web or desktop Settings → Providers.
+          </Text>
+        </View>
+      ) : null}
+      {claudeAccounts.map((provider) => (
+        <ClaudeAccount key={provider.instanceId} environment={environment} provider={provider} />
+      ))}
+      <AddClaudeAccount environment={environment} />
+    </>
+  );
+}
+
 function ProviderAccount({
   environment,
   provider,
