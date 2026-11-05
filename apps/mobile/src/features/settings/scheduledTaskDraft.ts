@@ -1,3 +1,4 @@
+import { scheduledTaskThreadMode } from "@supaterm/contracts";
 import type {
   ModelSelection,
   ServerConfig,
@@ -5,6 +6,7 @@ import type {
   RuntimeMode,
   ScheduledTask,
   ScheduledTaskSchedule,
+  ScheduledTaskThreadMode,
 } from "@supaterm/contracts";
 
 import { DEFAULT_SERVER_SETTINGS } from "@supaterm/contracts";
@@ -117,6 +119,7 @@ export type ScheduledTaskDraft = {
   readonly modelSelection: ModelSelection | null;
   readonly modelSelectionIsExplicit: boolean;
   readonly schedule: ScheduleDraft;
+  readonly threadMode: ScheduledTaskThreadMode;
   readonly workspace: Workspace;
   readonly baseRef: string;
   readonly checkoutPath: string;
@@ -140,6 +143,7 @@ function draftSignature(draft: ScheduledTaskDraft): string {
     draft.schedule.runAt,
     [...draft.schedule.weekdays].sort((a, b) => a - b),
     draft.schedule.intervalMinutes,
+    draft.threadMode,
     draft.workspace,
     draft.baseRef,
     draft.checkoutPath,
@@ -168,6 +172,7 @@ export function createDraft(
     modelSelection,
     modelSelectionIsExplicit: false,
     schedule: DEFAULT_SCHEDULE,
+    threadMode: "new_thread",
     workspace: "worktree",
     baseRef: "main",
     checkoutPath: "",
@@ -186,6 +191,7 @@ export function editDraft(task: ScheduledTask): ScheduledTaskDraft {
     modelSelection: task.modelSelection,
     modelSelectionIsExplicit: true,
     schedule: scheduleDraftForTask(task),
+    threadMode: scheduledTaskThreadMode(task),
     workspace: task.workspaceStrategy.type,
     baseRef: task.workspaceStrategy.type === "worktree" ? task.workspaceStrategy.baseRef : "main",
     checkoutPath:

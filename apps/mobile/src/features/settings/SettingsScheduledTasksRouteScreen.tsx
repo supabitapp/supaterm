@@ -9,6 +9,7 @@ import type {
   EnvironmentId,
   ProjectId,
   ScheduledTask,
+  ScheduledTaskThreadMode,
   ScheduledTaskUpsertInput,
 } from "@supaterm/contracts";
 import { resolveEnvironmentMachineKind } from "@supaterm/contracts";
@@ -91,6 +92,12 @@ const DAYS = [
   { index: 6, label: "Sat" },
   { index: 0, label: "Sun" },
 ] as const;
+
+const THREAD_MODE_LABELS: Record<ScheduledTaskThreadMode, string> = {
+  new_thread: "New thread each run",
+  continue: "One thread, same conversation",
+  fresh_session: "One thread, fresh session",
+};
 
 function describeSchedule(task: ScheduledTask): string {
   if (task.schedule.type === "once") {
@@ -622,6 +629,7 @@ function TaskForm({
   const offersOnce =
     config?.environment.capabilities.oneTimeSchedules === true ||
     draft.task?.schedule.type === "once";
+  const offersThreadModes = config?.environment.capabilities.scheduledTaskThreadModes === true;
   const save = async () => {
     if (
       !readEnvironmentScope(environmentId, AuthOrchestrationOperateScope) ||
@@ -667,6 +675,7 @@ function TaskForm({
       schedule,
       enabled: draft.enabled,
       threadId: draft.task?.threadId ?? null,
+      ...(offersThreadModes ? { threadMode: draft.threadMode } : {}),
       workspaceStrategy:
         draft.workspace === "root"
           ? { type: "root" }
@@ -801,6 +810,37 @@ function TaskForm({
             disabled={saving || dictationPending || environmentUnavailable}
           />
         </SettingsSection>
+
+        {offersThreadModes ? (
+          <SettingsSection
+            title="Destination"
+            footer={
+              draft.threadMode === "new_thread"
+                ? "Each run starts a new thread."
+                : `${
+                    draft.threadMode === "continue"
+                      ? "Runs continue one conversation."
+                      : "Runs share one thread, each in a fresh session without earlier runs' context."
+                  } The first run starts the thread. Deleting it also deletes this task.`
+            }
+          >
+            <SelectRow
+              label="Runs go to"
+              value={THREAD_MODE_LABELS[draft.threadMode]}
+              actions={(Object.keys(THREAD_MODE_LABELS) as ScheduledTaskThreadMode[]).map(
+                (mode) => ({
+                  id: mode,
+                  title: THREAD_MODE_LABELS[mode],
+                  state: draft.threadMode === mode ? "on" : undefined,
+                }),
+              )}
+              onSelect={(id) => {
+                if (id === "new_thread" || id === "continue" || id === "fresh_session")
+                  setDraft({ ...draft, threadMode: id });
+              }}
+            />
+          </SettingsSection>
+        ) : null}
 
         <SettingsSection title="Workspace">
           <SelectRow
