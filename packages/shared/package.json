@@ -215,6 +215,10 @@
       "types": "./src/keybindings.ts",
       "import": "./src/keybindings.ts"
     },
+    "./sidePulsePrograms": {
+      "types": "./src/sidePulsePrograms.ts",
+      "import": "./src/sidePulsePrograms.ts"
+    },
     "./threadTranscript": {
       "types": "./src/threadTranscript.ts",
       "import": "./src/threadTranscript.ts"

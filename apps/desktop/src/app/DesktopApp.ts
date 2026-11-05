@@ -13,6 +13,7 @@ import * as ElectronProtocol from "../electron/ElectronProtocol.ts";
 import * as ElectronSafeStorage from "../electron/ElectronSafeStorage.ts";
 import { installDesktopIpcHandlers } from "../ipc/DesktopIpcHandlers.ts";
 import * as CodexMicroDesktop from "../codexMicro/CodexMicroDesktop.ts";
+import * as SidePulseIpc from "../sidePulse/SidePulseIpc.ts";
 import * as DesktopAppActivation from "./DesktopAppActivation.ts";
 import * as DesktopAppIdentity from "./DesktopAppIdentity.ts";
 import * as PreviewPasskeys from "../preview/Passkeys.ts";
@@ -180,6 +181,7 @@ const bootstrap = Effect.gen(function* () {
   yield* installDesktopIpcHandlers();
   // Its preload bridge asks main synchronously, so this registers with the other IPC handlers.
   yield* CodexMicroDesktop.install;
+  yield* SidePulseIpc.install;
   yield* logBootstrapInfo("bootstrap ipc handlers registered");
 
   yield* snapShot.initialize;

@@ -221,6 +221,8 @@ html[data-mobile-composer-route-transition="true"]::view-transition-new(supaterm
   --color-warning-foreground: var(--warning-foreground);
   --color-warning: var(--warning);
   --color-fast-mode: var(--color-yellow-500);
+  /* A hardware LED face stays dark in every theme, so its colors read as the device shows them. */
+  --color-led-panel: var(--color-neutral-950);
   --color-warning-surface: var(--warning-surface);
   --color-error-foreground: var(--error-foreground);
   --color-tool-error-icon: var(--tool-error-icon);

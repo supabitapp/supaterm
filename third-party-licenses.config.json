@@ -8,6 +8,13 @@
       "noticeFile": "apps/web/src/components/files/office/LICENSE.opencode"
     },
     {
+      "name": "SidePulse LED engine (sdled.wasm)",
+      "bundles": ["web"],
+      "license": "MIT",
+      "sourceUrl": "https://github.com/inteliwear/sidepulse/blob/e4146395e94181e8dc4ad190ed7444fbf1da9cfd/src/sidepulse/resources/sdled.wasm",
+      "noticeFile": "apps/web/src/components/sidePulse/vendor/LICENSE"
+    },
+    {
       "bundles": ["assets", "desktop", "web", "mobile"],
       "license": "MIT",
       "name": "Catppuccin themes",
