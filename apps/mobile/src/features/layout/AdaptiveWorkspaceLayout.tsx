@@ -55,6 +55,7 @@ import {
   nativeInspectorColumnWidth,
 } from "../../lib/layout";
 import type { ThreadListFilters } from "../../persistence/mobile-preferences";
+import { withKnownPullRequestSummary } from "../../state/use-thread-pr";
 import { mobilePreferencesAtom } from "../../state/preferences";
 import {
   DEFAULT_MOBILE_PROJECT_GROUPING_SETTINGS,
@@ -586,6 +587,7 @@ function AdaptiveWorkspaceLayoutContent(
         columns: workspaceTabColumns(Platform.OS, tab, options?.columns ?? layout.usesSplitView),
         check: workspaceSelectionCheck,
         overlays,
+        seedPullRequest: withKnownPullRequestSummary,
       },
     );
     if (layout.variant === "medium") {
