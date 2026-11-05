@@ -54,13 +54,13 @@ export function WorktreeSetupCard({
 }: WorktreeSetupCardProps & { exiting: boolean; onExited: () => void }) {
   const reduceMotion = useReduceMotion();
   const height = useSharedValue(0);
-  const presence = useSharedValue(1);
+  const progress = useSharedValue(1);
   const collapseStyle = useAnimatedStyle(() => {
-    const progress = presence.get();
-    return progress < 1 ? { height: height.get() * progress, opacity: progress } : {};
+    const remaining = progress.get();
+    return remaining < 1 ? { height: height.get() * remaining, opacity: remaining } : {};
   });
   const startExit = useEffectEvent(() => {
-    presence.set(
+    progress.set(
       withTiming(0, { ...EXIT_TIMING, reduceMotion }, (finished) => {
         if (finished) scheduleOnRN(onExited);
       }),
