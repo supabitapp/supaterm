@@ -33,16 +33,6 @@ export function isThreadWorking(thread: WorkingThreadInput): boolean {
   return !(thread.interactionMode === "plan" && thread.hasActionableProposedPlan && runSettled);
 }
 
-// Held work parks the runtime at idle, so a completed run with a roster has
-// only work the agent did not mark, such as tests or a dev server.
-export function isThreadRunningBackgroundWork(
-  thread: Pick<EnvironmentThreadShell, "runtime"> & {
-    readonly pendingBackgroundTasks?: EnvironmentThreadShell["pendingBackgroundTasks"] | undefined;
-  },
-): boolean {
-  return thread.runtime?.status === "completed" && (thread.pendingBackgroundTasks?.length ?? 0) > 0;
-}
-
 type InboxThreadInput = Pick<
   EnvironmentThreadShell,
   "id" | "environmentId" | "createdAt" | "reopenedAt" | "latestRun"

@@ -173,9 +173,7 @@ In Default grouping, threads that are working or waiting on work they will resum
 collapsed **Working** section. That includes subagents, watched pull requests, and background
 commands or monitors the agent says it is waiting on. A dev server or other process an agent leaves
 running does not keep a thread there. A thread returns to the top of the active list when it
-finishes, fails, or needs an approval or answer. If a command or monitor the agent started is still
-running when its turn ends, the thread shows **Waiting** in the active list until that work ends,
-and its completion notification waits for that or for 10 minutes, whichever comes first.
+finishes, fails, or needs an approval or answer.
 The Working section lists the thread you last sent work to first. Pinned threads stay in the
 pinned section.
 
@@ -203,9 +201,9 @@ mark every thread in that section between it and the one you release on as Done.
 The **Reopen** and **Wake** buttons work the same way in their sections.
 Press `Escape` while dragging to cancel.
 
-By default, environments mark inactive threads as Done after three days. Merged pull requests
-mark their linked threads as Done when **Automatically mark merged threads as Done** is enabled. A closed pull request
-can also mark an idle thread as Done. An empty thread's inactivity counts from when it was created.
+By default, environments mark inactive threads as Done after three days and mark threads whose
+pull request merged as Done. Turn off **Automatically mark merged threads as Done** to keep merged
+threads in the active list. A closed pull request can also mark an idle thread as Done. An empty thread's inactivity counts from when it was created.
 Pins, work in progress, pending questions or approvals, and background work the agent is
 waiting on prevent automatic completion. An open pull request does not prevent inactivity
 completion unless you turn on **Keep threads with an open PR**, but an old closed or merged pull request does not mark work as Done if you

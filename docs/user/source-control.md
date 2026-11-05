@@ -311,7 +311,7 @@ Long-press a linked review there to copy it, open it in the browser, watch it, o
 The **Linked pull requests** panel lists every review and groups stacks. Unlink a review from its
 row menu. An unlinked stack layer stays out of later syncs. Open linked reviews refresh on the server;
 closed reviews refresh periodically so reopening one on the host is detected. Merged reviews refresh
-when requested. A Done thread's reviews stop refreshing until you reopen it. With **Automatically mark merged threads as Done** enabled, a thread can be marked Done after every linked
+when requested. A Done thread's reviews stop refreshing until you reopen it. While **Automatically mark merged threads as Done** is on, which is the default, a thread can be marked Done after every linked
 review is terminal. An open or unsynced link keeps it active.
 
 Ask the agent to watch, monitor, or babysit a pull request and it calls `watch_pull_request`. While

@@ -579,7 +579,7 @@ it.layer(NodeServices.layer)("server settings", (it) => {
 
         const next = yield* serverSettings.updateSettings({
           sidebarAutoMarkDoneAfterDays: null,
-          sidebarAutoMarkDoneOnMerge: false,
+          sidebarAutoMarkDoneOnMerge: true,
         });
         const change = Option.getOrUndefined(yield* Stream.runHead(changes));
         const raw = yield* fileSystem.readFileString(serverConfig.settingsPath);
@@ -587,17 +587,17 @@ it.layer(NodeServices.layer)("server settings", (it) => {
         const persisted = JSON.parse(raw) as Record<string, unknown>;
 
         assert.strictEqual(next.sidebarAutoMarkDoneAfterDays, null);
-        assert.isFalse(next.sidebarAutoMarkDoneOnMerge);
+        assert.isTrue(next.sidebarAutoMarkDoneOnMerge);
         assert.strictEqual(change?.sidebarAutoMarkDoneAfterDays, null);
-        assert.isFalse(change?.sidebarAutoMarkDoneOnMerge);
+        assert.isTrue(change?.sidebarAutoMarkDoneOnMerge);
         assert.strictEqual(persisted.sidebarAutoMarkDoneAfterDays, null);
         assert.isUndefined(persisted.sidebarAutoMarkDoneOnMerge);
 
-        yield* serverSettings.updateSettings({ sidebarAutoMarkDoneOnMerge: true });
-        const enabledPersisted = JSON.parse(
+        yield* serverSettings.updateSettings({ sidebarAutoMarkDoneOnMerge: false });
+        const disabledPersisted = JSON.parse(
           yield* fileSystem.readFileString(serverConfig.settingsPath),
         ) as Record<string, unknown>;
-        assert.isTrue(enabledPersisted.sidebarAutoMarkDoneOnMerge);
+        assert.isFalse(disabledPersisted.sidebarAutoMarkDoneOnMerge);
       }),
     ).pipe(Effect.provide(layerServerSettings())),
   );

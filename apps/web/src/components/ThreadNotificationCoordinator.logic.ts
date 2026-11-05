@@ -2,10 +2,6 @@ import { WORKING_EXIT_GRACE_MS } from "@supaterm/client-runtime/state/thread-inb
 
 export type ThreadNotificationKind = "input" | "completion";
 
-// A dev server never ends, so work the agent left running holds a completion
-// at most this long after its run ends.
-export const BACKGROUND_WORK_COMPLETION_DELAY_MS = 10 * 60_000;
-
 export interface ThreadNotificationObservation {
   /** Run and status key while the thread needs attention, otherwise null. */
   readonly attention: string | null;
@@ -13,8 +9,6 @@ export interface ThreadNotificationObservation {
   readonly settled: boolean;
   /** When the latest run completed, if it did. */
   readonly completedAt: number | null;
-  /** Background work the agent did not mark as awaited is still running. */
-  readonly backgroundWorkRunning: boolean;
 }
 
 /**
@@ -25,10 +19,7 @@ export interface ThreadNotificationObservation {
 export function createThreadNotificationGate<Key>(
   notify: (key: Key, kind: ThreadNotificationKind) => void,
 ) {
-  const pending = new Map<
-    Key,
-    { at: number; held: boolean; timer: ReturnType<typeof setTimeout> }
-  >();
+  const pending = new Map<Key, { at: number; timer: ReturnType<typeof setTimeout> }>();
   // The newest completion already notified, or deliberately skipped.
   const handled = new Map<Key, number>();
   // The newest completion seen settled, kept while the thread works or waits.
@@ -61,23 +52,15 @@ export function createThreadNotificationGate<Key>(
       }
       const at = next.completedAt;
       if (!next.settled || at === null || at <= (handled.get(key) ?? -Infinity)) return;
-      const held = next.backgroundWorkRunning;
-      const scheduled = pending.get(key);
-      if (scheduled?.at === at && scheduled.held === held) return;
+      if (pending.get(key)?.at === at) return;
       cancel(key);
       pending.set(key, {
         at,
-        held,
-        timer: setTimeout(
-          () => {
-            pending.delete(key);
-            handled.set(key, at);
-            notify(key, "completion");
-          },
-          held
-            ? Math.max(0, at + BACKGROUND_WORK_COMPLETION_DELAY_MS - Date.now())
-            : WORKING_EXIT_GRACE_MS,
-        ),
+        timer: setTimeout(() => {
+          pending.delete(key);
+          handled.set(key, at);
+          notify(key, "completion");
+        }, WORKING_EXIT_GRACE_MS),
       });
     },
     /** Forgets threads that left the snapshot. */

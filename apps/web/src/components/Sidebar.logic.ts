@@ -1,12 +1,10 @@
 import type { ThreadId, EnvironmentId } from "@supaterm/contracts";
 import { scopeThreadRef, scopedThreadKey } from "@supaterm/client-runtime/environment";
-import { isThreadRunningBackgroundWork } from "@supaterm/client-runtime/state/thread-inbox";
 import { backgroundWorkHoldsCompletion } from "@supaterm/shared/orchestrationV2PendingBackgroundWork";
 import { threadPullRequestSearchTerms } from "@supaterm/shared/threadPullRequests";
 import * as React from "react";
 import { defaultAnimateLayoutChanges, type AnimateLayoutChanges } from "@dnd-kit/sortable";
 import { isListedThreadLineage, type ContextMenuItem } from "@supaterm/contracts";
-import type { EnvironmentConnectionPhase } from "@supaterm/client-runtime/connection";
 import type { SidebarProjectSortOrder, SidebarThreadSortOrder } from "@supaterm/contracts/settings";
 import {
   effectiveSnoozed,
@@ -174,24 +172,6 @@ export function resolveSidebarThreadSection(input: {
   if (input.done) return "done";
   if (input.pinned) return "pinned";
   return "active";
-}
-
-// Keep cached placement on the first connection attempt, matching mobile's threadRouteIsHydrating.
-export function isSidebarEnvironmentDisconnected(
-  phase: EnvironmentConnectionPhase,
-  shellIsLive: boolean,
-): boolean {
-  return phase !== "connecting" && (phase !== "connected" || !shellIsLive);
-}
-
-export function belongsInSidebarWorkingShelf<T extends { readonly environmentId: EnvironmentId }>(
-  thread: T,
-  input: {
-    readonly disconnectedEnvironmentIds: ReadonlySet<EnvironmentId>;
-    readonly isWorking: (thread: T) => boolean;
-  },
-): boolean {
-  return !input.disconnectedEnvironmentIds.has(thread.environmentId) && input.isWorking(thread);
 }
 
 const SIDEBAR_MARKER_PREFIX = "sidebar-marker-";
@@ -795,8 +775,7 @@ type SidebarThreadStatusInput = Pick<
   | "pendingSubagentRequest"
   | "runtime"
   | "blockedOnThreadWait"
-> &
-  Partial<Pick<SidebarThreadSummary, "pendingBackgroundTasks">>;
+>;
 
 export function resolveSidebarThreadStatus(thread: SidebarThreadStatusInput): SidebarThreadStatus {
   if (thread.hasPendingApprovals || thread.pendingSubagentRequest === "approval") {
@@ -814,7 +793,7 @@ export function resolveSidebarThreadStatus(thread: SidebarThreadStatusInput): Si
   ) {
     return "working";
   }
-  if (thread.runtime?.status === "idle" || isThreadRunningBackgroundWork(thread)) {
+  if (thread.runtime?.status === "idle") {
     return "waiting";
   }
   if (thread.runtime?.status === "failed") {
@@ -956,8 +935,7 @@ export function resolveThreadStatusPill(input: {
 
   if (
     (thread.runtime?.status === "running" && thread.blockedOnThreadWait === true) ||
-    backgroundWorkHoldsCompletion(thread.pendingBackgroundTasks ?? []) ||
-    isThreadRunningBackgroundWork(thread)
+    backgroundWorkHoldsCompletion(thread.pendingBackgroundTasks ?? [])
   ) {
     return {
       label: "Waiting",
