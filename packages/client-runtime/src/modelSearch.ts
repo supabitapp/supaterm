@@ -1,6 +1,6 @@
 import { normalizeSearchQuery, scoreQueryMatch } from "@supaterm/shared/searchRanking";
 
-type ModelPickerSearchableModel = {
+export type ModelPickerSearchableModel = {
   driverKind: string;
   providerDisplayName: string;
   name: string;

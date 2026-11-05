@@ -31,7 +31,7 @@ import {
   parseModelPickerLegacySectionKey,
   parseModelPickerModelKey,
 } from "./modelPickerKeys";
-import { rankModelPickerSearch } from "./modelPickerSearch";
+import { rankModelPickerSearch } from "@supaterm/client-runtime/modelSearch";
 import {
   Combobox,
   ComboboxEmpty,
