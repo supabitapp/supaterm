@@ -76,6 +76,7 @@ import {
   resolveThreadListV2Status,
   resolveThreadListV2ProviderDrivers,
   resolveThreadListV2SwipeActions,
+  layoutThreadListV2RowMenuActions,
 } from "./threadListV2";
 import { QueuedMessageIcon } from "./queued-message-icon";
 import { UnsentDraftIcon } from "./unsent-draft-icon";
@@ -956,20 +957,23 @@ export const ThreadListV2Row = memo(function ThreadListV2Row(props: {
     ],
     [snoozePresets],
   );
-  const arrangementMenuItems = useMemo<MenuAction[]>(
-    () => [
-      ...(props.arrangeSupported === true
+  const reorderMenuItems = useMemo<MenuAction[]>(
+    () =>
+      props.arrangeSupported === true
         ? [{ id: "arrange", title: "Arrange threads…", image: "line.3.horizontal" }]
-        : []),
-      ...(props.pinningSupported
+        : [],
+    [props.arrangeSupported],
+  );
+  const pinMenuItems = useMemo<MenuAction[]>(
+    () =>
+      props.pinningSupported
         ? [
             thread.pinnedAt != null
               ? { id: "unpin", title: "Unpin", image: "pin.slash" }
               : { id: "pin", title: "Pin", image: "pin" },
           ]
-        : []),
-    ],
-    [props.arrangeSupported, props.pinningSupported, thread.pinnedAt],
+        : [],
+    [props.pinningSupported, thread.pinnedAt],
   );
   const autoMarkDoneMenuItems = useMemo<MenuAction[]>(
     () =>
@@ -1017,67 +1021,92 @@ export const ThreadListV2Row = memo(function ThreadListV2Row(props: {
     ],
     [canTurnIntoProject, props.titleRegenerationSupported, thread.runtime, isRegeneratingTitle],
   );
-  const snoozableCardMenuActions = useMemo<MenuAction[]>(
-    () => [
-      MARK_DONE_MENU_ACTION,
-      {
-        id: "snooze",
-        title: "Snooze",
-        image: "clock",
-        subactions: snoozePresetActions,
-      },
-      ...arrangementMenuItems,
-      ...titleMenuItems,
-      ...autoMarkDoneMenuItems,
-      LEGACY_MENU_ACTIONS[0]!,
-      { id: "delete", title: "Delete", image: "trash", attributes: { destructive: true } },
-    ],
-    [arrangementMenuItems, autoMarkDoneMenuItems, snoozePresetActions, titleMenuItems],
-  );
-  const cardMenuActions = useMemo<MenuAction[]>(
-    () => [
-      CARD_MENU_ACTIONS[0]!,
-      ...arrangementMenuItems,
-      ...titleMenuItems,
-      ...autoMarkDoneMenuItems,
-      LEGACY_MENU_ACTIONS[0]!,
-      ...CARD_MENU_ACTIONS.slice(1),
-    ],
-    [arrangementMenuItems, autoMarkDoneMenuItems, titleMenuItems],
-  );
-  // Done and snoozed rows keep the setting too, matching web where every
-  // row shares one menu builder.
-  const slimMenuActions = useMemo<MenuAction[]>(
-    () => [
-      SLIM_MENU_ACTIONS[0]!,
-      ...arrangementMenuItems,
-      ...titleMenuItems,
-      ...autoMarkDoneMenuItems,
-      LEGACY_MENU_ACTIONS[0]!,
-      SLIM_MENU_ACTIONS[1]!,
-    ],
-    [arrangementMenuItems, autoMarkDoneMenuItems, titleMenuItems],
-  );
-  const snoozedMenuActions = useMemo<MenuAction[]>(
-    () => [
-      SNOOZED_MENU_ACTIONS[0]!,
-      ...(props.markDoneSupported ? [MARK_DONE_MENU_ACTION] : []),
-      ...titleMenuItems,
-      ...autoMarkDoneMenuItems,
-      LEGACY_MENU_ACTIONS[0]!,
-      SNOOZED_MENU_ACTIONS[1]!,
-    ],
-    [autoMarkDoneMenuItems, props.markDoneSupported, titleMenuItems],
-  );
-  const legacyMenuActions = useMemo<MenuAction[]>(
-    () => [
-      LEGACY_MENU_ACTIONS[0]!,
-      ...arrangementMenuItems,
-      ...titleMenuItems,
-      LEGACY_MENU_ACTIONS[1]!,
-    ],
-    [arrangementMenuItems, titleMenuItems],
-  );
+  const menuActions = useMemo<MenuAction[]>(() => {
+    const nested = Platform.OS === "ios";
+    const direct: MenuAction[] = [
+      ...(thread.branch
+        ? [
+            {
+              id: "new-thread-on-branch",
+              title: getThreadListV2NewBranchMenuTitle(thread.branch),
+              image: "square.and.pencil",
+            },
+          ]
+        : []),
+      { id: "copy-thread", title: "Copy thread", image: "text.bubble" },
+      { id: "copy-thread-id", title: "Copy thread ID", image: "doc.on.doc" },
+    ];
+    if (snoozedRow) {
+      return layoutThreadListV2RowMenuActions({
+        nested,
+        direct: [
+          ...direct,
+          SNOOZED_MENU_ACTIONS[0]!,
+          ...(props.markDoneSupported ? [MARK_DONE_MENU_ACTION] : []),
+        ],
+        reorder: [],
+        pin: [],
+        secondary: [
+          ...titleMenuItems,
+          ...autoMarkDoneMenuItems,
+          LEGACY_MENU_ACTIONS[0]!,
+          SNOOZED_MENU_ACTIONS[1]!,
+        ],
+      });
+    }
+    if (!props.markDoneSupported) {
+      return layoutThreadListV2RowMenuActions({
+        nested,
+        direct: [...direct, LEGACY_MENU_ACTIONS[0]!],
+        reorder: reorderMenuItems,
+        pin: pinMenuItems,
+        secondary: [...titleMenuItems, LEGACY_MENU_ACTIONS[1]!],
+      });
+    }
+    if (canReopen) {
+      return layoutThreadListV2RowMenuActions({
+        nested,
+        direct: [...direct, SLIM_MENU_ACTIONS[0]!],
+        reorder: reorderMenuItems,
+        pin: pinMenuItems,
+        secondary: [
+          ...titleMenuItems,
+          ...autoMarkDoneMenuItems,
+          LEGACY_MENU_ACTIONS[0]!,
+          SLIM_MENU_ACTIONS[1]!,
+        ],
+      });
+    }
+    return layoutThreadListV2RowMenuActions({
+      nested,
+      direct: [
+        ...direct,
+        CARD_MENU_ACTIONS[0]!,
+        ...(swipeActions.secondary === "snooze"
+          ? [{ id: "snooze", title: "Snooze", image: "clock", subactions: snoozePresetActions }]
+          : []),
+      ],
+      reorder: reorderMenuItems,
+      pin: pinMenuItems,
+      secondary: [
+        ...titleMenuItems,
+        ...autoMarkDoneMenuItems,
+        LEGACY_MENU_ACTIONS[0]!,
+        CARD_MENU_ACTIONS[1]!,
+      ],
+    });
+  }, [
+    autoMarkDoneMenuItems,
+    canReopen,
+    pinMenuItems,
+    props.markDoneSupported,
+    reorderMenuItems,
+    snoozePresetActions,
+    snoozedRow,
+    swipeActions.secondary,
+    thread.branch,
+    titleMenuItems,
+  ]);
   const handleMenuAction = useCallback(
     ({ nativeEvent }: { readonly nativeEvent: { readonly event: string } }) => {
       if (nativeEvent.event === "new-thread-on-branch") onNewThreadOnBranch(thread);
@@ -1603,32 +1632,7 @@ export const ThreadListV2Row = memo(function ThreadListV2Row(props: {
         threadTitle={thread.title}
       >
         {(close) => (
-          <Menu
-            actions={[
-              ...(thread.branch
-                ? [
-                    {
-                      id: "new-thread-on-branch",
-                      title: getThreadListV2NewBranchMenuTitle(thread.branch),
-                      image: "square.and.pencil",
-                    },
-                  ]
-                : []),
-              { id: "copy-thread", title: "Copy thread", image: "text.bubble" },
-              { id: "copy-thread-id", title: "Copy thread ID", image: "doc.on.doc" },
-              ...(snoozedRow
-                ? snoozedMenuActions
-                : !props.markDoneSupported
-                  ? legacyMenuActions
-                  : canReopen
-                    ? slimMenuActions
-                    : swipeActions.secondary === "snooze"
-                      ? snoozableCardMenuActions
-                      : cardMenuActions),
-            ]}
-            onPressAction={handleMenuAction}
-            shouldOpenOnLongPress
-          >
+          <Menu actions={menuActions} onPressAction={handleMenuAction} shouldOpenOnLongPress>
             {rowContent(close)}
           </Menu>
         )}
