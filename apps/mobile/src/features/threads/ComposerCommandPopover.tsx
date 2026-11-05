@@ -5,8 +5,8 @@ import {
 } from "@supaterm/client-runtime/providerSkills";
 import type {
   PullRequestContextMetadata,
-  ScopedThreadRef,
   ServerProviderSkill,
+  ThreadContextRecord,
   ServerProviderSlashCommand,
 } from "@supaterm/contracts";
 import type { ComposerTriggerKind } from "@supaterm/shared/composerTrigger";
@@ -37,7 +37,7 @@ export type ComposerCommandItem =
   | {
       readonly id: string;
       readonly type: "thread";
-      readonly thread: ScopedThreadRef;
+      readonly record: ThreadContextRecord;
       readonly label: string;
       readonly description: string;
     }

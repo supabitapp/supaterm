@@ -29,7 +29,7 @@ export interface ComposerModelItem {
   readonly description: string;
 }
 
-/** Only a provider that could run a delegated task now: on, installed, signed in and ready. */
+/** Only a provider delegate_task accepts: on, installed, signed in, and not failing. */
 export function isMentionableProvider(
   provider: Pick<ServerProvider, "installed" | "status" | "auth" | "availability">,
   enabled: boolean,
@@ -37,7 +37,8 @@ export function isMentionableProvider(
   return (
     enabled &&
     provider.installed &&
-    provider.status === "ready" &&
+    provider.status !== "error" &&
+    provider.status !== "disabled" &&
     provider.auth.status !== "unauthenticated" &&
     provider.availability !== "unavailable"
   );

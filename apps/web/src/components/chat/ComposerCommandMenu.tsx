@@ -9,7 +9,7 @@ import {
   type ProjectEntry,
   type ProviderDriverKind,
   type PullRequestContextMetadata,
-  type ScopedThreadRef,
+  type ThreadContextRecord,
   type ServerProviderSkill,
   type ServerProviderSlashCommand,
 } from "@supaterm/contracts";
@@ -76,7 +76,7 @@ export type ComposerCommandItem =
   | {
       id: string;
       type: "thread";
-      thread: ScopedThreadRef;
+      record: ThreadContextRecord;
       label: string;
       description: string;
     }

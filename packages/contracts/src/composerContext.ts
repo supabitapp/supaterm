@@ -216,7 +216,7 @@ export const ModelContextRecord = Schema.Struct({
   kind: Schema.Literal("model"),
   instanceId: ProviderInstanceId,
   driver: ProviderDriverKind,
-  model: TrimmedNonEmptyString.check(Schema.isMaxLength(255)),
+  model: TrimmedNonEmptyString,
   providerName: ContextLabel,
 });
 export type ModelContextRecord = typeof ModelContextRecord.Type;

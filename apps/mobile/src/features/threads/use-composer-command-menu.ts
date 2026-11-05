@@ -17,10 +17,7 @@ import type { EnvironmentThreadShell } from "@supaterm/client-runtime/state/mode
 
 const EMPTY_THREAD_SHELLS: ReadonlyArray<EnvironmentThreadShell> = [];
 import { COMPOSER_CONTEXT_MAX_RECORDS } from "@supaterm/contracts";
-import {
-  formatComposerContextReference,
-  threadContextRecord,
-} from "@supaterm/shared/composerContextReferences";
+import { formatComposerContextReference } from "@supaterm/shared/composerContextReferences";
 import { pullRequestComposerContext } from "../../lib/composerContext";
 import { buildModelOptions } from "../../lib/modelOptions";
 import { uuidv4 } from "../../lib/uuid";
@@ -497,19 +494,7 @@ export function useComposerCommandMenu({
     if (!trigger) return;
     if (item.type === "thread" || item.type === "model") {
       if (!ownerKey || trigger.kind !== "path") return;
-      const shell =
-        item.type === "thread"
-          ? threadShells.find(
-              (candidate) =>
-                candidate.environmentId === item.thread.environmentId &&
-                candidate.id === item.thread.threadId,
-            )
-          : undefined;
-      const record =
-        item.type === "model"
-          ? item.record
-          : shell && threadContextRecord(item.thread, shell.title);
-      if (!record) return;
+      const { record } = item;
       const existing = getComposerDraftSnapshot(ownerKey).context?.records ?? [];
       const alreadyAttached = existing.some((entry) => entry.contextId === record.contextId);
       if (!alreadyAttached && existing.length >= COMPOSER_CONTEXT_MAX_RECORDS) {

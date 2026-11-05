@@ -92,6 +92,7 @@ describe("isMentionableProvider", () => {
 
   it.each([
     ["ready", ready, true, true],
+    ["warning", { ...ready, status: "warning" }, true, true],
     ["turned off", ready, false, false],
     ["signed out", { ...ready, auth: { status: "unauthenticated" } }, true, false],
     ["unavailable", { ...ready, availability: "unavailable" }, true, false],

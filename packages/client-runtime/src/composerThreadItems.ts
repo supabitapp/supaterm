@@ -1,9 +1,10 @@
 import {
   isListedThreadLineage,
   type EnvironmentId,
-  type ScopedThreadRef,
+  type ThreadContextRecord,
   type ThreadId,
 } from "@supaterm/contracts";
+import { threadContextRecord } from "@supaterm/shared/composerContextReferences";
 import {
   foldSearchQuery,
   rankSearchItems,
@@ -21,7 +22,7 @@ export type ComposerThreadCandidate = ThreadSearchShell &
 export interface ComposerThreadItem {
   readonly id: string;
   readonly type: "thread";
-  readonly thread: ScopedThreadRef;
+  readonly record: ThreadContextRecord;
   readonly label: string;
   readonly description: string;
 }
@@ -58,7 +59,10 @@ export function matchComposerThreadItems(input: {
     .map(({ item: shell }) => ({
       id: `thread:${shell.environmentId}:${shell.id}`,
       type: "thread",
-      thread: { environmentId: shell.environmentId, threadId: shell.id },
+      record: threadContextRecord(
+        { environmentId: shell.environmentId, threadId: shell.id },
+        shell.title,
+      ),
       label: shell.title,
       description: "Thread",
     }));

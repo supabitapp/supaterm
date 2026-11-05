@@ -2075,12 +2075,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     }
     if (item.type === "thread" || item.type === "model") {
       if (trigger.kind !== "path") return;
-      const shell = item.type === "thread" ? readThreadShell(item.thread) : null;
-      const record =
-        item.type === "model"
-          ? item.record
-          : shell && threadContextRecord(item.thread, shell.title);
-      if (!record) return;
+      const { record } = item;
       const replacement = `${formatInlineContextReference(referenceContextReference(record))} `;
       const replacementRangeEnd = extendReplacementRangeForTrailingSpace(
         snapshot.value,
