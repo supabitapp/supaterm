@@ -95,6 +95,8 @@ const ANDROID_ICON_BY_SF_SYMBOL = {
   macmini: IconNodes.Server,
   macstudio: IconNodes.Monitor,
   magnifyingglass: IconNodes.Search,
+  "minus.magnifyingglass": IconNodes.ZoomOut,
+  "plus.magnifyingglass": IconNodes.ZoomIn,
   mic: IconNodes.Mic,
   paintbrush: IconNodes.Palette,
   pencil: IconNodes.Pencil,

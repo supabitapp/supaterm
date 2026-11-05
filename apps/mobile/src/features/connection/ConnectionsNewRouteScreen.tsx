@@ -6,7 +6,6 @@ import {
   StackActions,
   useIsFocused,
   useNavigation,
-  useRoute,
   type StaticScreenProps,
 } from "@react-navigation/native";
 import type { EnvironmentId } from "@supaterm/contracts";
@@ -60,7 +59,6 @@ function PairingForm({
   const { connectionPairingUrl, onChangeConnectionPairingUrl, onConnectPress } =
     useRemoteConnections();
   const navigation = useNavigation();
-  const routeName = useRoute().name;
   const insets = useSafeAreaInsets();
   const [originalPairingUrl, setOriginalPairingUrl] = useState(
     () => routePairingUrl || connectionPairingUrl,
@@ -202,7 +200,6 @@ function PairingForm({
 
   return (
     <SettingsScreen
-      formSheet={routeName === "ConnectionsNew"}
       title={routeFor ? "Add route" : "Add environment"}
       actions={[
         {

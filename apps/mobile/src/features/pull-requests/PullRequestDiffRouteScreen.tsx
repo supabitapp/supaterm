@@ -1,9 +1,6 @@
-import { Toolbar } from "../../components/ui/Toolbar";
 import { guideFocusedRows, type GuideDiffFocus } from "./guide/guideDiffFocus";
 
 import * as Clipboard from "expo-clipboard";
-import { Menu } from "../../components/ui/Menu";
-import { IconButton } from "../../components/ui/IconButton";
 import { Button } from "../../components/ui/Button";
 import { usePullRequestReviewDraft } from "./usePullRequestReviewDraft";
 import { usePullRequestFilesViewed } from "./usePullRequestFilesViewed";
@@ -32,11 +29,7 @@ import { AppText as Text } from "../../components/ui/AppText";
 import { ScreenContent } from "../../components/ui/ScreenContent";
 import { AppBar } from "../../components/ui/AppBar";
 
-import { useAdaptiveWorkspaceLayout } from "../layout/AdaptiveWorkspaceLayout";
-
 import { EmptyState } from "../../components/ui/EmptyState";
-
-import { NativeStackScreenOptions } from "../../native/StackHeader";
 
 import { sourceControlClients } from "@supaterm/client-runtime/source-control-clients";
 import { composerPullRequests } from "../../state/pull-requests";
@@ -67,6 +60,8 @@ import { PullRequestReadStatus } from "./PullRequestPresentation";
 import { usePullRequestToolbarHeight } from "./usePullRequestToolbarHeight";
 import * as Haptics from "expo-haptics";
 
+import { useContentTopInset } from "../../components/ui/useBarInset";
+
 const EMPTY_IDS: readonly string[] = [];
 
 type PullRequestFileRouteProps = StaticScreenProps<
@@ -85,10 +80,7 @@ export function PullRequestFileRouteScreen(props: PullRequestFileRouteProps) {
   const title = props.route.params.commit ? "Commit changes" : "Changes";
   return (
     <View className="flex-1 bg-screen">
-      <NativeStackScreenOptions options={{ title, headerTitle: title }} />
-      {Platform.OS === "android" ? (
-        <AppBar embedded title={title} onBack={() => navigation.goBack()} />
-      ) : null}
+      <AppBar title={title} onBack={() => navigation.goBack()} />
       <View className="flex-1 items-center justify-center">
         <AppActivityIndicator accessibilityLabel="Loading changes" />
       </View>
@@ -97,9 +89,9 @@ export function PullRequestFileRouteScreen(props: PullRequestFileRouteProps) {
 }
 
 function PullRequestFileRouteContent({ route }: PullRequestFileRouteProps) {
-  const { layout } = useAdaptiveWorkspaceLayout();
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
+  const contentTopInset = useContentTopInset();
   const [toolbarHeight, setToolbarHeight] = usePullRequestToolbarHeight(insets.bottom);
   const commit = route.params.commit;
   const detail = useEnvironmentQuery(composerPullRequests.detail(requestTarget(route.params)));
@@ -247,7 +239,7 @@ function PullRequestFileRouteContent({ route }: PullRequestFileRouteProps) {
   useEffect(() => {
     if (!targetFile) loadMore();
   }, [targetFile, loadMore]);
-  const onDebug = ((event) =>
+  const onDebug: NonNullable<NativeReviewDiffViewProps["onDebug"]> = (event) =>
     handlePullRequestDiffDebugEvent(event, {
       rowCount: data.rows.length,
       targetFileId: targetFile?.id,
@@ -260,14 +252,14 @@ function PullRequestFileRouteContent({ route }: PullRequestFileRouteProps) {
       },
       onDebug: bridge.onDebug,
       loadMore,
-    })) satisfies NonNullable<NativeReviewDiffViewProps["onDebug"]>;
-  const onToggleFile = ((event) => {
+    });
+  const onToggleFile: NonNullable<NativeReviewDiffViewProps["onToggleFile"]> = (event) => {
     const id = event.nativeEvent.fileId;
     if (!id) return;
     setCollapsedIds((ids) =>
       ids.includes(id) ? ids.filter((value) => value !== id) : [...ids, id],
     );
-  }) satisfies NonNullable<NativeReviewDiffViewProps["onToggleFile"]>;
+  };
   const visibleFile = data.files.find((file) => file.id === visibleFileId) ?? targetFile;
   const toggleTestFiles = () => {
     setJumpPath(visibleFile?.path ?? route.params.path);
@@ -278,122 +270,84 @@ function PullRequestFileRouteContent({ route }: PullRequestFileRouteProps) {
   const seekingFile = !targetFile && result.nextCursor !== null;
   const loadingDiff = (result.isPending && !data.rows.length) || (seekingFile && !result.error);
   return (
-    <View className={Platform.OS === "android" ? "flex-1 bg-header" : "flex-1 bg-screen"}>
-      <NativeStackScreenOptions
-        options={{
-          title,
-          headerTitle: title,
-          unstable_headerSubtitle: `${commit ? commit.slice(0, 7) : `#${route.params.number}`} · ${data.files.length} ${data.files.length === 1 ? "file" : "files"}${filter.hideTestFiles && filter.hiddenCount ? ` · ${filter.hiddenCount} ${filter.hiddenCount === 1 ? "test" : "tests"} hidden` : ""}`,
-        }}
+    <View className="flex-1 android:bg-header ios:bg-screen">
+      <AppBar
+        title={title}
+        subtitle={`${commit ? commit.slice(0, 7) : `#${route.params.number}`} · ${data.files.length} ${data.files.length === 1 ? "file" : "files"}${filter.hideTestFiles && filter.hiddenCount ? ` · ${filter.hiddenCount} ${filter.hiddenCount === 1 ? "test" : "tests"} hidden` : ""}`}
+        onBack={() => navigation.goBack()}
+        menus={[
+          {
+            title: "Diff options",
+            icon: "ellipsis",
+            items: [
+              ...(permissions.verdicts.length
+                ? [
+                    {
+                      id: "submit-review",
+                      title: "Submit review",
+                      icon: "text.bubble",
+                      onPress: () =>
+                        navigation.navigate("PullRequestReview", {
+                          ...route.params,
+                          mode: "review",
+                        }),
+                    },
+                  ]
+                : []),
+              ...(permissions.canComment
+                ? [
+                    {
+                      id: "comment-on-pr",
+                      title: "Add comment",
+                      icon: "plus.bubble",
+                      onPress: () =>
+                        navigation.navigate("PullRequestReview", {
+                          ...route.params,
+                          mode: "comment",
+                        }),
+                    },
+                  ]
+                : []),
+              {
+                id: "word-wrap",
+                title: "Word wrap",
+                icon: "text.alignleft",
+                selected: appearance.codeWordBreak,
+                onPress: () => setCodeWordBreak(!appearance.codeWordBreak),
+              },
+              {
+                id: "hide-tests",
+                title: "Hide test files",
+                icon: "line.3.horizontal.decrease",
+                selected: filter.hideTestFiles,
+                onPress: toggleTestFiles,
+              },
+              ...(selectedRow && selectedFile && canCommentOnDiff
+                ? [
+                    {
+                      id: "comment",
+                      title: route.params.replacingDraftId
+                        ? "Move draft to this line"
+                        : "Add review comment",
+                      icon: "bubble.left",
+                      onPress: () => commentOnLine(),
+                    },
+                  ]
+                : []),
+              ...(selectedRow && selectedFile
+                ? [
+                    {
+                      id: "copy",
+                      title: "Copy line",
+                      icon: "document.on.document",
+                      onPress: () => void Clipboard.setStringAsync(selectedRow.content ?? ""),
+                    },
+                  ]
+                : []),
+            ],
+          },
+        ]}
       />
-      {Platform.OS === "android" ? (
-        <AppBar
-          embedded
-          title={title}
-          onBack={() => navigation.goBack()}
-          trailing={
-            <Menu
-              actions={[
-                {
-                  id: "word-wrap",
-                  title: "Word wrap",
-                  image: "text.alignleft",
-                  state: appearance.codeWordBreak ? "on" : "off",
-                },
-                {
-                  id: "hide-tests",
-                  title: "Hide test files",
-                  image: "line.3.horizontal.decrease",
-                  state: filter.hideTestFiles ? "on" : "off",
-                },
-                ...(permissions.verdicts.length
-                  ? [{ id: "submit-review", title: "Submit review", image: "text.bubble" }]
-                  : []),
-                ...(permissions.canComment
-                  ? [{ id: "comment-on-pr", title: "Add comment", image: "plus.bubble" }]
-                  : []),
-                ...(selectedRow && selectedFile
-                  ? [
-                      ...(canCommentOnDiff ? [{ id: "comment", title: "Add review comment" }] : []),
-                      { id: "copy", title: "Copy line" },
-                    ]
-                  : []),
-              ]}
-              onPressAction={({ nativeEvent }) => {
-                if (nativeEvent.event === "word-wrap") setCodeWordBreak(!appearance.codeWordBreak);
-                else if (nativeEvent.event === "hide-tests") toggleTestFiles();
-                else if (
-                  nativeEvent.event === "submit-review" ||
-                  nativeEvent.event === "comment-on-pr"
-                )
-                  navigation.navigate("PullRequestReview", {
-                    ...route.params,
-                    mode: nativeEvent.event === "submit-review" ? "review" : "comment",
-                  });
-                else if (nativeEvent.event === "comment") commentOnLine();
-                else void Clipboard.setStringAsync(selectedRow?.content ?? "");
-              }}
-            >
-              <View pointerEvents="none">
-                <IconButton icon="ellipsis" accessibilityLabel="Diff options" />
-              </View>
-            </Menu>
-          }
-        />
-      ) : null}
-      <Toolbar placement="right">
-        <Toolbar.Menu title="Diff options" accessibilityLabel="Diff options" icon="ellipsis">
-          {permissions.verdicts.length ? (
-            <Toolbar.MenuAction
-              icon="text.bubble"
-              onPress={() =>
-                navigation.navigate("PullRequestReview", { ...route.params, mode: "review" })
-              }
-            >
-              <Toolbar.Label>Submit review</Toolbar.Label>
-            </Toolbar.MenuAction>
-          ) : null}
-          {permissions.canComment ? (
-            <Toolbar.MenuAction
-              icon="plus.bubble"
-              onPress={() =>
-                navigation.navigate("PullRequestReview", { ...route.params, mode: "comment" })
-              }
-            >
-              <Toolbar.Label>Add comment</Toolbar.Label>
-            </Toolbar.MenuAction>
-          ) : null}
-          <Toolbar.MenuAction
-            icon="text.alignleft"
-            isOn={appearance.codeWordBreak}
-            onPress={() => setCodeWordBreak(!appearance.codeWordBreak)}
-          >
-            <Toolbar.Label>Word wrap</Toolbar.Label>
-          </Toolbar.MenuAction>
-          <Toolbar.MenuAction
-            icon="line.3.horizontal.decrease"
-            isOn={filter.hideTestFiles}
-            onPress={toggleTestFiles}
-          >
-            <Toolbar.Label>Hide test files</Toolbar.Label>
-          </Toolbar.MenuAction>
-          {selectedRow && selectedFile && canCommentOnDiff ? (
-            <Toolbar.MenuAction icon="bubble.left" onPress={() => commentOnLine()}>
-              <Toolbar.Label>
-                {route.params.replacingDraftId ? "Move draft to this line" : "Add review comment"}
-              </Toolbar.Label>
-            </Toolbar.MenuAction>
-          ) : null}
-          {selectedRow && selectedFile ? (
-            <Toolbar.MenuAction
-              icon="document.on.document"
-              onPress={() => void Clipboard.setStringAsync(selectedRow.content ?? "")}
-            >
-              <Toolbar.Label>Copy line</Toolbar.Label>
-            </Toolbar.MenuAction>
-          ) : null}
-        </Toolbar.Menu>
-      </Toolbar>
       {route.params.replacingDraftId ? (
         <Text className="px-4 py-2 text-xs text-foreground-muted">
           Select a current line, then choose “Move draft to this line” from its menu.
@@ -405,7 +359,7 @@ function PullRequestFileRouteContent({ route }: PullRequestFileRouteProps) {
       {staleDiff ? (
         <View
           className="flex-row items-center gap-2 px-4 py-2"
-          style={{ paddingTop: Platform.OS === "ios" ? insets.top + 8 : 8 }}
+          style={{ paddingTop: contentTopInset + 8 }}
         >
           <Text className="min-w-0 flex-1 text-xs text-foreground-muted">
             The branch changed. Reload before adding line comments.
@@ -422,10 +376,10 @@ function PullRequestFileRouteContent({ route }: PullRequestFileRouteProps) {
           />
         </View>
       ) : null}
-      <ScreenContent insetHorizontal={layout.usesSplitView}>
+      <ScreenContent>
         <View className="flex-1" collapsable={false}>
           {loadingDiff || result.error ? (
-            <View style={{ paddingTop: Platform.OS === "ios" && !staleDiff ? insets.top : 0 }}>
+            <View style={{ paddingTop: staleDiff ? 0 : contentTopInset }}>
               <PullRequestReadStatus
                 pending={loadingDiff}
                 error={result.error}
@@ -502,7 +456,7 @@ function PullRequestFileRouteContent({ route }: PullRequestFileRouteProps) {
                 appearanceScheme={themeAppearance}
                 rowHeight={nativeReviewDiffStyle.rowHeight}
                 contentWidth={NATIVE_REVIEW_DIFF_CONTENT_WIDTH}
-                contentInsetTop={Platform.OS === "ios" ? (staleDiff ? 0 : insets.top) : undefined}
+                contentInsetTop={staleDiff ? 0 : contentTopInset}
                 contentInsetBottom={Platform.OS === "android" ? toolbarHeight : insets.bottom}
                 contentResetKey={`pull-request:${route.params.environmentId}:${route.params.repository}:${route.params.number}:${commit ?? "all"}`}
               />
@@ -512,7 +466,7 @@ function PullRequestFileRouteContent({ route }: PullRequestFileRouteProps) {
             !result.isPending &&
             !result.error &&
             !seekingFile ? (
-            <View style={{ paddingTop: Platform.OS === "ios" ? insets.top : 0 }}>
+            <View style={{ paddingTop: contentTopInset }}>
               <EmptyState
                 title="Only test files changed"
                 detail="Test files are hidden from this review."

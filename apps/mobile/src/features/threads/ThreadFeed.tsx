@@ -104,7 +104,6 @@ import {
 import { imageMimeType } from "@supaterm/shared/image";
 import { videoMimeType } from "@supaterm/shared/video";
 import { SymbolView, type AppSymbolName } from "../../components/ui/AppSymbol";
-import { HeaderHeightContext } from "@react-navigation/elements";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import { useNativeWorkspaceColumnsSupported } from "../../native/NativeWorkspaceColumns";
 import { useDeviceType } from "../../native/native-layout-metrics";
@@ -112,7 +111,6 @@ import { isDuoDevice } from "../../lib/device-type";
 import {
   memo,
   useCallback,
-  useContext,
   useEffect,
   useEffectEvent,
   useImperativeHandle,
@@ -169,7 +167,6 @@ import { useUniwindTheme } from "../../lib/useUniwindTheme";
 import { useReducedMotionPreference } from "../../lib/useReducedMotionPreference";
 import { isKeyboardMotionSuppressed } from "../../lib/motionInput";
 import { MOTION_ENTER_DURATION_MS } from "../../lib/motionTiming";
-import { IOS_NAV_BAR_HEIGHT } from "../../lib/layoutMetrics";
 import { SYSTEM_FONT_FAMILY } from "../../lib/fonts";
 import { scopedThreadKey } from "../../lib/scopedEntities";
 import { copyTextWithHaptic } from "../../lib/copyTextWithHaptic";
@@ -197,6 +194,7 @@ import { getReviewSectionIdForCheckpoint } from "../review/reviewModel";
 import { setReviewSelectedSectionId } from "../review/reviewState";
 import { Menu } from "../../components/ui/Menu";
 import { useAndroidControlSizing } from "../../components/ui/useAndroidControlSizing";
+import { useBarInset } from "../../components/ui/useBarInset";
 import { copyPromptLink } from "../prompt-links/prompt-link-actions";
 import { parseReviewCommentMessageSegments } from "../review/reviewCommentSelection";
 
@@ -2835,7 +2833,8 @@ export const ThreadFeed = memo(function ThreadFeed({
   const markdownContentWidth = Math.max(0, contentWidth - ASSISTANT_ROW_HORIZONTAL_PADDING * 2);
   const reviewCommentBubbleWidth = Math.min(Math.max(280, contentWidth * 0.85), contentWidth);
   const insets = useSafeAreaInsets();
-  const topContentInset = props.contentTopInset ?? insets.top + IOS_NAV_BAR_HEIGHT;
+  const barInset = useBarInset();
+  const topContentInset = props.contentTopInset ?? barInset;
   const bottomContentInset = props.contentBottomInset ?? 18;
   const usesNativeAutomaticInsets =
     props.usesAutomaticContentInsets === true && Platform.OS === "ios";
@@ -2847,10 +2846,7 @@ export const ThreadFeed = memo(function ThreadFeed({
   // With automatic insets the header inset lives in UIKit's adjustedContentInset, which
   // LegendList's anchoring math cannot see. Fold the header height into the anchor offset or a
   // just-sent message anchors under the header and maintainScrollAtEnd keeps snapping away.
-  const navigationHeaderHeight = useContext(HeaderHeightContext);
-  const anchorTopInset = usesNativeAutomaticInsets
-    ? (navigationHeaderHeight ?? insets.top + IOS_NAV_BAR_HEIGHT)
-    : topContentInset;
+  const anchorTopInset = usesNativeAutomaticInsets ? barInset : topContentInset;
 
   const theme = useUniwindTheme();
   const iconSubtleColor = theme["--color-icon-subtle"];

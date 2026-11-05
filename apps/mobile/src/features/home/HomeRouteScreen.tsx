@@ -177,29 +177,23 @@ export function HomeRouteScreen() {
     return (
       <>
         <NativeStackScreenOptions
-          options={
-            Platform.OS === "android"
-              ? { headerShown: false }
-              : {
-                  title: "",
-                  headerTitle: "",
-                  unstable_headerLeftItems: () => [],
-                  headerSearchBarOptions: undefined,
-                  unstable_headerRightItems: () => [],
-                  unstable_headerToolbarItems: () => [],
-                }
-          }
+          options={{
+            title: "",
+            headerTitle: "",
+            unstable_headerLeftItems: () => [],
+            headerSearchBarOptions: undefined,
+            unstable_headerRightItems: () => [],
+            unstable_headerToolbarItems: () => [],
+          }}
         />
-        {Platform.OS === "ios" ? (
-          <Toolbar placement="left">
-            <Toolbar.Button
-              accessibilityLabel="New task"
-              icon="square.and.pencil"
-              onPress={startNewTask}
-            />
-          </Toolbar>
-        ) : null}
-        {Platform.OS === "android" ? <AppBar embedded title="Threads" /> : null}
+        <Toolbar placement="left">
+          <Toolbar.Button
+            accessibilityLabel="New task"
+            icon="square.and.pencil"
+            onPress={startNewTask}
+          />
+        </Toolbar>
+        <AppBar embedded title="Threads" />
         <WorkspaceEmptyDetail
           onAddConnection={
             Platform.OS === "android" && !catalogState.hasConnections
@@ -220,17 +214,14 @@ export function HomeRouteScreen() {
         {/* Restore the header after leaving split view; screen options are
             shallow-merged. Connection status appears beneath the brand
             while an environment reconnects. */}
-        {workspace !== null && Platform.OS === "ios" ? null : (
+        {workspace !== null ? null : (
           <NativeStackScreenOptions
             optionsVersion={headerWidth}
-            options={{
-              ...getConnectionAwareBrandHeaderOptions({
-                headerWidth,
-                trailingItemCount: nativePrimaryColumn && deviceType === "pad" ? 2 : 1,
-                onOpenEnvironments: () => openSettings(navigation, "SettingsEnvironments"),
-              }),
-              headerShown: Platform.OS !== "android",
-            }}
+            options={getConnectionAwareBrandHeaderOptions({
+              headerWidth,
+              trailingItemCount: nativePrimaryColumn && deviceType === "pad" ? 2 : 1,
+              onOpenEnvironments: () => openSettings(navigation, "SettingsEnvironments"),
+            })}
           />
         )}
         <HomeHeader

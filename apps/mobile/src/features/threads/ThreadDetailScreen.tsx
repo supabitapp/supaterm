@@ -39,7 +39,6 @@ import {
 import { useKeyboardChatComposerInset, useKeyboardScrollToEnd } from "@legendapp/list/keyboard";
 import { resolveProviderSkillsForCwd } from "@supaterm/client-runtime/providerSkills";
 import type { LegendListRef } from "@legendapp/list/react-native";
-import { HeaderHeightContext } from "@react-navigation/elements";
 import { NativeLayoutObserver } from "../../native/NativeLayoutObserver";
 import { deriveBottomControlInsets, type NativeLayoutMetrics } from "../../lib/reserved-regions";
 import type {
@@ -82,7 +81,7 @@ import type { QueuedRunEdit } from "../../state/queued-run-edit";
 import type { FollowUpBehavior } from "../../lib/followUpBehavior";
 import type { ActiveTurnComposerAction } from "@supaterm/client-runtime/state/composer-dispatch";
 import * as Haptics from "expo-haptics";
-import { useCallback, useContext, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   AppState,
   Keyboard,
@@ -113,6 +112,7 @@ import Animated, {
   withTiming,
 } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useBarOverlap } from "../../components/ui/useBarInset";
 import { useAdaptiveWorkspaceLayout } from "../layout/AdaptiveWorkspaceLayout";
 import { useWorkspaceContentWidth } from "../layout/workspace-content-width";
 import { useNativeWorkspaceColumnsSupported } from "../../native/NativeWorkspaceColumns";
@@ -536,7 +536,7 @@ function ThreadDetailBody(
     }
   };
   const windowHeight = useWindowDimensions().height;
-  const navigationHeaderHeight = useContext(HeaderHeightContext) ?? insets.top + 44;
+  const navigationHeaderHeight = useBarOverlap();
   const [screenMetrics, setScreenMetrics] = useState<NativeLayoutMetrics | null>(null);
   const columnMetrics = useNativeColumnLayoutMetrics();
   const windowMetrics = useNativeLayoutMetrics();

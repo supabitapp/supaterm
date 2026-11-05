@@ -5,6 +5,7 @@ import { resolveSideChatCommand } from "@supaterm/client-runtime/state/side-chat
 import type { VoiceRecordingHandOff } from "@supaterm/client-runtime/voice-input";
 import { useSideChat } from "./useSideChat";
 import type { ComposerTextPaste } from "../../native/SupatermComposerEditor.types";
+import { useDeviceType } from "../../native/native-layout-metrics";
 import { useAdaptiveWorkspaceLayout } from "../layout/AdaptiveWorkspaceLayout";
 import { useAppearancePreferences } from "../settings/appearance/AppearancePreferencesProvider";
 import type { EnvironmentThreadShell } from "@supaterm/client-runtime/state/shell";
@@ -558,8 +559,9 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
   const isExpanded =
     !voiceInput.isBusy && (isFocused || settingsSheetPresentation.keepsComposerExpanded);
   // iPad workspace navigation is taller, so the collapsed row's controls grow to match.
-  const usesLargeControls =
-    useSidebarWorkspaceTabs() === "picker" || (Platform.OS === "ios" && Platform.isPad);
+  const sidebarWorkspaceTabs = useSidebarWorkspaceTabs();
+  const deviceType = useDeviceType();
+  const usesLargeControls = sidebarWorkspaceTabs === "picker" || deviceType === "pad";
   const rowControlSize = usesLargeControls && !isExpanded ? "large" : "regular";
   const compactSurfaceInset = usesLargeControls
     ? LARGE_COMPACT_SURFACE_INSET

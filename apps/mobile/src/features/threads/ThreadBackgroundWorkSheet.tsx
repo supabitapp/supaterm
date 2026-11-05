@@ -17,7 +17,6 @@ import { AppText as Text } from "../../components/ui/AppText";
 import { ScreenContent } from "../../components/ui/ScreenContent";
 import { orchestrationEnvironment } from "../../state/orchestration";
 import { environmentThreadShells } from "../../state/threads";
-import { useAdaptiveWorkspaceLayout } from "../layout/AdaptiveWorkspaceLayout";
 import { useAppearancePreferences } from "../settings/appearance/AppearancePreferencesProvider";
 import { ThreadCommandOutput } from "./thread-command-output";
 
@@ -31,7 +30,6 @@ const KIND_LABELS = {
 type BackgroundWorkTarget = { readonly environmentId: EnvironmentId; readonly threadId: ThreadId };
 
 export function ThreadBackgroundWorkSheet({ route }: StaticScreenProps<BackgroundWorkTarget>) {
-  const { layout } = useAdaptiveWorkspaceLayout();
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
   const target = route.params;
@@ -75,7 +73,7 @@ export function ThreadBackgroundWorkSheet({ route }: StaticScreenProps<Backgroun
   return (
     <View collapsable={false} className="flex-1 bg-sheet">
       <SheetHeader title="Background work" onClose={() => navigation.goBack()} />
-      <ScreenContent insetHorizontal={layout.usesSplitView}>{content}</ScreenContent>
+      <ScreenContent>{content}</ScreenContent>
     </View>
   );
 }
