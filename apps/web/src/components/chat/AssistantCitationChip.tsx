@@ -149,7 +149,7 @@ export function AssistantCitationChip({
         >
           <Link
             {...annotationLinkProps}
-            data-assistant-citation-source=""
+            data-citation-excerpt=""
             className="flex min-w-0 max-w-full self-start border-s-2 border-muted-foreground/40 ps-2 text-xs/5 text-muted-foreground no-underline transition-colors duration-150 hover:border-muted-foreground hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring"
             aria-label={`Go to quoted assistant text: ${excerpt}`}
           >
