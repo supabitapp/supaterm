@@ -43,7 +43,6 @@ const STUB_BROWSER_DEFAULTS = {
   viewport: FILL_PREVIEW_VIEWPORT,
   zoomFactor: DEFAULT_PREVIEW_ZOOM_FACTOR,
   appearance: DEFAULT_PREVIEW_APPEARANCE,
-  autoShowFloatingPreview: true,
   profiles: BUILT_IN_BROWSER_PROFILES,
   profileId: DEFAULT_BROWSER_PROFILE_ID,
 };
@@ -154,7 +153,6 @@ vi.mock(import("~/browser/browserViewportActions"), { spy: true });
 import { useComposerDraftStore } from "~/composerDraftStore";
 import { useBrowserPointerStore } from "~/browser/browserPointerStore";
 import { previewRuntimeTabId } from "~/browser/previewRuntimeTabId";
-import { usePreviewMiniPlayerStore } from "~/previewMiniPlayerStore";
 import { dispatchPreviewAction } from "./previewActionBus";
 import { PreviewView } from "./PreviewView";
 import { ToastProvider } from "~/components/ui/toast";
@@ -210,7 +208,6 @@ function setup() {
     addPreviewAnnotation: mocks.addPreviewAnnotation,
     addImage: mocks.addImage,
   });
-  usePreviewMiniPlayerStore.setState({ byThreadKey: {} });
   useBrowserPointerStore.setState({ byTabId: {} });
 }
 

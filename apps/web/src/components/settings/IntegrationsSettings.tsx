@@ -15,7 +15,7 @@ import {
   type EnvironmentId,
   BROWSER_PROFILE_NAME_MAX_LENGTH,
   BROWSER_RECORDING_FRAME_RATES,
-  DEFAULT_BROWSER_AUTO_SHOW_FLOATING_PREVIEW,
+  DEFAULT_BROWSER_AUTO_OPEN_PANEL,
   DEFAULT_BROWSER_PROFILE_ID,
   DEFAULT_BROWSER_LINK_TARGET,
   DEFAULT_BROWSER_RECORDING_FRAME_RATE,
@@ -1058,21 +1058,21 @@ function DeviceIntegrationControls({
   );
 }
 
-function BrowserAutoShowFloatingPreviewSetting({ disabled }: { readonly disabled: boolean }) {
-  const autoShow = useClientSettings((settings) => settings.browserAutoShowFloatingPreview);
+function BrowserAutoOpenPanelSetting({ disabled }: { readonly disabled: boolean }) {
+  const autoOpen = useClientSettings((settings) => settings.browserAutoOpenPanel);
   const updateSettings = useUpdatePrimarySettings();
 
   return (
     <SettingsRow
-      {...searchableSetting("browser-auto-show-floating-preview")}
-      description="Show the preview when an agent opens a browser or device."
+      {...searchableSetting("browser-auto-open-panel")}
+      description="Open the right panel when an agent opens a browser or device. When off, the tab is added without opening the panel."
       resetAction={
-        !disabled && autoShow !== DEFAULT_BROWSER_AUTO_SHOW_FLOATING_PREVIEW ? (
+        !disabled && autoOpen !== DEFAULT_BROWSER_AUTO_OPEN_PANEL ? (
           <SettingResetButton
-            label="auto-show floating preview"
+            label="auto-open right panel"
             onClick={() =>
               updateSettings({
-                browserAutoShowFloatingPreview: DEFAULT_BROWSER_AUTO_SHOW_FLOATING_PREVIEW,
+                browserAutoOpenPanel: DEFAULT_BROWSER_AUTO_OPEN_PANEL,
               })
             }
           />
@@ -1081,11 +1081,9 @@ function BrowserAutoShowFloatingPreviewSetting({ disabled }: { readonly disabled
       control={
         <Switch
           disabled={disabled}
-          checked={autoShow}
-          onCheckedChange={(checked) =>
-            updateSettings({ browserAutoShowFloatingPreview: Boolean(checked) })
-          }
-          aria-label="Auto-show floating preview"
+          checked={autoOpen}
+          onCheckedChange={(checked) => updateSettings({ browserAutoOpenPanel: Boolean(checked) })}
+          aria-label="Auto-open right panel"
         />
       }
     />
@@ -1595,7 +1593,7 @@ export function BrowserSettingsPanel() {
         <SettingsUnavailableGroup message={desktopOnlyMessage}>
           <BrowserProfilesSetting disabled={desktopOnly} />
           <BrowserLinkTargetSetting disabled={desktopOnly} />
-          <BrowserAutoShowFloatingPreviewSetting disabled={desktopOnly} />
+          <BrowserAutoOpenPanelSetting disabled={desktopOnly} />
           <BrowserViewportSetting disabled={desktopOnly} />
           <BrowserZoomSetting disabled={desktopOnly} />
           <BrowserAppearanceSetting disabled={desktopOnly} />

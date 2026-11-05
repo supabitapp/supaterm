@@ -15,7 +15,6 @@ import {
 import { useAtomMount } from "@effect/atom-react";
 import { type ReactNode, useState } from "react";
 
-import { usePreviewMiniPlayerStore } from "~/previewMiniPlayerStore";
 import {
   selectThreadRightPanelState,
   useRightPanelStore,
@@ -129,18 +128,6 @@ export function DevicePanel(props: {
     }
   };
 
-  const floatActive = () => {
-    if (!activeDevice) return;
-    usePreviewMiniPlayerStore.getState().open(props.threadRef, {
-      kind: "device",
-      hostId: activeDevice.hostId,
-      deviceId: activeDevice.id,
-      platform: activeDevice.platform,
-      name: activeDevice.name,
-    });
-    useRightPanelStore.getState().close(props.threadRef);
-  };
-
   const closeSurface = () => {
     const store = useRightPanelStore.getState();
     const { activeSurfaceId } = selectThreadRightPanelState(store.byThreadKey, props.threadRef);
@@ -248,7 +235,6 @@ export function DevicePanel(props: {
                 diagnostics.find(({ hostId }) => hostId === activeDevice.hostId)?.detail
               }
               visible={props.visible}
-              onFloat={floatActive}
               onClose={() => closeActive(false)}
               onPowerOff={() => closeActive(true)}
             />

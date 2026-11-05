@@ -83,7 +83,6 @@ import { stripInlineContextReferences } from "~/lib/composerContextReferences";
 import type { DraftThreadEnvMode } from "../composerDraftStore";
 import { type ComposerSubmissionIntent } from "../composer-logic";
 import { type TimelineEntry } from "../session-logic";
-import type { PreviewMiniPlayerSource } from "../previewMiniPlayerStore";
 import type { RightPanelSurface } from "../rightPanelStore";
 import {
   NO_PROVIDER_MODEL_SELECTION,
@@ -98,24 +97,6 @@ export const LAST_INVOKED_SCRIPT_BY_PROJECT_KEY = "supaterm:last-invoked-script-
 export const MAX_HIDDEN_MOUNTED_TERMINAL_THREADS = 10;
 
 export const ENVIRONMENT_RECONNECT_WARNING_GRACE_MS = 2_000;
-
-export function shouldRenderPreviewMiniPlayer(
-  source: PreviewMiniPlayerSource | null,
-  renderedRightPanelSurface: RightPanelSurface | null,
-): boolean {
-  if (source === null) return false;
-  if (source.kind === "browser") {
-    return !(
-      renderedRightPanelSurface?.kind === "preview" &&
-      renderedRightPanelSurface.resourceId === source.tabId
-    );
-  }
-  return !(
-    renderedRightPanelSurface?.kind === "device" &&
-    renderedRightPanelSurface.target?.hostId === source.hostId &&
-    renderedRightPanelSurface.target.deviceId === source.deviceId
-  );
-}
 
 export function shouldOpenProactivePullRequest(
   previousTargetKey: string | null | undefined,

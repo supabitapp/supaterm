@@ -272,7 +272,7 @@ export const DefaultThemePreference = Schema.String.check(Schema.isMaxLength(64)
 export type DefaultThemePreference = typeof DefaultThemePreference.Type;
 
 export const DEFAULT_BROWSER_VIEWPORT: PreviewViewportSetting = FILL_PREVIEW_VIEWPORT;
-export const DEFAULT_BROWSER_AUTO_SHOW_FLOATING_PREVIEW = true;
+export const DEFAULT_BROWSER_AUTO_OPEN_PANEL = true;
 export {
   BROWSER_RECORDING_FRAME_RATES,
   BrowserRecordingFrameRate,
@@ -368,8 +368,8 @@ export const ClientSettingsSchema = Schema.Struct({
   browserCustomSearchUrl: BrowserCustomSearchUrl.pipe(
     Schema.withDecodingDefault(Effect.succeed("")),
   ),
-  browserAutoShowFloatingPreview: Schema.Boolean.pipe(
-    Schema.withDecodingDefault(Effect.succeed(DEFAULT_BROWSER_AUTO_SHOW_FLOATING_PREVIEW)),
+  browserAutoOpenPanel: Schema.Boolean.pipe(
+    Schema.withDecodingDefault(Effect.succeed(DEFAULT_BROWSER_AUTO_OPEN_PANEL)),
   ),
 
   browserProfiles: Schema.Array(BrowserProfile).pipe(
@@ -1638,7 +1638,7 @@ export const ClientSettingsPatch = Schema.Struct({
   browserLinkTarget: Schema.optionalKey(BrowserLinkTarget),
   browserSearchEngine: Schema.optionalKey(BrowserSearchEngine),
   browserCustomSearchUrl: Schema.optionalKey(BrowserCustomSearchUrl),
-  browserAutoShowFloatingPreview: Schema.optionalKey(Schema.Boolean),
+  browserAutoOpenPanel: Schema.optionalKey(Schema.Boolean),
   browserProfiles: Schema.optionalKey(Schema.Array(BrowserProfile)),
   browserDefaultProfileId: Schema.optionalKey(BrowserProfileId),
   confirmQuit: Schema.optionalKey(QuitConfirmationMode),

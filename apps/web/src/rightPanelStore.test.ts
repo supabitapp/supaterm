@@ -111,7 +111,7 @@ describe("rightPanelStore", () => {
     store.closeSurface(refA, "device:nucbox:emulator-5580");
 
     store.openFile(refA, "src/app.ts");
-    store.openDevice(refA, device, true);
+    store.openDevice(refA, device, "agent");
 
     expect(
       selectThreadRightPanelState(useRightPanelStore.getState().byThreadKey, refA).surfaces,
@@ -203,7 +203,7 @@ describe("rightPanelStore", () => {
         JSON.stringify({ byThreadKey: useRightPanelStore.getState().byThreadKey }),
       );
       useRightPanelStore.setState(persisted);
-      store.openDevice(refA, target, true);
+      store.openDevice(refA, target, "agent");
       expect(
         selectThreadRightPanelState(useRightPanelStore.getState().byThreadKey, refA).surfaces.some(
           (surface) => surface.kind === "device",

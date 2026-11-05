@@ -172,7 +172,7 @@ export function useComposerRestingTransition(
     const nextHeight = nextRect.height;
     const nextModelStripHeight = modelStrip?.getBoundingClientRect().height ?? null;
     // The chat view resize-observes the overlay to place the timeline
-    // inset, the scroll-to-end pill, and the mini player. Publishing the
+    // inset and the scroll-to-end pill. Publishing the
     // destination height here turns that feedback into one update instead
     // of a ChatView re-render on every animation frame.
     const overlay = element.closest<HTMLElement>('[data-chat-composer-overlay="true"]');

@@ -19,7 +19,6 @@ export function DeviceWorkspace(props: {
   hostKind: DeviceHostSummary["kind"] | undefined;
   hostDiagnostics: string | undefined;
   visible: boolean;
-  onFloat: () => void;
   onClose: () => void;
   onPowerOff: () => void;
 }) {
@@ -100,7 +99,6 @@ export function DeviceWorkspace(props: {
                 onScreenshot={() => void saveScreenshot()}
                 toolsOpen={toolsOpen}
                 onTools={() => setToolsOpen(!toolsOpen)}
-                onFloat={props.onFloat}
                 onClose={props.onClose}
                 onPowerOff={props.onPowerOff}
               />

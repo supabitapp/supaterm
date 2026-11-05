@@ -26,7 +26,7 @@ const clientSettings: ClientSettings = {
   browserDefaultAppearance: "dark",
   browserRecordingFrameRate: 60,
   browserLinkTarget: "app",
-  browserAutoShowFloatingPreview: false,
+  browserAutoOpenPanel: false,
   browserProfiles: [{ id: "work", name: "Work", kind: "persistent" }],
   browserDefaultProfileId: "work",
   confirmQuit: "double-click",
