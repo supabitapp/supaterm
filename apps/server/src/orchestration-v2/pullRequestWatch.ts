@@ -53,7 +53,17 @@ export function evaluatePullRequestWatch(
   if (detail.checks.length > 0) {
     const failed = detail.checks.filter(isFailedCheck);
     const newlyFailed = failed.filter((check) => !failedChecks.includes(check.name));
-    if (newlyFailed.length > 0) changes.push({ kind: "checks-failed", failed: newlyFailed });
+    const pending = detail.checks
+      .filter((check) => check.status === "pending")
+      .map((check) => check.name);
+    // Without this the agent keeps waiting for checks that already ran.
+    if (newlyFailed.length > 0) {
+      changes.push(
+        pending.length === 0
+          ? { kind: "checks-finished", failing: failed }
+          : { kind: "checks-failed", failed: newlyFailed },
+      );
+    }
     failedChecks = failed.map((check) => check.name);
 
     const required = detail.checks.filter((check) => check.required === true);
@@ -63,9 +73,6 @@ export function evaluatePullRequestWatch(
     const told = passed && passedChecks.length === 0 ? gateNames : passedChecks;
     // Required checks can finish between sweeps; detect new names. With no required checks, ignore advisory gate growth.
     const gateGrew = required.length > 0 && gateNames.some((name) => !told.includes(name));
-    const pending = detail.checks
-      .filter((check) => check.status === "pending")
-      .map((check) => check.name);
     const gatePassed = passedNow && (!passed || gateGrew);
     if (gatePassed) {
       changes.push({ kind: "checks-passed", count: gate.length, required: required.length > 0 });
@@ -75,7 +82,7 @@ export function evaluatePullRequestWatch(
     const settled =
       pending.length === 0 && !failed.some((check) => owedChecks.includes(check.name));
     if (settled) {
-      if (owedChecks.length > 0 && !gatePassed) {
+      if (owedChecks.length > 0 && !gatePassed && newlyFailed.length === 0) {
         changes.push(
           failed.length === 0
             ? { kind: "checks-passed", count: detail.checks.length, required: false }
