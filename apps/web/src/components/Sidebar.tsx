@@ -1271,13 +1271,18 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
     // A Working row only drags out as chat context, so it never reveals the pin order.
     dragging: dragState !== null && dragState.activeSection !== "working",
   });
-  // Sent creations already show through their optimistic shells; this row
-  // covers failures and environments with no shell snapshot to overlay.
+  // Sent creations already show through their optimistic shells; this row covers
+  // failures, environments with no shell snapshot to overlay, and shells hidden offline.
+  const listedShells = withoutOfflineEnvironmentThreads(
+    threads,
+    hiddenEnvironmentIds,
+    keptThreadKey,
+  );
   const pendingThreads = outboxEntries.filter((entry) => {
     const creation = entry.payload.input.bootstrap?.createThread;
     return (
       creation &&
-      !threads.some((thread) => threadShellKey(thread) === entry.scope) &&
+      !listedShells.some((thread) => threadShellKey(thread) === entry.scope) &&
       (scopedProjectKeys === null ||
         scopedProjectKeys.has(`${entry.payload.environmentId}:${creation.projectId}`))
     );
