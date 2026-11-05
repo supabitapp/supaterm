@@ -41,11 +41,11 @@ function sidePulseMountRoots(platform: NodeJS.Platform, user: string): ReadonlyA
   return [];
 }
 
-function ledCountForVolume(name: string): SidePulseDevice["ledCount"] | null {
-  const normalized = name.toLowerCase().replaceAll(/[^a-z0-9]/g, "");
-  if (normalized.includes("pulsedot")) return 2;
-  if (normalized.includes("sidepulsepro")) return 8;
-  return null;
+// SidePulse Pro ships with the FAT12 volume label "SidePulse"; a trailing number is a duplicate mount.
+const SIDE_PULSE_PRO_VOLUME = /^sidepulse(?:pro)?\d*$/;
+
+function isSidePulseVolume(name: string): boolean {
+  return SIDE_PULSE_PRO_VOLUME.test(name.toLowerCase().replaceAll(/[^a-z0-9]/g, ""));
 }
 
 function errorCode(error: PlatformError.PlatformError): unknown {
@@ -65,7 +65,6 @@ function writeError(error: PlatformError.PlatformError): SidePulseDeviceError {
 interface MountedVolume {
   readonly name: string;
   readonly path: string;
-  readonly ledCount: SidePulseDevice["ledCount"];
   readonly denied: boolean;
 }
 
@@ -129,10 +128,9 @@ export const make = Effect.fn("SidePulse.make")(function* (mountRoots: ReadonlyA
       Effect.orElseSucceed((): ReadonlyArray<string> => []),
       Effect.flatMap((names) =>
         Effect.forEach(
-          names.flatMap((name) => {
-            const ledCount = ledCountForVolume(name);
-            return ledCount === null ? [] : [{ name, path: path.join(root, name), ledCount }];
-          }),
+          names.flatMap((name) =>
+            isSidePulseVolume(name) ? [{ name, path: path.join(root, name) }] : [],
+          ),
           probeVolume,
         ),
       ),
@@ -164,7 +162,6 @@ export const make = Effect.fn("SidePulse.make")(function* (mountRoots: ReadonlyA
       const device: SidePulseDevice = {
         name: volume.name,
         path: volume.path,
-        ledCount: volume.ledCount,
         error: volume.denied ? "access-denied" : (previous?.device.error ?? null),
       };
       if (volume.denied) {
@@ -174,7 +171,7 @@ export const make = Effect.fn("SidePulse.make")(function* (mountRoots: ReadonlyA
         next.set(volume.path, { device, written: null, activityAt: now });
         continue;
       }
-      const program = sidePulseProgram(ledState, volume.ledCount, settings.brightness);
+      const program = sidePulseProgram(ledState, settings.brightness);
       let tracked: TrackedDevice = previous ?? { device, written: null, activityAt: now };
       if (tracked.written !== program) {
         const error = yield* writeLedFile(volume.path, program);
@@ -186,7 +183,7 @@ export const make = Effect.fn("SidePulse.make")(function* (mountRoots: ReadonlyA
           written: error === null ? program : null,
           activityAt: error === null ? now : tracked.activityAt,
         };
-      } else if (volume.ledCount === 8 && now - tracked.activityAt >= KEEPALIVE_INTERVAL_MS) {
+      } else if (now - tracked.activityAt >= KEEPALIVE_INTERVAL_MS) {
         yield* fs.writeFileString(path.join(volume.path, KEEPALIVE_FILE), "").pipe(Effect.ignore);
         tracked = { ...tracked, activityAt: now };
       }

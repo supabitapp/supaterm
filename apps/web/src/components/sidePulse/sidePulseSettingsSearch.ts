@@ -6,7 +6,7 @@ export const SIDE_PULSE_SETTINGS_SEARCH_ITEMS = [
     title: "SidePulse",
     to: "/settings/sidepulse",
     searchTerms: [
-      "sidepulse pro dot led light status indicator hardware device sd card usb agents running",
+      "sidepulse pro led light status indicator hardware device sd card usb agents running",
     ],
   },
   {

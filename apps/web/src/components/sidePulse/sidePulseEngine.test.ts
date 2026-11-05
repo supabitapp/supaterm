@@ -14,26 +14,23 @@ function compileEngine() {
 }
 
 describe("SidePulse LED programs", () => {
-  it("parse on the firmware engine for every state, device, and brightness", async () => {
-    const module = await compileEngine();
-    for (const ledCount of [2, 8] as const) {
-      const engine = await instantiateSidePulseEngine(module, ledCount);
-      for (const ledState of [...SIDE_PULSE_LED_STATES, null]) {
-        for (const brightness of [100, 50, 0]) {
-          const program = sidePulseProgram(ledState, ledCount, brightness);
-          expect(engine.play(program), program).toBe(true);
-        }
+  it("parse on the firmware engine for every state and brightness", async () => {
+    const engine = await instantiateSidePulseEngine(await compileEngine());
+    for (const ledState of [...SIDE_PULSE_LED_STATES, null]) {
+      for (const brightness of [100, 50, 0]) {
+        const program = sidePulseProgram(ledState, brightness);
+        expect(engine.play(program), program).toBe(true);
       }
     }
   });
 
   it("renders the program's colors at the chosen brightness", async () => {
-    const engine = await instantiateSidePulseEngine(await compileEngine(), 2);
-    engine.play(sidePulseProgram("done", 2, 100));
-    expect([...engine.step(1000)]).toEqual([0, 255, 102, 0, 255, 102]);
-    engine.play(sidePulseProgram("done", 2, 50));
-    expect([...engine.step(1000)]).toEqual([0, 128, 51, 0, 128, 51]);
-    engine.play(sidePulseProgram(null, 2, 100));
-    expect([...engine.step(1000)]).toEqual([0, 0, 0, 0, 0, 0]);
+    const engine = await instantiateSidePulseEngine(await compileEngine());
+    engine.play(sidePulseProgram("done", 100));
+    expect([...engine.step(1000)]).toEqual(Array.from({ length: 8 }, () => [0, 255, 102]).flat());
+    engine.play(sidePulseProgram("done", 50));
+    expect([...engine.step(1000)]).toEqual(Array.from({ length: 8 }, () => [0, 128, 51]).flat());
+    engine.play(sidePulseProgram(null, 100));
+    expect([...engine.step(1000)]).toEqual(Array(24).fill(0));
   });
 });

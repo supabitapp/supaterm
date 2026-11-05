@@ -20,7 +20,6 @@ export type SidePulseDeviceError = typeof SidePulseDeviceError.Type;
 export const SidePulseDevice = Schema.Struct({
   name: Schema.String,
   path: Schema.String,
-  ledCount: Schema.Literals([2, 8]),
   error: Schema.NullOr(SidePulseDeviceError),
 });
 export type SidePulseDevice = typeof SidePulseDevice.Type;
