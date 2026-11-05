@@ -3334,6 +3334,9 @@ export default function ChatView(props: ChatViewProps) {
     pullRequestAvailable: pullRequestSurfaceAvailable,
     pullRequestsAvailable: pullRequestsSurfaceAvailable,
     deviceAvailable: activeThreadRef !== null,
+    deviceRunning:
+      activeThreadRef !== null &&
+      deviceState.sessions.some((session) => session.threadId === activeThreadRef.threadId),
     children: rightPanelContent,
   };
   const content = (
