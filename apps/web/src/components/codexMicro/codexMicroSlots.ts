@@ -50,7 +50,7 @@ function attentionRank(thread: EnvironmentThreadShell): number {
   const status = resolveSidebarThreadStatus(thread);
   if (status === "approval" || status === "input") return 0;
   if (hasUnseenCompletion(thread)) return 1;
-  if (status === "working") return 2;
+  if (status === "preparing" || status === "working") return 2;
   return 3;
 }
 
@@ -123,6 +123,7 @@ function codexMicroSlotStatus(
     case "input":
     case "limited":
       return "awaiting-response";
+    case "preparing":
     case "working":
       return "working";
     case "waiting":

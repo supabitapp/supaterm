@@ -715,6 +715,7 @@ export function resolveAdjacentThreadId<T>(input: {
 export type SidebarThreadStatus =
   | "approval"
   | "input"
+  | "preparing"
   | "working"
   | "waiting"
   | "failed"
@@ -729,7 +730,9 @@ export function shouldRecedeSidebarThread(input: {
   isSelected: boolean;
 }): boolean {
   if (input.isActive || input.isSelected || input.status === "input") return false;
-  if (input.status === "working" || input.status === "waiting") return true;
+  if (input.status === "preparing" || input.status === "working" || input.status === "waiting") {
+    return true;
+  }
   if (input.status === "ready" || input.status === "approval") {
     return !input.isUnread && !input.isWoke;
   }
@@ -755,9 +758,12 @@ export function resolveSidebarThreadStatus(thread: SidebarThreadStatusInput): Si
   if (thread.runtime?.status === "running" && thread.blockedOnThreadWait === true) {
     return "waiting";
   }
+  if (thread.runtime?.status === "preparing") {
+    return "preparing";
+  }
   if (
     thread.runtime !== null &&
-    ["preparing", "queued", "starting", "running", "waiting"].includes(thread.runtime.status)
+    ["queued", "starting", "running", "waiting"].includes(thread.runtime.status)
   ) {
     return "working";
   }
@@ -788,7 +794,7 @@ export function resolveSidebarV2TopStatus(input: {
   readonly isWoke: boolean;
 }): SidebarV2TopStatusKind | null {
   if (!input.environmentConnected) return "connecting";
-  if (input.status === "working") {
+  if (input.status === "preparing" || input.status === "working") {
     return "working";
   }
   if (input.status === "waiting") {
@@ -810,7 +816,7 @@ export function resolveSidebarV2TopStatus(input: {
 }
 
 export function shouldShowSidebarV2Duration(status: SidebarThreadStatus): boolean {
-  return status === "working" || status === "waiting";
+  return status === "preparing" || status === "working" || status === "waiting";
 }
 
 export function firstValidTimestampMs(
