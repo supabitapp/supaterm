@@ -115,6 +115,8 @@ export class CodexMicro extends Context.Service<
     readonly available: boolean;
     /** Cheap and idempotent: runs on every client-settings write. */
     readonly configure: (settings: CodexMicroSettings) => Effect.Effect<void>;
+    readonly pause: Effect.Effect<void>;
+    readonly resume: Effect.Effect<void>;
     readonly state: Effect.Effect<CodexMicroDeviceState>;
     readonly setLighting: (model: CodexMicroLightingModel) => Effect.Effect<void>;
     readonly clearVoiceActivity: Effect.Effect<void>;
@@ -144,6 +146,7 @@ const make = Effect.gen(function* () {
   let lastInputAt = Number.NEGATIVE_INFINITY;
   let screenLocked = false;
   let enabledFiber: Fiber.Fiber<void> | undefined;
+  let paused = false;
   const lifecycle = yield* Semaphore.make(1);
   const lightingWake = yield* Queue.sliding<void>(1);
   const rescan = yield* Queue.sliding<void>(1);
@@ -561,7 +564,7 @@ const make = Effect.gen(function* () {
   }).pipe(Effect.scoped, Effect.withSpan("desktop.codexMicro.run"));
 
   const start = Effect.gen(function* () {
-    if (enabledFiber !== undefined) return;
+    if (enabledFiber !== undefined || paused) return;
     yield* inputMonitoring.requestIfUndetermined;
     enabledFiber = yield* Effect.forkIn(runEnabled, serviceScope);
   });
@@ -638,6 +641,22 @@ const make = Effect.gen(function* () {
   return CodexMicro.of({
     available: true,
     configure,
+    pause: lifecycle
+      .withPermit(
+        Effect.suspend(() => {
+          paused = true;
+          return stop;
+        }),
+      )
+      .pipe(Effect.withSpan("desktop.codexMicro.pause")),
+    resume: lifecycle
+      .withPermit(
+        Effect.suspend(() => {
+          paused = false;
+          return settings.enabled ? start : Effect.void;
+        }),
+      )
+      .pipe(Effect.withSpan("desktop.codexMicro.resume")),
     state: refreshInputMonitoring.pipe(
       Effect.andThen(Effect.sync(() => state)),
       Effect.withSpan("desktop.codexMicro.state"),
@@ -664,6 +683,8 @@ export const layerUnavailable = Layer.succeed(
     configure: Effect.fn("CodexMicro.configure")(function () {
       return Effect.void;
     }),
+    pause: Effect.void,
+    resume: Effect.void,
     state: Effect.succeed(deviceState("disabled", "unavailable")),
     setLighting: Effect.fn("CodexMicro.setLighting")(function () {
       return Effect.void;

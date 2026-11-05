@@ -223,9 +223,9 @@ const layerDesktopApplication = Layer.mergeAll(
 ).pipe(
   Layer.provideMerge(layerDesktopWebLinks),
   Layer.provideMerge(layerDesktopSnapShot),
-  Layer.provideMerge(layerDesktopCodexMicro),
   Layer.provideMerge(layerDesktopSidePulse),
   Layer.provideMerge(DesktopUpdates.layer),
+  Layer.provideMerge(layerDesktopCodexMicro),
   Layer.provideMerge(layerDesktopWslBackend),
   Layer.provideMerge(layerDesktopLocalEnvironmentAuth),
 );

@@ -29,6 +29,7 @@ import * as DesktopConfig from "../app/DesktopConfig.ts";
 import * as DesktopEnvironment from "../app/DesktopEnvironment.ts";
 import * as DesktopObservability from "../app/DesktopObservability.ts";
 import * as DesktopState from "../app/DesktopState.ts";
+import * as CodexMicro from "../codexMicro/CodexMicro.ts";
 import * as ElectronUpdater from "../electron/ElectronUpdater.ts";
 import * as ElectronWindow from "../electron/ElectronWindow.ts";
 import * as IpcChannels from "../ipc/channels.ts";
@@ -347,6 +348,7 @@ function isArm64HostRunningIntelBuild(runtimeInfo: DesktopRuntimeInfo): boolean 
 export const make = Effect.gen(function* () {
   const config = yield* DesktopConfig.DesktopConfig;
   const pool = yield* DesktopBackendPool.DesktopBackendPool;
+  const codexMicro = yield* CodexMicro.CodexMicro;
   const desktopState = yield* DesktopState.DesktopState;
   const electronUpdater = yield* ElectronUpdater.ElectronUpdater;
   const electronWindow = yield* ElectronWindow.ElectronWindow;
@@ -686,6 +688,7 @@ export const make = Effect.gen(function* () {
         concurrency: "unbounded",
         discard: true,
       }).pipe(Effect.exit);
+      yield* codexMicro.resume;
       yield* updateState((current) => reduceDesktopUpdateStateOnInstallFailure(current, message));
       if (Exit.isFailure(restartExit)) {
         yield* logUpdaterError("Desktop update install recovery could not restart every backend.");
@@ -761,10 +764,16 @@ export const make = Effect.gen(function* () {
             instance.snapshot.pipe(Effect.map((snapshot) => snapshot.desiredRunning)),
           );
           yield* Ref.set(installRunningBackendsRef, runningInstances);
-          yield* Effect.forEach(
-            instances,
-            (instance) => instance.stop({ timeout: Duration.seconds(5) }),
-            { concurrency: "unbounded" },
+          yield* Effect.all(
+            [
+              Effect.forEach(
+                instances,
+                (instance) => instance.stop({ timeout: Duration.seconds(5) }),
+                { concurrency: "unbounded", discard: true },
+              ),
+              codexMicro.pause,
+            ],
+            { concurrency: "unbounded", discard: true },
           );
           yield* electronUpdater.quitAndInstall({
             isSilent: true,
@@ -787,7 +796,7 @@ export const make = Effect.gen(function* () {
               },
             ),
           }),
-          Effect.onInterrupt(() => resetInstallAction),
+          Effect.onInterrupt(() => resetInstallAction.pipe(Effect.andThen(codexMicro.resume))),
           Effect.catchCause((cause) =>
             Effect.gen(function* () {
               if (Cause.hasInterruptsOnly(cause)) {

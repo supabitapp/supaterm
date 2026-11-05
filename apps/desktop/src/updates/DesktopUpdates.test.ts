@@ -470,8 +470,38 @@ describe("DesktopUpdates", () => {
         const result = yield* updates.install;
         assert.isTrue(result.accepted);
         assert.isFalse(yield* Ref.get(desktopState.quitting));
-        assert.deepEqual(harness.installSteps, ["quitAndInstall", "startBackend"]);
+        assert.deepEqual(harness.installSteps, [
+          "pauseCodexMicro",
+          "quitAndInstall",
+          "startBackend",
+          "resumeCodexMicro",
+        ]);
         assert.equal(harness.installRecords.size, 0);
+      }),
+    ).pipe(Effect.provide(Layer.merge(TestClock.layer(), harness.layer)));
+  });
+
+  it.effect("resumes the keyboard when an install is interrupted", () => {
+    const quitStarted = Deferred.makeUnsafe<void>();
+    const harness = makeHarness({
+      quitAndInstall: Deferred.succeed(quitStarted, undefined).pipe(Effect.andThen(Effect.never)),
+    });
+
+    return Effect.scoped(
+      Effect.gen(function* () {
+        const updates = yield* DesktopUpdates.DesktopUpdates;
+        yield* updates.configure;
+        harness.emit("update-downloaded", { version: "1.2.4" });
+        yield* flushCallbacks;
+
+        const install = yield* updates.install.pipe(Effect.forkChild);
+        yield* Deferred.await(quitStarted);
+        yield* Fiber.interrupt(install);
+        assert.deepEqual(harness.installSteps, [
+          "pauseCodexMicro",
+          "quitAndInstall",
+          "resumeCodexMicro",
+        ]);
       }),
     ).pipe(Effect.provide(Layer.merge(TestClock.layer(), harness.layer)));
   });
@@ -499,7 +529,11 @@ describe("DesktopUpdates", () => {
 
         const result = yield* updates.install;
         assert.equal(result.state.errorContext, "install");
-        assert.deepEqual(harness.installSteps, ["quitAndInstall"]);
+        assert.deepEqual(harness.installSteps, [
+          "pauseCodexMicro",
+          "quitAndInstall",
+          "resumeCodexMicro",
+        ]);
         assert.isFalse((yield* (yield* pool.primary).snapshot).desiredRunning);
       }),
     ).pipe(Effect.provide(Layer.merge(TestClock.layer(), harness.layer)));
@@ -593,7 +627,11 @@ describe("DesktopUpdates", () => {
         assert.equal(harness.quitAndInstalls(), 1);
         harness.emit("error", new Error("duplicate native installer error"));
         yield* flushCallbacks;
-        assert.deepEqual(harness.installSteps, ["quitAndInstall", "startBackend"]);
+        assert.deepEqual(harness.installSteps, [
+          "pauseCodexMicro",
+          "quitAndInstall",
+          "startBackend",
+        ]);
 
         yield* Deferred.succeed(releaseRecovery, undefined);
         const failedResult = yield* Fiber.join(failedInstall);

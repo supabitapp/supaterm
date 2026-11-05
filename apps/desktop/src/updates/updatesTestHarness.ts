@@ -7,6 +7,7 @@ import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 
 import * as DesktopBackendPool from "../backend/DesktopBackendPool.ts";
+import * as CodexMicro from "../codexMicro/CodexMicro.ts";
 import * as DesktopConfig from "../app/DesktopConfig.ts";
 import * as DesktopEnvironment from "../app/DesktopEnvironment.ts";
 import * as ElectronUpdater from "../electron/ElectronUpdater.ts";
@@ -132,6 +133,33 @@ export function makeHarness(options: UpdatesHarnessOptions = {}) {
     }),
     syncAllAppearance: () => Effect.void,
   } satisfies ElectronWindow.ElectronWindow["Service"]);
+
+  const layerCodexMicro = Layer.succeed(
+    CodexMicro.CodexMicro,
+    CodexMicro.CodexMicro.of({
+      available: true,
+      configure: Effect.fn("CodexMicro.configure")(function () {
+        return Effect.void;
+      }),
+      pause: Effect.sync(() => {
+        installSteps.push("pauseCodexMicro");
+      }),
+      resume: Effect.sync(() => {
+        installSteps.push("resumeCodexMicro");
+      }),
+      state: Effect.die("unexpected CodexMicro state read"),
+      setLighting: Effect.fn("CodexMicro.setLighting")(function () {
+        return Effect.void;
+      }),
+      clearVoiceActivity: Effect.void,
+      subscribeState: Effect.fn("CodexMicro.subscribeState")(function () {
+        return Effect.void;
+      }),
+      subscribeInput: Effect.fn("CodexMicro.subscribeInput")(function () {
+        return Effect.void;
+      }),
+    }),
+  );
 
   let backendDesiredRunning = options.backendDesiredRunning ?? true;
   const stubBackendInstance: DesktopBackendPool.DesktopBackendInstance = {
@@ -273,6 +301,7 @@ export function makeHarness(options: UpdatesHarnessOptions = {}) {
     Layer.provideMerge(layerUpdater),
     Layer.provideMerge(layerWindow),
     Layer.provideMerge(layerBackend),
+    Layer.provideMerge(layerCodexMicro),
     Layer.provideMerge(DesktopState.layer),
     Layer.provideMerge(layerSettings),
     Layer.provideMerge(

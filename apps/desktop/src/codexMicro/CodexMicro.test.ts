@@ -392,6 +392,29 @@ describe("CodexMicro", () => {
     }),
   );
 
+  it.effect("stays closed from pause until resume, even if re-enabled", () =>
+    Effect.gen(function* () {
+      const harness = yield* makeHarness;
+      harness.transport.setDevices([USB]);
+      yield* harness.connect;
+
+      yield* harness.codexMicro.pause;
+      const [rgbcfg] = yield* harness.takeRequests(2);
+      assert.deepStrictEqual(rgbcfg?.params, LIGHTS_OFF_PAYLOAD.rgbcfg);
+      assert.strictEqual(harness.transport.closed(), 1);
+
+      yield* harness.codexMicro.configure(settings({ enabled: false }));
+      yield* harness.codexMicro.configure(settings());
+      yield* TestClock.adjust(Duration.seconds(30));
+      assert.deepStrictEqual(harness.transport.opened, ["usb"]);
+
+      yield* harness.codexMicro.resume;
+      yield* harness.takeRequests(4);
+      yield* harness.awaitState((state) => state.status === "connected");
+      assert.deepStrictEqual(harness.transport.opened, ["usb", "usb"]);
+    }),
+  );
+
   it.effect("attaches the displayed thread to agent keys and focuses on a double tap", () =>
     Effect.gen(function* () {
       const harness = yield* makeHarness;
