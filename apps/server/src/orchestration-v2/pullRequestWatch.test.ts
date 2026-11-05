@@ -228,7 +228,7 @@ describe("evaluatePullRequestWatch", () => {
     assert.deepEqual(rest.changes, [{ kind: "checks-finished", failing: [labels] }]);
     assert.deepEqual(evaluatePullRequestWatch(rest.next, finished, noRemarks).changes, []);
 
-    // With no required checks, a late failure is its own news, and its rerun still owes the wake.
+    // A failure after everything else finished says so, and its rerun still owes the wake.
     const sonar = check("sonar", "cancelled");
     const early = evaluatePullRequestWatch(
       watch(),
@@ -238,7 +238,9 @@ describe("evaluatePullRequestWatch", () => {
     assert.deepEqual(early.changes, [{ kind: "checks-failed", failed: [sonar] }]);
     const e2eFailed = detail({ checks: [sonar, check("e2e", "failure")] });
     const late = evaluatePullRequestWatch(early.next, e2eFailed, noRemarks);
-    assert.deepEqual(late.changes, [{ kind: "checks-failed", failed: [check("e2e", "failure")] }]);
+    assert.deepEqual(late.changes, [
+      { kind: "checks-finished", failing: [sonar, check("e2e", "failure")] },
+    ]);
     assert.deepEqual(evaluatePullRequestWatch(late.next, e2eFailed, noRemarks).changes, []);
     const rerun = detail({ checks: [sonar, check("e2e", "success")] });
     const recovered = evaluatePullRequestWatch(late.next, rerun, noRemarks);
@@ -253,7 +255,9 @@ describe("evaluatePullRequestWatch", () => {
       detail({ checks: [labels, unitFailed, check("e2e", "success")] }),
       noRemarks,
     );
-    assert.deepEqual(bothFailed.changes, [{ kind: "checks-failed", failed: [unitFailed] }]);
+    assert.deepEqual(bothFailed.changes, [
+      { kind: "checks-finished", failing: [labels, unitFailed] },
+    ]);
     const gatePassed = evaluatePullRequestWatch(
       bothFailed.next,
       detail({ checks: [required, unitFailed, check("e2e", "success")] }),
@@ -274,7 +278,7 @@ describe("evaluatePullRequestWatch", () => {
     const failed = detail({ checks: [required, check("e2e", "failure")] });
     const failure = evaluatePullRequestWatch(first.next, failed, noRemarks);
     assert.deepEqual(failure.changes, [
-      { kind: "checks-failed", failed: [check("e2e", "failure")] },
+      { kind: "checks-finished", failing: [check("e2e", "failure")] },
     ]);
     const repeated = evaluatePullRequestWatch(failure.next, failed, noRemarks);
     assert.deepEqual(repeated.changes, []);
