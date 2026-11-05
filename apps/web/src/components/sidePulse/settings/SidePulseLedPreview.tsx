@@ -18,6 +18,8 @@ const LIT_MS: Readonly<Record<SidePulseLedState, number>> = {
   idle: 3900,
 };
 
+const panelWidth = (ledCount: number) => ledCount * LED_PITCH + GLOW_ROOM * 2;
+
 function hexToRgb(hex: string): ReadonlyArray<number> {
   return [1, 3, 5].map((offset) => Number.parseInt(hex.slice(offset, offset + 2), 16));
 }
@@ -26,7 +28,7 @@ function drawLeds(canvas: HTMLCanvasElement, rgb: ArrayLike<number>, ledCount: n
   const context = canvas.getContext("2d");
   if (context === null) return;
   const scale = window.devicePixelRatio || 1;
-  const width = ledCount * LED_PITCH + GLOW_ROOM * 2;
+  const width = panelWidth(ledCount);
   if (canvas.width !== Math.round(width * scale)) {
     canvas.width = Math.round(width * scale);
     canvas.height = Math.round(HEIGHT * scale);
@@ -122,10 +124,9 @@ export function SidePulseLedPreview({
       },
       () => {
         if (disposed) return;
-        const [red = 0, green = 0, blue = 0] = hexToRgb(fallbackColor);
         drawLeds(
           canvas,
-          Array.from({ length: ledCount }, () => [red, green, blue]).flat(),
+          Array.from({ length: ledCount }, () => hexToRgb(fallbackColor)).flat(),
           ledCount,
         );
       },
@@ -140,11 +141,7 @@ export function SidePulseLedPreview({
 
   return (
     <span className="inline-flex rounded-full bg-led-panel px-1 py-0.5 ring-1 ring-border">
-      <canvas
-        ref={canvasRef}
-        aria-hidden
-        style={{ width: ledCount * LED_PITCH + GLOW_ROOM * 2, height: HEIGHT }}
-      />
+      <canvas ref={canvasRef} aria-hidden style={{ width: panelWidth(ledCount), height: HEIGHT }} />
     </span>
   );
 }
