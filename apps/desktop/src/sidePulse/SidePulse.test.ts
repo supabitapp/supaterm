@@ -2,6 +2,7 @@ import * as NodeServices from "@effect/platform-node/NodeServices";
 import { assert, describe, it } from "@effect/vitest";
 import * as Deferred from "effect/Deferred";
 import * as Effect from "effect/Effect";
+import * as Fiber from "effect/Fiber";
 import * as FileSystem from "effect/FileSystem";
 import * as TestClock from "effect/testing/TestClock";
 
@@ -89,6 +90,40 @@ describe("SidePulse", () => {
         devices: [],
         ledState: "working",
       });
+    }).pipe(Effect.scoped, Effect.provide(NodeServices.layer)),
+  );
+
+  it.effect("turns the LEDs off when the window closes behind a queued update", () =>
+    Effect.gen(function* () {
+      const { mount, read, sidePulse } = yield* setup;
+      yield* mount("SidePulseDot");
+      const scanning = yield* Deferred.make<void>();
+      const releaseScan = yield* Deferred.make<void>();
+      let held = false;
+      yield* sidePulse.subscribeState(() => {
+        if (held) return Effect.void;
+        held = true;
+        return Deferred.succeed(scanning, undefined).pipe(
+          Effect.andThen(Deferred.await(releaseScan)),
+        );
+      });
+
+      const enabling = yield* Effect.forkChild(
+        sidePulse.configure({ enabled: true, brightness: 100 }),
+      );
+      yield* Deferred.await(scanning);
+      // Each update runs until it waits on the scan still holding the device lock.
+      const working = yield* Effect.forkChild(sidePulse.setLedState("working"), {
+        startImmediately: true,
+      });
+      const windowClosed = yield* Effect.forkChild(sidePulse.setLedState(null), {
+        startImmediately: true,
+      });
+      yield* Deferred.succeed(releaseScan, undefined);
+      yield* Fiber.joinAll([enabling, working, windowClosed]);
+
+      assert.strictEqual(yield* read("SidePulseDot"), "off 1s");
+      assert.strictEqual((yield* sidePulse.state).ledState, null);
     }).pipe(Effect.scoped, Effect.provide(NodeServices.layer)),
   );
 

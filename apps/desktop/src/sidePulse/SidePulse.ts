@@ -223,11 +223,12 @@ export const make = Effect.fn("SidePulse.make")(function* (mountRoots: ReadonlyA
 
   yield* Effect.addFinalizer(() => lock.withPermit(turnOff));
 
+  // Compare under the lock: a queued update must not hide a later one that undoes it.
   const configure = Effect.fn("desktop.sidePulse.configure")(function* (next: SidePulseSettings) {
-    const previous = settings;
-    if (Equal.equals(next, previous)) return;
     yield* lock.withPermit(
       Effect.suspend(() => {
+        const previous = settings;
+        if (Equal.equals(next, previous)) return Effect.void;
         settings = next;
         if (next.enabled === previous.enabled) return syncDevices;
         return next.enabled ? start : stop;
@@ -238,9 +239,9 @@ export const make = Effect.fn("SidePulse.make")(function* (mountRoots: ReadonlyA
   const setLedState = Effect.fn("desktop.sidePulse.setLedState")(function* (
     next: SidePulseLedState | null,
   ) {
-    if (next === ledState) return;
     yield* lock.withPermit(
       Effect.suspend(() => {
+        if (next === ledState) return Effect.void;
         ledState = next;
         return syncDevices;
       }),

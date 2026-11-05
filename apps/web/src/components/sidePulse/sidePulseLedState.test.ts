@@ -101,6 +101,38 @@ describe("selectSidePulseLedState", () => {
       "idle",
     ],
     [
+      "shows work the agent is waiting on in the background as working",
+      [
+        thread("watching", {
+          ...finished("completed", EARLIER),
+          pendingBackgroundTasks: [
+            { taskId: "watch", description: "Watch PR", kind: "monitor", awaited: true },
+          ],
+        }),
+      ],
+      "working",
+    ],
+    [
+      "ignores a subagent's question to its parent",
+      [
+        thread("parent", runtime("running")),
+        thread("child", {
+          hasPendingUserInput: true,
+          lineage: {
+            rootThreadId: ThreadId.make("parent"),
+            parentThreadId: ThreadId.make("parent"),
+            relationshipToParent: "subagent",
+          },
+        }),
+      ],
+      "working",
+    ],
+    [
+      "counts a reply on a thread marked done as seen",
+      [thread("marked-done", { ...finished("completed", EARLIER), doneOverride: "done" })],
+      "idle",
+    ],
+    [
       "ignores threads that are archived, snoozed, or offline",
       [
         thread("archived", { ...runtime("running"), archivedAt: NOW }),
