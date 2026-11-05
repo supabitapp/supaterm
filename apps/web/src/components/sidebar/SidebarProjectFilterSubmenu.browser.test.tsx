@@ -47,7 +47,6 @@ async function renderSubmenu(values: readonly string[]) {
           open
           onOpenChange={() => undefined}
           projects={projects}
-          environments={null}
           shortcutLabels={new Map()}
           onSelect={onSelect}
           onToggle={onToggle}

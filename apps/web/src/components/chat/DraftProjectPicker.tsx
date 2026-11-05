@@ -4,7 +4,7 @@ import {
   composerDraftHasUserContent,
   draftThreadHasOpenPreview,
 } from "~/composerDraftStore";
-import { resolveEnvironmentMachineKind, type ScopedProjectRef } from "@supaterm/contracts";
+import type { ScopedProjectRef } from "@supaterm/contracts";
 import { scopedProjectKey, scopeProjectRef } from "@supaterm/client-runtime/environment";
 import { isScratchProject } from "@supaterm/client-runtime/state/projects";
 import {
@@ -35,12 +35,10 @@ import {
 import {
   buildSidebarProjectPickerEntries,
   buildSidebarProjectSnapshots,
-  projectGroupsSpanEnvironments,
 } from "~/sidebarProjectGrouping";
 import { useProjects, useThreadShells } from "~/state/entities";
 import { useEnvironments, usePrimaryEnvironmentId } from "~/state/environments";
 import { ComposerContextLabel } from "../ComposerContextLabel";
-import { ProjectEnvironmentBadge } from "../ProjectEnvironmentBadge";
 import { ProjectFavicon } from "../ProjectFavicon";
 import { isProjectPinShortcut, ProjectPinButton } from "../ProjectPinButton";
 import { sortLogicalProjectsForSidebar } from "../Sidebar.logic";
@@ -106,19 +104,6 @@ function useDraftProjectCatalog(activeProjectRef: ScopedProjectRef | null) {
     projectEntryByKey: new Map(
       projectPickerEntries.map((entry) => [entry.group.projectKey, entry] as const),
     ),
-    // Same-named projects on two machines are only told apart by where they
-    // live, so rows on another machine carry its icon once the catalog spans
-    // more than one environment; a single-machine catalog stays as it was.
-    showProjectEnvironments: projectGroupsSpanEnvironments(projectGroups),
-    environmentMachineById: new Map(
-      environments.map(
-        (environment) =>
-          [
-            environment.environmentId,
-            resolveEnvironmentMachineKind(environment.serverConfig),
-          ] as const,
-      ),
-    ),
   };
 }
 
@@ -137,8 +122,6 @@ export function DraftProjectPicker({
     projectGroups,
     projectPickerEntries,
     projectEntryByKey,
-    showProjectEnvironments,
-    environmentMachineById,
   } = useDraftProjectCatalog(activeProjectRef);
   const getComposerDraft = useComposerDraftStore((store) => store.getComposerDraft);
   const openAddProject = () => openCommandPalette({ open: "add-project" });
@@ -433,13 +416,6 @@ export function DraftProjectPicker({
                     <FolderPlusIcon className="size-4 shrink-0" />
                   )}
                   <span className="min-w-0 flex-1 truncate">{item.label}</span>
-                  {entry && showProjectEnvironments ? (
-                    <ProjectEnvironmentBadge
-                      group={entry.group}
-                      primaryEnvironmentId={primaryEnvironmentId}
-                      machineByEnvironmentId={environmentMachineById}
-                    />
-                  ) : null}
                   {entry && canPinProjectGroup(entry.group) ? (
                     <ProjectPinButton
                       name={entry.group.displayName}
