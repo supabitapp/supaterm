@@ -20,13 +20,13 @@ import { SidebarHeaderIconButton } from "./SidebarThreadHeader";
 export function SidebarThreadListMenu({
   open,
   onOpenChange,
-  hidingOfflineThreads,
+  hidesOfflineThreads,
   projectFilter,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   /** Whether hiding offline environments leaves out a row the list would otherwise show. */
-  hidingOfflineThreads: boolean;
+  hidesOfflineThreads: boolean;
   projectFilter: ReactNode;
 }) {
   const grouping = useClientSettings((settings) => settings.sidebarThreadGrouping);
@@ -39,7 +39,7 @@ export function SidebarThreadListMenu({
         render={
           <SidebarHeaderIconButton
             label={
-              hidingOfflineThreads
+              hidesOfflineThreads
                 ? "Thread list options, offline environments hidden"
                 : "Thread list options"
             }
@@ -47,7 +47,7 @@ export function SidebarThreadListMenu({
         }
       >
         <SlidersHorizontalIcon />
-        {hidingOfflineThreads ? (
+        {hidesOfflineThreads ? (
           <span
             aria-hidden
             className="absolute right-1 top-1 size-1.5 rounded-full bg-muted-foreground"

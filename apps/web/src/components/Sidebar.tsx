@@ -2785,7 +2785,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                   optionsMenu={
                     <SidebarThreadListMenu
                       open={threadListMenuOpen}
-                      hidingOfflineThreads={hidesOfflineThreads}
+                      hidesOfflineThreads={hidesOfflineThreads}
                       onOpenChange={(open) => {
                         if (!open) return closeThreadListMenu();
                         suppressNextScopeChangeRef.current = false;
