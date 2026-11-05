@@ -18,6 +18,8 @@ import { pullRequestLabelColor } from "./pullRequestList";
 import { PullRequestSearchSheet } from "./PullRequestSearchSheet";
 import { usePullRequestConnected } from "./usePullRequestConnected";
 import { pullRequestTarget, type PullRequestParams } from "./usePullRequestDiff";
+import { playOutcomeHaptic } from "../../lib/outcomeHaptic";
+import * as Haptics from "expo-haptics";
 
 export function PullRequestLabelsScreen({ route }: StaticScreenProps<PullRequestParams>) {
   const target = pullRequestTarget(route.params);
@@ -56,6 +58,7 @@ export function PullRequestLabelsScreen({ route }: StaticScreenProps<PullRequest
   const toggle = async (candidate: PullRequestLabelCandidate) => {
     if (!allowed || inFlight.current) return;
     inFlight.current = true;
+    void Haptics.selectionAsync();
     setPending({ name: candidate.name, applied: !candidate.isApplied });
     setError(null);
     const response = await setLabels({
@@ -65,6 +68,7 @@ export function PullRequestLabelsScreen({ route }: StaticScreenProps<PullRequest
     inFlight.current = false;
     setPending(undefined);
     if (AsyncResult.isFailure(response)) {
+      playOutcomeHaptic(false);
       const cause = squashAtomCommandFailure(response);
       setError(cause instanceof Error ? cause.message : "Couldn't update this label. Try again.");
     }

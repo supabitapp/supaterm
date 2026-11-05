@@ -33,6 +33,8 @@ import {
 } from "../layout/native-mail-search-toolbar";
 import { PullRequestAvatar } from "./PullRequestPresentation";
 import { pullRequestTarget, type PullRequestParams } from "./usePullRequestDiff";
+import { playOutcomeHaptic } from "../../lib/outcomeHaptic";
+import * as Haptics from "expo-haptics";
 function ReviewerScrollView(props: ScrollViewProps) {
   return (
     <ScrollViewMarker style={{ flex: 1 }}>
@@ -99,6 +101,7 @@ export function PullRequestReviewersScreen({ route }: StaticScreenProps<PullRequ
   ) => {
     if (!allowed || inFlight.current) return;
     inFlight.current = true;
+    void Haptics.selectionAsync();
     setPending(`${candidate.kind}:${candidate.id}`);
     setError(null);
     const response = await request({
@@ -117,6 +120,7 @@ export function PullRequestReviewersScreen({ route }: StaticScreenProps<PullRequ
     inFlight.current = false;
     setPending(null);
     if (AsyncResult.isFailure(response)) {
+      playOutcomeHaptic(false);
       const cause = squashAtomCommandFailure(response);
       setError(
         cause instanceof Error ? cause.message : "Couldn't update this review request. Try again.",

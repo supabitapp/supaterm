@@ -16,6 +16,7 @@ import { useAtomCommand } from "../../state/use-atom-command";
 import { PullRequestSheetContent } from "./PullRequestSheetContent";
 import { pullRequestTarget, type PullRequestParams } from "./usePullRequestDiff";
 import { usePullRequestPermissions } from "./usePullRequestPermissions";
+import { playOutcomeHaptic } from "../../lib/outcomeHaptic";
 
 export type PullRequestEditParams = PullRequestParams &
   (
@@ -100,6 +101,7 @@ export function PullRequestEditScreen({ route }: StaticScreenProps<PullRequestEd
           });
     inFlight.current = false;
     setBusy(false);
+    playOutcomeHaptic(AsyncResult.isSuccess(result));
     if (AsyncResult.isFailure(result)) {
       const cause = squashAtomCommandFailure(result);
       setError(cause instanceof Error ? cause.message : "The provider refused the change.");

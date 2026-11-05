@@ -25,6 +25,8 @@ import { pullRequestTarget, type PullRequestParams } from "./usePullRequestDiff"
 import { usePullRequestPermissions } from "./usePullRequestPermissions";
 import { PullRequestGlyph } from "./pullRequestGlyphs";
 import type { PullRequestStackState } from "./usePullRequestStack";
+import { playOutcomeHaptic } from "../../lib/outcomeHaptic";
+import * as Haptics from "expo-haptics";
 
 export function PullRequestMergeControls(props: {
   readonly pr: PullRequestDetail;
@@ -134,6 +136,7 @@ export function PullRequestMergeControls(props: {
     stack.refresh();
     pending.current = false;
     setBusy(false);
+    playOutcomeHaptic(AsyncResult.isSuccess(response));
     if (AsyncResult.isFailure(response)) {
       const cause = squashAtomCommandFailure(response);
       Dialog.alert(
@@ -202,6 +205,7 @@ export function PullRequestMergeControls(props: {
         onPressAction={(id) => {
           const selected = methods.find((method) => method === id);
           if (selected) {
+            if (selected !== method) void Haptics.selectionAsync();
             setSelectedMethod(selected);
             savePreferences({ pullRequestMergeMethod: selected });
           } else if (id === autoAction && canAutoMerge) confirm(autoAction);

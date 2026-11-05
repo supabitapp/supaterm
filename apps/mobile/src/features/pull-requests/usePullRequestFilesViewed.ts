@@ -10,6 +10,7 @@ import { useAtomCommand } from "../../state/use-atom-command";
 import { pullRequestTarget, type PullRequestParams } from "./usePullRequestDiff";
 import { pullRequestReviewKey } from "./pullRequestReviewDrafts";
 import { viewedOverlay, type ViewedState } from "./pullRequestFilesViewed";
+import { playOutcomeHaptic } from "../../lib/outcomeHaptic";
 
 export function usePullRequestFilesViewed(params: PullRequestParams, pr: PullRequestDetail | null) {
   const registry = use(RegistryContext);
@@ -48,6 +49,7 @@ export function usePullRequestFilesViewed(params: PullRequestParams, pr: PullReq
       ...target,
       input: { ...target.input, files: [{ path, viewed }] },
     });
+    if (response._tag === "Failure") playOutcomeHaptic(false);
     // The read that is current once the write lands still predates it; a newer one carries it.
     const readAtWrite = AsyncResult.getOrElse(
       registry.get(composerPullRequests.filesViewed(target)),

@@ -64,6 +64,7 @@ import {
 import { PullRequestReadStatus } from "./PullRequestPresentation";
 
 import { usePullRequestToolbarHeight } from "./usePullRequestToolbarHeight";
+import * as Haptics from "expo-haptics";
 
 const EMPTY_IDS: readonly string[] = [];
 
@@ -462,6 +463,7 @@ function PullRequestFileRouteContent({ route }: PullRequestFileRouteProps) {
               onToggleViewedFile={(event) => {
                 const file = data.files.find((file) => file.id === event.nativeEvent.fileId);
                 if (!file || (!commit && !viewed.canToggle)) return;
+                void Haptics.selectionAsync();
                 const wasViewed = commit
                   ? commitViewedPaths.has(file.path)
                   : viewed.isViewed(file.path);

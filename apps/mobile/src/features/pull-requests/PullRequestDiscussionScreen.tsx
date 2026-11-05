@@ -28,6 +28,7 @@ import { PullRequestCommentFooter } from "./PullRequestReactions";
 import { pullRequestTarget, type PullRequestParams } from "./usePullRequestDiff";
 import { usePullRequestPermissions } from "./usePullRequestPermissions";
 import { pullRequestReviewKey } from "./pullRequestReviewDrafts";
+import { playOutcomeHaptic } from "../../lib/outcomeHaptic";
 export function PullRequestDiscussionScreen({
   route,
 }: StaticScreenProps<
@@ -113,6 +114,7 @@ function Discussion({
           body: submitted,
         },
       });
+      playOutcomeHaptic(AsyncResult.isSuccess(response));
       if (AsyncResult.isFailure(response)) return response;
       setBody((current) => (current === submitted ? "" : current));
       setNotice("Reply posted.");
@@ -130,6 +132,7 @@ function Discussion({
           resolved: !thread.isResolved,
         },
       });
+      playOutcomeHaptic(AsyncResult.isSuccess(response));
       if (AsyncResult.isSuccess(response)) refresh();
       return response;
     });
