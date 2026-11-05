@@ -5590,6 +5590,7 @@ describe("shouldCollapseUserMessage", () => {
 
     expect(shouldCollapseUserMessage(`${citation} Can you expand on this?`)).toBe(false);
     expect(shouldCollapseUserMessage(`${citation} ${"More text. ".repeat(60)}`)).toBe(true);
+    expect(shouldCollapseUserMessage(Array(3).fill(citation).join(" "))).toBe(false);
     expect(shouldCollapseUserMessage(Array(5).fill(citation).join(" "))).toBe(true);
   });
 });

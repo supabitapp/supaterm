@@ -2539,6 +2539,10 @@ const MAX_COLLAPSED_USER_MESSAGE_LINES = 8;
 const MAX_COLLAPSED_USER_MESSAGE_LENGTH = 600;
 const MARKDOWN_LINK = /!?\[([^\]\n]*)\]\((?:<[^>\n]*>|[^\s)]*)\)/g;
 
+// Commented citations render as blocks; whitespace around a block adds no line of its own.
+const ANNOTATION_BREAK = "\uE000";
+const ANNOTATION_BOUNDARY = /\s*\uE000[\s\uE000]*/g;
+
 function visibleUserMessageText(text: string): string {
   const linkLabels = (segment: string) => segment.replace(MARKDOWN_LINK, "$1");
   let visible = "";
@@ -2548,10 +2552,10 @@ function visibleUserMessageText(text: string): string {
     const excerpt = assistantCitationExcerpt(match.citation);
     visible +=
       linkLabels(text.slice(cursor, match.start)) +
-      (comment ? `\n${excerpt}\n${comment}\n` : excerpt);
+      (comment ? `${ANNOTATION_BREAK}${excerpt}\n${comment}${ANNOTATION_BREAK}` : excerpt);
     cursor = match.end;
   }
-  return visible + linkLabels(text.slice(cursor));
+  return (visible + linkLabels(text.slice(cursor))).replace(ANNOTATION_BOUNDARY, "\n").trim();
 }
 
 export function shouldCollapseUserMessage(text: string): boolean {
