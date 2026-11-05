@@ -56,13 +56,13 @@ export function ThreadRelationshipIcon({
   status: string | null;
   fallbackIcon?: IconComponent;
 }) {
-  const iconClassName = "size-4 shrink-0 text-muted-foreground";
+  const iconClassName = "size-3.5 shrink-0 text-muted-foreground";
   const entry = driver
     ? providerEntries.find((candidate) => candidate.instanceId === provider?.instanceId)
     : undefined;
   const showInstanceBadge = entry !== undefined && shouldShowInstanceBadge(entry, providerEntries);
   return (
-    <span className="relative inline-flex size-4 shrink-0 items-center justify-center">
+    <span className="relative inline-flex size-3.5 shrink-0 items-center justify-center">
       {driver ? (
         <ProviderInstanceIcon
           driverKind={driver}

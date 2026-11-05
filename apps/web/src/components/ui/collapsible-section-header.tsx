@@ -35,7 +35,7 @@ export function CollapsibleSectionHeader({
       aria-expanded={expanded}
       className={cn(
         "flex h-8 w-full cursor-pointer items-center gap-2 rounded-md text-left text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/70",
-        variant === "panel" ? "ps-2 pe-2.5" : "px-2",
+        variant === "panel" ? "ps-2 pe-1.5" : "px-2",
         weight === "normal" ? "font-normal" : "font-medium",
         size === "sm" && "h-6 pointer-coarse:h-11 focus-visible:ring-muted-foreground/50",
         tones[tone].label,

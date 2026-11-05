@@ -98,7 +98,7 @@ export function ThreadDetailsUsage({
                   render={
                     <dd
                       tabIndex={0}
-                      className="m-0 flex h-7 min-w-10 max-w-1/2 shrink-0 items-center justify-end rounded-sm font-normal text-muted-foreground tabular-nums focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-muted-foreground/50 pointer-coarse:h-11 pointer-coarse:min-w-11"
+                      className="m-0 flex h-6 min-w-10 max-w-1/2 shrink-0 items-center justify-end rounded-sm font-normal text-muted-foreground tabular-nums focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-muted-foreground/50 pointer-coarse:h-11 pointer-coarse:min-w-11"
                     />
                   }
                 >

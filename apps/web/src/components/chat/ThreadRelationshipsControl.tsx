@@ -108,7 +108,7 @@ function ThreadLineageRowList(props: {
       </ul>
       {props.hiddenCount > 0 ? (
         <ThreadDetailsControl onClick={props.onShowMore} tone="muted">
-          <PlusIcon aria-hidden className="size-4 shrink-0" />
+          <PlusIcon aria-hidden className="size-3.5 shrink-0" />
           Show {Math.min(props.hiddenCount, THREAD_LINEAGE_PAGE_COUNT)} more
         </ThreadDetailsControl>
       ) : null}
