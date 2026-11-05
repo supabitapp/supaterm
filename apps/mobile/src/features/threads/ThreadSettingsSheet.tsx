@@ -6,6 +6,7 @@ import { SheetHeader } from "../../components/ui/SheetHeader";
 import { Toolbar } from "../../components/ui/Toolbar";
 import * as Dialog from "../../components/ui/Dialog";
 import { createV5StackNavigator as createNativeStackNavigator } from "../../native/createV5StackNavigator";
+import { useSheetStackOptions } from "../layout/nested-stacks";
 import type {
   EnvironmentId,
   ModelSelection,
@@ -66,13 +67,11 @@ import {
   getReasoningOptionDescriptor,
 } from "../../lib/providerOptions";
 import { resolveProviderOptionDescriptors } from "../../lib/providerOptions";
-import { useUniwindTheme } from "../../lib/useUniwindTheme";
 import {
   rememberModelOptions,
   withRememberedModelOptions,
 } from "../../state/use-model-option-memory";
-import { NativeStackScreenOptions, nativeHeaderScrollEdgeEffects } from "../../native/StackHeader";
-import { NATIVE_LIQUID_GLASS_SUPPORTED } from "../../native/native-glass";
+import { NativeStackScreenOptions } from "../../native/StackHeader";
 import { ChatGptSharingStatus } from "./ChatGptSharingStatus";
 import { scopedThreadKey } from "../../lib/scopedEntities";
 import {
@@ -136,10 +135,6 @@ const THREAD_SETTINGS_MAINTAIN_VISIBLE_CONTENT_POSITION = {
 const THREAD_SETTINGS_OPTIONS_LAYOUT_TRANSITION = LinearTransition.duration(180);
 const THREAD_SETTINGS_OPTION_ENTER_TRANSITION = FadeIn.duration(140);
 const THREAD_SETTINGS_OPTION_EXIT_TRANSITION = FadeOut.duration(100);
-const THREAD_SETTINGS_HEADER_SCROLL_EDGE_EFFECTS = nativeHeaderScrollEdgeEffects(
-  Platform.OS,
-  Platform.Version,
-);
 const EMPTY_MODEL_FAVORITES: ReadonlyArray<{
   readonly provider: ProviderInstanceId;
   readonly model: string;
@@ -1453,15 +1448,7 @@ function ThreadSettingsChoiceScreen() {
 
   return (
     <>
-      <NativeStackScreenOptions options={{ headerShown: Platform.OS !== "android" }} />
-      {Platform.OS === "android" ? (
-        <AppBar
-          embedded
-          title={route.params.title}
-          onBack={() => navigation.goBack()}
-          hideBottomBorder
-        />
-      ) : null}
+      <AppBar title={route.params.title} onBack={() => navigation.goBack()} hideBottomBorder />
       <ScreenContent>
         <ThreadSettingsChoiceContent
           submenu={route.params}
@@ -1473,9 +1460,7 @@ function ThreadSettingsChoiceScreen() {
 }
 
 function ThreadSettingsPickerNavigator(props: ThreadSettingsPickerPresentation) {
-  const theme = useUniwindTheme();
-  const solidSheetBackground = theme["--color-sheet-solid"];
-  const foreground = theme["--color-foreground"];
+  const screenOptions = useSheetStackOptions();
   const presentation = {
     onClose: props.onClose,
   };
@@ -1484,24 +1469,7 @@ function ThreadSettingsPickerNavigator(props: ThreadSettingsPickerPresentation) 
     <ThreadSettingsPickerPresentationContext.Provider value={presentation}>
       <ThreadSettingsPickerStack.Navigator
         initialRouteName="ThreadSettingsModels"
-        screenOptions={{
-          animation: Platform.OS === "android" ? "default" : "slide_from_right",
-          contentStyle: { backgroundColor: solidSheetBackground },
-          gestureEnabled: true,
-          headerBackButtonDisplayMode: "minimal",
-          headerBackTitle: "",
-          headerShown: Platform.OS !== "android",
-          headerShadowVisible: false,
-          headerStyle: {
-            backgroundColor: NATIVE_LIQUID_GLASS_SUPPORTED ? "transparent" : solidSheetBackground,
-          },
-          headerTransparent: NATIVE_LIQUID_GLASS_SUPPORTED,
-          headerTintColor: foreground,
-          headerTitleStyle: { fontSize: 17, fontWeight: "700" },
-          scrollEdgeEffects: NATIVE_LIQUID_GLASS_SUPPORTED
-            ? THREAD_SETTINGS_HEADER_SCROLL_EDGE_EFFECTS
-            : undefined,
-        }}
+        screenOptions={screenOptions}
       >
         <ThreadSettingsPickerStack.Screen
           name="ThreadSettingsModels"
