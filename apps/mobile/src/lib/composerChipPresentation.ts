@@ -43,6 +43,7 @@ const CONTEXT_CHIP_PRESENTATIONS = {
     accent: "#009c96",
     icon: "messages-square",
   },
+  model: { accent: "#8b8c14", icon: "bot" },
 } as const satisfies Record<string, ContextChipPresentation>;
 
 const CHIP_CONTRAST = 5;

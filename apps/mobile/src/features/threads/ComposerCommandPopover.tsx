@@ -1,3 +1,4 @@
+import type { ComposerModelItem } from "@supaterm/client-runtime/composerModelMentions";
 import {
   resolveProviderSkillSourceKind,
   type ProviderSkillSourceKind,
@@ -60,7 +61,8 @@ export type ComposerCommandItem =
       readonly skill: ServerProviderSkill;
       readonly label: string;
       readonly description: string;
-    };
+    }
+  | ComposerModelItem;
 
 interface ComposerCommandPopoverProps {
   readonly items: ReadonlyArray<ComposerCommandItem>;
@@ -110,6 +112,8 @@ function itemIcon(item: ComposerCommandItem): AppSymbolName | null {
       return null;
     case "thread":
       return "text.bubble";
+    case "model":
+      return "cpu";
   }
 }
 

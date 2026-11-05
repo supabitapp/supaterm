@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vite-plus/test";
-import { ProviderDriverKind } from "@supaterm/contracts";
+import { ProviderDriverKind, type ServerConfig } from "@supaterm/contracts";
 
 vi.mock("react-native", () => ({ Alert: { alert: vi.fn() } }));
 
@@ -26,6 +26,7 @@ vi.mock("../../state/preferences", async () => {
 
 import {
   buildComposerSlashCommandItems,
+  composerModelCandidates,
   resolveComposerCommandSelection,
   resolveComposerMenuSelection,
 } from "./use-composer-command-menu";
@@ -98,5 +99,41 @@ describe("mobile slash commands", () => {
       }).map((item) => item.label);
     expect(labels(true)).toEqual(expect.arrayContaining(["/side", "/btw"]));
     expect(labels(false)).not.toContain("/side");
+  });
+});
+
+describe("composerModelCandidates", () => {
+  const provider = (instanceId: string, overrides: object, models: object[]) => ({
+    instanceId,
+    driver: instanceId,
+    enabled: true,
+    installed: true,
+    status: "ready",
+    auth: { status: "authenticated" },
+    models: models.map((model) => ({ isCustom: false, capabilities: null, ...model })),
+    ...overrides,
+  });
+
+  it("offers current models from usable providers only", () => {
+    const config = {
+      providers: [
+        provider("codex", {}, [
+          { slug: "gpt-5.4", name: "GPT-5.4" },
+          { slug: "gpt-4", name: "GPT-4", isLegacy: true },
+        ]),
+        provider("claudeAgent", { auth: { status: "unauthenticated" } }, [
+          { slug: "claude-opus-4-5", name: "Claude Opus 4.5" },
+        ]),
+        provider("cursor", { enabled: false }, [{ slug: "composer-2", name: "Composer 2" }]),
+        provider("opencode", { availability: "unavailable" }, [
+          { slug: "openai/gpt-5.4", name: "GPT-5.4" },
+        ]),
+      ],
+    } as unknown as ServerConfig;
+    expect(
+      composerModelCandidates(config, null).map(
+        ({ instanceId, model }) => `${instanceId}/${model}`,
+      ),
+    ).toEqual(["codex/gpt-5.4"]);
   });
 });

@@ -2,10 +2,16 @@ import * as Dialog from "../../components/ui/Dialog";
 import type {
   EnvironmentId,
   ProjectId,
+  ServerConfig,
   ServerProvider,
   ThreadId,
   ThreadPullRequestLink,
 } from "@supaterm/contracts";
+import {
+  isMentionableProvider,
+  matchComposerModelItems,
+  type ComposerModelCandidate,
+} from "@supaterm/client-runtime/composerModelMentions";
 import { matchComposerThreadItems } from "@supaterm/client-runtime/composerThreadItems";
 import type { EnvironmentThreadShell } from "@supaterm/client-runtime/state/models";
 
@@ -16,6 +22,7 @@ import {
   threadContextRecord,
 } from "@supaterm/shared/composerContextReferences";
 import { pullRequestComposerContext } from "../../lib/composerContext";
+import { buildModelOptions } from "../../lib/modelOptions";
 import { uuidv4 } from "../../lib/uuid";
 import {
   getComposerDraftSnapshot,
@@ -154,6 +161,35 @@ export function buildComposerSlashCommandItems(input: {
   return items;
 }
 
+/** Every usable provider's models, not only the ones this thread could switch to. */
+export function composerModelCandidates(
+  serverConfig: ServerConfig | null | undefined,
+  projectId: ProjectId | null,
+): ComposerModelCandidate[] {
+  // buildModelOptions already leaves out providers turned off for the project.
+  const mentionable = new Map(
+    (serverConfig?.providers ?? []).flatMap((provider) =>
+      isMentionableProvider(provider, true) ? [[provider.instanceId, provider] as const] : [],
+    ),
+  );
+  return buildModelOptions(serverConfig, null, undefined, projectId).flatMap((option) => {
+    const provider = mentionable.get(option.selection.instanceId);
+    return provider && !option.isLegacy && !option.isUnavailable
+      ? [
+          {
+            instanceId: provider.instanceId,
+            driver: provider.driver,
+            providerName: option.providerLabel,
+            model: option.selection.model,
+            name: option.label,
+            shortName: option.shortName,
+            subProvider: option.subtitle || undefined,
+          },
+        ]
+      : [];
+  });
+}
+
 export function resolveComposerCommandSelection(input: {
   readonly draftMessage: string;
   readonly trigger: Pick<ComposerTrigger, "rangeStart" | "rangeEnd">;
@@ -187,6 +223,8 @@ export function useComposerCommandMenu({
   pullRequestProjectId = null,
   pullRequestRepository = null,
   threadPullRequests,
+  serverConfig,
+  projectId = null,
   selectedProviderStatus,
   hasThread,
   hasCompactableConversation,
@@ -205,6 +243,8 @@ export function useComposerCommandMenu({
   readonly pullRequestProjectId?: ProjectId | null;
   readonly pullRequestRepository?: string | null;
   readonly threadPullRequests?: ReadonlyArray<ThreadPullRequestLink>;
+  readonly serverConfig?: ServerConfig | null;
+  readonly projectId?: ProjectId | null;
   readonly selectedProviderStatus: ServerProvider | null;
   readonly hasThread: boolean;
   readonly hasCompactableConversation: boolean;
@@ -436,6 +476,7 @@ export function useComposerCommandMenu({
         : [];
       return [
         ...threadItems,
+        ...matchComposerModelItems(composerModelCandidates(serverConfig, projectId), trigger.query),
         ...pathSearch.entries.map((entry) => {
           const parts = entry.path.split("/");
           return {
@@ -455,15 +496,21 @@ export function useComposerCommandMenu({
 
   const onSelect = (item: ComposerCommandItem) => {
     if (!trigger) return;
-    if (item.type === "thread") {
+    if (item.type === "thread" || item.type === "model") {
       if (!ownerKey || trigger.kind !== "path") return;
-      const shell = threadShells.find(
-        (candidate) =>
-          candidate.environmentId === item.thread.environmentId &&
-          candidate.id === item.thread.threadId,
-      );
-      if (!shell) return;
-      const record = threadContextRecord(item.thread, shell.title);
+      const shell =
+        item.type === "thread"
+          ? threadShells.find(
+              (candidate) =>
+                candidate.environmentId === item.thread.environmentId &&
+                candidate.id === item.thread.threadId,
+            )
+          : undefined;
+      const record =
+        item.type === "model"
+          ? item.record
+          : shell && threadContextRecord(item.thread, shell.title);
+      if (!record) return;
       const existing = getComposerDraftSnapshot(ownerKey).context?.records ?? [];
       const alreadyAttached = existing.some((entry) => entry.contextId === record.contextId);
       if (!alreadyAttached && existing.length >= COMPOSER_CONTEXT_MAX_RECORDS) {
