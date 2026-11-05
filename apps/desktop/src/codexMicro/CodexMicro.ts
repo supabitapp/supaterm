@@ -115,6 +115,9 @@ export class CodexMicro extends Context.Service<
     readonly available: boolean;
     /** Cheap and idempotent: runs on every client-settings write. */
     readonly configure: (settings: CodexMicroSettings) => Effect.Effect<void>;
+    /** Turns the lights off and closes the keyboard without changing settings. */
+    readonly pause: Effect.Effect<void>;
+    readonly resume: Effect.Effect<void>;
     readonly state: Effect.Effect<CodexMicroDeviceState>;
     readonly setLighting: (model: CodexMicroLightingModel) => Effect.Effect<void>;
     readonly clearVoiceActivity: Effect.Effect<void>;
@@ -638,6 +641,10 @@ const make = Effect.gen(function* () {
   return CodexMicro.of({
     available: true,
     configure,
+    pause: lifecycle.withPermit(stop).pipe(Effect.withSpan("desktop.codexMicro.pause")),
+    resume: lifecycle
+      .withPermit(Effect.suspend(() => (settings.enabled ? start : Effect.void)))
+      .pipe(Effect.withSpan("desktop.codexMicro.resume")),
     state: refreshInputMonitoring.pipe(
       Effect.andThen(Effect.sync(() => state)),
       Effect.withSpan("desktop.codexMicro.state"),
@@ -664,6 +671,8 @@ export const layerUnavailable = Layer.succeed(
     configure: Effect.fn("CodexMicro.configure")(function () {
       return Effect.void;
     }),
+    pause: Effect.void,
+    resume: Effect.void,
     state: Effect.succeed(deviceState("disabled", "unavailable")),
     setLighting: Effect.fn("CodexMicro.setLighting")(function () {
       return Effect.void;
