@@ -109,6 +109,7 @@ interface HomeScreenProps {
   readonly projectSortOrder: HomeProjectSortOrder;
   readonly projectGroupingMode: SidebarProjectGroupingMode;
   readonly threadGrouping: SidebarThreadGrouping;
+  readonly hideOfflineEnvironments: boolean;
   readonly onSearchQueryChange: (query: string) => void;
   readonly onAddConnection: () => void;
   readonly onOpenSettings: () => void;
@@ -487,6 +488,7 @@ export function HomeScreen(props: HomeScreenProps) {
       memberProjectRefs: scope.projectRefs,
     })),
     threads: props.threads,
+    hideOfflineEnvironments: props.hideOfflineEnvironments,
     pendingTasks: props.pendingTasks,
     environmentId: props.selectedEnvironmentId,
     projectRefs: v2ScopedProjectGroup === null ? null : v2ScopedProjectGroup.projectRefs,

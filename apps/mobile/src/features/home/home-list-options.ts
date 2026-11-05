@@ -1,13 +1,13 @@
 import type { EnvironmentId, SidebarProjectGroupingMode } from "@supaterm/contracts";
 import { DEFAULT_SIDEBAR_PROJECT_SORT_ORDER } from "@supaterm/contracts";
 import { RegistryContext, useAtomSet, useAtomValue } from "@effect/atom-react";
-import { Atom } from "effect/reactivity";
+import { AsyncResult, Atom } from "effect/reactivity";
 import { createContext, createElement, useContext, useState, type PropsWithChildren } from "react";
 
 import { useMobileThreadGrouping } from "../../state/thread-grouping";
 import type { SidebarThreadGrouping } from "@supaterm/contracts";
 import type { ThreadListFilters } from "../../persistence/mobile-preferences";
-import { updateMobilePreferencesAtom } from "../../state/preferences";
+import { mobilePreferencesAtom, updateMobilePreferencesAtom } from "../../state/preferences";
 import type { HomeProjectSortOrder } from "./homeThreadList";
 
 export interface HomeListOptions {
@@ -19,6 +19,7 @@ export interface HomeListOptions {
 export interface ResolvedHomeListOptions extends HomeListOptions {
   readonly threadGrouping: SidebarThreadGrouping;
   readonly projectGroupingMode: SidebarProjectGroupingMode;
+  readonly hideOfflineEnvironments: boolean;
 }
 
 function defaultHomeListOptions(filters?: ThreadListFilters): HomeListOptions {
@@ -77,6 +78,10 @@ export function HomeListOptionsProvider({
 export function useHomeListOptions(availableEnvironmentIds: ReadonlySet<EnvironmentId>) {
   const shared = useContext(HomeListOptionsContext);
   const { grouping: threadGrouping, setGrouping: setThreadGrouping } = useMobileThreadGrouping();
+  const preferences = useAtomValue(mobilePreferencesAtom);
+  const savePreferences = useAtomSet(updateMobilePreferencesAtom);
+  const hideOfflineEnvironments =
+    AsyncResult.isSuccess(preferences) && preferences.value.hideOfflineEnvironments === true;
   const [localOptions, setLocalOptions] = useState<HomeListOptions>(defaultHomeListOptions);
   const options = shared?.options ?? localOptions;
   const updateOptions =
@@ -95,6 +100,7 @@ export function useHomeListOptions(availableEnvironmentIds: ReadonlySet<Environm
     ...availableOptions,
     threadGrouping,
     projectGroupingMode: shared?.projectGroupingMode ?? "repository",
+    hideOfflineEnvironments,
   };
 
   const setSelectedEnvironmentId = (value: EnvironmentId | null) => {
@@ -106,11 +112,15 @@ export function useHomeListOptions(availableEnvironmentIds: ReadonlySet<Environm
   const setProjectSortOrder = (value: HomeProjectSortOrder) => {
     updateOptions({ projectSortOrder: value });
   };
+  const setHideOfflineEnvironments = (hide: boolean) => {
+    savePreferences({ hideOfflineEnvironments: hide });
+  };
   return {
     options: resolvedOptions,
     setSelectedEnvironmentId,
     setSelectedProjectKey,
     setProjectSortOrder,
     setThreadGrouping,
+    setHideOfflineEnvironments,
   } as const;
 }

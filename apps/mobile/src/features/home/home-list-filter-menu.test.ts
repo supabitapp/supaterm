@@ -17,6 +17,8 @@ describe("buildHomeListFilterMenu", () => {
       selectedProjectKey: "environment-1:project-1",
       onEnvironmentChange: vi.fn(),
       onProjectChange,
+      hideOfflineEnvironments: false,
+      onHideOfflineEnvironmentsChange: vi.fn(),
     });
 
     const projectMenu = menu.items.find(

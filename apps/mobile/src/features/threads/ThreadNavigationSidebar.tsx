@@ -198,8 +198,13 @@ function ThreadNavigationSidebarPane(
   const availableEnvironmentIds = new Set(
     environments.map((environment) => environment.environmentId),
   );
-  const { options, setSelectedEnvironmentId, setSelectedProjectKey, setThreadGrouping } =
-    useHomeListOptions(availableEnvironmentIds);
+  const {
+    options,
+    setSelectedEnvironmentId,
+    setSelectedProjectKey,
+    setThreadGrouping,
+    setHideOfflineEnvironments,
+  } = useHomeListOptions(availableEnvironmentIds);
   const searchEnvironmentIds =
     options.selectedEnvironmentId === null
       ? workspaceEnvironments
@@ -317,6 +322,7 @@ function ThreadNavigationSidebarPane(
       memberProjectRefs: scope.projectRefs,
     })),
     threads,
+    hideOfflineEnvironments: options.hideOfflineEnvironments,
     pendingTasks,
     environmentId: options.selectedEnvironmentId,
     projectRefs: selectedProjectScope === null ? null : selectedProjectScope.projectRefs,
@@ -345,6 +351,8 @@ function ThreadNavigationSidebarPane(
     onProjectChange: setSelectedProjectKey,
     grouping: options.threadGrouping,
     onGroupingChange: setThreadGrouping,
+    hideOfflineEnvironments: options.hideOfflineEnvironments,
+    onHideOfflineEnvironmentsChange: setHideOfflineEnvironments,
   });
 
   const [measuredHeaderHeight, setMeasuredHeaderHeight] = useState<number | null>(null);
@@ -661,6 +669,8 @@ function ThreadNavigationSidebarPane(
     selectedProjectKey,
     onEnvironmentChange: setSelectedEnvironmentId,
     onProjectChange: setSelectedProjectKey,
+    hideOfflineEnvironments: options.hideOfflineEnvironments,
+    onHideOfflineEnvironmentsChange: setHideOfflineEnvironments,
   });
   const nativeHeaderItems = createSidebarHeaderItems({
     filterIcon,

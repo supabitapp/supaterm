@@ -41,6 +41,8 @@ export interface HomeListFilterMenuInput {
   readonly selectedProjectKey: string | null;
   readonly onEnvironmentChange: (environmentId: EnvironmentId | null) => void;
   readonly onProjectChange: (projectKey: string | null) => void;
+  readonly hideOfflineEnvironments: boolean;
+  readonly onHideOfflineEnvironmentsChange: (hide: boolean) => void;
 }
 
 export function buildHomeListFilterMenu(props: HomeListFilterMenuInput): HomeListFilterMenu {
@@ -79,6 +81,13 @@ export function buildHomeListFilterMenu(props: HomeListFilterMenuInput): HomeLis
             : ("off" as const),
         onPress: () => props.onEnvironmentChange(environment.environmentId),
       })),
+      // Here rather than top level, so the iOS filter pills, which list only submenus, reach it too.
+      {
+        type: "action",
+        title: "Hide offline environments",
+        state: props.hideOfflineEnvironments ? "on" : "off",
+        onPress: () => props.onHideOfflineEnvironmentsChange(!props.hideOfflineEnvironments),
+      },
     ],
   });
 

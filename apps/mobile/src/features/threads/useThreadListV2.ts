@@ -1,3 +1,5 @@
+import { useAtomValue } from "@effect/atom-react";
+import { withoutOfflineEnvironmentThreads } from "@supaterm/client-runtime/state/presentation";
 import type { EnvironmentThreadShell } from "@supaterm/client-runtime/state/shell";
 import type { OlderDoneScope } from "@supaterm/client-runtime/state/threads";
 import type { EnvironmentId } from "@supaterm/contracts";
@@ -5,6 +7,7 @@ import { useMemo, useSyncExternalStore } from "react";
 
 import { scopedProjectKey } from "../../lib/scopedEntities";
 import { useOlderDoneShelf, useOlderDoneShelfGrowth } from "../../state/olderDoneShelf";
+import { offlineEnvironmentIdsAtom } from "../../state/presentation";
 import type { PendingNewTask } from "../../state/use-pending-new-tasks";
 import {
   buildThreadListV2Items,
@@ -27,6 +30,7 @@ function useKeySet(newlineSeparatedKeys: string): ReadonlySet<string> {
 type LayoutInput = Parameters<typeof buildThreadListV2Items>[0];
 
 const NO_LISTED_DONE: ReadonlyArray<EnvironmentThreadShell> = [];
+const NO_HIDDEN_ENVIRONMENTS: ReadonlySet<EnvironmentId> = new Set();
 
 /**
  * The React Compiler memoizes on the values a callback reads and drops unread entries from a
@@ -49,6 +53,7 @@ export function useThreadListV2(input: {
   readonly grouping: NonNullable<LayoutInput["grouping"]>;
   readonly groupingProjects: NonNullable<LayoutInput["groupingProjects"]>;
   readonly threads: LayoutInput["threads"];
+  readonly hideOfflineEnvironments: boolean;
   readonly pendingTasks: ReadonlyArray<PendingNewTask>;
   readonly environmentId: EnvironmentId | null;
   readonly projectRefs: NonNullable<LayoutInput["projectRefs"]> | null;
@@ -76,8 +81,17 @@ export function useThreadListV2(input: {
     threadListInboxReturns.getSnapshot,
   );
   const inbox = useMemo(() => observeInbox(threads, inboxVersion), [threads, inboxVersion]);
+  const offlineEnvironmentIds = useAtomValue(offlineEnvironmentIdsAtom);
+  const hiddenEnvironmentIds = input.hideOfflineEnvironments
+    ? offlineEnvironmentIds
+    : NO_HIDDEN_ENVIRONMENTS;
+  const listedThreads = withoutOfflineEnvironmentThreads(
+    threads,
+    hiddenEnvironmentIds,
+    input.selectedThreadKey,
+  );
   // Older done threads load in pages; the shelf lists them only as far as they are loaded.
-  const scopes = olderDoneScopes(input);
+  const scopes = olderDoneScopes(input, hiddenEnvironmentIds);
   const olderDoneShelf = useOlderDoneShelf({
     scopes,
     expanded: input.doneShelfExpanded,
@@ -89,7 +103,7 @@ export function useThreadListV2(input: {
     grouping: input.grouping,
     groupingProjects: input.groupingProjects,
     pendingOrder: input.pendingOrder,
-    threads: threads.filter((thread) => thread.archivedAt === null),
+    threads: listedThreads.filter((thread) => thread.archivedAt === null),
     environmentId: input.environmentId,
     projectRefs: input.projectRefs,
     searchQuery: input.searchQuery,
@@ -98,7 +112,7 @@ export function useThreadListV2(input: {
     doneLimit: input.doneLimit,
     isListedDone: olderDoneShelf.isListed,
     unloadedDoneCount: olderDoneShelf.unloadedCount(
-      threads.filter(
+      listedThreads.filter(
         (thread) =>
           thread.archivedAt === null &&
           scopes.some(
@@ -160,13 +174,17 @@ export function useThreadListV2(input: {
 }
 
 /** The list's scope per environment: its projects there, or every project. */
-function olderDoneScopes(input: {
-  readonly environmentId: EnvironmentId | null;
-  readonly projectRefs: LayoutInput["projectRefs"];
-  readonly loadedEnvironmentIds: ReadonlySet<EnvironmentId>;
-}): ReadonlyArray<OlderDoneScope> {
-  const environmentIds =
-    input.environmentId === null ? [...input.loadedEnvironmentIds] : [input.environmentId];
+function olderDoneScopes(
+  input: {
+    readonly environmentId: EnvironmentId | null;
+    readonly projectRefs: LayoutInput["projectRefs"];
+    readonly loadedEnvironmentIds: ReadonlySet<EnvironmentId>;
+  },
+  hiddenEnvironmentIds: ReadonlySet<EnvironmentId>,
+): ReadonlyArray<OlderDoneScope> {
+  const environmentIds = (
+    input.environmentId === null ? [...input.loadedEnvironmentIds] : [input.environmentId]
+  ).filter((environmentId) => !hiddenEnvironmentIds.has(environmentId));
   return environmentIds.flatMap((environmentId): ReadonlyArray<OlderDoneScope> => {
     if (input.projectRefs == null) return [{ environmentId, projectIds: null }];
     const projectIds = input.projectRefs.flatMap((ref) =>
