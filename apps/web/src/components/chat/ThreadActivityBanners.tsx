@@ -36,6 +36,7 @@ import {
   type BackgroundTaskOutputTarget,
   BackgroundWorkIcon,
   BackgroundWorkTitle,
+  type BackgroundWorkTitleAction,
   type WatchedPullRequest,
 } from "./BackgroundWork";
 import type { ComposerBannerStackItem } from "./ComposerBannerStack";
@@ -182,18 +183,14 @@ export function backgroundWorkBannerItem(input: {
     label: item.label,
   });
   const [only] = presentation.items;
-  const titleOutput =
-    presentation.items.length === 1 && only?.hasOutput
-      ? { handle: input.outputHandle, target: outputTarget(only) }
-      : null;
   const onlyChildThreadId = presentation.items.length === 1 ? only?.childThreadId : undefined;
-  const title = (
-    <BackgroundWorkTitle
-      title={presentation.title}
-      output={titleOutput}
-      onOpenThread={onlyChildThreadId === undefined ? null : () => onOpenThread(onlyChildThreadId)}
-    />
-  );
+  const titleAction: BackgroundWorkTitleAction | null =
+    onlyChildThreadId !== undefined
+      ? { kind: "thread", open: () => onOpenThread(onlyChildThreadId) }
+      : presentation.items.length === 1 && only?.hasOutput
+        ? { kind: "output", handle: input.outputHandle, target: outputTarget(only) }
+        : null;
+  const title = <BackgroundWorkTitle title={presentation.title} action={titleAction} />;
   const watchedLink = soleWatchedPullRequest(presentation.items, input.pullRequests);
   const watchedPullRequest: WatchedPullRequest | null =
     watchedLink !== null
