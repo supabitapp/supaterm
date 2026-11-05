@@ -25,7 +25,7 @@ import { ThreadHandoffDivider, ThreadHandoffRow } from "./thread-handoff-row";
 import { SecretRequestCard } from "./SecretRequestCard";
 import { AppActivityIndicator } from "../../components/ui/AppActivityIndicator";
 import { WorktreeSetupCard, type WorktreeSetupCardProps } from "./worktree-setup-card";
-import { useExitingWorktreeSetup } from "./use-worktree-setup";
+import { useExitingWorktreeSetup } from "./use-exiting-worktree-setup";
 import * as Haptics from "expo-haptics";
 import { KeyboardAwareLegendList } from "@legendapp/list/keyboard";
 import { KeyboardController } from "react-native-keyboard-controller";
