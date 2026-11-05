@@ -67,14 +67,17 @@ import {
   clearComposerDraftContent,
   composerContextImportsAtom,
   getComposerDraftSnapshot,
+  isFreshSessionPending,
   mergeComposerDraftContent,
   removeComposerDraftAttachment,
   scheduleUnusedComposerAttachmentCleanup,
   setComposerDraftText,
+  setFreshSessionPending,
   updateComposerDraftSettings,
   useComposerDraft,
   useComposerDraftSettings,
 } from "./use-composer-drafts";
+import { isClearComposerCommand } from "@supaterm/shared/composerTrigger";
 import {
   resolveComposerDispatchMode,
   type ActiveTurnComposerAction,
@@ -605,6 +608,19 @@ export function useThreadComposerState() {
     if (text.length === 0 && attachments.length === 0) {
       return null;
     }
+    // A redirect's text answers its approval, so /clear there is that text, not the command.
+    if (
+      beforeDispatch === undefined &&
+      selectedEnvironmentRuntime?.serverConfig?.environment.capabilities.freshContext === true &&
+      thread.latestRun != null &&
+      attachments.length === 0 &&
+      draft.context === undefined &&
+      isClearComposerCommand(text)
+    ) {
+      setFreshSessionPending(threadKey, true);
+      clearComposerDraftContent(threadKey);
+      return null;
+    }
     // A send-failure restore appends with allowOverflow so it never drops the
     // user's files, which can leave the draft over the cap. Sending it anyway
     // would enqueue a message that outbox recovery rejects forever, so block
@@ -711,6 +727,8 @@ export function useThreadComposerState() {
       followUpOverride,
     );
 
+    // A redirect belongs to the approval it answers; the armed session waits for the next message.
+    const freshContext = beforeDispatch === undefined && isFreshSessionPending(threadKey);
     const metadata = makeQueuedMessageMetadata();
     const messageId = MessageId.make(metadata.messageId);
     onWillEnqueue?.();
@@ -727,9 +745,11 @@ export function useThreadComposerState() {
       runtimeMode: draft.runtimeMode ?? thread.runtimeMode,
       interactionMode: DEFAULT_PROVIDER_INTERACTION_MODE,
       ...(followUpDispatchMode === null ? {} : { dispatchMode: followUpDispatchMode }),
+      ...(freshContext ? { freshContext: true } : {}),
       createdAt: metadata.createdAt,
     });
     clearComposerDraftContent(threadKey, { deferAttachmentCleanup: true });
+    if (freshContext) setFreshSessionPending(threadKey, false);
     enqueuePromise.then(
       () => scheduleUnusedComposerAttachmentCleanup(attachments),
       (error: unknown) => {
@@ -743,6 +763,7 @@ export function useThreadComposerState() {
           attachments: [],
         });
         appendComposerDraftAttachments(threadKey, attachments, { allowOverflow: true });
+        if (freshContext) setFreshSessionPending(threadKey, true);
         setThreadComposerError(
           threadKey,
           error instanceof Error ? error.message : "Failed to save the queued message.",

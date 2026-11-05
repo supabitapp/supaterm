@@ -151,6 +151,8 @@ export interface ThreadComposerProps {
   readonly selectedThread: EnvironmentThreadShell;
   readonly reportedModelSelection?: ModelSelection | null;
   readonly hasCompactableConversation: boolean;
+  /** Arms a fresh session for the next message; absent where `/clear` is unavailable. */
+  readonly onFreshSession?: () => void;
   readonly serverConfig: SupatermServerConfig | null;
   readonly queueCount: number;
   readonly activeThreadBusy: boolean;
@@ -512,6 +514,7 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
     offersUsageLimits: usageLimitsOffered,
     onUsageLimits:
       usageLimitsOffered && draftAttachments.length === 0 ? openUsageLimits : undefined,
+    ...(props.onFreshSession === undefined ? {} : { onFreshSession: props.onFreshSession }),
   });
   const voiceInput = useVoiceInputController({
     ownerKey: composerDraftKey,

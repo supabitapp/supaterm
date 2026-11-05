@@ -72,6 +72,22 @@ describe("mobile slash commands", () => {
     slashCommands: [{ name: "plan", description: "Plan with Antigravity" }],
   };
 
+  it("offers Supaterm's /clear in place of the provider's", () => {
+    const claude = {
+      driver: ProviderDriverKind.make("claudeAgent"),
+      slashCommands: [{ name: "clear", description: "Clear conversation history" }],
+    };
+    const build = (offersFreshSession: boolean) =>
+      buildComposerSlashCommandItems({
+        query: "cle",
+        hasThread: true,
+        offersFreshSession,
+        selectedProviderStatus: claude,
+      }).map((item) => item.id);
+    expect(build(true)).toEqual(["cmd:clear"]);
+    expect(build(false)).toEqual(["pcmd:clear"]);
+  });
+
   it("keeps native provider commands while hiding legacy mode commands", () => {
     const items = buildComposerSlashCommandItems({
       query: "pl",
