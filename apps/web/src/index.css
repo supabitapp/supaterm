@@ -1717,8 +1717,13 @@ code,
   text-decoration: none;
 }
 
-/* File links and context chips own their color and focus ring. */
-.chat-markdown a:not(.chat-markdown-file-link, :has([data-slot="context-chip-label"])) {
+/* File links, context chips, and citation sources own their color and focus ring. */
+.chat-markdown
+  a:not(
+    .chat-markdown-file-link,
+    [data-assistant-citation-source],
+    :has([data-slot="context-chip-label"])
+  ) {
   color: var(--info-foreground);
 }
 
