@@ -44,6 +44,7 @@ const reactTests = [
   "src/features/workspace/useSearchScrollRestoration.test.tsx",
   "src/features/connection/ConnectionsNewRouteScreen.test.tsx",
   "src/features/triage/useStartTriage.test.tsx",
+  "src/features/devices/device-stream.browser.test.ts",
 ];
 
 const sourceRoot = `${normalizePath(NodeURL.fileURLToPath(new URL("./src", import.meta.url)))}/`;
