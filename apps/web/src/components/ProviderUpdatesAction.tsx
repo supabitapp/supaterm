@@ -56,12 +56,7 @@ export function useProviderUpdates() {
     );
     const view = quiet ? null : getProviderUpdateRunToastView(runs);
     if (view) {
-      toastManager.add(
-        stackedThreadToast({
-          ...view,
-          description: <span className="whitespace-pre-line">{view.description}</span>,
-        }),
-      );
+      toastManager.add(stackedThreadToast(view));
     }
     return runs;
   };

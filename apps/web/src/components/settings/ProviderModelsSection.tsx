@@ -435,7 +435,7 @@ export function ProviderModelsSection({
       ) : null}
 
       {driverKind !== "antigravity" && error ? (
-        <p className="mt-2 text-xs text-destructive">{error}</p>
+        <p className="mt-2 text-xs text-destructive wrap-anywhere">{error}</p>
       ) : null}
     </div>
   );

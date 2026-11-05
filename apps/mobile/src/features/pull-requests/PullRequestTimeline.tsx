@@ -17,6 +17,7 @@ import { PullRequestCommentFooter } from "./PullRequestReactions";
 import { pullRequestDescriptionContent } from "./pullRequestDescriptionContent";
 import { normalizedReviewState } from "./pullRequestStatus";
 import type { PullRequestParams } from "./usePullRequestDiff";
+import { formatCommentCount } from "./pullRequestDiffComments";
 
 function TimelineEvent(props: {
   icon: AppSymbolName | "commit";
@@ -251,7 +252,7 @@ export function pullRequestTimelineRows(
             <Text className="text-xs text-foreground-muted">
               {thread.isResolved ? "Resolved" : "Unresolved"}
               {thread.isOutdated ? " · Outdated" : ""} ·{" "}
-              {thread.commentCount ?? thread.comments.length} comments
+              {formatCommentCount(thread.commentCount ?? thread.comments.length)}
             </Text>
           </Pressable>
         </TimelineEvent>

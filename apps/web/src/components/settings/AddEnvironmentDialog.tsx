@@ -407,7 +407,7 @@ export function AddEnvironmentDialog({
   const renderRemoteModeBody = () => (
     <div className="space-y-4">
       {renderRemoteFields()}
-      {error ? <p className="text-xs text-destructive">{error}</p> : null}
+      {error ? <p className="text-xs text-destructive wrap-anywhere">{error}</p> : null}
       <Button
         variant="outline"
         className="w-full"

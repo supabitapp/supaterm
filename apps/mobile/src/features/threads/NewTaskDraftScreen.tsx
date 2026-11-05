@@ -853,6 +853,7 @@ export function NewTaskDraftScreen(props: {
         disabled={isComposerInteractionLocked || !flow.isGitRepo}
         icon="arrow.triangle.branch"
         label={showBranchLoading ? "Loading branches…" : selectedBranchLabel}
+        ellipsizeMode="middle"
         maxWidth={190}
         onPress={() => openContextPicker("NewTaskBranch")}
       />

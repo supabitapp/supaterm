@@ -55,6 +55,7 @@ import {
 import { useSettingsProjectGroups } from "./useSettingsProjectGroups";
 import { readUnloadedThreadCount } from "../../state/olderDoneShelf";
 import { settingsScopeEnvironmentLabels } from "./settingsScopeAxis";
+import { MiddleTruncate } from "../ui/middle-truncate";
 
 const ProjectIconPickerDialog = lazy(() =>
   import("./ProjectIconPickerDialog").then((module) => ({
@@ -355,7 +356,7 @@ function ProjectDetail({
             <SettingsRow
               key={member.physicalProjectKey}
               title={member.environmentLabel ?? "Environment"}
-              description={member.workspaceRoot}
+              description={<MiddleTruncate value={member.workspaceRoot} className="flex" />}
               control={checkoutRemoveButton(member)}
             />
           ));

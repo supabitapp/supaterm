@@ -159,6 +159,21 @@ it("labels file searches with the adapter title and its search target", () => {
   expect(activity ? workEntryRowLabel(activity.workEntry) : null).toBe("Searched TODO in web");
 });
 
+it("keeps the file name in a file change label past the label length cap", () => {
+  const fileName = `/Users/aleksandra.wisniewska-kowalczyk/code/github.com/northwind-industries-holdings/platform-infrastructure-monorepo/packages/contracts/src/orchestration/projections/orchestrationV2ProjectionThreadPayloadSchema.ts`;
+  const item: OrchestrationV2TurnItem = {
+    ...base("long-file-change", "2026-06-20T00:00:03.000Z", 2),
+    type: "file_change",
+    fileName,
+  };
+  const activity = buildThreadFeed([projected(item, 0)]).flatMap((entry) =>
+    entry.type === "activity-group" ? entry.activities : [],
+  )[0];
+
+  expect(fileName.length).toBeGreaterThan(200);
+  expect(activity ? workEntryRowLabel(activity.workEntry) : null).toBe(fileName);
+});
+
 it("keeps approval prompts rather than presenting them as tool work", () => {
   const approval = (
     id: string,

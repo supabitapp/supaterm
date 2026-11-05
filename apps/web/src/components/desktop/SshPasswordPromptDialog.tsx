@@ -174,7 +174,9 @@ function ActiveSshPasswordPrompt({
           >
             <div className="space-y-2">
               <div className="flex items-center justify-between gap-3">
-                <p className="text-sm font-medium text-foreground">{request.prompt}</p>
+                <p className="min-w-0 text-sm font-medium text-foreground wrap-anywhere">
+                  {request.prompt}
+                </p>
                 {remainingLabel ? (
                   <span
                     className={
@@ -198,7 +200,7 @@ function ActiveSshPasswordPrompt({
               />
             </div>
             {visibleResponseError ? (
-              <p className="text-sm text-destructive">{visibleResponseError}</p>
+              <p className="text-sm text-destructive wrap-anywhere">{visibleResponseError}</p>
             ) : (
               <p className="text-sm text-muted-foreground">
                 SSH keys may replace a password, but your server can still require a verification

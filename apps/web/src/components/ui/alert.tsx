@@ -128,13 +128,19 @@ function Alert({
 }
 
 function AlertTitle({ className, ...props }: React.ComponentProps<"div">) {
-  return <div className={cn("font-medium", className)} data-slot="alert-title" {...props} />;
+  return (
+    <div
+      className={cn("font-medium wrap-anywhere", className)}
+      data-slot="alert-title"
+      {...props}
+    />
+  );
 }
 
 function AlertDescription({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
-      className={cn("flex flex-col gap-2.5 text-muted-foreground", className)}
+      className={cn("flex flex-col gap-2.5 text-muted-foreground wrap-anywhere", className)}
       data-slot="alert-description"
       {...props}
     />

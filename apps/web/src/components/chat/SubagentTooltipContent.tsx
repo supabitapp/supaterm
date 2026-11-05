@@ -136,7 +136,7 @@ export function SubagentTooltipContent(props: {
           <BotIcon className="size-3 shrink-0" />
         )}
         <span className="inline-flex min-w-0 items-center gap-1 text-foreground/75">
-          <span className="min-w-0 truncate">
+          <span className="min-w-0 wrap-anywhere">
             {showInstanceBadge ? `${modelLabel} · ${entry.displayName}` : modelLabel}
           </span>
           {effort || speed?.speedIcon ? (
@@ -174,14 +174,14 @@ export function SubagentTooltipContent(props: {
           <div key={label} className="flex min-w-0 items-center gap-2">
             <Icon aria-hidden className="size-3 shrink-0" />
             <span className="sr-only">{label}</span>
-            <MiddleTruncate value={value} className="flex" showTitle={false} />
+            <MiddleTruncate value={value} className="flex" />
           </div>
         );
       })}
       {preview ? (
         <div className="flex min-w-0 items-center gap-2">
           <TerminalIcon aria-hidden className="size-3 shrink-0" />
-          <MiddleTruncate value={preview} className="flex" showTitle={false} />
+          <MiddleTruncate value={preview} className="flex" />
         </div>
       ) : null}
     </ThreadHoverCard>

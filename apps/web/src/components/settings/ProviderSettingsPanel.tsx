@@ -409,7 +409,7 @@ function ProviderSettingsPanelContent(target: ProviderSettingsTarget) {
                   }
                 />
                 <TooltipPopup side="top">
-                  {detail} · {statusText}
+                  {environment.label} · {detail} · {statusText}
                 </TooltipPopup>
               </Tooltip>
             );

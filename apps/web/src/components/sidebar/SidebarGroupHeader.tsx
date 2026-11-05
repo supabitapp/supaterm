@@ -53,8 +53,9 @@ export function SidebarGroupHeader({
         tone={isDragging ? "emphasized" : "muted"}
         icon={project ? <ProjectFavicon project={project} className="size-3.5 shrink-0" /> : null}
         data-testid={`sidebar-group-toggle-${item.key}`}
+        count={item.collapsed ? item.count : undefined}
       >
-        {item.collapsed ? `${item.label} (${item.count})` : item.label}
+        {item.label}
       </CollapsibleSectionHeader>
     </li>
   );

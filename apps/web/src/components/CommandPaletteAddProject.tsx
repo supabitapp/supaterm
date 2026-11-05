@@ -12,6 +12,7 @@ import { ITEM_ICON_CLASS } from "./CommandPalette.logic";
 import { CommandPaletteTitleIcon } from "./CommandPaletteResults";
 import { Button } from "./ui/button";
 import { Kbd, KbdGroup } from "./ui/kbd";
+import { MiddleTruncate } from "./ui/middle-truncate";
 import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "./ui/select";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "./ui/tooltip";
 
@@ -127,6 +128,7 @@ export function NewProjectSummary(props: {
   readonly projectsRoot: string | null;
   readonly environmentLabel: string | null;
 }) {
+  const named = props.name.length > 0;
   return (
     <div className="p-2 pb-0">
       <div className="flex min-h-8 items-center gap-2 rounded-sm px-2 py-1.5">
@@ -135,13 +137,14 @@ export function NewProjectSummary(props: {
         </CommandPaletteTitleIcon>
         <span className="flex min-w-0 flex-1 flex-col">
           <span className="truncate text-foreground text-sm">
-            {props.name.length > 0 ? props.name : "New project"}
+            {named ? props.name : "New project"}
           </span>
-          <span className="truncate text-muted-foreground/85 text-xs">
-            {props.name.length > 0
-              ? `Creates ${props.pathPreview}`
-              : `Goes in ${props.projectsRoot}`}
-            {props.environmentLabel === null ? null : ` on ${props.environmentLabel}`}
+          <span className="flex min-w-0 gap-1 text-muted-foreground/85 text-xs">
+            <span className="shrink-0">{named ? "Creates" : "Goes in"}</span>
+            <MiddleTruncate value={(named ? props.pathPreview : props.projectsRoot) ?? ""} />
+            {props.environmentLabel === null ? null : (
+              <span className="max-w-[40%] shrink-0 truncate">on {props.environmentLabel}</span>
+            )}
           </span>
         </span>
       </div>
@@ -163,7 +166,9 @@ export function RemoteRepositorySummary(props: {
         </CommandPaletteTitleIcon>
         <span className="flex min-w-0 flex-1 flex-col">
           <span className="truncate text-foreground text-sm">{props.title}</span>
-          <span className="truncate text-muted-foreground/85 text-xs">{props.description}</span>
+          <span className="flex min-w-0 text-muted-foreground/85 text-xs">
+            <MiddleTruncate value={props.description} />
+          </span>
         </span>
       </div>
     </div>

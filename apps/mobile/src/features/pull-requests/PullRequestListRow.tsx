@@ -110,9 +110,15 @@ export const PullRequestListRow = memo(
             >
               <View className="flex-row items-center gap-1.5">
                 <PullRequestAvatar actor={item.author} size={16} />
-                <Text className={cn("min-w-0 flex-1 text-xs", mutedForeground)} numberOfLines={1}>
-                  {item.repository} <Text className={tertiaryForeground}>#{item.number}</Text>
+                <Text
+                  className={cn("min-w-0 shrink text-xs", mutedForeground)}
+                  numberOfLines={1}
+                  ellipsizeMode="middle"
+                >
+                  {item.repository}
                 </Text>
+                <Text className={cn("shrink-0 text-xs", tertiaryForeground)}>#{item.number}</Text>
+                <View className="flex-1" />
                 {item.stack ? (
                   <View className="flex-row items-center gap-1">
                     <SymbolView

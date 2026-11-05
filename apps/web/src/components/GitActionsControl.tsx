@@ -629,9 +629,9 @@ function PublishRepositoryDialog(props: PublishRepositoryDialogProps) {
                 Repository
               </label>
               <div className="flex items-stretch overflow-hidden rounded-md border border-input bg-background focus-within:outline-2 focus-within:-outline-offset-2 focus-within:outline-ring">
-                <span className="flex shrink-0 items-center gap-1.5 border-r border-input bg-muted/50 px-2.5 font-mono text-xs text-muted-foreground">
-                  <currentPublishProvider.Icon className="size-3.5" />
-                  {publishHost}/
+                <span className="flex min-w-0 max-w-[45%] shrink-0 items-center gap-1.5 border-r border-input bg-muted/50 px-2.5 font-mono text-xs text-muted-foreground">
+                  <currentPublishProvider.Icon className="size-3.5 shrink-0" />
+                  <span className="truncate">{publishHost}/</span>
                 </span>
                 <input
                   id="publish-repository-path"
@@ -648,7 +648,7 @@ function PublishRepositoryDialog(props: PublishRepositoryDialogProps) {
                   }}
                   placeholder={publishPathPlaceholder}
                   disabled={publishRepositoryAction.isPending}
-                  className="w-full bg-transparent px-3 py-2 font-mono text-sm placeholder:text-muted-foreground/60 focus:outline-none"
+                  className="w-full min-w-0 bg-transparent px-3 py-2 font-mono text-sm placeholder:text-muted-foreground/60 focus:outline-none"
                 />
               </div>
             </div>
@@ -770,7 +770,7 @@ function PublishRepositoryDialog(props: PublishRepositoryDialogProps) {
                 className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive"
               >
                 <p className="font-medium">Publish failed</p>
-                <p className="mt-0.5 text-destructive/90">{publishError}</p>
+                <p className="mt-0.5 text-destructive/90 wrap-anywhere">{publishError}</p>
               </div>
             ) : null}
           </div>
@@ -1411,7 +1411,9 @@ export default function GitActionsControl({
         gitStatusForActions.aheadCount === 0 && (
           <p className="px-2 py-1.5 text-xs text-warning">Behind upstream. Pull/rebase first.</p>
         )}
-      {gitStatusError && <p className="px-2 py-1.5 text-xs text-destructive">{gitStatusError}</p>}
+      {gitStatusError && (
+        <p className="px-2 py-1.5 text-xs text-destructive wrap-anywhere">{gitStatusError}</p>
+      )}
     </>
   );
 

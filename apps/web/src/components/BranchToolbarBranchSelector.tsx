@@ -325,7 +325,7 @@ export function BranchToolbarBranchSelector({
     : isFetchingNextPage
       ? "Loading more refs..."
       : hasNextPage
-        ? `Showing ${refs.length} of ${totalBranchCount} refs`
+        ? `Showing ${refs.length.toLocaleString()} of ${totalBranchCount.toLocaleString()} refs`
         : null;
 
   const copyBranchName = (branchName: string) => {
@@ -588,10 +588,14 @@ export function BranchToolbarBranchSelector({
           <div className="flex min-w-0 items-center gap-2 py-1">
             <SourceControlIcon className="size-3.5 shrink-0 text-muted-foreground" />
             <span className="flex min-w-0 flex-col items-start">
-              <span className="truncate font-medium">
+              <span className="max-w-full truncate font-medium">
                 Checkout {sourceControlPresentation.terminology.singular}
               </span>
-              <span className="truncate text-muted-foreground text-xs">{prReference}</span>
+              {prReference ? (
+                <span className="flex max-w-full text-muted-foreground text-xs">
+                  <MiddleTruncate value={prReference} />
+                </span>
+              ) : null}
             </span>
           </div>
         </ComboboxItem>

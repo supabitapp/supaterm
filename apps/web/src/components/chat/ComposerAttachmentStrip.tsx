@@ -50,6 +50,7 @@ import {
   SnapShotAttachmentDetails,
 } from "./SnapShotAttachmentDetails";
 import { prepareVideoFirstFrame } from "../../lib/videoFirstFrame";
+import { MiddleTruncate } from "../ui/middle-truncate";
 
 function ComposerVideoThumbnail({ file }: { file: File }) {
   const setVideo = (video: HTMLVideoElement | null) => {
@@ -227,7 +228,7 @@ export function ComposerAttachmentMediaRow({
                         />
                       ) : (
                         <span className="flex h-full items-center justify-center px-1 text-3xs text-secondary-label">
-                          {image.name}
+                          <span className="line-clamp-3 min-w-0 wrap-anywhere">{image.name}</span>
                         </span>
                       )
                     }
@@ -235,7 +236,7 @@ export function ComposerAttachmentMediaRow({
                 </button>
               ) : (
                 <div className="flex h-full w-full items-center justify-center px-1 text-center text-3xs text-secondary-label">
-                  {image.name}
+                  <span className="line-clamp-3 min-w-0 wrap-anywhere">{image.name}</span>
                 </div>
               )}
               {source?.kind === "snap-shot" ? (
@@ -462,10 +463,10 @@ export function ComposerAttachmentFileList({
             <button
               type="button"
               disabled={needsReattach}
-              className="min-w-0 flex-1 truncate text-left hover:underline focus-visible:outline-2"
+              className="flex min-w-0 flex-1 text-left hover:underline focus-visible:outline-2"
               onClick={() => onPreviewFile(file.id)}
             >
-              {file.name}
+              <MiddleTruncate value={file.name} />
             </button>
             <span className="shrink-0 text-xs text-secondary-label">
               {needsReattach

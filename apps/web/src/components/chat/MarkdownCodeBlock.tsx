@@ -25,6 +25,7 @@ import {
 } from "./MarkdownCodeBlock.logic";
 import { reportMarkdownActionFailure } from "./markdownActionFailure";
 import { PierreEntryIcon } from "./PierreEntryIcon";
+import { StartTruncatedPath } from "../StartTruncatedPath";
 import { RunShellCommandDialog } from "./RunShellCommandDialog";
 
 const MAX_HIGHLIGHT_CACHE_ENTRIES = 500;
@@ -103,7 +104,7 @@ function MarkdownCodeBlockTitleContent({
     return (
       <>
         <PierreEntryIcon pathValue={fenceTitle} kind="file" theme={theme} className="size-3.5" />
-        <span className="truncate">{fenceTitle}</span>
+        <StartTruncatedPath path={fenceTitle} />
       </>
     );
   }

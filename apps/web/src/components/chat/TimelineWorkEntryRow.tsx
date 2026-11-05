@@ -22,7 +22,7 @@ import {
   threadReadTargetId,
   threadReadTargetTitle,
   threadReadLabelPrefix,
-  workEntryDisplayLabel,
+  workEntryDisplay,
   workEntryReadOutput,
 } from "./MessagesTimeline.logic";
 import { WorkLogDetails, WorkLogRow } from "./WorkLog";
@@ -68,6 +68,7 @@ import { formatUpcomingTimestamp } from "../../timestampFormat";
 import { V2ItemInspector, FetchedToolOutput } from "./V2ItemInspector";
 import { Collapsible, CollapsiblePanel } from "../ui/collapsible";
 import { DisclosureChevron } from "../ui/disclosure-chevron";
+import { MiddleTruncate } from "../ui/middle-truncate";
 import { SubagentNotificationLink } from "./V2LifecycleRow";
 
 export function useThreadReadTarget(entry: TimelineWorkEntry, environmentId: EnvironmentId) {
@@ -281,12 +282,17 @@ function WorkEntryLogRow(props: WorkEntryRowProps) {
   const questionHeading = workEntry.questionAnswer
     ? getQuestionTextPreview(workEntry.questionAnswer)
     : "";
-  const previewText =
-    isReasoning && expanded
-      ? workEntry.toolLifecycleStatus === "inProgress"
-        ? "Thinking"
-        : "Thought"
-      : questionHeading || (displayLabel ?? workEntryDisplayLabel(workEntry, workspaceRoot));
+  const display =
+    displayLabel === undefined
+      ? workEntryDisplay(workEntry, workspaceRoot)
+      : { text: displayLabel };
+  const showsReasoningHeading = isReasoning && expanded;
+  const previewText = showsReasoningHeading
+    ? workEntry.toolLifecycleStatus === "inProgress"
+      ? "Thinking"
+      : "Thought"
+    : questionHeading || display.text;
+  const pathTail = showsReasoningHeading || questionHeading ? undefined : display.tail;
   const answerPreview =
     workEntry.questionAnswer && hasQuestionAnswer(workEntry.questionAnswer)
       ? getQuestionAnswerPreview(workEntry.questionAnswer)
@@ -421,8 +427,10 @@ function WorkEntryLogRow(props: WorkEntryRowProps) {
                   environmentId={ctx.activeThreadEnvironmentId}
                   linked
                 />
-              ) : (
+              ) : pathTail === undefined ? (
                 previewText
+              ) : (
+                <MiddleTruncate value={previewText} tail={pathTail} />
               )}
             </span>
             {answerPreview ? (
@@ -603,7 +611,7 @@ function QuestionAnswerHistory({
   }));
   const urls = useAssetUrls(activeThreadEnvironmentId, resources);
   return (
-    <div className="ms-7 mt-2 space-y-2" onClick={stopRowToggle}>
+    <div className="ms-7 mt-2 space-y-2 wrap-anywhere" onClick={stopRowToggle}>
       {[
         ...new Set([
           ...Object.keys(answer.questionTextById ?? {}),
@@ -631,7 +639,7 @@ function QuestionAnswerHistory({
                   href={url ?? undefined}
                   target="_blank"
                   rel="noreferrer"
-                  className="text-sm underline"
+                  className="max-w-full text-sm underline"
                 >
                   {attachment.type === "image" && url ? (
                     <img

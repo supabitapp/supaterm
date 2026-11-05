@@ -63,6 +63,7 @@ import {
   formatReviewCommentFence,
 } from "../../reviewCommentContext";
 import { userMessageFileLabel } from "./TimelineUserMessageRow.logic";
+import { MiddleTruncate } from "../ui/middle-truncate";
 
 function UserMessageMentionChip(props: {
   record: Extract<KnownComposerContextRecord, { kind: "mention" }>;
@@ -172,7 +173,7 @@ function UserMessagePreviewAnnotationDetails(props: {
         </div>
       )}
       <div className="min-w-0 px-3 py-2.5">
-        <div className="text-message-foreground text-xs font-medium">
+        <div className="text-message-foreground text-xs font-medium wrap-anywhere">
           {props.record.pageTitle?.trim() || props.record.pageUrl || "Preview annotation"}
         </div>
         {props.record.comment ? (
@@ -208,7 +209,9 @@ function UserMessagePreviewAnnotationDetails(props: {
                       {element.selector || `<${element.tagName}>`}
                     </code>
                     {sourceLabel ? (
-                      <span className="ml-auto shrink-0 text-secondary-label">{sourceLabel}</span>
+                      <span className="ml-auto flex max-w-[60%] shrink-0 text-secondary-label">
+                        <MiddleTruncate value={sourceLabel} />
+                      </span>
                     ) : null}
                   </div>
                   {element.htmlPreview?.trim() ? (
@@ -240,7 +243,7 @@ function UserMessageElementDetails({
         <div className="truncate text-message-foreground text-xs font-medium">
           {record.pageTitle?.trim() || record.pageUrl}
         </div>
-        <div className="mt-0.5 truncate text-secondary-label text-3xs">{record.pageUrl}</div>
+        <div className="mt-0.5 text-secondary-label text-3xs wrap-anywhere">{record.pageUrl}</div>
       </div>
       <div className="space-y-2 px-3 py-2.5">
         <div className="flex min-w-0 items-center gap-2 text-xs">
@@ -248,7 +251,9 @@ function UserMessageElementDetails({
             {record.selector || `<${record.tagName}>`}
           </code>
           {sourceLabel ? (
-            <span className="ml-auto shrink-0 text-secondary-label">{sourceLabel}</span>
+            <span className="ml-auto flex max-w-[60%] shrink-0 text-secondary-label">
+              <MiddleTruncate value={sourceLabel} />
+            </span>
           ) : null}
         </div>
         {record.htmlPreview?.trim() ? (

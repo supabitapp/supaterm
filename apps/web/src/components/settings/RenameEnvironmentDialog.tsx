@@ -84,7 +84,7 @@ export function RenameEnvironmentDialog({
               placeholder="My MacBook"
             />
             {error && (
-              <p role="alert" className="text-sm text-destructive">
+              <p role="alert" className="text-sm text-destructive wrap-anywhere">
                 {error}
               </p>
             )}

@@ -24,7 +24,9 @@ export function GuideOutline({
     <View>
       <View className="mb-5 flex-row items-center justify-between">
         <View className="flex-row items-baseline gap-2">
-          <Text className="text-base font-supaterm-semibold">{guide.stops.length} stops</Text>
+          <Text className="text-base font-supaterm-semibold">
+            {guide.stops.length} {guide.stops.length === 1 ? "stop" : "stops"}
+          </Text>
           <Text className="text-sm text-foreground-muted">
             through {files.size} {files.size === 1 ? "file" : "files"}
           </Text>

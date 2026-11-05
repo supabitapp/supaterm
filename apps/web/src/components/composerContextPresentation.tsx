@@ -44,6 +44,7 @@ import {
   type ContextPresentationCapability,
 } from "./contextPresentationRegistry";
 import type { ContextChipKind } from "./ContextChip";
+import { MiddleTruncate } from "./ui/middle-truncate";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "./ui/tooltip";
 import {
   ContextChipPopover,
@@ -300,7 +301,9 @@ function ComposerReviewCommentDetails({ comment }: { comment: ReviewCommentConte
   return (
     <div className="space-y-2 overflow-hidden rounded-lg border border-border/70 bg-background/70 p-3">
       <div className="space-y-1">
-        <div className="truncate text-xs font-medium text-foreground">{comment.filePath}</div>
+        <div className="flex text-xs font-medium text-foreground">
+          <MiddleTruncate value={comment.filePath} />
+        </div>
         <div className="text-secondary-label text-2xs">
           {comment.sectionTitle} · {comment.rangeLabel}
         </div>

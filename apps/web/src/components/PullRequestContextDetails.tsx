@@ -25,10 +25,10 @@ export function PullRequestContextDetails({ metadata }: { metadata: PullRequestC
         <span className={state.toneClassName}>{state.label}</span>
       </div>
       <div className="wrap-break-word text-foreground">{metadata.title}</div>
-      <div className="flex min-w-0 items-center gap-1 text-secondary-label text-3xs">
-        <code className="truncate">{metadata.headBranch}</code>
+      <div className="flex min-w-0 flex-wrap items-center gap-1 text-secondary-label text-3xs">
+        <code className="min-w-0 wrap-anywhere">{metadata.headBranch}</code>
         <ArrowRightIcon className="size-3 shrink-0" aria-hidden="true" />
-        <code className="truncate">{metadata.baseBranch}</code>
+        <code className="min-w-0 wrap-anywhere">{metadata.baseBranch}</code>
       </div>
     </div>
   );

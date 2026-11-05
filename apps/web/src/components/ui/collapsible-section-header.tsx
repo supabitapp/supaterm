@@ -18,9 +18,11 @@ export function CollapsibleSectionHeader({
   variant = "default",
   icon,
   accessory,
+  count,
   ...buttonProps
 }: Omit<ComponentProps<"button">, "className" | "style" | "aria-expanded"> & {
   expanded: boolean;
+  count?: number | undefined;
   tone?: keyof typeof tones;
   size?: "default" | "sm";
   weight?: "normal" | "medium";
@@ -42,7 +44,12 @@ export function CollapsibleSectionHeader({
       )}
     >
       {icon}
-      <span className="min-w-0 truncate">{children}</span>
+      <span dir="auto" className="min-w-0 truncate">
+        {children}
+      </span>
+      {count === undefined ? null : (
+        <span className="-ms-1 shrink-0 tabular-nums">({count.toLocaleString()})</span>
+      )}
       <span
         aria-hidden
         className={cn("h-px min-w-2 flex-1", variant === "default" && tones[tone].line)}

@@ -215,7 +215,7 @@ export function UsageSummary(props: {
       <Text className="text-sm text-foreground-muted">
         {metric === "cost"
           ? "* if billed at full API rate"
-          : `Across ${formatCount(merged.sessions)} sessions`}
+          : `Across ${formatCount(merged.sessions)} ${merged.sessions === 1 ? "session" : "sessions"}`}
       </Text>
     </View>
   );

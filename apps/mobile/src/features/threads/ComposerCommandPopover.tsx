@@ -181,7 +181,10 @@ const CommandRow = memo(function CommandRow(props: {
           type="monochrome"
         />
       ) : null}
-      <Text className="shrink-0 text-base font-supaterm-medium text-foreground" numberOfLines={1}>
+      <Text
+        className="min-w-0 max-w-[70%] shrink text-base font-supaterm-medium text-foreground"
+        numberOfLines={1}
+      >
         {props.isCommandMenuSkill && props.item.type === "skill" ? (
           <>
             <Text className="text-foreground-muted">skill:</Text>
@@ -192,7 +195,11 @@ const CommandRow = memo(function CommandRow(props: {
         )}
       </Text>
       {props.item.description ? (
-        <Text className="min-w-0 flex-1 text-xs text-foreground-muted" numberOfLines={1}>
+        <Text
+          className="min-w-0 flex-1 text-xs text-foreground-muted"
+          numberOfLines={1}
+          ellipsizeMode={props.item.type === "path" ? "head" : "tail"}
+        >
           {props.item.description}
         </Text>
       ) : null}

@@ -327,7 +327,9 @@ const PairingLinkListRow = memo(function PairingLinkListRow({
               tooltipText={`Link created at ${formatAccessTimestamp(pairingLink.createdAt)}`}
               dotClassName="bg-warning"
             />
-            <h3 className="text-sm font-medium text-foreground">{primaryLabel}</h3>
+            <h3 className="min-w-0 text-sm font-medium text-foreground wrap-anywhere">
+              {primaryLabel}
+            </h3>
           </div>
           <p className="text-xs text-muted-foreground">
             <Tooltip>
@@ -578,9 +580,11 @@ const ConnectedClientListRow = memo(function ConnectedClientListRow({
               dotClassName={isLive ? "bg-success" : "bg-muted-foreground/30"}
               pingClassName={isLive ? "bg-success/60 duration-2000" : null}
             />
-            <h3 className="text-sm font-medium text-foreground">{primaryLabel}</h3>
+            <h3 className="min-w-0 text-sm font-medium text-foreground wrap-anywhere">
+              {primaryLabel}
+            </h3>
             {clientSession.current ? (
-              <span className="text-3xs text-muted-foreground/80 rounded-md border border-border/50 bg-muted/50 px-1 py-0.5">
+              <span className="shrink-0 whitespace-nowrap text-3xs text-muted-foreground/80 rounded-md border border-border/50 bg-muted/50 px-1 py-0.5">
                 This device
               </span>
             ) : null}

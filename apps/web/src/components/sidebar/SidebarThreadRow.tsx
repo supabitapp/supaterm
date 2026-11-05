@@ -322,18 +322,22 @@ function SidebarThreadTooltip({
         }
       >
         {projectDisplayName ? (
-          <div className="flex min-w-0 items-center gap-2">
-            {project ? <ProjectFavicon project={project} className="size-3 shrink-0" /> : null}
-            <div className="min-w-0 truncate text-foreground/75">{projectDisplayName}</div>
+          <div className="flex min-w-0 items-start gap-2">
+            {project ? (
+              <ProjectFavicon project={project} className="mt-0.5 size-3 shrink-0" />
+            ) : null}
+            <div dir="auto" className="min-w-0 text-foreground/75 wrap-anywhere">
+              {projectDisplayName}
+            </div>
           </div>
         ) : null}
         {environmentLabel ? (
-          <div className="flex min-w-0 items-center gap-2">
+          <div className="flex min-w-0 items-start gap-2">
             <EnvironmentMachineIcon
               kind={environmentMachine}
-              className="size-3 shrink-0 text-muted-foreground"
+              className="mt-0.5 size-3 shrink-0 text-muted-foreground"
             />
-            <div className="min-w-0 truncate text-foreground/75">{environmentLabel}</div>
+            <div className="min-w-0 text-foreground/75 wrap-anywhere">{environmentLabel}</div>
           </div>
         ) : null}
         {thread.branch ? (
@@ -365,7 +369,7 @@ function SidebarThreadTooltip({
               badgeClassName="h-2 min-w-2 px-0"
               iconClassName="size-3 shrink-0 grayscale opacity-60"
             />
-            <div className="min-w-0 truncate text-foreground/75">
+            <div className="min-w-0 text-foreground/75 wrap-anywhere">
               {showInstanceBadge && providerEntry
                 ? `${modelLabel} · ${providerEntry.displayName}`
                 : modelLabel}
@@ -1521,7 +1525,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
                   <MiddleTruncate value={thread.branch} showTitle={false} />
                 </span>
               ) : (
-                <span className="min-w-0 flex-1 truncate">
+                <span dir="auto" className="min-w-0 flex-1 truncate">
                   {showsScratchMachine ? props.scratchMachineLabel : props.projectDisplayName}
                 </span>
               )}

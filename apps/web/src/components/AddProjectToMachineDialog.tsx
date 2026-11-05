@@ -308,7 +308,9 @@ function AddProjectToMachineDialog({ request }: { request: AddProjectToMachineRe
                   <Toggle value="https">HTTPS</Toggle>
                 </ToggleGroup>
               ) : null}
-              <span className="truncate font-mono text-muted-foreground text-xs">{remoteUrl}</span>
+              <span className="flex min-w-0 font-mono text-muted-foreground text-xs">
+                <MiddleTruncate value={remoteUrl} />
+              </span>
             </div>
 
             <div className="flex flex-col gap-1.5">
@@ -381,14 +383,18 @@ function AddProjectToMachineDialog({ request }: { request: AddProjectToMachineRe
               </div>
             ) : null}
 
-            {error ? <p className="text-destructive-foreground text-sm">{error}</p> : null}
+            {error ? (
+              <p className="text-destructive-foreground text-sm wrap-anywhere">{error}</p>
+            ) : null}
           </DialogPanel>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={close}>
               Cancel
             </Button>
-            <Button type="submit" disabled={unavailable || submitting}>
-              {submitting ? "Starting…" : `Clone to ${target?.label ?? "machine"}`}
+            <Button type="submit" disabled={unavailable || submitting} className="min-w-0 shrink">
+              <span className="truncate">
+                {submitting ? "Starting…" : `Clone to ${target?.label ?? "machine"}`}
+              </span>
             </Button>
           </DialogFooter>
         </form>

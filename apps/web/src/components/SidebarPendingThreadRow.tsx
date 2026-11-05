@@ -35,7 +35,9 @@ export const SidebarPendingThreadRow = memo(function SidebarPendingThreadRow(pro
       >
         <span className="flex w-full min-w-0 items-center gap-1.5">
           <Clock3Icon aria-hidden className="size-4 shrink-0 text-muted-foreground" />
-          <span className="truncate text-sm font-medium">{creation.title}</span>
+          <span dir="auto" className="truncate text-sm font-medium">
+            {creation.title}
+          </span>
         </span>
         <span className="w-full truncate text-xs text-secondary-label">
           {status}

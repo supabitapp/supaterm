@@ -19,6 +19,7 @@ import {
   settingsScopeEnvironmentLabels,
   settingsScopeProjectMachines,
 } from "./settingsScopeAxis";
+import { MiddleTruncate } from "../ui/middle-truncate";
 
 interface ScopeChoice {
   label: string;
@@ -147,10 +148,8 @@ export function SettingsScopeNotice({
           <span className="block truncate text-sm font-medium">{choice.label}</span>
           {choice.secondary ? (
             <Tooltip>
-              <TooltipTrigger
-                render={<span className="block truncate text-xs text-muted-foreground" />}
-              >
-                {choice.secondary}
+              <TooltipTrigger render={<span className="flex text-xs text-muted-foreground" />}>
+                <MiddleTruncate value={choice.secondary} showTitle={false} />
               </TooltipTrigger>
               <TooltipPopup>{choice.secondary}</TooltipPopup>
             </Tooltip>

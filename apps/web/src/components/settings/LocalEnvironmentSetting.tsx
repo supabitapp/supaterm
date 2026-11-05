@@ -73,7 +73,9 @@ export function LocalEnvironmentSetting() {
                 : "Supaterm will restart and start running a server on this computer again."}
             </AlertDialogDescription>
           </AlertDialogHeader>
-          {error ? <p className="px-6 pb-4 text-sm text-destructive">{error}</p> : null}
+          {error ? (
+            <p className="px-6 pb-4 text-sm text-destructive wrap-anywhere">{error}</p>
+          ) : null}
           <AlertDialogFooter>
             <AlertDialogClose disabled={isUpdating} render={<Button variant="outline" />}>
               Cancel

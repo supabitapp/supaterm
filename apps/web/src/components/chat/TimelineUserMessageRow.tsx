@@ -207,7 +207,7 @@ function UserVideoAttachment({
             : "rounded-lg border border-border/80",
         )}
       >
-        {file.name}
+        <span className="line-clamp-3 min-w-0 wrap-anywhere">{file.name}</span>
       </div>
     );
   }
@@ -722,7 +722,7 @@ function UserTimelineRow({ row }: { row: Extract<TimelineRow, { kind: "message" 
                   collage && "h-full",
                 )}
               >
-                {image.name}
+                <span className="line-clamp-3 min-w-0 wrap-anywhere">{image.name}</span>
               </div>
             )}
             {image.previewUrl && image.source?.kind === "snap-shot" ? (

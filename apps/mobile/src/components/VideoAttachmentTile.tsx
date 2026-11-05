@@ -70,7 +70,11 @@ export function VideoAttachmentTile(props: {
           </View>
           {!props.compact ? (
             <View className="absolute inset-x-0 bottom-0 bg-black/55 px-2 py-1.5">
-              <AppText className="text-center text-xs text-white" numberOfLines={1}>
+              <AppText
+                className="text-center text-xs text-white"
+                numberOfLines={1}
+                ellipsizeMode="middle"
+              >
                 {props.name}
               </AppText>
             </View>

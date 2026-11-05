@@ -16,6 +16,7 @@ import type { EnvironmentProject } from "@supaterm/client-runtime/state/shell";
 import { cn } from "~/lib/utils";
 import { resolveSidebarRowAccessibility } from "../Sidebar.logic";
 import { ProjectFavicon, type ProjectFaviconProject } from "../ProjectFavicon";
+import { MiddleTruncate } from "../ui/middle-truncate";
 import { Tooltip, TooltipTrigger } from "../ui/tooltip";
 import {
   composerDraftHasUserContent,
@@ -146,7 +147,11 @@ const SidebarDraftRow = memo(function SidebarDraftRow(props: {
               </span>
             </div>
             <div className="mt-0.5 flex h-4 min-w-0 items-center text-xs text-secondary-label">
-              <span className="min-w-0 truncate">{props.branch ?? props.projectDisplayName}</span>
+              {props.branch ? (
+                <MiddleTruncate value={props.branch} />
+              ) : (
+                <span className="min-w-0 truncate">{props.projectDisplayName}</span>
+              )}
             </div>
           </div>
         </TooltipTrigger>

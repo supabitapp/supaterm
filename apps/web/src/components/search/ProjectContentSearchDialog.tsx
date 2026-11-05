@@ -159,6 +159,9 @@ function OpenContentSearchDialog(props: {
     useRightPanelStore.getState().openFile(target.threadRef, match.path, match.lineNumber);
   };
   const fileCount = new Set(matches.map((match) => match.path)).size;
+  const resultCount = `${matches.length.toLocaleString()}${search.truncated ? "+" : ""}`;
+  const resultNoun = matches.length === 1 && !search.truncated ? "result" : "results";
+  const fileNoun = fileCount === 1 ? "file" : "files";
   const showSearchStatus =
     search.canReadFiles &&
     (search.hasQuery || search.isPending || search.error !== null || search.invalidRegex);
@@ -237,7 +240,7 @@ function OpenContentSearchDialog(props: {
           ) : search.invalidRegex ? (
             <span className="text-destructive">Invalid regular expression</span>
           ) : (
-            `${matches.length.toLocaleString()}${search.truncated ? "+" : ""} results in ${fileCount.toLocaleString()} files`
+            `${resultCount} ${resultNoun} in ${fileCount.toLocaleString()} ${fileNoun}`
           )}
         </div>
       ) : null}

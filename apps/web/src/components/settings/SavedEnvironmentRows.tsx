@@ -175,7 +175,7 @@ export function SavedBackendListRow({
     versionMismatch !== null &&
     (serverUpdateState.status === "idle" || serverUpdateState.status === "failed");
 
-  const statusTooltip = `${
+  const statusTooltip = `${environmentTransportLabel(environment)}\n${
     unsupported
       ? (environment.connection.error ?? connectionStatusText(environment.connection))
       : enabled

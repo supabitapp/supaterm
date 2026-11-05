@@ -233,7 +233,7 @@ export const V2ItemInspector = memo(function V2ItemInspector(props: V2ItemInspec
   const item = fetched.item;
   const outputState = fetched.output;
   return (
-    <div className="space-y-2 text-xs" data-v2-item-inspector={item.type}>
+    <div className="space-y-2 text-xs wrap-anywhere" data-v2-item-inspector={item.type}>
       {item.type === "reasoning" && item.text ? (
         <div className="rounded-md border border-border/45 bg-muted/15 p-2 italic text-muted-foreground">
           <ChatMarkdown
@@ -273,7 +273,7 @@ export const V2ItemInspector = memo(function V2ItemInspector(props: V2ItemInspec
       {item.type === "file_change" ? (
         <div className="space-y-2">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="font-mono text-muted-foreground">
+            <span className="min-w-0 font-mono text-muted-foreground">
               {formatWorkspaceRelativePath(item.fileName, props.workspaceRoot)}
             </span>
             {item.additions !== undefined || item.deletions !== undefined ? (
@@ -356,10 +356,10 @@ export const V2ItemInspector = memo(function V2ItemInspector(props: V2ItemInspec
                     href={safeHref}
                     target="_blank"
                     rel="noreferrer"
-                    className="inline-flex items-center gap-1 font-medium text-foreground hover:underline"
+                    className="inline-flex max-w-full items-center gap-1 font-medium text-foreground hover:underline"
                   >
                     {result.title ?? result.url}
-                    <ExternalLinkIcon className="size-3" />
+                    <ExternalLinkIcon className="size-3 shrink-0" />
                   </a>
                 ) : (
                   <p className="font-medium text-foreground">

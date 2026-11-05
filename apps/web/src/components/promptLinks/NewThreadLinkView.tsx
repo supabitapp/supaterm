@@ -342,8 +342,12 @@ export function NewThreadLinkView({ link }: { readonly link: NewThreadLink }) {
           title={`You don't have ${name}`}
           description="Clone it to work on it here, or start without a project."
         >
-          <Button size="sm" onClick={() => void cloneRepository(state.repository)}>
-            Clone {name}
+          <Button
+            size="sm"
+            className="min-w-0 max-w-full shrink"
+            onClick={() => void cloneRepository(state.repository)}
+          >
+            <span className="truncate">Clone {name}</span>
           </Button>
           <Button size="sm" variant="outline" onClick={() => void openWithoutProject()}>
             Use without project
@@ -422,7 +426,9 @@ function LinkPage({
         <EmptyHeader className="max-w-md">
           <EmptyTitle>{title}</EmptyTitle>
           {description ? <EmptyDescription>{description}</EmptyDescription> : null}
-          {children ? <div className="mt-5 flex justify-center gap-2">{children}</div> : null}
+          {children ? (
+            <div className="mt-5 flex flex-wrap justify-center gap-2">{children}</div>
+          ) : null}
         </EmptyHeader>
       </Empty>
     </SidebarInset>

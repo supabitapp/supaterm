@@ -128,50 +128,65 @@ function workEntryReadPaths(entry: WorkLogEntry, workspaceRoot: string | undefin
 }
 
 export function workEntryDisplayLabel(entry: WorkLogEntry, workspaceRoot: string | undefined) {
-  if (entry.itemType === "system_notice") return entry.label;
+  return workEntryDisplay(entry, workspaceRoot).text;
+}
+
+const graphemeSegmenter = new Intl.Segmenter(undefined, { granularity: "grapheme" });
+
+/** A path label's `tail` counts the graphemes after its last "/", so a middle cut keeps the file name. */
+function pathLabel(text: string): { text: string; tail: number } {
+  const fileName = text.slice(text.lastIndexOf("/") + 1);
+  return { text, tail: Array.from(graphemeSegmenter.segment(fileName)).length };
+}
+
+export function workEntryDisplay(
+  entry: WorkLogEntry,
+  workspaceRoot: string | undefined,
+): { text: string; tail?: number } {
+  if (entry.itemType === "system_notice") return { text: entry.label };
   if (entry.itemType === "reasoning" || entry.tone === "thinking") {
     const thought = entry.detail?.trim().replace(/\s+/g, " ");
-    return thought || entry.label;
+    return { text: thought || entry.label };
   }
   const toolPresentation = resolveWorkEntryToolPresentation(entry);
-  if (toolPresentation) return toolPresentation.displayName;
-  if (entry.command?.trim()) return commandDisplayText(entry.command);
+  if (toolPresentation) return { text: toolPresentation.displayName };
+  if (entry.command?.trim()) return { text: commandDisplayText(entry.command) };
   const action = toolGroupAction(entry);
   if (action === "code-search" || action === "search") {
     const searchLabel =
       entry.itemType === "file_search"
         ? entry.label
         : formatSearchToolLabel(workEntryToolDataRecord(entry));
-    if (searchLabel) return searchLabel;
+    if (searchLabel) return { text: searchLabel };
   }
   const readPaths = action === "read" ? workEntryReadPaths(entry, workspaceRoot) : [];
   if (action === "read" && readPaths[0]) {
-    return formatReadToolLabel(readPaths[0], readPaths.length - 1);
+    return pathLabel(formatReadToolLabel(readPaths[0], readPaths.length - 1));
   }
   const providerRetry =
     entry.projectedItem?.item.type === "error" && entry.projectedItem.item.retry !== undefined;
   const item = entry.structuredPayload;
   const title =
     item?.type === "dynamic_tool" ? dynamicToolTitle(item.toolName, item.input, item.title) : null;
-  if (title) return title;
+  if (title) return { text: title };
   const compactDetail = entry.detail?.trim();
   const detailIsSearchOutput =
     (action === "code-search" || action === "search") && /[\r\n]/.test(compactDetail ?? "");
   if (compactDetail && !providerRetry && action !== "read" && !detailIsSearchOutput) {
-    return compactDetail;
+    return { text: compactDetail };
   }
   const [firstPath] = entry.changedFiles ?? [];
   if (firstPath) {
     const path = formatWorkspaceRelativePath(firstPath, workspaceRoot);
-    return entry.changedFiles!.length === 1
-      ? path
-      : `${path} +${entry.changedFiles!.length - 1} more`;
+    return pathLabel(
+      entry.changedFiles!.length === 1 ? path : `${path} +${entry.changedFiles!.length - 1} more`,
+    );
   }
   if (action === "read" && !entry.viewedImagePath) {
-    return "Read file";
+    return { text: "Read file" };
   }
   const heading = normalizeCompactToolLabel(entry.toolTitle || entry.label);
-  return `${heading.charAt(0).toUpperCase()}${heading.slice(1)}`;
+  return { text: `${heading.charAt(0).toUpperCase()}${heading.slice(1)}` };
 }
 
 export function threadReadTargetId(entry: Pick<WorkLogEntry, "structuredPayload">) {
