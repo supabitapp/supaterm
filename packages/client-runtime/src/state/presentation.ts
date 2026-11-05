@@ -4,6 +4,7 @@ import {
   type EnvironmentId,
   type ServerConfig,
   type ServerProvider,
+  type ThreadId,
 } from "@supaterm/contracts";
 import * as Option from "effect/Option";
 import { AsyncResult, Atom } from "effect/reactivity";
@@ -17,6 +18,7 @@ import {
   type EnvironmentPresentation,
   type EnvironmentServerConfig,
 } from "../connection/presentation.ts";
+import { scopeThreadRef, scopedThreadKey } from "../environment/scoped.ts";
 import { type EnvironmentCatalogState, enabledEnvironmentIds } from "./connections.ts";
 
 function mapsEqual<K, V>(left: ReadonlyMap<K, V>, right: ReadonlyMap<K, V>): boolean {
@@ -214,6 +216,32 @@ export function projectEnvironmentConnectionSummary(
   };
 }
 
+/** How long a disconnected environment retries before it counts as offline, so restarts and blips keep its threads. */
+export const OFFLINE_ENVIRONMENT_GRACE_MS = 60_000;
+
+const NO_ENVIRONMENT_IDS: ReadonlySet<EnvironmentId> = new Set();
+
+interface OfflineEnvironmentTracking {
+  readonly disconnectedSince: number;
+  readonly offline: boolean;
+}
+
+/** The threads a list keeps while it hides offline environments. The open thread's row stays. */
+export function withoutOfflineEnvironmentThreads<
+  T extends { readonly environmentId: EnvironmentId; readonly id: ThreadId },
+>(
+  threads: ReadonlyArray<T>,
+  offlineEnvironmentIds: ReadonlySet<EnvironmentId>,
+  openThreadKey: string | null,
+): ReadonlyArray<T> {
+  if (offlineEnvironmentIds.size === 0) return threads;
+  return threads.filter(
+    (thread) =>
+      !offlineEnvironmentIds.has(thread.environmentId) ||
+      scopedThreadKey(scopeThreadRef(thread.environmentId, thread.id)) === openThreadKey,
+  );
+}
+
 export function createEnvironmentSummaryAtoms(input: {
   readonly catalogValueAtom: Atom.Atom<EnvironmentCatalogState>;
   readonly presentationAtom: (
@@ -291,6 +319,38 @@ export function createEnvironmentSummaryAtoms(input: {
       ? previous
       : next;
   });
+  const offlineEnvironmentAtom = Atom.family((environmentId: EnvironmentId) =>
+    Atom.make((get): OfflineEnvironmentTracking | null => {
+      const connectionState = get(environmentAtom(environmentId))?.connectionState;
+      if (connectionState === undefined || connectionState === "connected") return null;
+      // @effect-diagnostics-next-line globalDate:off - Atoms run outside an Effect runtime.
+      const now = Date.now();
+      const disconnectedSince =
+        Option.getOrNull(get.self<OfflineEnvironmentTracking | null>())?.disconnectedSince ?? now;
+      // Retrying cannot fix a blocked connection, so it skips the grace period.
+      const remainingMs =
+        connectionState === "error" || connectionState === "unsupported"
+          ? 0
+          : disconnectedSince + OFFLINE_ENVIRONMENT_GRACE_MS - now;
+      if (remainingMs > 0) {
+        // @effect-diagnostics-next-line globalTimers:off - Mirrors `Atom.withRefresh`, outside an Effect runtime.
+        const handle = setTimeout(() => get.refreshSelf(), remainingMs);
+        get.addFinalizer(() => clearTimeout(handle));
+      }
+      return { disconnectedSince, offline: remainingMs <= 0 };
+    }),
+  );
+  // Kept mounted and eager, so the grace period runs and reconnects reset it while no list is open.
+  const offlineEnvironmentIdsAtom = Atom.make((get): ReadonlySet<EnvironmentId> => {
+    const next = get(environmentIdsAtom).filter((id) => get(offlineEnvironmentAtom(id))?.offline);
+    const previous = Option.getOrNull(get.self<ReadonlySet<EnvironmentId>>());
+    if (next.length === 0) return NO_ENVIRONMENT_IDS;
+    return previous !== null &&
+      previous.size === next.length &&
+      next.every((id) => previous.has(id))
+      ? previous
+      : new Set(next);
+  }).pipe(Atom.keepAlive, Atom.setLazy(false));
   const machineByIdAtom = Atom.make((get) => {
     const next = new Map(
       get(environmentIdsAtom).map(
@@ -316,6 +376,7 @@ export function createEnvironmentSummaryAtoms(input: {
   return {
     environmentIdsAtom,
     connectedEnvironmentIdsAtom,
+    offlineEnvironmentIdsAtom,
     identitiesAtom,
     environmentsAtom,
     machineByIdAtom,

@@ -128,6 +128,7 @@ export function HomeRouteScreen() {
     setSelectedEnvironmentId,
     setSelectedProjectKey,
     setThreadGrouping,
+    setHideOfflineEnvironments,
   } = useHomeListOptions(availableEnvironmentIds);
   const selectedEnvironmentId = listOptions.selectedEnvironmentId;
   // A legacy per-environment scratch key resolves here on every render; the stored
@@ -168,6 +169,8 @@ export function HomeRouteScreen() {
     selectedProjectKey,
     onEnvironmentChange: setSelectedEnvironmentId,
     onProjectChange: setSelectedProjectKey,
+    hideOfflineEnvironments: listOptions.hideOfflineEnvironments,
+    onHideOfflineEnvironmentsChange: setHideOfflineEnvironments,
   };
 
   if (layout.usesSplitView && !nativePrimaryColumn) {
@@ -272,6 +275,7 @@ export function HomeRouteScreen() {
           pendingTasks={pendingTasks}
           projectGroupingMode={listOptions.projectGroupingMode}
           threadGrouping={listOptions.threadGrouping}
+          hideOfflineEnvironments={listOptions.hideOfflineEnvironments}
           projects={projects}
           projectSortOrder={listOptions.projectSortOrder}
           savedConnectionsById={savedConnectionsById}

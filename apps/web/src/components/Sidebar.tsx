@@ -74,6 +74,7 @@ import {
   type ThreadId,
 } from "@supaterm/contracts";
 import { PlusIcon } from "@supaterm/icons";
+import { withoutOfflineEnvironmentThreads } from "@supaterm/client-runtime/state/presentation";
 import type { OlderDoneScope } from "@supaterm/client-runtime/state/threads";
 import {
   useEffect,
@@ -146,6 +147,7 @@ import {
   useConnectedEnvironmentIds,
   useEnvironmentIdentities,
   useEnvironmentMachines,
+  useOfflineEnvironmentIds,
   usePrimaryEnvironmentId,
 } from "../state/environments";
 import {
@@ -304,6 +306,7 @@ const EMPTY_PROVIDER_ENTRIES: ReadonlyMap<string, SidebarProviderEntry> = new Ma
 // Collapsed shelves share one empty list so a route change alone does not
 // give the sidebar list a new identity.
 const EMPTY_THREADS: readonly EnvironmentThreadShell[] = [];
+const NO_HIDDEN_ENVIRONMENTS: ReadonlySet<EnvironmentId> = new Set();
 
 // Done-tail paging: recent history is the common lookup; the deep tail
 // stays behind an explicit Show more.
@@ -339,6 +342,9 @@ interface SidebarThreadPartitionInput {
   readonly serverConfigs: ReadonlyMap<EnvironmentId, EnvironmentServerConfig>;
   readonly connectedEnvironmentIds: readonly EnvironmentId[];
   readonly optimisticDrop: SidebarOptimisticDrop | null;
+  readonly hiddenEnvironmentIds: ReadonlySet<EnvironmentId>;
+  /** The open thread's row, set only while its environment is hidden. */
+  readonly keptThreadKey: string | null;
   // Snooze wakes and the Working shelf's exit grace depend on the clock, so the
   // minute tick, the precise snooze-wake tick and the inbox tracker's expiry
   // version are inputs: any one advancing repartitions.
@@ -388,6 +394,8 @@ function useSidebarThreads(input: {
   readonly serverConfigs: ReadonlyMap<EnvironmentId, EnvironmentServerConfig>;
   readonly connectedEnvironmentIds: readonly EnvironmentId[];
   readonly optimisticDrop: SidebarOptimisticDrop | null;
+  readonly hiddenEnvironmentIds: ReadonlySet<EnvironmentId>;
+  readonly keptThreadKey: string | null;
   readonly threads: readonly EnvironmentThreadShell[];
   readonly routeRowThreadKey: string | null;
   readonly dragging: boolean;
@@ -400,6 +408,8 @@ function useSidebarThreads(input: {
     serverConfigs,
     connectedEnvironmentIds,
     optimisticDrop,
+    hiddenEnvironmentIds,
+    keptThreadKey,
     threads,
     routeRowThreadKey,
   } = input;
@@ -463,6 +473,8 @@ function useSidebarThreads(input: {
     serverConfigs,
     connectedEnvironmentIds,
     optimisticDrop,
+    hiddenEnvironmentIds,
+    keptThreadKey,
     nowMinute,
     snoozeWakeTickAt,
     inboxReturnsVersion,
@@ -471,7 +483,10 @@ function useSidebarThreads(input: {
   const { pinnedThreads, activeThreads, workingThreads, snoozedThreads, doneThreads } = partition;
   // Older done threads load in pages; the shelf lists them only as far as they are loaded.
   const olderDoneShelf = useOlderDoneShelf({
-    scopes: olderDoneScopes([...serverConfigs.keys()], scopedProjectKeys),
+    scopes: olderDoneScopes(
+      [...serverConfigs.keys()].filter((environmentId) => !hiddenEnvironmentIds.has(environmentId)),
+      scopedProjectKeys,
+    ),
     expanded: doneShelfExpanded,
     visibleCount: doneVisibleCount,
   });
@@ -609,7 +624,12 @@ function partitionSidebarThreads(input: SidebarThreadPartitionInput) {
   const preciseNow = new Date(
     Math.max(Date.now(), Date.parse(`${input.nowMinute}:00.000Z`), input.snoozeWakeTickAt),
   ).toISOString();
-  const visible = filterSidebarV2VisibleThreads(threads, scopedProjectKeys);
+  const listed = filterSidebarV2VisibleThreads(threads, scopedProjectKeys);
+  const visible = withoutOfflineEnvironmentThreads(
+    listed,
+    input.hiddenEnvironmentIds,
+    input.keptThreadKey,
+  );
   const inboxObservation = inboxReturns.observe(threads);
   const pinned: EnvironmentThreadShell[] = [];
   const active: EnvironmentThreadShell[] = [];
@@ -685,6 +705,7 @@ function partitionSidebarThreads(input: SidebarThreadPartitionInput) {
     ),
     doneThreads: sortDoneThreads(done),
     visibleThreads: visible,
+    hidesOfflineThreads: visible.length < listed.length,
     snoozeNow: preciseNow,
   };
 }
@@ -861,6 +882,11 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
   const confirmThreadArchive = useClientSettings((s) => s.confirmThreadArchive);
   const timestampFormat = useClientSettings((s) => s.timestampFormat);
   const threadGrouping = useClientSettings((s) => s.sidebarThreadGrouping);
+  const hideOfflineEnvironments = useClientSettings((s) => s.sidebarHideOfflineEnvironments);
+  const offlineEnvironmentIds = useOfflineEnvironmentIds();
+  const hiddenEnvironmentIds = hideOfflineEnvironments
+    ? offlineEnvironmentIds
+    : NO_HIDDEN_ENVIRONMENTS;
   const projectSortOrder = useClientSettings((s) => s.sidebarProjectSortOrder);
   const groupingProjects = projectGroups.map((group) => ({
     key: group.projectKey,
@@ -1067,6 +1093,11 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
             ),
           ),
         );
+  // Only a hidden environment's open row is kept, so other navigation leaves the partition memoized.
+  const keptThreadKey =
+    routeThreadRef !== null && hiddenEnvironmentIds.has(routeThreadRef.environmentId)
+      ? routeRowThreadKey
+      : null;
   // History, the palette and links can open a thread the scope hides or the list
   // scrolled away; a remount starts at the top, so each mount scrolls to the open
   // thread once. Render decides the widening, so the first frame of the new route
@@ -1194,6 +1225,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
     workingThreads,
     snoozedThreads,
     doneThreads,
+    hidesOfflineThreads,
     snoozeNow,
     doneVisibleCount,
     doneCount,
@@ -1232,18 +1264,25 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
     serverConfigs,
     connectedEnvironmentIds,
     optimisticDrop,
+    hiddenEnvironmentIds,
+    keptThreadKey,
     threads,
     routeRowThreadKey,
     // A Working row only drags out as chat context, so it never reveals the pin order.
     dragging: dragState !== null && dragState.activeSection !== "working",
   });
-  // Sent creations already show through their optimistic shells; this row
-  // covers failures and environments with no shell snapshot to overlay.
+  // Sent creations already show through their optimistic shells; this row covers
+  // failures, environments with no shell snapshot to overlay, and shells hidden offline.
+  const listedShells = withoutOfflineEnvironmentThreads(
+    threads,
+    hiddenEnvironmentIds,
+    keptThreadKey,
+  );
   const pendingThreads = outboxEntries.filter((entry) => {
     const creation = entry.payload.input.bootstrap?.createThread;
     return (
       creation &&
-      !threads.some((thread) => threadShellKey(thread) === entry.scope) &&
+      !listedShells.some((thread) => threadShellKey(thread) === entry.scope) &&
       (scopedProjectKeys === null ||
         scopedProjectKeys.has(`${entry.payload.environmentId}:${creation.projectId}`))
     );
@@ -1533,6 +1572,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
     const selected = useThreadSelectionStore.getState().selectedThreadKeys;
     const keys = selected.has(key) ? [...selected] : [key];
     return keys.flatMap((candidate) => {
+      if (!threadByKeyRef.current.has(candidate)) return [];
       const ref = parseScopedThreadKey(candidate);
       return ref ? [ref] : [];
     });
@@ -2750,6 +2790,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                   optionsMenu={
                     <SidebarThreadListMenu
                       open={threadListMenuOpen}
+                      hidesOfflineThreads={hidesOfflineThreads}
                       onOpenChange={(open) => {
                         if (!open) return closeThreadListMenu();
                         suppressNextScopeChangeRef.current = false;

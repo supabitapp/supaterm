@@ -1,5 +1,5 @@
-import { describe, expect, it } from "@effect/vitest";
-import { EnvironmentId, type ServerConfig } from "@supaterm/contracts";
+import { describe, expect, it, vi } from "@effect/vitest";
+import { EnvironmentId, ThreadId, type ServerConfig } from "@supaterm/contracts";
 import * as Option from "effect/Option";
 import { AsyncResult, Atom, AtomRegistry } from "effect/reactivity";
 
@@ -9,6 +9,8 @@ import { isEnvironmentConnected } from "../connection/presentation.ts";
 import {
   createEnvironmentPresentationAtoms,
   createEnvironmentSummaryAtoms,
+  OFFLINE_ENVIRONMENT_GRACE_MS,
+  withoutOfflineEnvironmentThreads,
 } from "./presentation.ts";
 import type { EnvironmentCatalogState } from "./connections.ts";
 
@@ -32,7 +34,7 @@ function config(cwd = "/workspace"): ServerConfig {
     environment: { capabilities: {}, platform: { machine: "desktop" } },
   } as ServerConfig;
 }
-function harness() {
+function harness(registryOptions?: Parameters<typeof AtomRegistry.make>[0]) {
   const catalog = Atom.make<EnvironmentCatalogState>({
     isReady: true,
     entries: new Map([
@@ -51,7 +53,14 @@ function harness() {
     catalogValueAtom: catalog,
     presentationAtom: full.presentationAtom,
   });
-  return { catalog, configs, state, full, ...summaries, registry: AtomRegistry.make() };
+  return {
+    catalog,
+    configs,
+    state,
+    full,
+    ...summaries,
+    registry: AtomRegistry.make(registryOptions),
+  };
 }
 
 describe("environment summary subscriptions", () => {
@@ -304,6 +313,76 @@ describe("environment summary subscriptions", () => {
       stop();
       h.registry.dispose();
     }
+  });
+});
+
+describe("offline environments", () => {
+  it("lists an environment once it stays disconnected past the grace period", () => {
+    vi.useFakeTimers();
+    const removals: Array<() => void> = [];
+    const h = harness({
+      scheduleTask: (task) => {
+        removals.push(task);
+        return () => {};
+      },
+    });
+    const removeUnobservedAtoms = () => removals.splice(0).forEach((task) => task());
+    const stop = h.registry.subscribe(h.offlineEnvironmentIdsAtom, () => {});
+    const offline = () => [...h.registry.get(h.offlineEnvironmentIdsAtom)];
+    const setPhase = (phase: "connected" | "connecting" | "backoff" | "blocked") =>
+      h.registry.set(
+        h.state,
+        AsyncResult.success({ ...AVAILABLE_CONNECTION_STATE, phase, attempt: 1 }),
+      );
+    const offlineAfter = (phase: Parameters<typeof setPhase>[0]) => {
+      setPhase(phase);
+      return offline();
+    };
+    try {
+      expect(offlineAfter("connected")).toEqual([]);
+      expect(offlineAfter("backoff")).toEqual([]);
+      vi.advanceTimersByTime(OFFLINE_ENVIRONMENT_GRACE_MS - 1);
+      expect(offline()).toEqual([]);
+      vi.advanceTimersByTime(1);
+      expect(offline()).toEqual([FIRST, SECOND]);
+      // A retry does not restart the grace period; only a connection does.
+      expect(offlineAfter("connecting")).toEqual([FIRST, SECOND]);
+      expect(offlineAfter("connected")).toEqual([]);
+      expect(offlineAfter("backoff")).toEqual([]);
+      // Retrying cannot fix a blocked connection, so it is offline at once.
+      expect(offlineAfter("blocked")).toEqual([FIRST, SECOND]);
+
+      // With no list open, a reconnect still resets the grace period and retries still do not.
+      stop();
+      removeUnobservedAtoms();
+      vi.advanceTimersByTime(OFFLINE_ENVIRONMENT_GRACE_MS);
+      setPhase("connected");
+      setPhase("backoff");
+      expect(offline()).toEqual([]);
+      removeUnobservedAtoms();
+      vi.advanceTimersByTime(OFFLINE_ENVIRONMENT_GRACE_MS / 2);
+      setPhase("connecting");
+      vi.advanceTimersByTime(OFFLINE_ENVIRONMENT_GRACE_MS / 2);
+      expect(offline()).toEqual([FIRST, SECOND]);
+    } finally {
+      h.registry.dispose();
+      vi.useRealTimers();
+    }
+  });
+
+  it("leaves out threads of offline environments except the open one", () => {
+    const thread = (environmentId: EnvironmentId, id: string) => ({
+      environmentId,
+      id: ThreadId.make(id),
+    });
+    const threads = [thread(FIRST, "a"), thread(SECOND, "b"), thread(SECOND, "c")];
+    const listedIds = (offline: ReadonlySet<EnvironmentId>, openThreadKey: string | null) =>
+      withoutOfflineEnvironmentThreads(threads, offline, openThreadKey).map((entry) => entry.id);
+
+    expect(listedIds(new Set(), null)).toEqual(["a", "b", "c"]);
+    expect(listedIds(new Set([SECOND]), null)).toEqual(["a"]);
+    expect(listedIds(new Set([SECOND]), `${SECOND}:c`)).toEqual(["a", "c"]);
+    expect(listedIds(new Set([FIRST, SECOND]), `${FIRST}:a`)).toEqual(["a"]);
   });
 });
 

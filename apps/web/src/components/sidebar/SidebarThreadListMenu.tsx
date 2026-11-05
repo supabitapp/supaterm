@@ -5,6 +5,7 @@ import { cn } from "~/lib/utils";
 import { updateClientSettings, useClientSettings } from "../../hooks/useSettings";
 import {
   Menu,
+  MenuCheckboxItem,
   MenuPopup,
   MenuRadioGroup,
   MenuRadioItem,
@@ -19,17 +20,39 @@ import { SidebarHeaderIconButton } from "./SidebarThreadHeader";
 export function SidebarThreadListMenu({
   open,
   onOpenChange,
+  hidesOfflineThreads,
   projectFilter,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** Whether hiding offline environments leaves out a row the list would otherwise show. */
+  hidesOfflineThreads: boolean;
   projectFilter: ReactNode;
 }) {
   const grouping = useClientSettings((settings) => settings.sidebarThreadGrouping);
+  const hideOfflineEnvironments = useClientSettings(
+    (settings) => settings.sidebarHideOfflineEnvironments,
+  );
   return (
     <Menu open={open} onOpenChange={onOpenChange}>
-      <MenuTrigger render={<SidebarHeaderIconButton label="Thread list options" />}>
+      <MenuTrigger
+        render={
+          <SidebarHeaderIconButton
+            label={
+              hidesOfflineThreads
+                ? "Thread list options, offline environments hidden"
+                : "Thread list options"
+            }
+          />
+        }
+      >
         <SlidersHorizontalIcon />
+        {hidesOfflineThreads ? (
+          <span
+            aria-hidden
+            className="absolute right-1 top-1 size-1.5 rounded-full bg-muted-foreground"
+          />
+        ) : null}
       </MenuTrigger>
       <MenuPopup align="end">
         {projectFilter}
@@ -71,6 +94,16 @@ export function SidebarThreadListMenu({
             </MenuRadioGroup>
           </MenuSubPopup>
         </MenuSub>
+        <MenuCheckboxItem
+          variant="switch"
+          checked={hideOfflineEnvironments}
+          closeOnClick={false}
+          onCheckedChange={(checked) =>
+            void updateClientSettings({ sidebarHideOfflineEnvironments: checked })
+          }
+        >
+          Hide offline environments
+        </MenuCheckboxItem>
       </MenuPopup>
     </Menu>
   );

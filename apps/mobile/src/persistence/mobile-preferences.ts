@@ -103,6 +103,7 @@ export interface Preferences {
   readonly followUpBehavior?: FollowUpBehavior;
   readonly projectGroupingMode?: SidebarProjectGroupingMode;
   readonly threadGrouping?: SidebarThreadGrouping;
+  readonly hideOfflineEnvironments?: boolean;
   readonly threadListPinnedShelfExpanded?: boolean;
   readonly threadListActiveShelfExpanded?: boolean;
   readonly threadListDoneShelfExpanded?: boolean;
@@ -174,6 +175,7 @@ function sanitizePreferences(parsed: Preferences): Preferences {
     followUpBehavior?: FollowUpBehavior;
     projectGroupingMode?: SidebarProjectGroupingMode;
     threadGrouping?: SidebarThreadGrouping;
+    hideOfflineEnvironments?: boolean;
     threadListPinnedShelfExpanded?: boolean;
     threadListActiveShelfExpanded?: boolean;
     threadListDoneShelfExpanded?: boolean;
@@ -267,6 +269,9 @@ function sanitizePreferences(parsed: Preferences): Preferences {
     parsed.projectGroupingMode === "separate"
   ) {
     preferences.projectGroupingMode = parsed.projectGroupingMode;
+  }
+  if (typeof parsed.hideOfflineEnvironments === "boolean") {
+    preferences.hideOfflineEnvironments = parsed.hideOfflineEnvironments;
   }
   if (isThreadGrouping(parsed.threadGrouping)) {
     preferences.threadGrouping = parsed.threadGrouping;
