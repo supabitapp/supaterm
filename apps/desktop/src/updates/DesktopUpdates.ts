@@ -764,8 +764,6 @@ export const make = Effect.gen(function* () {
             instance.snapshot.pipe(Effect.map((snapshot) => snapshot.desiredRunning)),
           );
           yield* Ref.set(installRunningBackendsRef, runningInstances);
-          // node-hid's exit teardown joins an open device's read thread without
-          // stopping it, so quitting with the keyboard still open hangs forever.
           yield* Effect.all(
             [
               Effect.forEach(

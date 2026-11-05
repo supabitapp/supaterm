@@ -115,7 +115,6 @@ export class CodexMicro extends Context.Service<
     readonly available: boolean;
     /** Cheap and idempotent: runs on every client-settings write. */
     readonly configure: (settings: CodexMicroSettings) => Effect.Effect<void>;
-    /** Turns the lights off and closes the keyboard without changing settings. */
     readonly pause: Effect.Effect<void>;
     readonly resume: Effect.Effect<void>;
     readonly state: Effect.Effect<CodexMicroDeviceState>;
@@ -147,6 +146,7 @@ const make = Effect.gen(function* () {
   let lastInputAt = Number.NEGATIVE_INFINITY;
   let screenLocked = false;
   let enabledFiber: Fiber.Fiber<void> | undefined;
+  let paused = false;
   const lifecycle = yield* Semaphore.make(1);
   const lightingWake = yield* Queue.sliding<void>(1);
   const rescan = yield* Queue.sliding<void>(1);
@@ -564,7 +564,7 @@ const make = Effect.gen(function* () {
   }).pipe(Effect.scoped, Effect.withSpan("desktop.codexMicro.run"));
 
   const start = Effect.gen(function* () {
-    if (enabledFiber !== undefined) return;
+    if (enabledFiber !== undefined || paused) return;
     yield* inputMonitoring.requestIfUndetermined;
     enabledFiber = yield* Effect.forkIn(runEnabled, serviceScope);
   });
@@ -641,9 +641,21 @@ const make = Effect.gen(function* () {
   return CodexMicro.of({
     available: true,
     configure,
-    pause: lifecycle.withPermit(stop).pipe(Effect.withSpan("desktop.codexMicro.pause")),
+    pause: lifecycle
+      .withPermit(
+        Effect.suspend(() => {
+          paused = true;
+          return stop;
+        }),
+      )
+      .pipe(Effect.withSpan("desktop.codexMicro.pause")),
     resume: lifecycle
-      .withPermit(Effect.suspend(() => (settings.enabled ? start : Effect.void)))
+      .withPermit(
+        Effect.suspend(() => {
+          paused = false;
+          return settings.enabled ? start : Effect.void;
+        }),
+      )
       .pipe(Effect.withSpan("desktop.codexMicro.resume")),
     state: refreshInputMonitoring.pipe(
       Effect.andThen(Effect.sync(() => state)),
