@@ -502,6 +502,7 @@ describe("GitCafePullRequestProvider", () => {
     Effect.gen(function* () {
       for (const [status, reason] of [
         [401, "unauthenticated"],
+        [403, "forbidden"],
         [429, "rate-limited"],
       ] as const) {
         const server = fakeGitCafe(

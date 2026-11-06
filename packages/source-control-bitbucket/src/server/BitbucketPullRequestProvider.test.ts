@@ -213,7 +213,7 @@ describe("bitbucketProviderFailure", () => {
       });
 
     expect(bitbucketProviderFailure(responseError(401)).reason).toBe("unauthenticated");
-    expect(bitbucketProviderFailure(responseError(403)).reason).toBe("failed");
+    expect(bitbucketProviderFailure(responseError(403)).reason).toBe("forbidden");
   });
 
   it("reports a request held back by the host-wide pause as rate limited until it ends", () => {

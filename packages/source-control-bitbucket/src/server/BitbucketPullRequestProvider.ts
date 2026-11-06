@@ -63,6 +63,9 @@ export function bitbucketProviderFailure(
   if (error._tag === "BitbucketResponseError" && error.status === 401) {
     return { reason: "unauthenticated" };
   }
+  if (error._tag === "BitbucketResponseError" && error.status === 403) {
+    return { reason: "forbidden" };
+  }
   if (error._tag === "SourceControlRateLimitPausedError") {
     return { reason: "rate-limited", retryAt: error.retryAt };
   }

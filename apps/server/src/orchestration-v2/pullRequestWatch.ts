@@ -16,7 +16,12 @@ const SNIPPET_LENGTH = 200;
 
 export type PullRequestWatchChange =
   | { readonly kind: "checks-failed"; readonly failed: ReadonlyArray<PullRequestCheck> }
-  | { readonly kind: "checks-passed"; readonly count: number; readonly required: boolean }
+  | {
+      readonly kind: "checks-passed";
+      readonly count: number;
+      readonly required: boolean;
+      readonly pending: ReadonlyArray<string>;
+    }
   | { readonly kind: "checks-finished"; readonly failing: ReadonlyArray<PullRequestCheck> }
   | { readonly kind: "remarks"; readonly remarks: ReadonlyArray<PullRequestComment> }
   | { readonly kind: "no-checks"; readonly minutes: number }
@@ -42,7 +47,8 @@ export function evaluatePullRequestWatch(
   now: number,
 ): PullRequestWatchReport {
   const changes: Array<PullRequestWatchChange> = [];
-  const headSha = detail.headSha ?? null;
+  // Azure DevOps omits the head when its iteration read fails; that is not a push.
+  const headSha = detail.headSha ?? watch.headSha;
   const headMoved = headSha !== watch.headSha;
 
   // Hosts can return no checks on read failure; preserve prior state.
@@ -75,7 +81,12 @@ export function evaluatePullRequestWatch(
     const gateGrew = required.length > 0 && gateNames.some((name) => !told.includes(name));
     const gatePassed = passedNow && (!passed || gateGrew);
     if (gatePassed) {
-      changes.push({ kind: "checks-passed", count: gate.length, required: required.length > 0 });
+      changes.push({
+        kind: "checks-passed",
+        count: gate.length,
+        required: required.length > 0,
+        pending,
+      });
     }
     // Checks still running at a check wake are owed one more once all finish, so later advisory
     // churn never wakes. A failing owed check waits for its rerun; other failures were reported.
@@ -85,7 +96,7 @@ export function evaluatePullRequestWatch(
       if (owedChecks.length > 0 && !gatePassed && newlyFailed.length === 0) {
         changes.push(
           failed.length === 0
-            ? { kind: "checks-passed", count: detail.checks.length, required: false }
+            ? { kind: "checks-passed", count: detail.checks.length, required: false, pending: [] }
             : { kind: "checks-finished", failing: failed },
         );
       }
@@ -134,12 +145,14 @@ export function evaluatePullRequestWatch(
     ...atLatest.map((remark) => remark.id),
   ];
 
-  if (detail.mergeability === "conflicting" && !watch.conflicting) {
+  // Like a failed check, a conflict a push did not resolve is news for the new head.
+  const toldConflict = !headMoved && watch.conflicting;
+  if (detail.mergeability === "conflicting" && !toldConflict) {
     changes.push({ kind: "conflicting" });
   }
   // "unknown" is a host still computing after a push; only a clean answer clears a conflict.
   const conflicting =
-    detail.mergeability === "unknown" ? watch.conflicting : detail.mergeability === "conflicting";
+    detail.mergeability === "unknown" ? toldConflict : detail.mergeability === "conflicting";
 
   const commentsOnly = changes.length > 0 && changes.every((change) => change.kind === "remarks");
   const progress = headMoved || (changes.length > 0 && !commentsOnly);
@@ -168,7 +181,11 @@ function snippet(body: string): string {
     .replaceAll(/<!--[\s\S]*?-->/g, " ")
     .replaceAll(/\s+/g, " ")
     .trim();
-  return text.length <= SNIPPET_LENGTH ? text : `${text.slice(0, SNIPPET_LENGTH - 3)}...`;
+  if (text.length <= SNIPPET_LENGTH) return text;
+  // Half an emoji serializes to a lone surrogate escape, which provider JSON parsers reject.
+  const last = text.charCodeAt(SNIPPET_LENGTH - 4);
+  const end = last >= 0xd800 && last <= 0xdbff ? SNIPPET_LENGTH - 4 : SNIPPET_LENGTH - 3;
+  return `${text.slice(0, end)}...`;
 }
 
 function listed<T>(items: ReadonlyArray<T>, line: (item: T) => string): Array<string> {
@@ -187,10 +204,15 @@ function changeLines(
   switch (change.kind) {
     case "checks-failed":
       return [`- Checks failed${context.commit}:`, ...listed(change.failed, failedCheckLine)];
-    case "checks-passed":
+    case "checks-passed": {
+      const passed = `- All ${change.count} ${change.required ? "required " : ""}${change.count === 1 ? "check" : "checks"} passed${context.commit}.`;
+      if (!change.required) return [passed];
+      if (change.pending.length === 0) return [`${passed} No other check is still running.`];
       return [
-        `- All ${change.count} ${change.required ? "required " : ""}${change.count === 1 ? "check" : "checks"} passed${context.commit}.`,
+        `${passed} Supaterm wakes you once every check finishes. Still running:`,
+        ...listed(change.pending, (name) => `  - ${name}`),
       ];
+    }
     case "checks-finished":
       return [
         `- Every check has finished${context.commit}. These still fail:`,

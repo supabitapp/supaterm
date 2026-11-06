@@ -106,8 +106,8 @@ export const make = Effect.gen(function* () {
                   ? "unauthenticated"
                   : error.reason === "rate-limit"
                     ? "rate-limited"
-                    : error.reason === "not-found"
-                      ? "not-found"
+                    : error.reason === "not-found" || error.reason === "forbidden"
+                      ? error.reason
                       : "failed",
           }),
       ),

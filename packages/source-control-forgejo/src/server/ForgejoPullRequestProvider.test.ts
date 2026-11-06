@@ -66,3 +66,33 @@ it.effect("reads file revisions from the pull request diff and refuses a truncat
     assert.strictEqual(refused._tag, "PullRequestProviderError");
   }),
 );
+
+it.effect("reports a refused pull request read as forbidden", () =>
+  Effect.gen(function* () {
+    const provider = yield* ForgejoPullRequestProvider.make.pipe(
+      Effect.provide(
+        Layer.mock(ForgejoCli.ForgejoCli)({
+          api: () =>
+            Effect.fail(
+              new ForgejoCli.ForgejoCliError({
+                command: "fj",
+                cwd: "/forgejo",
+                detail: "403 Forbidden",
+                reason: "forbidden",
+                httpStatus: 403,
+              }),
+            ),
+        }),
+      ),
+    );
+    const refused = yield* Effect.flip(
+      provider.getChangeRequest({
+        cwd: "/forgejo",
+        repository: "reviewer/project",
+        host: "forge.example:3000",
+        number: 1,
+      }),
+    );
+    assert.strictEqual(refused.reason, "forbidden");
+  }),
+);
