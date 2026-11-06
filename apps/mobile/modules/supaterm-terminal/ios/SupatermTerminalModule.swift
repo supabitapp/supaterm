@@ -16,6 +16,10 @@ public class SupatermTerminalModule: Module {
         view.writeOutput(data, reset: reset)
       }
 
+      AsyncFunction("resetInput") { (view: SupatermTerminalView) in
+        view.resetInputField()
+      }
+
       Prop("terminalKey") { (view: SupatermTerminalView, terminalKey: String) in
         view.terminalKey = terminalKey
       }
