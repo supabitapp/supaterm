@@ -258,9 +258,15 @@ export const TranscriptionDictionaryEntry = Schema.Struct({
 });
 export type TranscriptionDictionaryEntry = typeof TranscriptionDictionaryEntry.Type;
 
+export type TranscriptionDictionary = typeof TranscriptionDictionary.Type;
 export const TranscriptionDictionary = Schema.Array(TranscriptionDictionaryEntry).check(
   Schema.isMaxLength(TRANSCRIPTION_DICTIONARY_MAX_ENTRIES),
 );
+
+// Joined and hyphenated forms ("superterm", "super-term") match these without listing them.
+export const DEFAULT_TRANSCRIPTION_DICTIONARY: TranscriptionDictionary = [
+  { term: "Supaterm", aliases: ["super term", "supa term", "soup a term"] },
+];
 
 export const NotificationMode = Schema.Literals([
   "off",
@@ -1295,7 +1301,7 @@ export const ServerSettings = Schema.Struct({
    */
   transcriptionProviderInstanceId: OmittedWhenNull(ProviderInstanceId),
   transcriptionDictionary: TranscriptionDictionary.pipe(
-    Schema.withDecodingDefault(Effect.succeed([])),
+    Schema.withDecodingDefault(Effect.succeed(DEFAULT_TRANSCRIPTION_DICTIONARY)),
   ),
   branchNamingMode: BranchNamingMode.pipe(
     Schema.withDecodingDefault(Effect.succeed("static" as const)),

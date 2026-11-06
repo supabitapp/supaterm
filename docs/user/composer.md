@@ -258,7 +258,7 @@ provider transcribes, which for Codex is many more than for Claude. On iPhone an
 voice input always uses your phone's language.
 
 Under **Dictionary**, add names and jargon to spell your way, and what the transcript gets
-instead, such as Supaterm heard as "super term". It is saved on the environment that
+instead. It starts with Supaterm, heard as "super term", which you can remove. It is saved on the environment that
 transcribes and applies to everything it transcribes, including voice messages and
 `supaterm transcribe`. With Claude, dictionary words also tell the speech model what to
 listen for.

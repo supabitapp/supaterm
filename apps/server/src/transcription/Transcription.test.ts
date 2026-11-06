@@ -504,6 +504,23 @@ describe("Transcription", () => {
     }),
   );
 
+  it.effect("spells Supaterm in an environment that never set a dictionary", () =>
+    Effect.gen(function* () {
+      const harness = yield* makeHarness;
+      yield* Effect.gen(function* () {
+        const service = yield* Transcription.Transcription;
+        const audio = yield* upload(wav({ durationMs: 1_000 }));
+        yield* Queue.offer(harness.responses, Effect.succeed({ text: "Open super term." }));
+        expect(
+          yield* service.transcribe({
+            providerInstanceId: INSTANCE,
+            audioAttachmentId: audio.attachmentId,
+          }),
+        ).toEqual({ text: "Open Supaterm." });
+      }).pipe(Effect.provide(harness.layer));
+    }),
+  );
+
   it.effect("spells the transcript with the environment's dictionary and keeps fillers", () =>
     Effect.gen(function* () {
       const harness = yield* makeHarnessWith({

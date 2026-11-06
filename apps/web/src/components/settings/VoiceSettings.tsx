@@ -4,6 +4,7 @@ import {
   type ServerProvider,
 } from "@supaterm/contracts";
 import {
+  DEFAULT_TRANSCRIPTION_DICTIONARY,
   DEFAULT_UNIFIED_SETTINGS,
   TRANSCRIPTION_DICTIONARY_MAX_ALIASES,
   TRANSCRIPTION_DICTIONARY_MAX_ENTRIES,
@@ -11,6 +12,7 @@ import {
   type VoiceMicrophone,
 } from "@supaterm/contracts/settings";
 import { PlusIcon, XIcon } from "@supaterm/icons";
+import * as Equal from "effect/Equal";
 import { type FormEvent, useEffect, useRef, useState } from "react";
 
 import {
@@ -488,9 +490,12 @@ function VoiceDictionarySettingRow() {
       {...searchableSetting("voice-dictionary")}
       description="Words voice input should spell your way, such as names and jargon. Add what the transcript gets instead, so it is corrected."
       resetAction={
-        dictionary.length > 0 ? (
-          <SettingResetButton label="dictionary" onClick={() => save([])} />
-        ) : null
+        Equal.equals(dictionary, DEFAULT_TRANSCRIPTION_DICTIONARY) ? null : (
+          <SettingResetButton
+            label="dictionary"
+            onClick={() => save(DEFAULT_TRANSCRIPTION_DICTIONARY)}
+          />
+        )
       }
     >
       <div className="flex flex-col gap-1.5 pt-3 pb-2">
