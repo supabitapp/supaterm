@@ -10,6 +10,7 @@ import type { VoiceRecordingHandOff } from "@supaterm/client-runtime/voice-input
 import { resolvePendingHandoff } from "@supaterm/client-runtime/handoff";
 import {
   deriveProviderSubagentStatus,
+  deriveProviderExtensionStatuses,
   deriveResumableRunId,
   deriveRunlessWorkStartedAt,
   deriveThreadActivityRun,
@@ -814,6 +815,9 @@ export function useThreadComposerState() {
     dispatchingQueuedMessageId,
     activeWorkStartedAt,
     runlessWorkActive,
+    extensionStatuses: deriveProviderExtensionStatuses(
+      selectedThreadProjection?.projection ?? null,
+    ),
     providerSubagentStatus,
     isCompacting,
     composerDraftKey,
