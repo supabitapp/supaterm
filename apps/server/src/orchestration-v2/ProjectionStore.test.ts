@@ -5455,6 +5455,7 @@ it.layer(layerTest)("ProjectionStoreV2", (it) => {
         .getRuntimeRecoveryProjection(memberThreadId)
         .pipe(Effect.withTracer(tracer));
       const childRecovery = yield* projectionStore.getRuntimeRecoveryProjection(childThreadId);
+      assert.lengthOf(statements, 2);
       // Live-item filters must hit the active partial indexes, not walk the thread's history.
       const sql = yield* SqlClient.SqlClient;
       for (const statement of statements.filter((query) => query.includes("turn_items"))) {
