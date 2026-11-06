@@ -10,9 +10,12 @@ import { pullRequestEnvironment } from "~/state/pullRequests";
 import { TextFieldVoiceInput } from "../chat/TextFieldVoiceInput";
 import { InlineConfirmIcon, InlineConfirmLabel } from "../InlineConfirm";
 import { Button } from "../ui/button";
-import { Textarea } from "../ui/textarea";
 import { toastManager } from "../ui/toast";
 import { PullRequestGlyph } from "./pullRequestIcons";
+import {
+  PullRequestMarkdownTextarea,
+  pullRequestMentionScope,
+} from "./PullRequestMarkdownTextarea";
 
 export function PullRequestCommentForm({
   environmentId,
@@ -88,8 +91,9 @@ export function PullRequestCommentForm({
 
   return (
     <div className="space-y-2">
-      <Textarea
+      <PullRequestMarkdownTextarea
         ref={textareaRef}
+        mentionScope={pullRequestMentionScope(detail, environmentId, reference)}
         // Lock while posting because success clears the draft.
         disabled={submitting !== null || actionPending}
         readOnly={voiceBusy}
@@ -97,7 +101,7 @@ export function PullRequestCommentForm({
         rows={3}
         placeholder="Leave a comment"
         aria-label={`Comment on this ${sourceControlClients.get(detail.provider).changeRequest.singular}`}
-        onChange={(event) => setBody(event.target.value)}
+        onValueChange={setBody}
         onKeyDown={(event) => {
           if (event.nativeEvent.isComposing || event.keyCode === 229) return;
           if (

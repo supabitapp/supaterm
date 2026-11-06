@@ -41,6 +41,7 @@ import {
   fileDiffRows,
   rowsToPatch,
 } from "@supaterm/client-runtime/review-guide-tour";
+import type { PullRequestMentionScope } from "../PullRequestMarkdownTextarea";
 import { GuideNoteMarker } from "./GuideNotes";
 import { GuideProse } from "./GuideProse";
 
@@ -61,6 +62,7 @@ export interface ExcerptCommenting {
   readonly canComment: boolean;
   /** The host anchors a comment to a range of lines rather than to its last one. */
   readonly rangeComments: boolean;
+  readonly mentionScope: PullRequestMentionScope | null;
   readonly pending: ReadonlyArray<PendingReviewComment>;
   readonly onComment: (comment: {
     readonly path: string;
@@ -330,6 +332,7 @@ function ExcerptDiff({
                 voiceEnvironmentId={commenting.environmentId}
                 rangeLabel={`${excerpt.path}:${getReviewPositionAnchor(draft.position).line}`}
                 text=""
+                mentionScope={commenting.canComment ? commenting.mentionScope : null}
                 placeholder={
                   commenting.canComment ? "Add a comment…" : "Ask the agent about these lines…"
                 }

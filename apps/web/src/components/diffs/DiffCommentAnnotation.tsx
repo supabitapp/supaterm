@@ -4,7 +4,10 @@ import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
 
 import { Button } from "~/components/ui/button";
 import { TextFieldVoiceInput } from "~/components/chat/TextFieldVoiceInput";
-import { Textarea } from "~/components/ui/textarea";
+import {
+  PullRequestMarkdownTextarea,
+  type PullRequestMentionScope,
+} from "~/components/pullRequest/PullRequestMarkdownTextarea";
 import { useThreadRouteRef } from "~/hooks/useThreadRouteTarget";
 import { textDirection } from "~/textDirection";
 
@@ -32,6 +35,8 @@ interface DiffCommentAnnotationProps {
   focusOnMount?: boolean;
   /** Where dictation goes outside a thread route, as on a pull request page. */
   voiceEnvironmentId?: EnvironmentId | undefined;
+  /** Set only for pull request comments, where `@` completes the repository's users. */
+  mentionScope?: PullRequestMentionScope | null;
 }
 
 export function DiffCommentAnnotation({
@@ -48,6 +53,7 @@ export function DiffCommentAnnotation({
   secondaryAction,
   focusOnMount = true,
   voiceEnvironmentId,
+  mentionScope = null,
 }: DiffCommentAnnotationProps) {
   const [localDraftText, setLocalDraftText] = useState("");
   const displayedText = kind === "draft" && !onTextChange ? localDraftText : text;
@@ -108,8 +114,9 @@ export function DiffCommentAnnotation({
       contentEditable={false}
       onPointerDown={(event) => event.stopPropagation()}
     >
-      <Textarea
+      <PullRequestMarkdownTextarea
         ref={textareaRef}
+        mentionScope={mentionScope}
         autoFocus={focusOnMount}
         size="sm"
         readOnly={voiceBusy}
@@ -117,7 +124,7 @@ export function DiffCommentAnnotation({
         dir={textDirection(displayedText)}
         placeholder={placeholder}
         aria-label={`Comment on lines ${rangeLabel}`}
-        onChange={(event) => changeText(event.target.value)}
+        onValueChange={changeText}
         onFocus={(event) => {
           const end = event.currentTarget.value.length;
           event.currentTarget.setSelectionRange(end, end);
