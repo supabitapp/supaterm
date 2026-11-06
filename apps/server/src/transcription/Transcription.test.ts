@@ -504,7 +504,7 @@ describe("Transcription", () => {
     }),
   );
 
-  it.effect("cleans the transcript with the environment's dictionary and filler setting", () =>
+  it.effect("spells the transcript with the environment's dictionary and keeps fillers", () =>
     Effect.gen(function* () {
       const harness = yield* makeHarnessWith({
         transcriptionDictionary: [{ term: "Kubernetes", aliases: ["cube and eighties"] }],
@@ -522,7 +522,7 @@ describe("Transcription", () => {
             audioAttachmentId: audio.attachmentId,
             language: "en-US",
           }),
-        ).toEqual({ text: "Deploy it to Kubernetes, today." });
+        ).toEqual({ text: "Um, deploy it to Kubernetes, uh, today." });
         const [call] = yield* Ref.get(harness.calls);
         expect(call?.keyterms[0]).toBe("Kubernetes");
       }).pipe(Effect.provide(harness.layer));

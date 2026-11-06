@@ -1308,9 +1308,6 @@ export const ServerSettings = Schema.Struct({
    * picks automatically and stays off the wire, so older clients decode their own default.
    */
   transcriptionProviderInstanceId: OmittedWhenNull(ProviderInstanceId),
-  transcriptionRemoveFillerWords: Schema.Boolean.pipe(
-    Schema.withDecodingDefault(Effect.succeed(true)),
-  ),
   transcriptionDictionary: TranscriptionDictionary.pipe(
     Schema.withDecodingDefault(Effect.succeed([])),
   ),
@@ -1573,7 +1570,6 @@ export const ServerSettingsPatch = Schema.Struct({
   nextPromptSuggestionsEnabled: Schema.optionalKey(Schema.Boolean),
   threadTitleInstructions: Schema.optionalKey(TrimmedString),
   transcriptionProviderInstanceId: Schema.optionalKey(Schema.NullOr(ProviderInstanceId)),
-  transcriptionRemoveFillerWords: Schema.optionalKey(Schema.Boolean),
   transcriptionDictionary: Schema.optionalKey(TranscriptionDictionary),
   branchNamingMode: Schema.optionalKey(BranchNamingMode),
   branchNamePrefix: Schema.optionalKey(TrimmedString),

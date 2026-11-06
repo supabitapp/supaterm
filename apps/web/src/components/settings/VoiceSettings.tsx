@@ -563,26 +563,6 @@ function VoiceAvoidBluetoothSettingRow(props: { readonly microphones: Microphone
   );
 }
 
-function VoiceFillerWordsSettingRow() {
-  const settings = useScopedSettings();
-  const updateSettings = useUpdateScopedSettings();
-  return (
-    <SettingsRow
-      serverScoped
-      settingKeys={["transcriptionRemoveFillerWords"]}
-      {...searchableSetting("voice-filler-words")}
-      description="Drops um, uh, and similar sounds from voice input this environment transcribes."
-      control={
-        <Switch
-          checked={settings.transcriptionRemoveFillerWords}
-          onCheckedChange={(checked) => updateSettings({ transcriptionRemoveFillerWords: checked })}
-          aria-label="Remove filler words"
-        />
-      }
-    />
-  );
-}
-
 const DICTIONARY_WORD_MAX_LENGTH = 50;
 
 function parseHeardAs(value: string): ReadonlyArray<string> {
@@ -705,7 +685,6 @@ export function VoiceSettingsPanel() {
         <VoiceHoldToTalkSettingRow />
       </SettingsSection>
       <SettingsSection id="voice-transcript" title="Transcript">
-        <VoiceFillerWordsSettingRow />
         <VoiceDictionarySettingRow />
       </SettingsSection>
     </SettingsPageContainer>

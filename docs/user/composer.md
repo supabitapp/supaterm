@@ -264,10 +264,9 @@ transcribe, because that is the quickest path. Otherwise it uses the thread's ow
 environment. When the audio goes to a different environment than the thread's, Send
 transcribes first and sends the text, so the recording can't wait offline as a voice message.
 
-**Remove filler words**, on by default, drops um, uh, and similar sounds from transcripts.
 Under **Dictionary**, add names and jargon to spell your way, and what the transcript gets
-instead, such as Supaterm heard as "super term". Both are saved on the environment that
-transcribes and apply to everything it transcribes, including voice messages and
+instead, such as Supaterm heard as "super term". It is saved on the environment that
+transcribes and applies to everything it transcribes, including voice messages and
 `supaterm transcribe`. With Claude, dictionary words also tell the speech model what to
 listen for.
 
