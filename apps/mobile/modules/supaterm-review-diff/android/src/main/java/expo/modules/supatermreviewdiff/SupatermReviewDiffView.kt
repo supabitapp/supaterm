@@ -50,7 +50,8 @@ class SupatermReviewDiffView(
   private var contentResetKey = ""
 
   @Volatile private var rowsDecodeGeneration = 0
-  private var tokensDecodeGeneration = 0
+
+  @Volatile private var tokensDecodeGeneration = 0
   private val payloadDecodeExecutor = Executors.newSingleThreadExecutor()
   private val touchSlop = ViewConfiguration.get(context).scaledTouchSlop
   private val minimumFlingVelocity = ViewConfiguration.get(context).scaledMinimumFlingVelocity
@@ -206,6 +207,11 @@ class SupatermReviewDiffView(
     tokensDecodeGeneration += 1
     val generation = tokensDecodeGeneration
     payloadDecodeExecutor.execute {
+      if (generation != tokensDecodeGeneration ||
+        Thread.currentThread().isInterrupted
+      ) {
+        return@execute
+      }
       val decodedTokens = parseTokensObject(value)
       post {
         if (generation != tokensDecodeGeneration) return@post
