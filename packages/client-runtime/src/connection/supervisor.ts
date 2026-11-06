@@ -41,6 +41,7 @@ import {
 
 const RETRY_BASE_DELAY_MS = 1_000;
 const RETRY_MAX_DELAY_MS = 30_000;
+const SESSION_LOSS_RETRY_DELAY_MS = 250;
 // A cold server with a large database can take longer than 15 seconds to
 // answer, and that is not a reason to drop a working connection.
 const CONNECTION_ESTABLISHMENT_TIMEOUT = "15 seconds";
@@ -51,9 +52,10 @@ const QUICK_CONNECTION_PROBE_TIMEOUT = "3 seconds";
 // the host answers while the socket stays silent, the socket is dead.
 const SILENT_SOCKET_CHECK_AFTER = "500 millis";
 const SILENT_SOCKET_RECHECK_EVERY = "1 second";
+const FRAME_CHECK_EVERY = "100 millis";
 // Off the LAN one lost packet can stall a live socket for a second, so a remote
-// socket must stay silent this long. It must end before
-// QUICK_CONNECTION_PROBE_TIMEOUT so a long resume replaces a silent socket.
+// socket must stay silent this long, except after a long resume. It must end
+// before QUICK_CONNECTION_PROBE_TIMEOUT so a resume replaces a silent socket.
 const REMOTE_SILENT_SOCKET_AFTER = "2500 millis";
 // The first attempt after a system wake can start before the network is
 // usable. If its socket has not opened by then, it is retried once.
@@ -576,6 +578,9 @@ export const make = Effect.fn("EnvironmentSupervisor.make")(function* (
       }),
     );
 
+  const isLongResume = (signal: SupervisorSignal) =>
+    signal._tag === "Wakeup" && signal.afterLongBackground === true;
+
   const answersQuickly = (routeKind: ConnectionRouteKind | undefined) =>
     routeKind === "loopback" || routeKind === "lan";
 
@@ -627,6 +632,7 @@ export const make = Effect.fn("EnvironmentSupervisor.make")(function* (
   const awaitSilentSocket = Effect.fn("EnvironmentSupervisor.awaitSilentSocket")(function* (
     lease: ConnectionDriver.EnvironmentConnectionLease,
     routeKind: ConnectionRouteKind | undefined,
+    longResume: boolean,
   ) {
     const startedAt = yield* Clock.monotonicTimeNanos;
     yield* Effect.sleep(SILENT_SOCKET_CHECK_AFTER);
@@ -636,17 +642,26 @@ export const make = Effect.fn("EnvironmentSupervisor.make")(function* (
     const socketSilent = lease.session.inboundFrames.pipe(
       Effect.map((frames) => frames === framesBefore),
     );
-    // A radio still waking up or a stale pooled connection can fail one check.
-    while ((yield* driver.checkHost(lease.prepared)) !== "answered") {
-      if (!(yield* socketSilent)) return "alive" as const;
-      yield* Effect.sleep(SILENT_SOCKET_RECHECK_EVERY);
-    }
-    if (!answersQuickly(routeKind)) {
-      const silentFor = (yield* Clock.monotonicTimeNanos) - startedAt;
-      const remaining = Duration.toNanosUnsafe(REMOTE_SILENT_SOCKET_AFTER) - silentFor;
-      if (remaining > 0n) yield* Effect.sleep(Duration.nanos(remaining));
-    }
-    return (yield* socketSilent) ? ("silent" as const) : ("alive" as const);
+    // The session only counts frames, so a host check slower than the probe
+    // deadline would otherwise hide a frame until after the socket is replaced.
+    const frameArrives = Effect.sleep(FRAME_CHECK_EVERY).pipe(
+      Effect.andThen(socketSilent),
+      Effect.repeat({ while: (silent) => silent }),
+      Effect.as("alive" as const),
+    );
+    const hostAnswersWhileSilent = Effect.gen(function* () {
+      // A radio still waking up or a stale pooled connection can fail one check.
+      while ((yield* driver.checkHost(lease.prepared)) !== "answered") {
+        yield* Effect.sleep(SILENT_SOCKET_RECHECK_EVERY);
+      }
+      if (!answersQuickly(routeKind) && !longResume) {
+        const silentFor = (yield* Clock.monotonicTimeNanos) - startedAt;
+        const remaining = Duration.toNanosUnsafe(REMOTE_SILENT_SOCKET_AFTER) - silentFor;
+        if (remaining > 0n) yield* Effect.sleep(Duration.nanos(remaining));
+      }
+      return (yield* socketSilent) ? ("silent" as const) : ("alive" as const);
+    });
+    return yield* Effect.race(hostAnswersWhileSilent, frameArrives);
   });
 
   const monitorConnectedLease = Effect.fnUntraced(function* (
@@ -702,8 +717,9 @@ export const make = Effect.fn("EnvironmentSupervisor.make")(function* (
       // A signal during a running check, such as a network change that kills
       // the socket, needs a fresh check only if the running one sees a frame.
       let recheck = false;
+      let longResume = isLongResume(next);
       const startSilentSocketCheck = Effect.gen(function* () {
-        silentSocket = yield* Effect.forkChild(awaitSilentSocket(lease, routeKind));
+        silentSocket = yield* Effect.forkChild(awaitSilentSocket(lease, routeKind, longResume));
         recheck = false;
       });
       // The web and desktop foreground probe allows a busy host 15 seconds,
@@ -723,7 +739,8 @@ export const make = Effect.fn("EnvironmentSupervisor.make")(function* (
           { discard: true },
         ),
       );
-      let deadline = (yield* Clock.monotonicTimeNanos) + Duration.toNanosUnsafe(probeTimeout);
+      let longResumeStartedAt = yield* Clock.monotonicTimeNanos;
+      let deadline = longResumeStartedAt + Duration.toNanosUnsafe(probeTimeout);
       for (;;) {
         const remaining = deadline - (yield* Clock.monotonicTimeNanos);
         const probeEvent = yield* Effect.raceAllFirst([
@@ -759,6 +776,12 @@ export const make = Effect.fn("EnvironmentSupervisor.make")(function* (
         }
         if (probeEvent._tag === "SocketAlive") {
           silentSocket = undefined;
+          // A frame shows the socket still works, so its probe gets the usual resume time.
+          if (longResume) {
+            const aliveDeadline =
+              longResumeStartedAt + Duration.toNanosUnsafe(QUICK_CONNECTION_PROBE_TIMEOUT);
+            if (aliveDeadline > deadline) deadline = aliveDeadline;
+          }
           if (recheck) yield* startSilentSocketCheck;
           continue;
         }
@@ -804,6 +827,10 @@ export const make = Effect.fn("EnvironmentSupervisor.make")(function* (
           yield* Ref.set(pendingProbe, "mobile-resume");
         const signalTimeout = probeTimeoutFor(probeEvent.signal, routeKind);
         if (signalTimeout !== undefined) {
+          if (isLongResume(probeEvent.signal) && !longResume) {
+            longResume = true;
+            longResumeStartedAt = yield* Clock.monotonicTimeNanos;
+          }
           yield* armSilentSocketCheck(probeEvent.signal);
           const signalDeadline =
             (yield* Clock.monotonicTimeNanos) + Duration.toNanosUnsafe(signalTimeout);
@@ -1179,8 +1206,13 @@ export const make = Effect.fn("EnvironmentSupervisor.make")(function* (
         continue;
       }
 
+      // The first loss of a live session retries almost at once; the ladder
+      // still counts it, so a host that keeps dropping sessions backs off.
+      const firstLoss = outcome.established && failureCount === 0;
       failureCount += 1;
-      const delayMs = retryDelayMs(failureCount - 1, yield* Random.next);
+      const delayMs = firstLoss
+        ? Math.round(SESSION_LOSS_RETRY_DELAY_MS * (0.5 + (yield* Random.next) / 2))
+        : retryDelayMs(failureCount - 1, yield* Random.next);
       const failedIntent = yield* Ref.get(intent);
       yield* setState({
         desired: failedIntent.desired,
