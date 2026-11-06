@@ -1230,10 +1230,6 @@ export const make = Effect.gen(function* () {
       { concurrency: REPOSITORY_CONCURRENCY },
     );
 
-  /**
-   * `checks` is absent because no listed row carries its check state: that one filter is
-   * the host's alone, and a row nobody narrowed stays rather than being guessed at.
-   */
   const matchesRowFilters = (
     item: ProviderChangeRequest,
     filters: PullRequestListFilters | undefined,
@@ -1249,6 +1245,9 @@ export const make = Effect.gen(function* () {
         (filters.review === "none"
           ? item.reviewDecision === null
           : item.reviewDecision === filters.review)) &&
+      (filters.checks === undefined ||
+        item.checksState === undefined ||
+        item.checksState === filters.checks) &&
       (filters.labels === undefined || filters.labels.every((group) => group.some(holds))) &&
       (filters.excludedLabels === undefined || !filters.excludedLabels.some(holds)) &&
       (filters.author === undefined ||
