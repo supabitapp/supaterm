@@ -1,4 +1,5 @@
 import * as HostProcess from "@supaterm/shared/HostProcess";
+import * as NodeUtil from "node:util";
 import { AgentScope } from "@supaterm/shared/AgentScope";
 import { getModelSelectionStringOptionValue } from "@supaterm/shared/model";
 import { readToolOutputImage } from "@supaterm/shared/toolOutput";
@@ -85,6 +86,9 @@ const PI_INHERIT_MODEL_SLUG = "default";
 const STREAM_FLUSH_MS = 50;
 const PI_REQUEST_TIMEOUT_MS = 15_000;
 const PI_SESSION_TIMEOUT_MS = 60_000;
+const MAX_EXTENSION_STATUSES = 32;
+const MAX_EXTENSION_STATUS_KEY_LENGTH = 256;
+const MAX_EXTENSION_STATUS_TEXT_LENGTH = 4096;
 const PI_UNSOLICITED_ACTIVITY_ERROR =
   "Pi started agent work outside an active Supaterm turn. The session was stopped to prevent invisible tool execution.";
 const SETTLE_PROBE_MAX_ATTEMPTS = 3;
@@ -521,6 +525,7 @@ export const makePiAdapterV2 = Effect.fn("makePiAdapterV2")(function* (
         cwd,
         model: input.modelSelection.model,
         capabilities: PiProviderCapabilitiesV2,
+        extensionStatuses: [],
         createdAt: now,
         updatedAt: now,
         lastError: null,
@@ -542,7 +547,14 @@ export const makePiAdapterV2 = Effect.fn("makePiAdapterV2")(function* (
       let stopRequested = false;
 
       let unsolicitedActivityDetected = false;
+      // Turn failures can leave Pi alive; pump termination retires the runtime.
+      let runtimeRetired = false;
       let pendingWake: PiWake | null = null;
+      let extensionStatusReset: {
+        previous: NonNullable<OrchestrationV2ProviderSession["extensionStatuses"]>;
+        readonly touched: Set<string>;
+        readonly ready: Deferred.Deferred<void, ProviderAdapter.ProviderAdapterProtocolError>;
+      } | null = null;
       let rollbackBarrier: Deferred.Deferred<
         void,
         ProviderAdapter.ProviderAdapterProtocolError
@@ -551,7 +563,13 @@ export const makePiAdapterV2 = Effect.fn("makePiAdapterV2")(function* (
       yield* Effect.addFinalizer(() =>
         Effect.gen(function* () {
           closed = true;
+          sessionEntity = { ...sessionEntity, extensionStatuses: [] };
           pendingWake = null;
+          if (extensionStatusReset !== null)
+            yield* Deferred.fail(
+              extensionStatusReset.ready,
+              protocolError("Pi session closed during status reset"),
+            );
           if (rollbackBarrier !== null)
             yield* Deferred.fail(
               rollbackBarrier,
@@ -621,13 +639,78 @@ export const makePiAdapterV2 = Effect.fn("makePiAdapterV2")(function* (
           lastError: string | null = sessionEntity.lastError,
         ) {
           const updatedAt = yield* DateTime.now;
-          sessionEntity = { ...sessionEntity, status, lastError, updatedAt };
+          sessionEntity = {
+            ...sessionEntity,
+            status,
+            lastError,
+            updatedAt,
+            ...(status === "stopped" || runtimeRetired || unsolicitedActivityDetected
+              ? { extensionStatuses: [] }
+              : {}),
+          };
           yield* emit({
             type: "provider_session.updated",
             driver: PI_PROVIDER,
             providerSession: sessionEntity,
           });
         });
+
+      // Frequent notifications share the event pump's tracing boundary and outlive individual turns.
+      const updateExtensionStatus = Effect.fnUntraced(function* (event: PiRpcRecord) {
+        if (
+          closed ||
+          stopRequested ||
+          runtimeRetired ||
+          unsolicitedActivityDetected ||
+          sessionEntity.status === "stopped"
+        )
+          return;
+        const key = recordString(event, "statusKey");
+        const rawText = recordField(event, "statusText");
+        if (
+          key === undefined ||
+          key.trim().length === 0 ||
+          key.length > MAX_EXTENSION_STATUS_KEY_LENGTH ||
+          (rawText !== undefined && typeof rawText !== "string")
+        )
+          return;
+        const text =
+          typeof rawText === "string"
+            ? NodeUtil.stripVTControlCharacters(
+                rawText.slice(0, MAX_EXTENSION_STATUS_TEXT_LENGTH * 4),
+              )
+                .replaceAll(/\p{Cc}/gu, " ")
+                .trim()
+                .slice(0, MAX_EXTENSION_STATUS_TEXT_LENGTH)
+            : "";
+        const statuses = sessionEntity.extensionStatuses ?? [];
+        if (extensionStatusReset?.previous.some((status) => status.key === key)) {
+          extensionStatusReset.touched.add(key);
+        }
+        const index = statuses.findIndex((status) => status.key === key);
+        if (
+          index < 0
+            ? text.length === 0 || statuses.length >= MAX_EXTENSION_STATUSES
+            : statuses[index]?.text === text
+        )
+          return;
+        sessionEntity = {
+          ...sessionEntity,
+          extensionStatuses:
+            text.length === 0
+              ? statuses.filter((status) => status.key !== key)
+              : index < 0
+                ? [...statuses, { key, text }]
+                : statuses.map((status) => (status.key === key ? { key, text } : status)),
+        };
+        yield* updateProviderSession(sessionEntity.status);
+      });
+
+      const clearExtensionStatuses = Effect.fn("PiAdapter.clearExtensionStatuses")(function* () {
+        if (sessionEntity.extensionStatuses?.length === 0) return;
+        sessionEntity = { ...sessionEntity, extensionStatuses: [] };
+        yield* updateProviderSession(sessionEntity.status);
+      });
 
       const updateProviderThread =
         /* Provider events include streaming deltas; avoid a span for each update. */
@@ -673,23 +756,84 @@ export const makePiAdapterV2 = Effect.fn("makePiAdapterV2")(function* (
         return null;
       };
 
-      const lifecycleRequest = (record: PiRpcRecord) =>
-        request(record, PI_SESSION_TIMEOUT_MS).pipe(
-          // A local timeout does not cancel Pi's lifecycle hook. Retire the
-          // process before fallback can race its eventual switch/new-session.
-          Effect.tapError((error) =>
-            Effect.logWarning("Pi session lifecycle request failed", {
-              providerSessionId: input.providerSessionId,
-              operation: record["type"],
-              errorTag: error._tag,
-            }),
+      const lifecycleRequest = Effect.fn("PiAdapter.lifecycleRequest")(
+        function* (record: PiRpcRecord) {
+          if (extensionStatusReset !== null)
+            return yield* protocolError("A Pi session lifecycle request is already pending");
+          const reset = {
+            previous: sessionEntity.extensionStatuses ?? [],
+            touched: new Set<string>(),
+            ready: yield* Deferred.make<void, ProviderAdapter.ProviderAdapterProtocolError>(),
+          };
+          extensionStatusReset = reset;
+          return yield* Effect.gen(function* () {
+            // RPC responses bypass the pump. Reset after all earlier native notifications.
+            if (
+              !(yield* Queue.offer(connection.events, {
+                type: "supaterm.extension_status_reset",
+                reset,
+              }))
+            )
+              return yield* protocolError("Pi transport closed during status reset");
+            yield* Deferred.await(reset.ready);
+            const result = yield* request(record, PI_SESSION_TIMEOUT_MS);
+            if (recordField(result, "cancelled") === true) {
+              yield* sessionEventPermit.withPermits(1)(
+                Effect.gen(function* () {
+                  if (closed || stopRequested) return;
+                  const current = sessionEntity.extensionStatuses ?? [];
+                  // A veto keeps the old session. Preserve updates and clears from its lifecycle hooks.
+                  const restored = reset.previous.flatMap((status) => {
+                    if (!reset.touched.has(status.key)) return [status];
+                    const updated = current.find((candidate) => candidate.key === status.key);
+                    return updated === undefined ? [] : [updated];
+                  });
+                  restored.push(
+                    ...current.filter(
+                      (status) => !reset.previous.some((previous) => previous.key === status.key),
+                    ),
+                  );
+                  const statuses = restored.slice(0, MAX_EXTENSION_STATUSES);
+                  if (
+                    statuses.length === current.length &&
+                    statuses.every(
+                      (status, index) =>
+                        status.key === current[index]?.key && status.text === current[index]?.text,
+                    )
+                  )
+                    return;
+                  sessionEntity = { ...sessionEntity, extensionStatuses: statuses };
+                  yield* updateProviderSession(sessionEntity.status);
+                }),
+              );
+            }
+            return result;
+          }).pipe(
+            Effect.ensuring(
+              Effect.sync(() => {
+                if (extensionStatusReset === reset) extensionStatusReset = null;
+              }),
+            ),
+          );
+        },
+        (effect, record) =>
+          effect.pipe(
+            Effect.tapError((error) =>
+              Effect.logWarning("Pi session lifecycle request failed", {
+                providerSessionId: input.providerSessionId,
+                operation: record["type"],
+                errorTag: error._tag,
+              }),
+            ),
+            // A failed lifecycle RPC can leave Pi's previous native session disposed.
+            Effect.tapError((error) =>
+              error._tag === "PiRpcError" || error._tag === "PiRpcTimeoutError"
+                ? connection.terminate
+                : Effect.void,
+            ),
+            Effect.onInterrupt(() => connection.terminate),
           ),
-          Effect.catchTags({
-            PiRpcTimeoutError: (error) =>
-              connection.terminate.pipe(Effect.andThen(Effect.fail(error))),
-          }),
-          Effect.onInterrupt(() => connection.terminate),
-        );
+      );
 
       const tokenUsageFromStats = (
         stats: unknown,
@@ -1712,6 +1856,21 @@ export const makePiAdapterV2 = Effect.fn("makePiAdapterV2")(function* (
       });
 
       const handleSessionEvent = Effect.fnUntraced(function* (event: PiRpcRecord) {
+        if (event["type"] === "supaterm.extension_status_reset") {
+          const reset = extensionStatusReset;
+          if (reset !== null && event["reset"] === reset) {
+            reset.previous = sessionEntity.extensionStatuses ?? [];
+            reset.touched.clear();
+            yield* clearExtensionStatuses();
+            yield* Deferred.succeed(reset.ready, undefined);
+          }
+          return;
+        }
+        // A native wake may wait for a turn owner; status belongs to the live session immediately.
+        if (event["type"] === "extension_ui_request" && event["method"] === "setStatus") {
+          yield* updateExtensionStatus(event);
+          return;
+        }
         const interactiveUiRequest =
           event["type"] === "extension_ui_request" &&
           ["select", "confirm", "input", "editor"].includes(String(event["method"]));
@@ -2224,7 +2383,13 @@ export const makePiAdapterV2 = Effect.fn("makePiAdapterV2")(function* (
         Effect.catchCause((cause) =>
           sessionEventPermit.withPermits(1)(
             Effect.gen(function* () {
+              runtimeRetired = true;
               const state = threadState;
+              if (extensionStatusReset !== null)
+                yield* Deferred.fail(
+                  extensionStatusReset.ready,
+                  protocolError("Pi transport closed during status reset"),
+                );
               if (rollbackBarrier !== null)
                 yield* Deferred.fail(
                   rollbackBarrier,
