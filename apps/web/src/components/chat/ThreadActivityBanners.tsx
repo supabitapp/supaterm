@@ -2,6 +2,7 @@ import type {
   EnvironmentId,
   OrchestrationV2PendingBackgroundTask,
   OrchestrationV2ProviderGoal,
+  OrchestrationV2ProviderSession,
   ProjectId,
   ThreadId,
   ThreadPullRequestLink,
@@ -19,6 +20,7 @@ import { formatDuration } from "@supaterm/shared/orchestrationTiming";
 import {
   GitBranchIcon,
   MessageCircleIcon,
+  PuzzleIcon,
   ShieldAlertIcon,
   StopFilledIcon,
   TargetIcon,
@@ -40,6 +42,18 @@ import {
   type WatchedPullRequest,
 } from "./BackgroundWork";
 import type { ComposerBannerStackItem } from "./ComposerBannerStack";
+
+export function extensionStatusBannerItem(
+  statuses: NonNullable<OrchestrationV2ProviderSession["extensionStatuses"]>,
+): ComposerBannerStackItem | null {
+  if (statuses.length === 0) return null;
+  return {
+    id: "pi-extension-status",
+    variant: "default",
+    icon: <PuzzleIcon />,
+    title: <output>{`Pi · ${statuses.map((status) => status.text).join(" · ")}`}</output>,
+  };
+}
 
 /** Subagents waiting on the user, unless the parent is itself waiting on them. */
 export function childInputBannerItem(input: {
