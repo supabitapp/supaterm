@@ -354,7 +354,10 @@ const scopedProgram = Effect.scoped(
       // Stop every pool backend, not just the primary: electronApp.quit() can race ahead of
       // the layer-scope cascade, so the WSL child would be hard-killed instead of getting
       // SIGTERM and grace.
-      stopAllPoolInstances().pipe(Effect.ensuring(shutdown.markComplete)),
+      stopAllPoolInstances().pipe(
+        Effect.ensuring(shutdown.markComplete),
+        Effect.withSpan("desktop.app.shutdown"),
+      ),
     );
 
     yield* startup;
