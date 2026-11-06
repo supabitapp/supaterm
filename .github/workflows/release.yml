@@ -418,6 +418,8 @@ jobs:
     if: ${{ !cancelled() && needs.preflight.result == 'success' }}
     runs-on: depot-ubuntu-24.04-32
     timeout-minutes: 30
+    outputs:
+      npm_launcher_artifact_id: ${{ steps.npm_launcher.outputs.artifact-id }}
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -480,6 +482,22 @@ jobs:
             apps/desktop/dist-electron
           if-no-files-found: error
           retention-days: 1
+
+      # publish_cli publishes this exact tarball, so the trusted publisher
+      # needs no workspace checkout or install. It is version-matched here.
+      - name: Build the npm launcher
+        run: node scripts/build-npm-launcher.ts --version "${{ needs.preflight.outputs.version }}" --output-dir npm-packages
+
+      # GitHub allows a failed-jobs rerun for 30 days. publish_cli downloads
+      # this upload by its ID, which a publish_cli-only rerun keeps.
+      - name: Upload the npm launcher
+        id: npm_launcher
+        uses: actions/upload-artifact@v7
+        with:
+          name: npm-launcher
+          path: npm-packages/supaterm.tgz
+          if-no-files-found: error
+          retention-days: 30
 
   # One job per platform and architecture (see release-desktop.yml), each
   # gated only on the JS bundle. Windows targets build on Linux and run their
@@ -913,7 +931,7 @@ jobs:
   # nothing resolves unless asked for by name.
   publish_cli:
     name: Publish CLI to npm
-    needs: [preflight, release]
+    needs: [preflight, build_bundle, release]
     if: ${{ !failure() && !cancelled() && needs.preflight.result == 'success' && needs.release.result == 'success' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 15
@@ -921,24 +939,59 @@ jobs:
       contents: read
       id-token: write
     steps:
+      # Only what setup-mise reads to install the project's Node and npm.
       - name: Checkout
         uses: actions/checkout@v7
         with:
           persist-credentials: false
           ref: ${{ needs.preflight.outputs.ref }}
+          sparse-checkout: |
+            /.github/actions/setup-mise/
+            /mise.toml
+            /mise.lock
+          sparse-checkout-cone-mode: false
 
       - name: Setup Mise
         uses: ./.github/actions/setup-mise
         with:
           cache: false
-      - name: Install workspace dependencies
-        run: mise exec -- vp install --filter=supaterm... --filter=@supaterm/scripts...
-      - name: Build the npm launcher
-        run: node scripts/build-npm-launcher.ts --version "${{ needs.preflight.outputs.version }}" --output-dir npm-packages
+
+      # Bind to build_bundle's exact upload: a name lookup takes the newest
+      # same-name artifact, and an empty ID downloads every artifact in the
+      # run. A later same-name upload hides this ID, so the download fails.
+      - name: Check the npm launcher artifact ID
+        env:
+          ARTIFACT_ID: ${{ needs.build_bundle.outputs.npm_launcher_artifact_id }}
+        run: |
+          if [[ ! "$ARTIFACT_ID" =~ ^[1-9][0-9]*$ ]]; then
+            echo "::error::build_bundle gave no valid npm-launcher artifact ID: '$ARTIFACT_ID'." >&2
+            exit 1
+          fi
+
+      - name: Download the npm launcher
+        uses: actions/download-artifact@v8
+        with:
+          artifact-ids: ${{ needs.build_bundle.outputs.npm_launcher_artifact_id }}
+          path: npm-packages
+          digest-mismatch: error
+
+      - name: Check the npm launcher version
+        shell: bash
+        env:
+          RELEASE_VERSION: ${{ needs.preflight.outputs.version }}
+        run: |
+          built="$(tar -xzOf npm-packages/supaterm.tgz package/package.json | jq -r .version)"
+          if [[ "$built" != "$RELEASE_VERSION" ]]; then
+            echo "::error::npm-launcher holds supaterm@$built, expected supaterm@$RELEASE_VERSION." >&2
+            exit 1
+          fi
 
       - name: Publish the npm launcher
+        env:
+          DIST_TAG: ${{ needs.preflight.outputs.cli_dist_tag }}
         run: |
-          if ! node apps/server/scripts/cli.ts publish --packages-dir npm-packages --tag "${{ needs.preflight.outputs.cli_dist_tag }}" --provenance --verbose; then
+          # The ./ keeps npm from reading the path as a GitHub owner/repo spec.
+          if ! npm publish --access public --tag "$DIST_TAG" --provenance ./npm-packages/supaterm.tgz; then
             echo "::error::npm publish failed. Make sure package supaterm has a trusted publisher registered for .github/workflows/release.yml (see docs/operations/release.md)." >&2
             exit 1
           fi
