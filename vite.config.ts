@@ -167,6 +167,7 @@ export default defineConfig({
       // Vendored and generated C.
       "apps/mobile/modules/supaterm-highlights/Vendor/**",
       "apps/mobile/modules/supaterm-highlights/cpp/generated/**",
+      "apps/mobile/modules/supaterm-highlights/nitrogen/generated/**",
       "*.icon/**",
     ],
     sortPackageJson: {},
