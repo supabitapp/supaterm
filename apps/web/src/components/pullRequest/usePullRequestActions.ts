@@ -11,8 +11,8 @@ import type {
   PullRequestDetail,
   PullRequestMergeMethod,
   PullRequestRef,
-  ScopedThreadRef,
   PullRequestSummary,
+  ScopedThreadRef,
 } from "@supaterm/contracts";
 import { useRef, useState } from "react";
 import {
@@ -23,7 +23,7 @@ import {
 import { resolveProjectSettings } from "@supaterm/shared/projectSettings";
 import { useEnvironmentSettings } from "~/hooks/useSettings";
 
-import { composerTargetKey, type DraftId, useComposerDraftStore } from "~/composerDraftStore";
+import { type DraftId, useComposerDraftStore } from "~/composerDraftStore";
 import { useNewThreadHandler } from "~/hooks/useHandleNewThread";
 import { usePreparePullRequestThreadAction } from "~/state/sourceControlActions";
 import type { ReviewCommentContext } from "~/reviewCommentContext";
@@ -33,10 +33,8 @@ import { toastManager } from "../ui/toast";
 import { offHeadPullRequestCheckoutToast } from "./pullRequestCheckoutToast";
 import {
   checkoutFailureDescription,
-  handoffPrompt,
-  handoffReviewComments,
+  appendHandoff,
   readableFailure,
-  stripPullRequestHandoffReferences,
 } from "./pullRequestDetail.logic";
 import { pullRequestEntryKey, type EnvironmentPullRequestEntry } from "./pullRequestList.logic";
 
@@ -223,58 +221,24 @@ export interface PullRequestThreadTask {
   reviewComments?: ReadonlyArray<ReviewCommentContext>;
 }
 
-export type PullRequestHandoffDetail = Pick<
-  PullRequestDetail,
-  "projectId" | "workspaceRoot" | "url"
->;
-
-/**
- * What the last hand-off wrote into each draft, kept outside React because the surface that wrote
- * it may be gone by the time the next one arrives. It is how a prompt the reader has since edited
- * is told apart from the one they were handed: only the sentence still exactly as written may be
- * replaced.
- */
-const lastHandoffPromptByDraft = new Map<string, string>();
-
-export function writePullRequestTaskToComposer(
+export function writeHandoffToComposer(
   target: ScopedThreadRef | DraftId,
   task: PullRequestThreadTask,
 ) {
   const store = useComposerDraftStore.getState();
   const draft = store.getComposerDraft(target);
-  const key = composerTargetKey(target);
-  const previousCommentIds = new Set((draft?.reviewComments ?? []).map((comment) => comment.id));
-  const repeatedCommentIds = new Set(
-    (task.reviewComments ?? [])
-      .filter((comment) => previousCommentIds.has(comment.id))
-      .map((comment) => comment.id),
+  const next = appendHandoff(
+    { prompt: draft?.prompt ?? "", reviewComments: draft?.reviewComments ?? [] },
+    task,
   );
-  const promptWithoutPreviousHandoff = stripPullRequestHandoffReferences(
-    draft?.prompt ?? "",
-    draft?.reviewComments ?? [],
-    repeatedCommentIds,
-  );
-  const prompt = handoffPrompt(
-    {
-      prompt: promptWithoutPreviousHandoff,
-      lastHandoffPrompt: lastHandoffPromptByDraft.get(key),
-    },
-    task.prompt,
-  );
-  lastHandoffPromptByDraft.set(key, task.prompt);
-  store.setPrompt(target, prompt);
-  store.setReviewComments(
-    target,
-    handoffReviewComments(draft?.reviewComments ?? [], task.reviewComments ?? []),
-  );
-  for (const comment of task.reviewComments ?? []) {
-    if (!repeatedCommentIds.has(comment.id)) continue;
-    store.addReviewComment(target, comment, {
-      allowDuplicateReference: true,
-      insertAtCaret: false,
-    });
-  }
+  store.setPrompt(target, next.prompt);
+  store.setReviewComments(target, next.reviewComments);
 }
+
+export type PullRequestHandoffDetail = Pick<
+  PullRequestDetail,
+  "projectId" | "workspaceRoot" | "url"
+>;
 
 export function usePullRequestHandoffs({
   environmentId,
@@ -312,7 +276,7 @@ export function usePullRequestHandoffs({
         () => null,
       ));
     if (session === null) return null;
-    if (task !== null) writePullRequestTaskToComposer(session.draftId, task);
+    if (task !== null) writeHandoffToComposer(session.draftId, task);
     return session;
   };
 
