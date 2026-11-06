@@ -301,7 +301,11 @@ export function useComposerVoiceInput(composerOptions: ComposerVoiceInputOptions
     submitAfterReview.current = null;
     controller.cancel();
   });
-  useDiscardOnEscape(state.phase === "preparing" || state.phase === "recording", cancel);
+  useDiscardOnEscape(
+    state.phase === "preparing" || state.phase === "recording",
+    cancel,
+    options.holdToTalkTarget,
+  );
   const send = useStableCallback(async (submission: ComposerVoiceSubmission = {}) => {
     if (controller.currentState.phase !== "recording") return;
     if (availability.canSend) {
