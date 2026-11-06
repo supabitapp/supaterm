@@ -20,8 +20,8 @@ import { PullRequestSheetContent as SheetContent } from "./PullRequestSheetConte
 import { pullRequestTarget, type PullRequestParams } from "./usePullRequestDiff";
 import { usePullRequestPermissions } from "./usePullRequestPermissions";
 import { playOutcomeHaptic } from "../../lib/outcomeHaptic";
-import { PullRequestMentionSuggestions } from "./PullRequestMentionSuggestions";
-import { usePullRequestMentions } from "./usePullRequestMentions";
+import { PullRequestCompletionSuggestions } from "./PullRequestCompletionSuggestions";
+import { usePullRequestCompletions } from "./usePullRequestCompletions";
 
 function useActionSubmission(params: PullRequestParams) {
   const navigation = useNavigation();
@@ -108,12 +108,12 @@ export function PullRequestReviewSheet({
             comment: body,
           }),
     }));
-  const mentions = usePullRequestMentions({
+  const completions = usePullRequestCompletions({
     environmentId: params.environmentId,
     projectId: params.projectId,
     value: body,
     onChangeValue: setBody,
-    enabled: result.data?.capabilities.mentions === true,
+    support: result.data?.capabilities ?? null,
   });
   const stale = store.draft.comments.some((comment) => comment.headSha !== result.data?.headSha);
   const [requestedVerdict, setRequestedVerdict] = useState<PullRequestReviewVerdict>("comment");
@@ -215,12 +215,12 @@ export function PullRequestReviewSheet({
       <Text className="px-4 text-xs text-foreground-muted">
         {reviewing ? "Summary" : "Comment"}
       </Text>
-      <PullRequestMentionSuggestions mentions={mentions} />
+      <PullRequestCompletionSuggestions completions={completions} />
       <TextInput
         multiline
-        selection={mentions.selection}
-        onSelectionChange={mentions.onSelectionChange}
-        onBlur={mentions.onBlur}
+        selection={completions.selection}
+        onSelectionChange={completions.onSelectionChange}
+        onBlur={completions.onBlur}
         accessibilityLabel={reviewing ? "Review summary" : "Comment"}
         placeholder={
           reviewing
