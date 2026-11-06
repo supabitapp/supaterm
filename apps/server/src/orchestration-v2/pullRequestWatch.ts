@@ -209,7 +209,7 @@ function changeLines(
       if (!change.required) return [passed];
       if (change.pending.length === 0) return [`${passed} No other check is still running.`];
       return [
-        `${passed} Supaterm wakes you once these finish:`,
+        `${passed} Supaterm wakes you once every check finishes. Still running:`,
         ...listed(change.pending, (name) => `  - ${name}`),
       ];
     }

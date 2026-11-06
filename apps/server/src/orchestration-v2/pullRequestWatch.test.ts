@@ -174,6 +174,18 @@ describe("evaluatePullRequestWatch", () => {
       ["checks-passed"],
     );
     assert.deepEqual(evaluatePullRequestWatch(final.next, done, noRemarks).changes, []);
+    const lateStart = detail({
+      checks: [required("test", "success"), check("e2e", "success"), check("late", "pending")],
+    });
+    const waiting = evaluatePullRequestWatch(first.next, lateStart, noRemarks);
+    assert.deepEqual(waiting.changes, []);
+    const allDone = detail({ checks: [...done.checks, check("late", "success")] });
+    assert.deepEqual(
+      evaluatePullRequestWatch(waiting.next, allDone, noRemarks).changes.map(
+        (change) => change.kind,
+      ),
+      ["checks-passed"],
+    );
     // A later advisory job running and passing is not more news.
     const botPending = detail({ checks: [...done.checks, check("bot", "pending")] });
     const churn = evaluatePullRequestWatch(final.next, botPending, noRemarks);
@@ -565,7 +577,7 @@ describe("pullRequestWatchMessage", () => {
     );
     assert.include(
       text(running),
-      "- All 1 required check passed on aaaaaaa. Supaterm wakes you once these finish:\n  - Bugbot\n",
+      "- All 1 required check passed on aaaaaaa. Supaterm wakes you once every check finishes. Still running:\n  - Bugbot\n",
     );
 
     const finished = evaluatePullRequestWatch(
