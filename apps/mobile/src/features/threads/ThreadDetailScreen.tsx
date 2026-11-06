@@ -67,6 +67,7 @@ import {
   BACKGROUND_WORK_STOP_RETRY_AFTER_MS,
   type BackgroundWorkStopRequest,
   isBackgroundWorkStopPending,
+  limitRecoveryOwnsSnooze,
   presentPendingBackgroundWork,
   presentProviderGoal,
 } from "@supaterm/client-runtime/state/thread-execution";
@@ -719,6 +720,19 @@ function ThreadDetailBody(
     return () => clearTimeout(timer);
     // oxlint-disable-next-line react/exhaustive-effect-dependencies -- Re-arm if timer clamping fires before the wake time.
   }, [snoozed, snoozedUntil, lifecycleNow]);
+  // The usage-limit recovery card shows this snooze and its Wake now.
+  const lifecycleSnoozed =
+    snoozed &&
+    !limitRecoveryOwnsSnooze({
+      runId:
+        props.selectedThread.runtime?.status === "failed" &&
+        props.selectedThread.runtime.lastErrorClass === "usage_limit"
+          ? props.selectedThread.latestRun?.runId
+          : null,
+      resetAt: props.selectedThread.runtime?.usageLimitResetAt,
+      recovery: props.selectedThread.limitRecovery,
+      snoozedUntil,
+    });
   const done = props.selectedThread.doneOverride === "done";
   const wokeAt = threadWokeAt(props.selectedThread, { now: lifecycleNow });
   const woke = isThreadWokeUnseen({
@@ -897,22 +911,22 @@ function ThreadDetailBody(
         },
       };
     }
-    if (snoozed || done || woke) {
-      const state = snoozed ? "snoozed" : done ? "done" : "woke";
+    if (lifecycleSnoozed || done || woke) {
+      const state = lifecycleSnoozed ? "snoozed" : done ? "done" : "woke";
       const label =
-        snoozed && snoozedUntil !== null
+        lifecycleSnoozed && snoozedUntil !== null
           ? `Snoozed, wakes in ${snoozeWakeLabel(snoozedUntil, { now: lifecycleNow })}`
           : done
             ? "Done"
             : "Woke from snooze";
-      const actionLabel = snoozed ? "Wake now" : done ? "Reopen" : "Dismiss";
+      const actionLabel = lifecycleSnoozed ? "Wake now" : done ? "Reopen" : "Dismiss";
       return {
         kind: "lifecycle",
         state,
         label,
         action: {
           label: statusPending
-            ? snoozed
+            ? lifecycleSnoozed
               ? "Waking..."
               : done
                 ? "Reopening..."
@@ -920,7 +934,8 @@ function ThreadDetailBody(
             : actionLabel,
           accessibilityLabel: actionLabel,
           disabled: !props.canOperateThread || statusPending,
-          onPress: () => void runStatusAction(snoozed ? "wake" : done ? "reopen" : "dismiss"),
+          onPress: () =>
+            void runStatusAction(lifecycleSnoozed ? "wake" : done ? "reopen" : "dismiss"),
         },
       };
     }
