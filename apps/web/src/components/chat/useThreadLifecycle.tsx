@@ -98,6 +98,8 @@ interface ThreadLifecycleInput {
   readonly activeThreadKey: string | null;
   readonly activeThreadShell: EnvironmentThreadShell | null;
   readonly isServerThread: boolean;
+  /** The usage-limit recovery banner shows this snooze and its Wake now. */
+  readonly limitRecoveryHoldsSnooze: boolean;
   readonly activeLatestRun: EnvironmentThreadShell["latestRun"];
   readonly activeProjectCwd: string | null;
   readonly serverConfig: EnvironmentPresentation["serverConfig"] | null;
@@ -140,6 +142,7 @@ export function useThreadLifecycle(input: ThreadLifecycleInput) {
     activeThreadShell,
     isServerThread,
     activeLatestRun,
+    limitRecoveryHoldsSnooze,
     activeProjectCwd,
     serverConfig,
     runtimeMode,
@@ -574,13 +577,15 @@ export function useThreadLifecycle(input: ThreadLifecycleInput) {
       ? snoozeWakeLabel(activeSnoozedUntil, { now: `${nowMinute}:00.000Z` })
       : null;
     return activeThreadSnoozed ? (
-      <ThreadStatusLine
-        icon={<ClockSnoozeIcon />}
-        label={snoozeWake && snoozeWake !== "now" ? `Snoozed, ${snoozeWake} left` : "Snoozed"}
-        actionLabel={isUnsnoozing ? "Waking..." : "Wake now"}
-        actionDisabled={!canOperateThread || isUnsnoozing}
-        onAction={() => void handleUnsnoozeActiveThreadStable()}
-      />
+      limitRecoveryHoldsSnooze ? null : (
+        <ThreadStatusLine
+          icon={<ClockSnoozeIcon />}
+          label={snoozeWake && snoozeWake !== "now" ? `Snoozed, ${snoozeWake} left` : "Snoozed"}
+          actionLabel={isUnsnoozing ? "Waking..." : "Wake now"}
+          actionDisabled={!canOperateThread || isUnsnoozing}
+          onAction={() => void handleUnsnoozeActiveThreadStable()}
+        />
+      )
     ) : activeThreadDone ? (
       <ThreadStatusLine
         icon={<CircleCheckIcon />}
