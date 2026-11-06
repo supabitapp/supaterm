@@ -85,7 +85,10 @@ export function useHoldToTalk(
         event.metaKey ||
         event.altKey ||
         event.isComposing ||
-        !(event.target instanceof HTMLElement && event.target.isContentEditable)
+        !(
+          event.target instanceof HTMLTextAreaElement ||
+          (event.target instanceof HTMLElement && event.target.isContentEditable)
+        )
       ) {
         return;
       }

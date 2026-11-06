@@ -5,6 +5,7 @@ import { createServerVoiceTranscriber, VoiceUploadError } from "../state/transcr
 import {
   resetVoiceInputGlobalsForTests,
   resolveTranscriptCommit,
+  voiceInputSessionActive,
   VoiceInputController,
   voiceInputCue,
   VOICE_RECORDING_LIMIT_SECONDS,
@@ -592,13 +593,16 @@ describe("VoiceInputController", () => {
   });
 
   it("still rejects a second start while the first recording is active", async () => {
+    expect(voiceInputSessionActive()).toBe(false);
     const first = createHarness();
     await first.controller.start();
+    expect(voiceInputSessionActive()).toBe(true);
     const next = createHarness();
     await next.controller.start();
     expect(next.controller.currentState.error).toContain("already active");
     expect(next.recorder.record).not.toHaveBeenCalled();
     await first.controller.interruptRecording();
+    expect(voiceInputSessionActive()).toBe(false);
   });
 
   it("does not start a canceled waiter or let it release another recording", async () => {

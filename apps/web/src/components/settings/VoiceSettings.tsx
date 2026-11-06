@@ -321,7 +321,7 @@ function VoiceHoldToTalkSettingRow() {
   return (
     <SettingsRow
       {...searchableSetting("voice-hold-to-talk")}
-      description="Hold this key in the composer to talk, and let go to stop."
+      description="Hold this key in the composer or a comment field to talk, and let go to stop."
       resetAction={
         settings.voiceHoldToTalkKey !== DEFAULT_UNIFIED_SETTINGS.voiceHoldToTalkKey ? (
           <SettingResetButton

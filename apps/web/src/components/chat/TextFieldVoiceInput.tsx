@@ -1,4 +1,5 @@
 import { useAtomValue } from "@effect/atom-react";
+import { voiceInputSessionActive } from "@supaterm/client-runtime/voice-input";
 import type { EnvironmentId, ProjectId, ThreadId } from "@supaterm/contracts";
 import { MicIcon, SquareIcon, XIcon } from "@supaterm/icons";
 import { useNavigate } from "@tanstack/react-router";
@@ -76,7 +77,10 @@ export function TextFieldVoiceInput(props: {
   const owns = useStableCallback(
     () =>
       voice.busy ||
-      (!props.disabled && fieldRef.current !== null && document.activeElement === fieldRef.current),
+      (!props.disabled &&
+        !voiceInputSessionActive() &&
+        fieldRef.current !== null &&
+        document.activeElement === fieldRef.current),
   );
   const { busy, cancel } = voice;
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- stops a recording once its field is hidden, as a closed popover or tab keeps the form mounted

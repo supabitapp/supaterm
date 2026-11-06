@@ -4,6 +4,7 @@ import {
   VoiceInputController,
   voiceInputBlocksSubmission,
   voiceInputCue,
+  voiceInputSessionActive,
   type VoiceDraftSnapshot,
   type VoiceInputState,
   type VoiceRecordingHandOff,
@@ -306,8 +307,9 @@ export function useComposerVoiceInput(composerOptions: ComposerVoiceInputOptions
     submitAfterReview.current = null;
     controller.cancel();
   });
+  // Escape while transcribing cancels just that, like the pill's Cancel, instead of the form around it.
   useDiscardOnEscape(
-    state.phase === "preparing" || state.phase === "recording",
+    state.phase === "preparing" || state.phase === "recording" || state.phase === "transcribing",
     cancel,
     options.holdToTalkTarget,
   );
@@ -353,7 +355,7 @@ export function useComposerVoiceInput(composerOptions: ComposerVoiceInputOptions
   useHoldToTalk(options.holdToTalkTarget, options.holdToTalkKey, {
     canStart: () => {
       const { phase } = controller.currentState;
-      return canRecord && (phase === "idle" || phase === "error");
+      return canRecord && (phase === "idle" || phase === "error") && !voiceInputSessionActive();
     },
     readDraft: () => {
       const { readPrompt, readSelection } = runtime.read();

@@ -4,6 +4,7 @@ export {
   voiceInputBlocksSubmission,
   voiceInputCue,
   voiceInputFreezesEditor,
+  voiceInputSessionActive,
   type VoiceDraftSnapshot,
   type VoiceInputCue,
   type VoiceInputControllerDependencies,

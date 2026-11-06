@@ -579,6 +579,11 @@ export class VoiceInputController {
   }
 }
 
+/** A recording is open somewhere in this client, so another can't start until it ends. */
+export function voiceInputSessionActive(): boolean {
+  return activeSession !== null;
+}
+
 export function resetVoiceInputGlobalsForTests(): void {
   activeSession = null;
   activeTranscriptionOperation = null;
