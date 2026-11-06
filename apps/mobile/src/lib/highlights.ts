@@ -1,4 +1,5 @@
-import { requireOptionalNativeModule } from "expo";
+import type { SupatermHighlights } from "@supaterm/mobile-highlights-native";
+import { NitroModules } from "react-native-nitro-modules";
 
 import { highlightLanguageId } from "./highlightLanguage";
 import { HIGHLIGHTS_THEME_STYLES } from "./highlights.generated";
@@ -20,9 +21,9 @@ const MAX_HIGHLIGHTED_LINE_LENGTH = 1_000;
 
 // @pierre/highlights compiled to native code (modules/supaterm-highlights). Missing
 // from binaries built before it shipped, where code renders as plain text.
-const nativeHighlights = requireOptionalNativeModule<{
-  tokenize(source: string, language: number): ArrayBuffer | null;
-}>("SupatermHighlights");
+const nativeHighlights = NitroModules.hasHybridObject("SupatermHighlights")
+  ? NitroModules.createHybridObject<SupatermHighlights>("SupatermHighlights")
+  : undefined;
 
 export interface TokenizedCode {
   /** Retained UTF-16 source, compact native records, and line indexes. */

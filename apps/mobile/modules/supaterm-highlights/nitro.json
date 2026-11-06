@@ -1,0 +1,20 @@
+{
+  "$schema": "https://nitro.margelo.com/nitro.schema.json",
+  "cxxNamespace": ["supatermhighlights"],
+  "ios": {
+    "iosModuleName": "SupatermHighlightsNative"
+  },
+  "android": {
+    "androidNamespace": ["supatermhighlights"],
+    "androidCxxLibName": "supatermhighlights"
+  },
+  "autolinking": {
+    "SupatermHighlights": {
+      "all": {
+        "language": "c++",
+        "implementationClassName": "HybridSupatermHighlights"
+      }
+    }
+  },
+  "ignorePaths": ["node_modules", "Vendor"]
+}

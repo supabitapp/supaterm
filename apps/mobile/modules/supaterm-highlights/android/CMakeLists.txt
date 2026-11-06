@@ -1,17 +1,23 @@
 cmake_minimum_required(VERSION 3.22.1)
 
-project(supatermhighlights LANGUAGES C)
+project(supatermhighlights LANGUAGES C CXX)
 
-set(SUPATERM_HIGHLIGHTS_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../../../..")
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(SUPATERM_HIGHLIGHTS_ROOT "${CMAKE_SOURCE_DIR}/..")
 
 add_library(
   supatermhighlights SHARED
-  supaterm_highlights_jni.c
+  src/main/cpp/cpp-adapter.cpp
+  "${SUPATERM_HIGHLIGHTS_ROOT}/cpp/HybridSupatermHighlights.cpp"
+  "${SUPATERM_HIGHLIGHTS_ROOT}/cpp/Utf16ToUtf8.cpp"
   "${SUPATERM_HIGHLIGHTS_ROOT}/cpp/supaterm_highlights.c"
   "${SUPATERM_HIGHLIGHTS_ROOT}/Vendor/highlights/highlights.c"
   "${SUPATERM_HIGHLIGHTS_ROOT}/Vendor/wasm2c/wasm-rt-impl.c"
   "${SUPATERM_HIGHLIGHTS_ROOT}/Vendor/wasm2c/wasm-rt-mem-impl.c"
 )
+
+include(${CMAKE_SOURCE_DIR}/../nitrogen/generated/android/supatermhighlights+autolinking.cmake)
 
 target_include_directories(
   supatermhighlights
