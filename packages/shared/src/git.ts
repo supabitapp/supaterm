@@ -281,7 +281,7 @@ function* gitConfigLines(configText: string) {
   let quoted = false;
   for (const line of configText.split(/\r?\n/)) {
     let continued = false;
-    if (line.endsWith("\\")) {
+    if (line.endsWith("\\") || pending.length > 0) {
       for (const [token] of line.matchAll(/\\[\s\S]?|["#;]/g)) {
         if (token === '"') quoted = !quoted;
         else if (!quoted && (token === "#" || token === ";")) break;
@@ -292,11 +292,11 @@ function* gitConfigLines(configText: string) {
       pending += line.slice(0, -1);
       continue;
     }
-    yield pending + line;
+    if (!quoted) yield pending + line;
     pending = "";
     quoted = false;
   }
-  if (pending.length > 0) yield pending;
+  if (pending.length > 0 && !quoted) yield pending;
 }
 
 function parseGitConfigValue(raw: string): string {
