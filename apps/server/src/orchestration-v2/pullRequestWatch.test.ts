@@ -530,6 +530,15 @@ describe("pullRequestWatchMessage", () => {
     }).text;
   const required = { ...check("test", "success"), required: true };
 
+  it("cuts a long remark without splitting an emoji", () => {
+    const body = `${"x".repeat(196)}🚀 and more`;
+    const report = evaluatePullRequestWatch(watch(), detail(), [
+      remark("reviewer", "2026-10-02T12:06:00Z", body),
+    ]);
+    assert.isTrue(text(report).isWellFormed());
+    assert.include(text(report), `"${"x".repeat(196)}..."`);
+  });
+
   it("says whether other checks are still running when the required ones pass", () => {
     const running = evaluatePullRequestWatch(
       watch(),
