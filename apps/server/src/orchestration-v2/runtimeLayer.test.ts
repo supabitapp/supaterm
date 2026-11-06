@@ -4705,11 +4705,29 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
           });
         });
       yield* holdQueueAfterRestart("mark-done-automatic-restart");
+      const beforeMarkDone = yield* orchestrator.getThreadProjection(threadId);
+      const oldestRun = beforeMarkDone.runs.reduce((oldest, run) =>
+        run.ordinal < oldest.ordinal ? run : oldest,
+      );
+      const latestRun = beforeMarkDone.runs.reduce((latest, run) =>
+        run.ordinal > latest.ordinal ? run : latest,
+      );
+      const staleMarkDone = yield* orchestrator
+        .dispatch({
+          type: "thread.mark-done",
+          commandId: CommandId.make("mark-done-automatic-stale"),
+          threadId,
+          expectedLatestRunId: oldestRun.id,
+        })
+        .pipe(Effect.flip);
+      assert.equal(staleMarkDone._tag, "OrchestratorDispatchError");
+      assert.isNull((yield* orchestrator.getThreadProjection(threadId)).thread.doneAt);
 
       yield* orchestrator.dispatch({
         type: "thread.mark-done",
         commandId: CommandId.make("mark-done-automatic-settle"),
         threadId,
+        expectedLatestRunId: latestRun.id,
       });
       const done = yield* orchestrator.getThreadProjection(threadId);
       assert.isNotNull(done.thread.doneAt);

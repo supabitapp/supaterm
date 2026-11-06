@@ -2937,6 +2937,7 @@ export const OrchestrationV2Command = Schema.Union([
     type: Schema.Literal("thread.mark-done"),
     commandId: CommandId,
     threadId: ThreadId,
+    expectedLatestRunId: Schema.optional(RunId),
     doneAt: Schema.optional(Schema.DateTimeUtc),
   }),
   /**
