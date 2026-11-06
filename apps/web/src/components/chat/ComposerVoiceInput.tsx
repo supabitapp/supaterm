@@ -85,7 +85,7 @@ export function VoiceElapsed(props: { readonly recorder: Pick<WebVoiceRecorder, 
 }
 
 /** Bars follow the recorder's level history without re-rendering React on every sample. */
-function VoiceLevelMeter(props: { readonly recorder: WebVoiceRecorder }) {
+export function VoiceLevelMeter(props: { readonly recorder: WebVoiceRecorder }) {
   return (
     <span
       aria-hidden
@@ -111,7 +111,7 @@ function VoiceLevelMeter(props: { readonly recorder: WebVoiceRecorder }) {
   );
 }
 
-function VoicePillButton(props: {
+export function VoicePillButton(props: {
   readonly label: string;
   readonly shortcut: string | null;
   readonly disabled?: boolean;

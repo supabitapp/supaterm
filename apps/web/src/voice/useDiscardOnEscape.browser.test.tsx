@@ -6,6 +6,7 @@ import { useDiscardOnEscape } from "./useDiscardOnEscape";
 
 function Composer(props: {
   readonly discard: () => void;
+  readonly onEditorEscape?: () => void;
   readonly inMenu?: boolean;
   readonly suggesting?: boolean;
 }) {
@@ -17,7 +18,9 @@ function Composer(props: {
         ? { "aria-controls": "suggestions", "aria-activedescendant": "suggestion-1" }
         : {})}
       onKeyDown={(event) => {
-        if (event.key === "Escape") event.preventDefault();
+        if (event.key !== "Escape") return;
+        event.preventDefault();
+        props.onEditorEscape?.();
       }}
     />
   );
@@ -38,12 +41,17 @@ function Composer(props: {
 }
 
 describe("useDiscardOnEscape", () => {
-  it("discards while the focused editor handles Escape itself", async () => {
+  it("discards before the focused editor can take Escape, as a comment form closing", async () => {
     const discard = vi.fn();
-    await using screen = await render(<Composer discard={discard} />, { router: false });
+    const onEditorEscape = vi.fn();
+    await using screen = await render(
+      <Composer discard={discard} onEditorEscape={onEditorEscape} />,
+      { router: false },
+    );
     await screen.getByLabelText("Message").click();
     await userEvent.keyboard("{Escape}");
     expect(discard).toHaveBeenCalledOnce();
+    expect(onEditorEscape).not.toHaveBeenCalled();
   });
 
   it("leaves Escape to the editor's open suggestion list", async () => {
