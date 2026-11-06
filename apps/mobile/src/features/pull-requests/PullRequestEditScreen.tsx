@@ -17,6 +17,8 @@ import { PullRequestSheetContent } from "./PullRequestSheetContent";
 import { pullRequestTarget, type PullRequestParams } from "./usePullRequestDiff";
 import { usePullRequestPermissions } from "./usePullRequestPermissions";
 import { playOutcomeHaptic } from "../../lib/outcomeHaptic";
+import { PullRequestMentionSuggestions } from "./PullRequestMentionSuggestions";
+import { usePullRequestMentions } from "./usePullRequestMentions";
 
 export type PullRequestEditParams = PullRequestParams &
   (
@@ -50,6 +52,13 @@ export function PullRequestEditScreen({ route }: StaticScreenProps<PullRequestEd
         : (pr?.body ?? null);
   const [draft, setDraft] = useState<string | null>(null);
   const value = draft ?? original ?? "";
+  const mentions = usePullRequestMentions({
+    environmentId: params.environmentId,
+    projectId: params.projectId,
+    value: value,
+    onChangeValue: setDraft,
+    enabled: params.field !== "title" && pr?.capabilities.mentions === true,
+  });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const inFlight = useRef(false);
@@ -133,8 +142,12 @@ export function PullRequestEditScreen({ route }: StaticScreenProps<PullRequestEd
         />
       }
     >
+      <PullRequestMentionSuggestions mentions={mentions} />
       <TextInput
         multiline={params.field !== "title"}
+        selection={mentions.selection}
+        onSelectionChange={mentions.onSelectionChange}
+        onBlur={mentions.onBlur}
         editable={!busy && original !== null}
         autoFocus
         accessibilityLabel={
