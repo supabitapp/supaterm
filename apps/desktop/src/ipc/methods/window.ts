@@ -38,6 +38,7 @@ import * as ElectronShell from "../../electron/ElectronShell.ts";
 import * as ElectronTheme from "../../electron/ElectronTheme.ts";
 import * as ElectronWindow from "../../electron/ElectronWindow.ts";
 import * as Electron from "electron";
+import { performMacAlignmentHaptic } from "../../electron/MacHaptics.ts";
 import * as MacPermissions from "../../permissions/MacPermissions.ts";
 import * as MacInputMonitoring from "../../permissions/MacInputMonitoring.ts";
 import { safariPermissionCheck } from "../../preview/BrowserImport/SafariPermission.ts";
@@ -391,6 +392,19 @@ export const revealWindow = DesktopIpc.makeIpcMethod({
       return;
     }
     yield* electronWindow.reveal(window.value);
+  }),
+});
+
+export const performAlignmentHaptic = DesktopIpc.makeIpcMethod({
+  channel: IpcChannels.PERFORM_ALIGNMENT_HAPTIC_CHANNEL,
+  payload: Schema.Undefined,
+  result: Schema.Void,
+  handler: Effect.fn("desktop.ipc.window.performAlignmentHaptic")(function* () {
+    const environment = yield* DesktopEnvironment.DesktopEnvironment;
+    if (environment.platform !== "darwin") return;
+    yield* Effect.tryPromise(performMacAlignmentHaptic).pipe(
+      Effect.catch((error) => Effect.logWarning("Could not perform the haptic.", error)),
+    );
   }),
 });
 
