@@ -119,18 +119,27 @@ function useAvailability(options: VoiceRuntimeOptions): ComposerVoiceAvailabilit
   const canReview = connected && source !== null;
   // A voice message is transcribed and sent by the thread's environment, so only it can take one.
   const canSend = options.canSendVoice && !elsewhere;
+  let unavailableReason: string | null = null;
+  if (!canReview && !canSend) {
+    unavailableReason = elsewhere
+      ? `Reconnect ${transcriberLabel ?? "the voice environment"} to transcribe.`
+      : "Reconnect to transcribe, or clear the draft to send a voice message.";
+  }
   return {
     canReview,
     canSend,
     label: transcriber ? `${transcriber} · ${options.languageLabel}` : options.languageLabel,
-    unavailableReason:
-      canReview || canSend
-        ? null
-        : elsewhere
-          ? `Reconnect ${transcriberLabel ?? "the voice environment"} to transcribe.`
-          : "Reconnect to transcribe, or clear the draft to send a voice message.",
+    unavailableReason,
     opensSettings: false,
   };
+}
+
+/** Names the thread or project to listen for, but only to the environment that has them. */
+function transcriptionContext(options: VoiceRuntimeOptions) {
+  if (options.transcriptionEnvironmentId !== options.environmentId) return {};
+  if (options.threadId) return { context: { threadId: options.threadId } };
+  if (options.projectId) return { context: { projectId: options.projectId } };
+  return {};
 }
 
 function createVoiceRuntime(onStateChange: (state: VoiceInputState) => void) {
@@ -165,18 +174,9 @@ function createVoiceRuntime(onStateChange: (state: VoiceInputState) => void) {
     recorder,
     getTranscriber: () => {
       const current = read();
-      const { threadId, projectId, language } = current;
+      const { language } = current;
       const environmentId = current.transcriptionEnvironmentId;
-      // Another environment knows nothing of this thread or project.
-      const context =
-        environmentId !== current.environmentId
-          ? null
-          : threadId
-            ? { threadId }
-            : projectId
-              ? { projectId }
-              : null;
-      const request = { language, ...(context ? { context } : {}) };
+      const request = { language, ...transcriptionContext(current) };
       return createServerVoiceTranscriber({
         locale: language,
         startLive: environmentStreamsDictation(environmentId)

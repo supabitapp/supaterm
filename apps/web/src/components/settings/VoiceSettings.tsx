@@ -161,6 +161,12 @@ function environmentChoice(preference: VoiceTranscriptionEnvironment) {
   }
 }
 
+function environmentPreference(choice: string): VoiceTranscriptionEnvironment {
+  if (choice === AUTOMATIC_ENVIRONMENT) return { kind: "auto" };
+  if (choice === THREAD_ENVIRONMENT) return { kind: "thread" };
+  return { kind: "environment", environmentId: EnvironmentId.make(choice) };
+}
+
 function VoiceEnvironmentSettingRow() {
   const settings = useScopedSettings();
   const updateSettings = useUpdateScopedSettings();
@@ -180,7 +186,7 @@ function VoiceEnvironmentSettingRow() {
     { value: AUTOMATIC_ENVIRONMENT, label: "Automatic", status: null },
     { value: THREAD_ENVIRONMENT, label: "The thread's environment", status: null },
     ...environments.map((environment) => ({
-      value: environment.environmentId as string,
+      value: environment.environmentId,
       label: environment.label,
       status: status(environment.environmentId),
     })),
@@ -215,12 +221,7 @@ function VoiceEnvironmentSettingRow() {
           onValueChange={(next) => {
             if (!next) return;
             updateSettings({
-              voiceTranscriptionEnvironment:
-                next === AUTOMATIC_ENVIRONMENT
-                  ? { kind: "auto" }
-                  : next === THREAD_ENVIRONMENT
-                    ? { kind: "thread" }
-                    : { kind: "environment", environmentId: EnvironmentId.make(next) },
+              voiceTranscriptionEnvironment: environmentPreference(next),
             });
           }}
         >
