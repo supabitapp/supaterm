@@ -116,6 +116,7 @@ export function PullRequestCommentForm({
         <span className="mr-auto">
           <TextFieldVoiceInput
             environmentId={environmentId}
+            disabled={submitting !== null || actionPending}
             fieldRef={textareaRef}
             onChange={setBody}
             onBusyChange={setVoiceBusy}

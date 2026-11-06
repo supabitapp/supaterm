@@ -5,6 +5,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { type RefObject, useEffect, useId } from "react";
 
 import { useClientSettings } from "~/hooks/useSettings";
+import { observeResize } from "~/lib/observeResize";
 import { useStableCallback } from "~/hooks/useStableCallback";
 import { shortcutLabelForCommand } from "~/keybindings";
 import { registerCommands } from "~/shortcuts/dispatcher";
@@ -30,6 +31,8 @@ export function TextFieldVoiceInput(props: {
   readonly threadId?: ThreadId | null | undefined;
   readonly projectId?: ProjectId | null | undefined;
   readonly fieldRef: RefObject<HTMLTextAreaElement | null>;
+  /** The field is saving or locked, so a new recording can't start. */
+  readonly disabled?: boolean | undefined;
   readonly onChange: (value: string) => void;
   readonly onBusyChange: (busy: boolean) => void;
 }) {
@@ -71,8 +74,19 @@ export function TextFieldVoiceInput(props: {
     holdToTalkTarget: fieldRef,
   });
   const owns = useStableCallback(
-    () => voice.busy || (fieldRef.current !== null && document.activeElement === fieldRef.current),
+    () =>
+      voice.busy ||
+      (!props.disabled && fieldRef.current !== null && document.activeElement === fieldRef.current),
   );
+  const { busy, cancel } = voice;
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- stops a recording once its field is hidden, as a closed popover or tab keeps the form mounted
+  useEffect(() => {
+    const field = fieldRef.current;
+    if (!busy || !field) return;
+    return observeResize(field, () => {
+      if (!field.checkVisibility()) cancel();
+    });
+  }, [busy, cancel, fieldRef]);
   const toggle = useStableCallback((code: string | undefined) =>
     voice.toggle(code === undefined ? undefined : { code }),
   );
@@ -144,7 +158,7 @@ export function TextFieldVoiceInput(props: {
               variant="ghost-muted"
               size="icon-xs"
               aria-label={label}
-              disabled={unavailable && !availability.opensSettings}
+              disabled={props.disabled || (unavailable && !availability.opensSettings)}
               onPointerDown={keepFieldFocus}
               onClick={() => {
                 if (unavailable) {

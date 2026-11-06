@@ -145,6 +145,7 @@ export function PullRequestReviewForm({
       <div className="mt-2 flex justify-end gap-2">
         <TextFieldVoiceInput
           environmentId={environmentId}
+          disabled={pending}
           fieldRef={textareaRef}
           onChange={(text) => setSummary(reviewKey, text)}
           onBusyChange={setVoiceBusy}

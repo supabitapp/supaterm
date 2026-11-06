@@ -123,6 +123,7 @@ export function PullRequestMarkdownEditor({
             <TextFieldVoiceInput
               environmentId={environmentId}
               threadId={threadRef?.environmentId === environmentId ? threadRef.threadId : null}
+              disabled={saving}
               fieldRef={textareaRef}
               onChange={setDraft}
               onBusyChange={setVoiceBusy}

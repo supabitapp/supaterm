@@ -5,7 +5,11 @@ import type {
   SelectedLineRange,
 } from "@pierre/diffs";
 import { FileDiff } from "@pierre/diffs/react";
-import type { PullRequestReviewGuideExcerpt, PullRequestReviewPosition } from "@supaterm/contracts";
+import type {
+  EnvironmentId,
+  PullRequestReviewGuideExcerpt,
+  PullRequestReviewPosition,
+} from "@supaterm/contracts";
 import { ArrowUpRightIcon } from "@supaterm/icons";
 import { useState } from "react";
 
@@ -52,6 +56,8 @@ export interface ExcerptNoteMarker {
 }
 
 export interface ExcerptCommenting {
+  /** The pull request's environment, which also transcribes dictated comments. */
+  readonly environmentId: EnvironmentId;
   readonly canComment: boolean;
   /** The host anchors a comment to a range of lines rather than to its last one. */
   readonly rangeComments: boolean;
@@ -321,6 +327,7 @@ function ExcerptDiff({
             {annotation.metadata.draft && draft !== null && commenting !== null ? (
               <DiffCommentAnnotation
                 kind="draft"
+                voiceEnvironmentId={commenting.environmentId}
                 rangeLabel={`${excerpt.path}:${getReviewPositionAnchor(draft.position).line}`}
                 text=""
                 placeholder={

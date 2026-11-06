@@ -1,3 +1,4 @@
+import type { EnvironmentId } from "@supaterm/contracts";
 import { MessageCircleIcon, TrashIcon } from "@supaterm/icons";
 import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
 
@@ -29,6 +30,8 @@ interface DiffCommentAnnotationProps {
   pending?: boolean;
   secondaryAction?: DiffCommentSecondaryAction;
   focusOnMount?: boolean;
+  /** Where dictation goes outside a thread route, as on a pull request page. */
+  voiceEnvironmentId?: EnvironmentId | undefined;
 }
 
 export function DiffCommentAnnotation({
@@ -44,12 +47,16 @@ export function DiffCommentAnnotation({
   pending = false,
   secondaryAction,
   focusOnMount = true,
+  voiceEnvironmentId,
 }: DiffCommentAnnotationProps) {
   const [localDraftText, setLocalDraftText] = useState("");
   const displayedText = kind === "draft" && !onTextChange ? localDraftText : text;
   const trimmedText = displayedText.trim();
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const threadRef = useThreadRouteRef();
+  const voiceTarget = voiceEnvironmentId
+    ? { environmentId: voiceEnvironmentId, threadId: null }
+    : threadRef;
   const [voiceBusy, setVoiceBusy] = useState(false);
   const changeText = onTextChange ?? setLocalDraftText;
   const canComment = !pending && !voiceBusy && trimmedText.length > 0;
@@ -127,10 +134,11 @@ export function DiffCommentAnnotation({
         }}
       />
       <div className="mt-1.5 flex items-center gap-1">
-        {threadRef ? (
+        {voiceTarget ? (
           <TextFieldVoiceInput
-            environmentId={threadRef.environmentId}
-            threadId={threadRef.threadId}
+            environmentId={voiceTarget.environmentId}
+            threadId={voiceTarget.threadId}
+            disabled={pending}
             fieldRef={textareaRef}
             onChange={changeText}
             onBusyChange={setVoiceBusy}
