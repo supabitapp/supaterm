@@ -45,6 +45,11 @@ preserving the iOS 27.1 SDK required for Duo support.
 Flags go directly after the task name, for example `vp run dev --home-dir /tmp/supaterm-dev`.
 Add `--browser` to open a browser automatically.
 
+To stop a worktree's dev stack when its thread is marked Done, import the **Start Development**
+action from `supaterm.json` in Settings > Projects > Actions and start it through the action menu
+or its keybinding. Its `stopOnDone` option lets Supaterm stop the terminal and its child processes.
+Running `vp run dev` through an agent's own shell tool does not attach it to this lifecycle.
+
 ### State and ports
 
 Linked worktrees default to their own `.supaterm/userdata`, even when `SUPATERM_HOME` is set.

@@ -218,6 +218,8 @@ export class TerminalManager extends Context.Service<
     /** Omit terminalId to close all sessions for the thread. */
     readonly close: (input: TerminalCloseInput) => Effect.Effect<void, TerminalError>;
 
+    readonly closeOnDone: (input: { readonly threadId: string }) => Effect.Effect<void>;
+
     readonly closeIdle: (input: {
       readonly threadId: string;
       readonly terminalId?: string;
@@ -303,6 +305,7 @@ interface TerminalSessionState {
   hasRunningSubprocess: boolean;
   childCommandLabel: string | null;
   runtimeEnv: Record<string, string> | null;
+  stopOnDone: boolean;
 }
 
 interface TerminalGrid {
@@ -2860,6 +2863,7 @@ export const makeWithOptions = Effect.fn("TerminalManager.makeWithOptions")(func
         hasRunningSubprocess: false,
         childCommandLabel: null,
         runtimeEnv: normalizedRuntimeEnv(input.env),
+        stopOnDone: input.stopOnDone ?? false,
       };
 
       const createdSession = session;
@@ -2885,6 +2889,7 @@ export const makeWithOptions = Effect.fn("TerminalManager.makeWithOptions")(func
     }
 
     const liveSession = existing.value;
+    if (input.stopOnDone !== undefined) liveSession.stopOnDone = input.stopOnDone;
     const nextRuntimeEnv = normalizedRuntimeEnv(input.env);
     const currentRuntimeEnv = liveSession.runtimeEnv;
     const targetCols = input.cols ?? liveSession.cols;
@@ -3442,6 +3447,23 @@ export const makeWithOptions = Effect.fn("TerminalManager.makeWithOptions")(func
       ),
     );
 
+  const closeOnDone = Effect.fn("terminal.closeOnDone")(function* (input: {
+    readonly threadId: string;
+  }) {
+    yield* withThreadLock(
+      input.threadId,
+      Effect.gen(function* () {
+        const sessions = yield* sessionsForThread(input.threadId);
+        yield* Effect.forEach(
+          sessions.filter((session) => session.stopOnDone),
+          (session) => closeSession(input.threadId, session.terminalId, false),
+          { discard: true },
+        );
+      }),
+    );
+    yield* closeIdle(input);
+  });
+
   return TerminalManager.of({
     open,
     getShell,
@@ -3454,6 +3476,7 @@ export const makeWithOptions = Effect.fn("TerminalManager.makeWithOptions")(func
     clear,
     close,
     closeIdle,
+    closeOnDone,
     subscribe,
     subscribeMetadata,
   });

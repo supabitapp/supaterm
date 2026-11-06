@@ -187,7 +187,11 @@ when it is already Done. The shortcut skips terminals and can be changed in Sett
 Manually marking an idle thread as Done dismisses unanswered async questions without
 sending an answer or restarting the agent. Marking it as Done also closes the thread's
 terminals that wait at an idle prompt, and keeps their output. A terminal that
-runs a command, such as a dev server, stays open.
+runs a command, such as a dev server, stays open unless its action has **Stop this action
+when the thread is marked Done** enabled in Settings > Projects > Actions. You can also set
+`"stopOnDone": true` on a `supaterm.json` action and import it there. Start the command through
+that action so Supaterm can stop its terminal and child processes. Commands started through an
+agent's own shell tools are managed by the provider.
 
 To reclaim disk space from Done work, turn on **Run in the thread's worktree when the
 thread is marked Done** for one of the project's actions, or set `"runOnDone": true` on a

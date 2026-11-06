@@ -618,7 +618,7 @@ export const make = Effect.gen(function* () {
     function* (threadId: ThreadId) {
       const done = yield* projections.getThread(threadId);
       if (done.doneOverride !== "done") return;
-      yield* terminals.closeIdle({ threadId });
+      yield* terminals.closeOnDone({ threadId });
       const worktreePath = done.worktreePath;
       if (worktreePath === null || !(yield* fileSystem.exists(worktreePath))) return;
       // Closing and the worktree check wait on I/O. A thread re-engaged
