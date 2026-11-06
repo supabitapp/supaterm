@@ -22,7 +22,7 @@ import { transcribeCommand } from "./cli/transcribe.ts";
 import { runDefaultServerCommand, serveCommand, startCommand } from "./cli/server.ts";
 import { updateCommand } from "./cli/update.ts";
 import { uninstallCommand } from "./cli/uninstall.ts";
-import { serviceLauncherCommand } from "./cli/serviceLauncher.ts";
+import { runServiceLauncherCli } from "./cli/serviceLauncher.ts";
 import { claudeHistoryCommand } from "./cli/claudeHistory.ts";
 import { sshHelperCommand } from "./cli/sshHelper.ts";
 import { serviceCommand } from "./cli/service.ts";
@@ -60,7 +60,12 @@ export const makeCli = () =>
       serviceCommand,
       updateCommand,
       uninstallCommand,
-      serviceLauncherCommand,
+      // bin.ts runs the bare service invocation; this keeps flags and help working like other commands.
+      Command.make("__service-launcher").pipe(
+        Command.unlisted,
+        // The launcher owns shutdown until its child exits; `runMain` would interrupt that shutdown.
+        Command.withHandler(() => Effect.sync(() => void runServiceLauncherCli())),
+      ),
       claudeHistoryCommand,
       sshHelperCommand,
 
