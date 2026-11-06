@@ -208,10 +208,10 @@ function changeLines(
       const passed = `- All ${change.count} ${change.required ? "required " : ""}${change.count === 1 ? "check" : "checks"} passed${context.commit}.`;
       // "Required" alone leaves the agent guessing whether advisory checks like review bots ran.
       if (!change.required) return [passed];
+      if (change.pending.length === 0) return [`${passed} No other check is still running.`];
       return [
-        change.pending.length === 0
-          ? `${passed} No other check is still running.`
-          : `${passed} Still running: ${change.pending.join(", ")}. Supaterm wakes you once they finish.`,
+        `${passed} Supaterm wakes you once these finish:`,
+        ...listed(change.pending, (name) => `  - ${name}`),
       ];
     }
     case "checks-finished":
