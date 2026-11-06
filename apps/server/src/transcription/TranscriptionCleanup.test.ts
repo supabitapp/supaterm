@@ -5,6 +5,7 @@ import { cleanTranscript } from "./TranscriptionCleanup.ts";
 const dictionary = [
   { term: "Supaterm", aliases: ["super term"] },
   { term: "PostgreSQL", aliases: ["postgres q l"] },
+  { term: "Hum", aliases: ["हम"] },
 ];
 
 describe("cleanTranscript", () => {
@@ -33,10 +34,21 @@ describe("cleanTranscript", () => {
     ["a term in the wrong case", "use SUPATERM and postgresql", "use Supaterm and PostgreSQL"],
     ["an alias spoken across spaces", "back up postgres q   l", "back up PostgreSQL"],
     ["an alias inside a longer word", "supertermination", "supertermination"],
+    ["an alias followed by a combining mark", "हमें जाना है।", "हमें जाना है।"],
   ])("spells %s as the dictionary does", (_case, text, expected) => {
     expect(cleanTranscript(text, { language: "en", removeFillerWords: false, dictionary })).toBe(
       expected,
     );
+  });
+
+  it("ignores a dictionary entry with no letters, which would match everywhere", () => {
+    expect(
+      cleanTranscript("Run the command.", {
+        language: "en",
+        removeFillerWords: false,
+        dictionary: [{ term: "--", aliases: ["-"] }],
+      }),
+    ).toBe("Run the command.");
   });
 
   it("leaves fillers alone when the setting is off", () => {
