@@ -29,6 +29,7 @@ describe("cleanTranscript", () => {
   it.each([
     ["an alias", "Open super term settings.", "Open Supaterm settings."],
     ["a hyphenated alias", "Open super-term's settings.", "Open Supaterm's settings."],
+    ["an alias heard as one word", "Deploy to Superterm.", "Deploy to Supaterm."],
     ["a term in the wrong case", "use SUPATERM and postgresql", "use Supaterm and PostgreSQL"],
     ["an alias spoken across spaces", "back up postgres q   l", "back up PostgreSQL"],
     ["an alias inside a longer word", "supertermination", "supertermination"],

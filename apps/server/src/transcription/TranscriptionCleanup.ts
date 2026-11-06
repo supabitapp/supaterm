@@ -34,11 +34,9 @@ function removeFillerWords(text: string, language: string | undefined): string {
     .trim();
 }
 
-const spokenKey = (value: string) =>
-  value
-    .toLowerCase()
-    .split(/[\s-]+/)
-    .join(" ");
+// Speech models join or split a name's words freely: "super term", "super-term", "superterm".
+const spokenWords = (value: string) => value.toLowerCase().split(/[\s-]+/);
+const spokenKey = (value: string) => spokenWords(value).join("");
 
 /** Rewrites each alias, and any casing of a term, to the term as the dictionary spells it. */
 function applyDictionary(
@@ -53,9 +51,10 @@ function applyDictionary(
     }
   }
   if (spellings.size === 0) return text;
-  const alternatives = [...spellings.keys()]
-    .toSorted((left, right) => right.length - left.length)
-    .map((key) => key.split(" ").map(escapeRegex).join("[\\s-]+"));
+  const alternatives = dictionary
+    .flatMap((entry) => [entry.term, ...entry.aliases])
+    .map((heard) => spokenWords(heard).map(escapeRegex).join("[\\s-]*"))
+    .toSorted((left, right) => right.length - left.length);
   const pattern = new RegExp(
     `${NOT_WORD_BEFORE}(?:${alternatives.join("|")})${NOT_WORD_AFTER}`,
     "giu",
