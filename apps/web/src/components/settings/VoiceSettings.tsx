@@ -3,8 +3,15 @@ import {
   ProviderInstanceId,
   type ServerProvider,
 } from "@supaterm/contracts";
-import { DEFAULT_UNIFIED_SETTINGS, type VoiceMicrophone } from "@supaterm/contracts/settings";
-import { useEffect, useRef, useState } from "react";
+import {
+  DEFAULT_UNIFIED_SETTINGS,
+  TRANSCRIPTION_DICTIONARY_MAX_ALIASES,
+  TRANSCRIPTION_DICTIONARY_MAX_ENTRIES,
+  type TranscriptionDictionaryEntry,
+  type VoiceMicrophone,
+} from "@supaterm/contracts/settings";
+import { PlusIcon, XIcon } from "@supaterm/icons";
+import { type FormEvent, useEffect, useRef, useState } from "react";
 
 import {
   labelsHidden,
@@ -25,6 +32,7 @@ import { isMacPlatform } from "../../lib/utils";
 import { useEnvironmentProviders } from "../../state/environments";
 import { EMPTY_SERVER_PROVIDERS } from "../../state/server";
 import { Button } from "../ui/button";
+import { Input } from "../ui/input";
 import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "../ui/select";
 import { Switch } from "../ui/switch";
 import {
@@ -442,6 +450,129 @@ function VoiceAvoidBluetoothSettingRow(props: { readonly microphones: Microphone
   );
 }
 
+function VoiceFillerWordsSettingRow() {
+  const settings = useScopedSettings();
+  const updateSettings = useUpdateScopedSettings();
+  return (
+    <SettingsRow
+      serverScoped
+      settingKeys={["transcriptionRemoveFillerWords"]}
+      {...searchableSetting("voice-filler-words")}
+      description="Drops um, uh, and similar sounds from voice input this environment transcribes."
+      control={
+        <Switch
+          checked={settings.transcriptionRemoveFillerWords}
+          onCheckedChange={(checked) => updateSettings({ transcriptionRemoveFillerWords: checked })}
+          aria-label="Remove filler words"
+        />
+      }
+    />
+  );
+}
+
+const DICTIONARY_WORD_MAX_LENGTH = 50;
+
+function parseHeardAs(value: string): ReadonlyArray<string> {
+  const aliases = value
+    .split(",")
+    .map((alias) => alias.trim().slice(0, DICTIONARY_WORD_MAX_LENGTH))
+    .filter((alias) => alias.length > 0);
+  return [...new Set(aliases)].slice(0, TRANSCRIPTION_DICTIONARY_MAX_ALIASES);
+}
+
+function VoiceDictionarySettingRow() {
+  const settings = useScopedSettings();
+  const updateSettings = useUpdateScopedSettings();
+  const dictionary = settings.transcriptionDictionary;
+  const [term, setTerm] = useState("");
+  const [heardAs, setHeardAs] = useState("");
+  const full = dictionary.length >= TRANSCRIPTION_DICTIONARY_MAX_ENTRIES;
+  const save = (transcriptionDictionary: ReadonlyArray<TranscriptionDictionaryEntry>) =>
+    updateSettings({ transcriptionDictionary });
+  const add = (event: FormEvent) => {
+    event.preventDefault();
+    const word = term.trim();
+    if (word.length === 0 || full) return;
+    const entry = { term: word, aliases: parseHeardAs(heardAs) };
+    save([
+      ...dictionary.filter((existing) => existing.term.toLowerCase() !== word.toLowerCase()),
+      entry,
+    ]);
+    setTerm("");
+    setHeardAs("");
+  };
+  return (
+    <SettingsRow
+      serverScoped
+      settingKeys={["transcriptionDictionary"]}
+      {...searchableSetting("voice-dictionary")}
+      description="Words voice input should spell your way, such as names and jargon. Add what the transcript gets instead, so it is corrected."
+      resetAction={
+        dictionary.length > 0 ? (
+          <SettingResetButton label="dictionary" onClick={() => save([])} />
+        ) : null
+      }
+    >
+      <div className="flex flex-col gap-1.5 pt-3 pb-2">
+        {dictionary.map((entry) => (
+          <div key={entry.term} className="flex min-w-0 items-center gap-2 text-sm">
+            <span className="truncate text-foreground">{entry.term}</span>
+            {entry.aliases.length > 0 ? (
+              <span className="truncate text-xs text-muted-foreground">
+                heard as {entry.aliases.join(", ")}
+              </span>
+            ) : null}
+            <Button
+              className="ml-auto"
+              variant="ghost-muted"
+              size="icon-sm"
+              aria-label={`Remove ${entry.term}`}
+              onClick={() => save(dictionary.filter((existing) => existing !== entry))}
+            >
+              <XIcon />
+            </Button>
+          </div>
+        ))}
+        <form className="flex flex-wrap items-center gap-2" onSubmit={add}>
+          <Input
+            size="sm"
+            className="w-40"
+            aria-label="Word"
+            placeholder="Word"
+            maxLength={DICTIONARY_WORD_MAX_LENGTH}
+            value={term}
+            disabled={full}
+            onChange={(event) => setTerm(event.target.value)}
+          />
+          <Input
+            size="sm"
+            className="min-w-40 flex-1"
+            aria-label="Heard as"
+            placeholder="Heard as, comma separated (optional)"
+            value={heardAs}
+            disabled={full}
+            onChange={(event) => setHeardAs(event.target.value)}
+          />
+          <Button
+            type="submit"
+            variant="ghost-muted"
+            size="compact"
+            disabled={full || term.trim().length === 0}
+          >
+            <PlusIcon />
+            Add word
+          </Button>
+        </form>
+        {full ? (
+          <p className="text-xs text-muted-foreground">
+            Up to {TRANSCRIPTION_DICTIONARY_MAX_ENTRIES} words
+          </p>
+        ) : null}
+      </div>
+    </SettingsRow>
+  );
+}
+
 export function VoiceSettingsPanel() {
   const { environment } = useSettingsScope();
   const providersByEnvironment = useEnvironmentProviders();
@@ -458,6 +589,10 @@ export function VoiceSettingsPanel() {
         <VoiceMicrophoneSettingRow microphones={microphones} />
         <VoiceAvoidBluetoothSettingRow microphones={microphones} />
         <VoiceHoldToTalkSettingRow />
+      </SettingsSection>
+      <SettingsSection id="voice-transcript" title="Transcript">
+        <VoiceFillerWordsSettingRow />
+        <VoiceDictionarySettingRow />
       </SettingsSection>
     </SettingsPageContainer>
   );

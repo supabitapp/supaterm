@@ -42,6 +42,8 @@ const isProjectName = (name: string | undefined): name is string =>
   name !== undefined && name.length > 2 && name.length <= 50;
 
 export function keytermCandidates(input: {
+  /** The user's own words, first because the header keeps only the first fifty terms. */
+  readonly dictionaryTerms: ReadonlyArray<string>;
   readonly projectTitle: string | undefined;
   /** The project root's folder name, which Claude Code sends; a renamed title loses it. */
   readonly projectFolder: string | undefined;
@@ -54,6 +56,7 @@ export function keytermCandidates(input: {
   // The speech model copies a keyterm's casing and the header keeps a term's first casing,
   // so these go ahead of lowercase project and branch names.
   return [
+    ...input.dictionaryTerms,
     ...SUPATERM_TERMS,
     ...projectNames,
     ...(input.branch ? splitWords(input.branch) : []),

@@ -559,6 +559,20 @@ export const SETTINGS_SEARCH_ITEMS = [
     ],
   },
   {
+    id: "voice-filler-words",
+    title: "Remove filler words",
+    to: "/settings/voice",
+    scope: "environment-defaults",
+    searchTerms: ["voice dictation transcript um uh filler words clean up"],
+  },
+  {
+    id: "voice-dictionary",
+    title: "Dictionary",
+    to: "/settings/voice",
+    scope: "environment-defaults",
+    searchTerms: ["voice dictation transcript custom words vocabulary names jargon spelling"],
+  },
+  {
     id: "next-prompt-suggestions",
     title: "Claude prompt suggestions",
     to: "/settings/threads",
