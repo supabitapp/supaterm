@@ -487,6 +487,7 @@ function ThreadTerminal(props: {
             cols: initialAttachGridSize.cols,
             rows: initialAttachGridSize.rows,
             ...(pendingLaunch?.env ? { env: pendingLaunch.env } : {}),
+            ...(pendingLaunch ? { stopOnDone: pendingLaunch.stopOnDone ?? false } : {}),
             ...(pendingLaunch ? { restartIfNotRunning: true } : {}),
           }
         : null,
