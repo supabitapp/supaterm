@@ -28,6 +28,7 @@ import * as Ref from "effect/Ref";
 import * as Schema from "effect/Schema";
 import * as Sink from "effect/Sink";
 import * as Stream from "effect/Stream";
+import * as TestClock from "effect/testing/TestClock";
 import * as ChildProcessSpawner from "effect/process/ChildProcessSpawner";
 import { HttpClient, HttpClientResponse } from "effect/http";
 import * as ServerConfig from "../config.ts";
@@ -102,7 +103,10 @@ const fixture = Effect.fn("fixture")(function* (
   const devices: Array<Omit<DeviceSummary, "hostId">> = [];
   const discoveryErrors = yield* Ref.make<Array<{ message: string; error?: string }>>([]);
   const androidAvailable = yield* Ref.make(true);
+  const iosAvailable = yield* Ref.make(false);
+  const simctlResult = yield* Ref.make({ code: 0, stdout: '{"devices":{}}', stderr: "" });
   const encoderResult = yield* Ref.make({ code: 0, stdout: " V....D libx264", stderr: "" });
+  const listing = { hangs: false, requested: yield* Deferred.make<void>() };
   let booted = false;
   let shutDown = false;
   const connection = { online: true, kind: "local" as "local" | "ssh", failShutdown: false };
@@ -167,6 +171,11 @@ const fixture = Effect.fn("fixture")(function* (
       if (request.url.endsWith("/grid/api/start")) {
         return HttpClientResponse.fromWeb(request, Response.json({ ok: true }));
       }
+      if (listing.hangs) {
+        return yield* Deferred.succeed(listing.requested, undefined).pipe(
+          Effect.andThen(Effect.never),
+        );
+      }
       return HttpClientResponse.fromWeb(
         request,
         Response.json({
@@ -194,7 +203,9 @@ const fixture = Effect.fn("fixture")(function* (
   const run = (command: string) =>
     command === "emulator"
       ? Effect.succeed({ code: 0, stdout: "Pixel_API_35\n", stderr: "" })
-      : Ref.get(encoderResult);
+      : command === "xcrun"
+        ? Ref.get(simctlResult)
+        : Ref.get(encoderResult);
   const ready: DeviceHost.DeviceHostReady = {
     nodePath: process.execPath,
     hub: { origin: "http://device.test" },
@@ -204,8 +215,11 @@ const fixture = Effect.fn("fixture")(function* (
         origin: "http://device.test",
         http,
         run,
-        platforms: Ref.get(androidAvailable).pipe(
-          Effect.map((available) => [{ platform: "android" as const, available }]),
+        platforms: Effect.all([Ref.get(androidAvailable), Ref.get(iosAvailable)]).pipe(
+          Effect.map(([android, ios]) => [
+            { platform: "android" as const, available: android },
+            { platform: "ios" as const, available: ios },
+          ]),
         ),
       }),
       ...(options.endsDevices ? { endsDevices: true } : {}),
@@ -331,6 +345,9 @@ const fixture = Effect.fn("fixture")(function* (
     encoderResult,
     discoveryErrors,
     androidAvailable,
+    iosAvailable,
+    simctlResult,
+    listing,
     endDevice,
   };
 });
@@ -872,6 +889,131 @@ it.effect("keeps the cause from the hub's error in discovery warnings, without t
     );
     expect(state.hostStatusDetail).not.toContain("    at ");
     expect(state.hostStatusDetail).not.toContain("stderr:");
+  }).pipe(Effect.scoped),
+);
+
+const ownSimctlFailure = `Could not list iOS Simulators (xcrun simctl, exit code 1). Discovered devices remain available.`;
+it.effect.each([
+  { ownListing: "not run", simctl: undefined, detail: simctlMessage, incomplete: true },
+  {
+    ownListing: "failing",
+    simctl: { code: 1, stdout: "", stderr: "" },
+    detail: `${simctlMessage}\n${ownSimctlFailure}`,
+    incomplete: true,
+  },
+  {
+    ownListing: "listing the simulator",
+    simctl: {
+      code: 0,
+      stdout: JSON.stringify({
+        devices: {
+          "com.apple.CoreSimulator.SimRuntime.iOS-26-0": [
+            { udid: "iphone", name: "iPhone", state: "Booted" },
+          ],
+        },
+      }),
+      stderr: "",
+    },
+    detail: simctlMessage,
+    incomplete: false,
+  },
+] as const)(
+  "keeps the last simulators while simctl cannot list them, and drops them once it can (own listing $ownListing)",
+  ({ simctl, detail, incomplete }) =>
+    Effect.gen(function* () {
+      const { service, devices, discoveryErrors, iosAvailable, simctlResult } = yield* fixture();
+      const simulator = {
+        id: DeviceId.make("iphone"),
+        name: "iPhone",
+        platform: "ios",
+        version: "iOS 26",
+        booted: true,
+        physical: false,
+      } as const;
+      yield* Ref.set(iosAvailable, simctl !== undefined);
+      devices.push(simulator, { ...simulator, id: DeviceId.make("pixel"), platform: "android" });
+      yield* service.configure({ enabled: true, agentAccessEnabled: true });
+      yield* service.agentReadinessIfSupported();
+      devices.length = 0;
+      yield* Ref.set(discoveryErrors, [{ message: simctlMessage }]);
+      if (simctl !== undefined) yield* Ref.set(simctlResult, simctl);
+      const failed = yield* service.list;
+      expect(failed.devices.map((device) => device.id)).toEqual(["iphone", "Pixel_API_35"]);
+      expect(failed.hostStatuses.local).toEqual({
+        status: "ready",
+        detail,
+        ...(incomplete ? { incompletePlatforms: ["ios"] } : {}),
+      });
+      yield* service.agentReadinessIfSupported();
+      expect((yield* service.state).hostStatuses.local).toEqual(
+        incomplete ? failed.hostStatuses.local : { status: "ready" },
+      );
+      yield* Ref.set(discoveryErrors, []);
+      yield* Ref.set(simctlResult, { code: 0, stdout: '{"devices":{}}', stderr: "" });
+      const recovered = yield* service.list;
+      expect(recovered.devices.map((device) => device.id)).toEqual(["Pixel_API_35"]);
+      expect(recovered.hostStatuses.local).toEqual({ status: "ready" });
+    }).pipe(Effect.scoped),
+);
+
+it.effect.each([
+  {
+    ios: true,
+    android: true,
+    incompletePlatforms: ["ios", "android"],
+    kept: ["iphone", "Pixel_API_35"],
+  },
+  { ios: true, android: false, incompletePlatforms: ["ios"], kept: ["iphone"] },
+  { ios: false, android: true, incompletePlatforms: ["android"], kept: ["Pixel_API_35"] },
+] as const)(
+  "keeps the devices of listable platforms when the hub does not answer within 40 seconds (iOS: $ios, Android SDK: $android)",
+  ({ ios, android, incompletePlatforms, kept }) =>
+    Effect.gen(function* () {
+      const { service, devices, listing, androidAvailable, iosAvailable } = yield* fixture();
+      yield* Ref.set(androidAvailable, android);
+      yield* Ref.set(iosAvailable, ios);
+      devices.push({
+        id: DeviceId.make("iphone"),
+        name: "iPhone",
+        platform: "ios",
+        version: "iOS 26",
+        booted: true,
+        physical: false,
+      });
+      yield* service.configure({ enabled: true });
+      listing.hangs = true;
+      const listed = yield* service.list.pipe(Effect.forkScoped);
+      yield* Deferred.await(listing.requested);
+      yield* TestClock.adjust("40 seconds");
+      const timedOut = yield* Fiber.join(listed);
+      expect(timedOut.devices.map((device) => device.id)).toEqual(kept);
+      expect(timedOut.hostStatuses.local).toEqual({
+        status: "ready",
+        detail: "The device hub did not answer within 40 seconds.",
+        incompletePlatforms,
+      });
+    }).pipe(Effect.scoped),
+);
+
+it.effect("does not open a retained pre-boot entry when the post-boot listing is incomplete", () =>
+  Effect.gen(function* () {
+    const afterBoot = { run: Effect.void as Effect.Effect<void> };
+    const android = yield* fixture(Effect.suspend(() => afterBoot.run));
+    afterBoot.run = Effect.sync(() => {
+      android.listing.hangs = true;
+    });
+    yield* android.service.configure({ enabled: true });
+    const opening = yield* android.service
+      .open({
+        threadId: ThreadId.make("boot-timeout"),
+        deviceId: "Pixel_API_35",
+        platform: "android",
+      })
+      .pipe(Effect.flip, Effect.forkScoped);
+    yield* Deferred.await(android.listing.requested);
+    yield* TestClock.adjust("40 seconds");
+    expect((yield* Fiber.join(opening))._tag).toBe("DeviceNotFoundError");
+    expect((yield* android.service.state).sessions).toEqual([]);
   }).pipe(Effect.scoped),
 );
 
