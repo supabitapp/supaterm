@@ -38,6 +38,7 @@ import {
   DndContext,
   useSensor,
   useSensors,
+  type AutoScrollOptions,
   type CollisionDetection,
   type DragEndEvent,
   type DragOverEvent,
@@ -831,6 +832,9 @@ function checkThreadOperations(
 }
 
 const SIDEBAR_DRAG_DISTANCE = 6;
+
+// dnd-kit's 20% edge zone at full speed runs the list away while the pointer rests near the bottom.
+const SIDEBAR_AUTO_SCROLL: AutoScrollOptions = { threshold: { x: 0, y: 0.05 }, acceleration: 3 };
 
 function toastThreadActionFailure(title: string, result: AtomCommandResult<unknown, unknown>) {
   if (result._tag === "Success" || isAtomCommandInterrupted(result)) return;
@@ -2837,7 +2841,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
           >
             <DndContext
               sensors={dndSensors}
-              autoScroll={!isContextDrag}
+              autoScroll={isContextDrag ? false : SIDEBAR_AUTO_SCROLL}
               collisionDetection={sidebarCollisionDetection}
               modifiers={dndModifiers}
               onDragStart={(event: DragStartEvent) =>
