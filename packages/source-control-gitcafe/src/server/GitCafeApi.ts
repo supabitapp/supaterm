@@ -19,6 +19,7 @@ const TIMEOUT = Duration.seconds(30);
 export const GitCafeApiFailure = Schema.Literals([
   "missing-tool",
   "unauthenticated",
+  "forbidden",
   "rate-limited",
   "not-found",
   "failed",
@@ -64,11 +65,13 @@ const decodeProblem = Schema.decodeUnknownOption(
 const reasonForStatus = (status: number): typeof GitCafeApiFailure.Type =>
   status === 401
     ? "unauthenticated"
-    : status === 429
-      ? "rate-limited"
-      : status === 404
-        ? "not-found"
-        : "failed";
+    : status === 403
+      ? "forbidden"
+      : status === 429
+        ? "rate-limited"
+        : status === 404
+          ? "not-found"
+          : "failed";
 
 const MAX_PROBLEM_TEXT = 300;
 const boundedProblemText = (text: string | undefined) => {
