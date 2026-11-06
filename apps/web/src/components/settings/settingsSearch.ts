@@ -525,6 +525,12 @@ export const SETTINGS_SEARCH_ITEMS = [
     searchTerms: ["generated thread titles prompt custom style naming rename regenerate"],
   },
   {
+    id: "voice-environment",
+    title: "Transcribe on",
+    to: "/settings/voice",
+    searchTerms: ["voice dictation microphone speech transcribe environment host local remote"],
+  },
+  {
     id: "voice-transcription",
     title: "Voice transcription",
     to: "/settings/voice",

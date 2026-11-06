@@ -16,6 +16,7 @@ import type { ComposerSubmissionIntent } from "../composer-logic";
 import type { ComposerDispatchMode } from "@supaterm/client-runtime/state/composer-dispatch";
 import { getClientSettings } from "../hooks/useSettings";
 import { useStableCallback } from "../hooks/useStableCallback";
+import { useEnvironment } from "../state/environments";
 import { threadOutboxDeliverableAtom } from "../state/threadOutbox";
 import {
   environmentStreamsDictation,
@@ -26,6 +27,7 @@ import {
 import { followKeyHold, type KeyHold, type KeyHoldHandlers } from "./keyHold";
 import { useDiscardOnEscape } from "./useDiscardOnEscape";
 import { useHoldToTalk } from "./useHoldToTalk";
+import { useVoiceTranscriptionEnvironment } from "./useVoiceTranscriptionEnvironment";
 import { playVoiceInputCue } from "./voiceInputCues";
 import { publishVoiceInputActivity } from "./voiceInputActivity";
 import {
@@ -82,9 +84,17 @@ export interface ComposerVoiceAvailability {
   readonly opensSettings: boolean;
 }
 
-function useAvailability(options: ComposerVoiceInputOptions): ComposerVoiceAvailability {
-  const source = useVoiceTranscriptionSource(options.environmentId);
-  const connected = useAtomValue(threadOutboxDeliverableAtom(options.environmentId));
+type VoiceRuntimeOptions = ComposerVoiceInputOptions & {
+  /** Where the audio goes, which may differ from the thread's environment. */
+  readonly transcriptionEnvironmentId: EnvironmentId;
+};
+
+function useAvailability(options: VoiceRuntimeOptions): ComposerVoiceAvailability {
+  const { transcriptionEnvironmentId } = options;
+  const elsewhere = transcriptionEnvironmentId !== options.environmentId;
+  const source = useVoiceTranscriptionSource(transcriptionEnvironmentId);
+  const connected = useAtomValue(threadOutboxDeliverableAtom(transcriptionEnvironmentId));
+  const transcriberLabel = useEnvironment(elsewhere ? transcriptionEnvironmentId : null)?.label;
   if (!canRecordVoice()) {
     return {
       canReview: false,
@@ -104,22 +114,27 @@ function useAvailability(options: ComposerVoiceInputOptions): ComposerVoiceAvail
     };
   }
   const providerName = source ? (source.provider.displayName ?? source.provider.instanceId) : null;
+  const transcriber =
+    providerName && transcriberLabel ? `${providerName} on ${transcriberLabel}` : providerName;
   const canReview = connected && source !== null;
-  const canSend = options.canSendVoice;
+  // A voice message is transcribed and sent by the thread's environment, so only it can take one.
+  const canSend = options.canSendVoice && !elsewhere;
   return {
     canReview,
     canSend,
-    label: providerName ? `${providerName} · ${options.languageLabel}` : options.languageLabel,
+    label: transcriber ? `${transcriber} · ${options.languageLabel}` : options.languageLabel,
     unavailableReason:
       canReview || canSend
         ? null
-        : "Reconnect to transcribe, or clear the draft to send a voice message.",
+        : elsewhere
+          ? `Reconnect ${transcriberLabel ?? "the voice environment"} to transcribe.`
+          : "Reconnect to transcribe, or clear the draft to send a voice message.",
     opensSettings: false,
   };
 }
 
 function createVoiceRuntime(onStateChange: (state: VoiceInputState) => void) {
-  let options: ComposerVoiceInputOptions | null = null;
+  let options: VoiceRuntimeOptions | null = null;
   const read = () => {
     if (options === null) throw new Error("Voice input was used before its composer mounted.");
     return options;
@@ -149,8 +164,18 @@ function createVoiceRuntime(onStateChange: (state: VoiceInputState) => void) {
   const controller: VoiceInputController = new VoiceInputController({
     recorder,
     getTranscriber: () => {
-      const { environmentId, threadId, projectId, language } = read();
-      const context = threadId ? { threadId } : projectId ? { projectId } : null;
+      const current = read();
+      const { threadId, projectId, language } = current;
+      const environmentId = current.transcriptionEnvironmentId;
+      // Another environment knows nothing of this thread or project.
+      const context =
+        environmentId !== current.environmentId
+          ? null
+          : threadId
+            ? { threadId }
+            : projectId
+              ? { projectId }
+              : null;
       const request = { language, ...(context ? { context } : {}) };
       return createServerVoiceTranscriber({
         locale: language,
@@ -201,7 +226,7 @@ function createVoiceRuntime(onStateChange: (state: VoiceInputState) => void) {
     controller,
     recorder,
     read,
-    setOptions: (next: ComposerVoiceInputOptions) => {
+    setOptions: (next: VoiceRuntimeOptions) => {
       const ownerChanged = options !== null && options.ownerKey !== next.ownerKey;
       options = next;
       if (!ownerChanged) return;
@@ -217,7 +242,11 @@ function createVoiceRuntime(onStateChange: (state: VoiceInputState) => void) {
   };
 }
 
-export function useComposerVoiceInput(options: ComposerVoiceInputOptions) {
+export function useComposerVoiceInput(composerOptions: ComposerVoiceInputOptions) {
+  const transcriptionEnvironmentId = useVoiceTranscriptionEnvironment(
+    composerOptions.environmentId,
+  );
+  const options: VoiceRuntimeOptions = { ...composerOptions, transcriptionEnvironmentId };
   const availability = useAvailability(options);
   const [state, setState] = useState(IDLE_STATE);
   const [runtime] = useState(() => createVoiceRuntime(setState));
