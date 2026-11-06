@@ -6,7 +6,7 @@ import { Button } from "~/components/ui/button";
 import { TextFieldVoiceInput } from "~/components/chat/TextFieldVoiceInput";
 import {
   PullRequestMarkdownTextarea,
-  type PullRequestMentionScope,
+  type PullRequestCompletionScope,
 } from "~/components/pullRequest/PullRequestMarkdownTextarea";
 import { useThreadRouteRef } from "~/hooks/useThreadRouteTarget";
 import { textDirection } from "~/textDirection";
@@ -36,7 +36,7 @@ interface DiffCommentAnnotationProps {
   /** Where dictation goes outside a thread route, as on a pull request page. */
   voiceEnvironmentId?: EnvironmentId | undefined;
   /** Set only for pull request comments, where `@` completes the repository's users. */
-  mentionScope?: PullRequestMentionScope | null;
+  completionScope?: PullRequestCompletionScope | null;
 }
 
 export function DiffCommentAnnotation({
@@ -53,7 +53,7 @@ export function DiffCommentAnnotation({
   secondaryAction,
   focusOnMount = true,
   voiceEnvironmentId,
-  mentionScope = null,
+  completionScope = null,
 }: DiffCommentAnnotationProps) {
   const [localDraftText, setLocalDraftText] = useState("");
   const displayedText = kind === "draft" && !onTextChange ? localDraftText : text;
@@ -116,7 +116,7 @@ export function DiffCommentAnnotation({
     >
       <PullRequestMarkdownTextarea
         ref={textareaRef}
-        mentionScope={mentionScope}
+        completionScope={completionScope}
         autoFocus={focusOnMount}
         size="sm"
         readOnly={voiceBusy}

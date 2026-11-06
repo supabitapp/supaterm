@@ -14,14 +14,14 @@ import { Toggle, ToggleGroup } from "../ui/toggle-group";
 import { PullRequestMarkdown } from "./PullRequestMarkdown";
 import {
   PullRequestMarkdownTextarea,
-  type PullRequestMentionScope,
+  type PullRequestCompletionScope,
 } from "./PullRequestMarkdownTextarea";
 
 export function PullRequestMarkdownEditor({
   value,
   cwd,
   environmentId,
-  mentionScope,
+  completionScope,
   threadRef = null,
   placeholder,
   label,
@@ -34,7 +34,7 @@ export function PullRequestMarkdownEditor({
   readonly value: string;
   readonly cwd: string;
   readonly environmentId: EnvironmentId;
-  readonly mentionScope: PullRequestMentionScope | null;
+  readonly completionScope: PullRequestCompletionScope | null;
   readonly threadRef?: ScopedThreadRef | null;
   readonly placeholder?: string | undefined;
   readonly label: string;
@@ -115,7 +115,7 @@ export function PullRequestMarkdownEditor({
           autoFocus
           disabled={saving}
           readOnly={voiceBusy}
-          mentionScope={mentionScope}
+          completionScope={completionScope}
           value={draft}
           rows={6}
           placeholder={placeholder}

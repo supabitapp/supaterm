@@ -19,7 +19,7 @@ import {
 } from "./pullRequestReviewStore";
 import {
   PullRequestMarkdownTextarea,
-  type PullRequestMentionScope,
+  type PullRequestCompletionScope,
 } from "./PullRequestMarkdownTextarea";
 
 const VERDICTS: ReadonlyArray<{
@@ -51,7 +51,7 @@ const VERDICTS: ReadonlyArray<{
 export function PullRequestReviewForm({
   environmentId,
   reference,
-  mentionScope,
+  completionScope,
   term,
   verdicts,
   requestChangesSummaryRequired,
@@ -62,7 +62,7 @@ export function PullRequestReviewForm({
 }: {
   environmentId: EnvironmentId;
   reference: PullRequestRef;
-  mentionScope: PullRequestMentionScope | null;
+  completionScope: PullRequestCompletionScope | null;
   /** The host's word for a change request, as in "pull request". */
   term: string;
   verdicts: ReadonlyArray<PullRequestReviewVerdict>;
@@ -140,7 +140,7 @@ export function PullRequestReviewForm({
     <>
       <PullRequestMarkdownTextarea
         ref={textareaRef}
-        mentionScope={mentionScope}
+        completionScope={completionScope}
         rows={3}
         readOnly={voiceBusy}
         value={body}
