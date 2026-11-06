@@ -27,8 +27,8 @@ Archived and snoozed threads don't count.
 | Light          | Meaning                                                    |
 | -------------- | ---------------------------------------------------------- |
 | Amber pulse    | An agent is waiting for your approval or answer, or failed |
-| Cyan roll      | An agent is running                                        |
 | Solid green    | An agent finished with a reply you have not seen           |
+| Cyan roll      | An agent is running                                        |
 | Dim teal pulse | Nothing needs you                                          |
 
 A reply or failure counts as seen once you open the thread. The LEDs turn off while no Supaterm

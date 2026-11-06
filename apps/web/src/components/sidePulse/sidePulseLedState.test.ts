@@ -68,8 +68,13 @@ describe("selectSidePulseLedState", () => {
     ["shows a reply that was seen as idle", [thread("seen", finished("completed", LATER))], "idle"],
     ["shows a reply nobody has seen as done", [unseenReply], "done"],
     [
-      "shows a running agent over an unseen reply",
+      "shows an unseen reply over a running agent",
       [unseenReply, thread("running", runtime("running"))],
+      "done",
+    ],
+    [
+      "shows a running agent over a seen reply",
+      [thread("seen", finished("completed", LATER)), thread("running", runtime("running"))],
       "working",
     ],
     [

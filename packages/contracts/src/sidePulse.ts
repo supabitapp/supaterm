@@ -10,7 +10,7 @@ export const SidePulseSettings = Schema.Struct({
 export type SidePulseSettings = typeof SidePulseSettings.Type;
 
 /** Ordered from least to most urgent; the LEDs show the most urgent state of any thread. */
-export const SIDE_PULSE_LED_STATES = ["idle", "done", "working", "attention"] as const;
+export const SIDE_PULSE_LED_STATES = ["idle", "working", "done", "attention"] as const;
 export const SidePulseLedState = Schema.Literals(SIDE_PULSE_LED_STATES);
 export type SidePulseLedState = typeof SidePulseLedState.Type;
 
