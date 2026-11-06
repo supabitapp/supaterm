@@ -17,7 +17,7 @@ const escapeRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$
 const startsSentence = (text: string, offset: number) =>
   offset === 0 || /[.!?]\s*$/.test(text.slice(0, offset));
 
-export function removeFillerWords(text: string, language: string | undefined): string {
+function removeFillerWords(text: string, language: string | undefined): string {
   const words = [...UNIVERSAL_FILLER_WORDS, ...(LANGUAGE_FILLER_WORDS[language ?? ""] ?? [])];
   const filler = `${NOT_WORD_BEFORE}(?:${words.map(escapeRegex).join("|")})${NOT_WORD_AFTER}`;
   const beforeStop = new RegExp(`(?:,\\s*|\\s+)?${filler}(?=\\s*[.!?])`, "giu");
@@ -41,7 +41,7 @@ const spokenKey = (value: string) =>
     .join(" ");
 
 /** Rewrites each alias, and any casing of a term, to the term as the dictionary spells it. */
-export function applyDictionary(
+function applyDictionary(
   text: string,
   dictionary: ReadonlyArray<TranscriptionDictionaryEntry>,
 ): string {
