@@ -237,6 +237,11 @@ recording stays in the composer while you speak:
   it, and sends everything together.
 - **Discard**, or `Escape`, throws the recording away and keeps your draft.
 
+Comment fields have a microphone too: pull request descriptions, comments and review
+summaries, diff comments, and comments on cited text. While one of them has focus, `ctrl+m`
+dictates into it instead of the composer. The field stays locked until the transcript is in,
+so it can't be sent half-dictated.
+
 The environment transcribes with the provider chosen under **Settings → Voice
 transcription**, and that login is charged
 for it. Claude needs a Claude subscription login and Codex a ChatGPT login. **Automatic**,
@@ -251,6 +256,20 @@ your subscription. Choose the language you speak under **Settings → Voice tran
 Voice language**; it follows your system language by default and lists only the languages the chosen
 provider transcribes, which for Codex is many more than for Claude. On iPhone and Android,
 voice input always uses your phone's language.
+
+**Settings → Voice transcription → Transcribe on** chooses which environment hears your
+audio and is charged for it, on this device. **Automatic**, the default, uses the
+environment the app runs from, usually this computer in the desktop app, whenever it can
+transcribe, because that is the quickest path. Otherwise it uses the thread's own
+environment. When the audio goes to a different environment than the thread's, Send
+transcribes first and sends the text, so the recording can't wait offline as a voice message.
+
+**Remove filler words**, on by default, drops um, uh, and similar sounds from transcripts.
+Under **Dictionary**, add names and jargon to spell your way, and what the transcript gets
+instead, such as Supaterm heard as "super term". Both are saved on the environment that
+transcribes and apply to everything it transcribes, including voice messages and
+`supaterm transcribe`. With Claude, dictionary words also tell the speech model what to
+listen for.
 
 Recording in a browser needs HTTPS or `localhost`. A remote browser on a plain `http://`
 address can't use the microphone. The first time you record, allow microphone access; on
