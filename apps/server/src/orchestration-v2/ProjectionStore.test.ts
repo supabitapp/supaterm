@@ -5866,15 +5866,16 @@ it.layer(layerTest)("ProjectionStoreV2", (it) => {
     }),
   );
 
-  it.effect("does not freshly arm limit recovery for a subagent of a done parent", () =>
+  it.effect("does not freshly arm limit recovery for a subagent of a put-away parent", () =>
     Effect.gen(function* () {
       const store = yield* ProjectionStore.ProjectionStoreV2;
       const now = yield* DateTime.now;
       const resetAt = DateTime.formatIso(DateTime.add(now, { hours: 1 }));
+      type ParentState = "done" | "archived" | "deleted" | null;
       const threadPayload = (
         threadId: ThreadId,
         parentThreadId: ThreadId | null,
-        doneOverride: "done" | null,
+        state: ParentState,
       ) =>
         ({
           createdBy: "user",
@@ -5897,30 +5898,30 @@ it.layer(layerTest)("ProjectionStoreV2", (it) => {
           forkedFrom: null,
           createdAt: now,
           updatedAt: now,
-          archivedAt: null,
-          doneOverride,
-          doneAt: doneOverride === null ? null : now,
+          archivedAt: state === "archived" ? now : null,
+          doneOverride: state === "done" ? ("done" as const) : null,
+          doneAt: state === "done" ? now : null,
           lastVisitedAt: null,
-          deletedAt: null,
+          deletedAt: state === "deleted" ? now : null,
         }) as const;
       const createThread = (
         threadId: ThreadId,
         parentThreadId: ThreadId | null,
-        doneOverride: "done" | null,
+        state: ParentState,
       ) =>
         store.apply({
           id: EventId.make(`event:${threadId}:created`),
           type: "thread.created",
           threadId,
           occurredAt: now,
-          payload: threadPayload(threadId, parentThreadId, doneOverride),
+          payload: threadPayload(threadId, parentThreadId, state),
         });
-      const addLimitedChild = Effect.fnUntraced(function* (name: string, parentDone: boolean) {
+      const addLimitedChild = Effect.fnUntraced(function* (name: string, parentState: ParentState) {
         const parentId = ThreadId.make(`thread:done-parent-limit:${name}:parent`);
         const childId = ThreadId.make(`thread:done-parent-limit:${name}:child`);
         const runId = RunId.make(`run:done-parent-limit:${name}`);
         const rootNodeId = NodeId.make(`node:done-parent-limit:${name}`);
-        yield* createThread(parentId, null, parentDone ? "done" : null);
+        yield* createThread(parentId, null, parentState);
         yield* createThread(childId, parentId, null);
         const run = {
           id: runId,
@@ -5982,14 +5983,22 @@ it.layer(layerTest)("ProjectionStoreV2", (it) => {
         });
         return childId;
       });
-      const doneParentChild = yield* addLimitedChild("done", true);
-      const activeParentChild = yield* addLimitedChild("active", false);
+      const doneParentChild = yield* addLimitedChild("done", "done");
+      const archivedParentChild = yield* addLimitedChild("archived", "archived");
+      const deletedParentChild = yield* addLimitedChild("deleted", "deleted");
+      const activeParentChild = yield* addLimitedChild("active", null);
+      const children = [
+        doneParentChild,
+        archivedParentChild,
+        deletedParentChild,
+        activeParentChild,
+      ];
       for (const options of [
         { now, autoResume: true, snooze: false },
         { now, autoResume: false, snooze: true },
       ]) {
         const armed = (yield* store.getLimitRecoveryCandidates(options))
-          .filter((row) => row.id === doneParentChild || row.id === activeParentChild)
+          .filter((row) => children.includes(row.id))
           .filter(
             (row) =>
               limitRecoveryCommand(
@@ -6003,7 +6012,7 @@ it.layer(layerTest)("ProjectionStoreV2", (it) => {
         assert.deepEqual(
           armed,
           [activeParentChild],
-          `only the child of the parent that is not done is armed (${JSON.stringify(options)})`,
+          `only the child of the open parent is armed (${JSON.stringify(options)})`,
         );
       }
       // A recovery armed before the parent done still resumes at its reset.
