@@ -3644,7 +3644,7 @@ export default function ChatView(props: ChatViewProps) {
                   data-chat-composer-overlay="true"
                   className={
                     isDraftHeroState
-                      ? "pointer-events-none absolute inset-0 z-20 flex items-center"
+                      ? "pointer-events-none absolute inset-0 z-20 flex items-center [@media(max-height:34rem)]:items-end"
                       : "pointer-events-none absolute inset-x-0 bottom-0 z-20 pt-1.5 sm:pt-2"
                   }
                 >
@@ -3922,16 +3922,18 @@ export default function ChatView(props: ChatViewProps) {
                         {composerUsageMeterSlot === "row" ? (
                           <div className="px-3 pt-1">{composerUsageMeter}</div>
                         ) : null}
+                        {isDraftHeroState && composerBannerItems.length > 0 ? (
+                          // Out of flow, like the headline, so a notice never moves the centered composer.
+                          // Short windows pin the composer to the bottom, where an out-of-flow notice
+                          // would fall off-screen, so there it takes space and lifts the composer.
+                          <div className="absolute inset-x-0 top-full flex flex-col gap-1 [@media(max-height:34rem)]:static [@media(max-height:34rem)]:pt-4">
+                            <DetachedComposerBanners items={composerBannerItems} />
+                          </div>
+                        ) : null}
                         <div
                           aria-hidden
                           className="h-[calc(env(safe-area-inset-bottom)+1rem)] sm:h-[calc(env(safe-area-inset-bottom)+1.25rem)]"
                         />
-                        {isDraftHeroState && composerBannerItems.length > 0 ? (
-                          // Out of flow, like the headline, so a notice never moves the centered composer.
-                          <div className="absolute inset-x-0 top-full flex flex-col gap-1">
-                            <DetachedComposerBanners items={composerBannerItems} />
-                          </div>
-                        ) : null}
                       </div>
                     </div>
                   </div>
