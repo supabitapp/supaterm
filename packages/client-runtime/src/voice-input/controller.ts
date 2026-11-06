@@ -579,9 +579,12 @@ export class VoiceInputController {
   }
 }
 
-/** A recording is open somewhere in this client, so another can't start until it ends. */
+/**
+ * A recording is open somewhere in this client. One being cancelled doesn't count: a new
+ * start already waits for it to release the microphone.
+ */
 export function voiceInputSessionActive(): boolean {
-  return activeSession !== null;
+  return activeSession !== null && !activeSession.abandoned;
 }
 
 export function resetVoiceInputGlobalsForTests(): void {
