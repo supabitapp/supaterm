@@ -2,6 +2,7 @@ import { EnvironmentId } from "@supaterm/contracts";
 import { describe, expect, it } from "vite-plus/test";
 
 import { chooseVoiceTranscriptionEnvironment } from "./useVoiceTranscriptionEnvironment";
+import { voiceLanguageSupported } from "./voiceLanguage";
 
 const LOCAL = EnvironmentId.make("local");
 const REMOTE = EnvironmentId.make("remote");
@@ -29,5 +30,16 @@ describe("chooseVoiceTranscriptionEnvironment", () => {
         primaryCanTranscribe,
       }),
     ).toBe(expected);
+  });
+});
+
+describe("voiceLanguageSupported", () => {
+  it.each([
+    ["claudeAgent", "en-US", true],
+    ["claudeAgent", "nb-NO", true],
+    ["claudeAgent", "vi-VN", false],
+    ["codex", "vi-VN", true],
+  ])("%s transcribes %s: %s", (driver, tag, expected) => {
+    expect(voiceLanguageSupported(driver, tag)).toBe(expected);
   });
 });

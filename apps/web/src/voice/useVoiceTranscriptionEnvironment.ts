@@ -7,6 +7,7 @@ import { usePrimaryEnvironmentId } from "../state/environments";
 import { useEnvironmentScope } from "../state/session";
 import { threadOutboxDeliverableAtom } from "../state/threadOutbox";
 import { useVoiceTranscriptionSource } from "../state/transcription";
+import { voiceLanguageSupported } from "./voiceLanguage";
 
 const selectPreference = (settings: {
   readonly voiceTranscriptionEnvironment: VoiceTranscriptionEnvironment;
@@ -33,10 +34,11 @@ export function chooseVoiceTranscriptionEnvironment(input: {
 /**
  * The environment that transcribes voice input started from a thread on `threadEnvironmentId`.
  * Automatic prefers the environment the app runs from, usually this machine, whenever it is
- * reachable and can transcribe, and otherwise stays with the thread's own environment.
+ * reachable and can transcribe `language`, and otherwise stays with the thread's own environment.
  */
 export function useVoiceTranscriptionEnvironment(
   threadEnvironmentId: EnvironmentId,
+  language: string,
 ): EnvironmentId {
   const preference = useClientSettings(selectPreference);
   const primaryEnvironmentId = usePrimaryEnvironmentId();
@@ -48,6 +50,10 @@ export function useVoiceTranscriptionEnvironment(
     preference,
     threadEnvironmentId,
     primaryEnvironmentId,
-    primaryCanTranscribe: source?.status === "ready" && reachable && operable,
+    primaryCanTranscribe:
+      source?.status === "ready" &&
+      voiceLanguageSupported(source.provider.driver, language) &&
+      reachable &&
+      operable,
   });
 }

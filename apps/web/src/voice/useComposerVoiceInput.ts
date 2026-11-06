@@ -160,6 +160,8 @@ function createVoiceRuntime(onStateChange: (state: VoiceInputState) => void) {
     return { ownerKey: current.ownerKey, text, selection: current.readSelection(), revision };
   };
   let phase = IDLE_STATE.phase;
+  // A streaming dictation lives on the environment it started on, whatever the setting says later.
+  let recordingEnvironmentId: EnvironmentId | null = null;
   const recorder: WebVoiceRecorder = new WebVoiceRecorder({
     onStatus: (status) => void controller.handleRecorderStatus(status),
     readMicrophone: () => {
@@ -176,6 +178,7 @@ function createVoiceRuntime(onStateChange: (state: VoiceInputState) => void) {
       const current = read();
       const { language } = current;
       const environmentId = current.transcriptionEnvironmentId;
+      recordingEnvironmentId = environmentId;
       const request = { language, ...transcriptionContext(current) };
       return createServerVoiceTranscriber({
         locale: language,
@@ -226,6 +229,7 @@ function createVoiceRuntime(onStateChange: (state: VoiceInputState) => void) {
     controller,
     recorder,
     read,
+    recordsToThreadEnvironment: () => recordingEnvironmentId === read().environmentId,
     setOptions: (next: VoiceRuntimeOptions) => {
       const ownerChanged = options !== null && options.ownerKey !== next.ownerKey;
       options = next;
@@ -245,6 +249,7 @@ function createVoiceRuntime(onStateChange: (state: VoiceInputState) => void) {
 export function useComposerVoiceInput(composerOptions: ComposerVoiceInputOptions) {
   const transcriptionEnvironmentId = useVoiceTranscriptionEnvironment(
     composerOptions.environmentId,
+    composerOptions.language,
   );
   const options: VoiceRuntimeOptions = { ...composerOptions, transcriptionEnvironmentId };
   const availability = useAvailability(options);
@@ -308,7 +313,7 @@ export function useComposerVoiceInput(composerOptions: ComposerVoiceInputOptions
   );
   const send = useStableCallback(async (submission: ComposerVoiceSubmission = {}) => {
     if (controller.currentState.phase !== "recording") return;
-    if (availability.canSend) {
+    if (availability.canSend && runtime.recordsToThreadEnvironment()) {
       const sendVoice = runtime.read().prepareVoiceSend(submission);
       await controller.send((uri, handOff) => sendVoice(readVoiceRecording(uri), handOff));
       return;
