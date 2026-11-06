@@ -568,7 +568,6 @@ describe("pullRequestWatchMessage", () => {
       "- All 1 required check passed on aaaaaaa. Supaterm wakes you once these finish:\n  - Bugbot\n",
     );
 
-    // Without this, the agent waits on a check that already finished and nothing wakes it.
     const finished = evaluatePullRequestWatch(
       watch(),
       detail({ checks: [required, check("Bugbot", "success")] }),

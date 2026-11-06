@@ -206,7 +206,6 @@ function changeLines(
       return [`- Checks failed${context.commit}:`, ...listed(change.failed, failedCheckLine)];
     case "checks-passed": {
       const passed = `- All ${change.count} ${change.required ? "required " : ""}${change.count === 1 ? "check" : "checks"} passed${context.commit}.`;
-      // "Required" alone leaves the agent guessing whether advisory checks like review bots ran.
       if (!change.required) return [passed];
       if (change.pending.length === 0) return [`${passed} No other check is still running.`];
       return [
