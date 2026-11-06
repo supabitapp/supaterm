@@ -169,6 +169,7 @@ export function ComposerEditor({
       blur: () => settleViewCommand(nativeRef.current?.blur()),
       setSelection: (nextSelection) =>
         settleViewCommand(nativeRef.current?.setSelection(nextSelection.start, nextSelection.end)),
+      flushPendingInput: async () => {},
     }),
     [],
   );

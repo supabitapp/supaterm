@@ -441,6 +441,8 @@ public final class SupatermComposerEditorView: ExpoView, UITextViewDelegate, UIT
   private var isReadOnly = false
   private var isApplyingControlledValue = false
   private var nativeEventCount = 0
+  // Count of the latest intercepted paste, so a flush can tell whether JS has received it.
+  private var lastPasteEventCount = 0
   private var hasControlledDocument = false
   private var resetGeneration = 0
   private var lastContentSize = CGSize.zero
@@ -492,6 +494,7 @@ public final class SupatermComposerEditorView: ExpoView, UITextViewDelegate, UIT
       guard let self else { return }
       let selection = self.sourceSelection()
       self.nativeEventCount += 1
+      self.lastPasteEventCount = self.nativeEventCount
       var payload: [String: Any] = context
       payload["value"] = self.textView.serializedText()
       payload["eventCount"] = self.nativeEventCount
@@ -503,6 +506,7 @@ public final class SupatermComposerEditorView: ExpoView, UITextViewDelegate, UIT
       guard let self else { return }
       let selection = self.sourceSelection()
       self.nativeEventCount += 1
+      self.lastPasteEventCount = self.nativeEventCount
       self.onComposerPasteText([
         "value": self.textView.serializedText(),
         "eventCount": self.nativeEventCount,
@@ -670,6 +674,8 @@ public final class SupatermComposerEditorView: ExpoView, UITextViewDelegate, UIT
     }
     if isReset {
       resetGeneration = document.resetGeneration
+      // JS drops a paste from before the reset by generation, so the flush must not wait for it.
+      lastPasteEventCount = 0
       endComposition()
     }
     // iOS destroys this view under display: none and mounts a fresh one while JS keeps its
@@ -798,6 +804,17 @@ public final class SupatermComposerEditorView: ExpoView, UITextViewDelegate, UIT
 
   func blurEditor() {
     textView.resignFirstResponder()
+  }
+
+  func readState() -> [String: Any] {
+    let selection = sourceSelection()
+    return [
+      "value": value,
+      "selection": ["start": selection.start, "end": selection.end],
+      "eventCount": nativeEventCount,
+      "resetGeneration": resetGeneration,
+      "pasteEventCount": lastPasteEventCount,
+    ]
   }
 
   func setSelection(start: Int, end: Int) {
