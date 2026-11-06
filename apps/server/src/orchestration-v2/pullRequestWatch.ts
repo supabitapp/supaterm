@@ -16,7 +16,12 @@ const SNIPPET_LENGTH = 200;
 
 export type PullRequestWatchChange =
   | { readonly kind: "checks-failed"; readonly failed: ReadonlyArray<PullRequestCheck> }
-  | { readonly kind: "checks-passed"; readonly count: number; readonly required: boolean }
+  | {
+      readonly kind: "checks-passed";
+      readonly count: number;
+      readonly required: boolean;
+      readonly pending: ReadonlyArray<string>;
+    }
   | { readonly kind: "checks-finished"; readonly failing: ReadonlyArray<PullRequestCheck> }
   | { readonly kind: "remarks"; readonly remarks: ReadonlyArray<PullRequestComment> }
   | { readonly kind: "no-checks"; readonly minutes: number }
@@ -75,7 +80,12 @@ export function evaluatePullRequestWatch(
     const gateGrew = required.length > 0 && gateNames.some((name) => !told.includes(name));
     const gatePassed = passedNow && (!passed || gateGrew);
     if (gatePassed) {
-      changes.push({ kind: "checks-passed", count: gate.length, required: required.length > 0 });
+      changes.push({
+        kind: "checks-passed",
+        count: gate.length,
+        required: required.length > 0,
+        pending,
+      });
     }
     // Checks still running at a check wake are owed one more once all finish, so later advisory
     // churn never wakes. A failing owed check waits for its rerun; other failures were reported.
@@ -85,7 +95,7 @@ export function evaluatePullRequestWatch(
       if (owedChecks.length > 0 && !gatePassed && newlyFailed.length === 0) {
         changes.push(
           failed.length === 0
-            ? { kind: "checks-passed", count: detail.checks.length, required: false }
+            ? { kind: "checks-passed", count: detail.checks.length, required: false, pending: [] }
             : { kind: "checks-finished", failing: failed },
         );
       }
@@ -187,10 +197,16 @@ function changeLines(
   switch (change.kind) {
     case "checks-failed":
       return [`- Checks failed${context.commit}:`, ...listed(change.failed, failedCheckLine)];
-    case "checks-passed":
+    case "checks-passed": {
+      const passed = `- All ${change.count} ${change.required ? "required " : ""}${change.count === 1 ? "check" : "checks"} passed${context.commit}.`;
+      // "Required" alone leaves the agent guessing whether advisory checks like review bots ran.
+      if (!change.required) return [passed];
       return [
-        `- All ${change.count} ${change.required ? "required " : ""}${change.count === 1 ? "check" : "checks"} passed${context.commit}.`,
+        change.pending.length === 0
+          ? `${passed} No other check is still running.`
+          : `${passed} Still running: ${change.pending.join(", ")}. Supaterm wakes you once they finish.`,
       ];
+    }
     case "checks-finished":
       return [
         `- Every check has finished${context.commit}. These still fail:`,
