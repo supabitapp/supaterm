@@ -264,12 +264,13 @@ const vitestTests = [...tests].filter((file) => !nodeTests.includes(file));
 const runKnip = files.some(
   (file) => CODE.test(file) || NodePath.basename(file) === "package.json" || file === "knip.jsonc",
 );
-// CI runs knip:check as one script of `knip ... && knip ...` passes. The passes
+// CI runs knip:check as a task that depends on one script per pass. The passes
 // do not depend on each other, so they run side by side here.
-const knipCheck: string = JSON.parse(
+const rootScripts: Record<string, string> = JSON.parse(
   NodeFS.readFileSync(NodePath.join(root, "package.json"), "utf8"),
-).scripts["knip:check"];
-const knipPasses = knipCheck.split(" && ").map((command, index, all) => {
+).scripts;
+const knipCommands = [rootScripts["knip:check:files"], rootScripts["knip:check:exports"]];
+const knipPasses = knipCommands.map((command = "", index, all) => {
   const [bin, ...args] = command.trim().split(/\s+/);
   if (bin !== "knip" || /["'$\\|;&<>]/.test(command)) {
     throw new Error(`check:changed cannot split knip:check: ${command}`);
