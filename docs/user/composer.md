@@ -257,13 +257,6 @@ Voice language**; it follows your system language by default and lists only the 
 provider transcribes, which for Codex is many more than for Claude. On iPhone and Android,
 voice input always uses your phone's language.
 
-**Settings → Voice transcription → Transcribe on** chooses which environment hears your
-audio and is charged for it, on this device. **Automatic**, the default, uses the
-environment the app runs from, usually this computer in the desktop app, whenever it can
-transcribe, because that is the quickest path. Otherwise it uses the thread's own
-environment. When the audio goes to a different environment than the thread's, Send
-transcribes first and sends the text, so the recording can't wait offline as a voice message.
-
 Under **Dictionary**, add names and jargon to spell your way, and what the transcript gets
 instead, such as Supaterm heard as "super term". It is saved on the environment that
 transcribes and applies to everything it transcribes, including voice messages and

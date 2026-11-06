@@ -43,10 +43,7 @@ recorded outcome. Only a deliberate user action, such as trying again or switchi
 should send `retry: true`, because a retry spends the account again.
 
 The dictionary runs in `Transcription` on the text a backend returns, so
-review, voice messages, agents, and the CLI get the same transcript. A client may send audio
-to an environment other than the thread's (`voiceTranscriptionEnvironment`). That
-environment has never seen the thread, so the client omits the context and never sends a
-voice message there: the submit dispatches on the environment that transcribes.
+review, voice messages, agents, and the CLI get the same transcript.
 
 The [shared controller](../../packages/client-runtime/src/voice-input/controller.ts)
 owns the operation while the client supplies capture and transcription. Preparation

@@ -1,8 +1,5 @@
-import { useAtomValue } from "@effect/atom-react";
-import { resolveVoiceTranscriptionSource } from "@supaterm/client-runtime/state/transcription";
 import {
   automaticTranscriptionProvider,
-  EnvironmentId,
   ProviderInstanceId,
   type ServerProvider,
 } from "@supaterm/contracts";
@@ -12,7 +9,6 @@ import {
   TRANSCRIPTION_DICTIONARY_MAX_ENTRIES,
   type TranscriptionDictionaryEntry,
   type VoiceMicrophone,
-  type VoiceTranscriptionEnvironment,
 } from "@supaterm/contracts/settings";
 import { PlusIcon, XIcon } from "@supaterm/icons";
 import { type FormEvent, useEffect, useRef, useState } from "react";
@@ -33,12 +29,8 @@ import {
   voiceLanguageOptions,
 } from "../../voice/voiceLanguage";
 import { isMacPlatform } from "../../lib/utils";
-import {
-  useConnectedEnvironmentIds,
-  useEnvironmentProviders,
-  useEnvironments,
-} from "../../state/environments";
-import { EMPTY_SERVER_PROVIDERS, environmentServerConfigsAtom } from "../../state/server";
+import { useEnvironmentProviders } from "../../state/environments";
+import { EMPTY_SERVER_PROVIDERS } from "../../state/server";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "../ui/select";
@@ -142,111 +134,6 @@ function VoiceTranscriptionSettingRow(props: {
             </SelectPopup>
           </Select>
         )
-      }
-    />
-  );
-}
-
-const AUTOMATIC_ENVIRONMENT = "@automatic";
-const THREAD_ENVIRONMENT = "@thread";
-
-function environmentChoice(preference: VoiceTranscriptionEnvironment) {
-  switch (preference.kind) {
-    case "auto":
-      return AUTOMATIC_ENVIRONMENT;
-    case "thread":
-      return THREAD_ENVIRONMENT;
-    case "environment":
-      return preference.environmentId;
-  }
-}
-
-function environmentPreference(choice: string): VoiceTranscriptionEnvironment {
-  if (choice === AUTOMATIC_ENVIRONMENT) return { kind: "auto" };
-  if (choice === THREAD_ENVIRONMENT) return { kind: "thread" };
-  return { kind: "environment", environmentId: EnvironmentId.make(choice) };
-}
-
-function VoiceEnvironmentSettingRow() {
-  const settings = useScopedSettings();
-  const updateSettings = useUpdateScopedSettings();
-  const { environments } = useEnvironments();
-  const connected = useConnectedEnvironmentIds();
-  const configs = useAtomValue(environmentServerConfigsAtom);
-  const preference = settings.voiceTranscriptionEnvironment;
-  const value = environmentChoice(preference);
-  const status = (environmentId: EnvironmentId) => {
-    if (!connected.includes(environmentId)) return "Offline";
-    const config = configs.get(environmentId);
-    return config && resolveVoiceTranscriptionSource(config).status === "ready"
-      ? "Ready"
-      : "Can't transcribe";
-  };
-  const options = [
-    { value: AUTOMATIC_ENVIRONMENT, label: "Automatic", status: null },
-    { value: THREAD_ENVIRONMENT, label: "The thread's environment", status: null },
-    ...environments.map((environment) => ({
-      value: environment.environmentId,
-      label: environment.label,
-      status: status(environment.environmentId),
-    })),
-  ];
-  const chosenMissing =
-    preference.kind === "environment" &&
-    !environments.some((environment) => environment.environmentId === preference.environmentId);
-  return (
-    <SettingsRow
-      {...searchableSetting("voice-environment")}
-      description={
-        chosenMissing
-          ? "The environment this device sent voice input to was removed. Choose another."
-          : "Where this device sends voice input to be transcribed, with that environment's login. Automatic uses the environment this app runs from when it can, for the quickest results, and otherwise the thread's own."
-      }
-      resetAction={
-        preference.kind !== DEFAULT_UNIFIED_SETTINGS.voiceTranscriptionEnvironment.kind ? (
-          <SettingResetButton
-            label="voice environment"
-            onClick={() =>
-              updateSettings({
-                voiceTranscriptionEnvironment:
-                  DEFAULT_UNIFIED_SETTINGS.voiceTranscriptionEnvironment,
-              })
-            }
-          />
-        ) : null
-      }
-      control={
-        <Select
-          value={value}
-          onValueChange={(next) => {
-            if (!next) return;
-            updateSettings({
-              voiceTranscriptionEnvironment: environmentPreference(next),
-            });
-          }}
-        >
-          <SelectTrigger
-            size="sm"
-            className="w-auto min-w-0 max-w-full"
-            aria-label="Voice environment"
-          >
-            <SelectValue>
-              {options.find((option) => option.value === value)?.label ?? "Removed environment"}
-            </SelectValue>
-          </SelectTrigger>
-          <SelectPopup align="end" alignItemWithTrigger={false}>
-            {options.map((option) => (
-              <SelectItem hideIndicator key={option.value} value={option.value}>
-                <span className="flex w-full items-center justify-between gap-6">
-                  {option.label}
-                  {option.status ? (
-                    <span className="text-muted-foreground">{option.status}</span>
-                  ) : null}
-                </span>
-              </SelectItem>
-            ))}
-          </SelectPopup>
-        </Select>
       }
     />
   );
@@ -677,7 +564,6 @@ export function VoiceSettingsPanel() {
   return (
     <SettingsPageContainer>
       <SettingsSection id="voice-input" title="Voice input">
-        <VoiceEnvironmentSettingRow />
         <VoiceTranscriptionSettingRow providers={serverProviders} />
         <VoiceLanguageSettingRow providers={serverProviders} />
         <VoiceMicrophoneSettingRow microphones={microphones} />

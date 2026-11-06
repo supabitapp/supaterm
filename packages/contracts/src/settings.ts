@@ -10,7 +10,6 @@ import * as Duration from "effect/Duration";
 import * as Schema from "effect/Schema";
 import * as SchemaTransformation from "effect/SchemaTransformation";
 import {
-  EnvironmentId,
   ForwardCompatibleNullable,
   ForwardCompatibleOptional,
   OmittedWhenNull,
@@ -246,16 +245,6 @@ export const VoiceMicrophone = Schema.Struct({
 });
 export type VoiceMicrophone = typeof VoiceMicrophone.Type;
 
-/**
- * Where this device sends voice input. `auto` uses the environment the app runs from when it
- * can transcribe, for the shortest path, and otherwise the thread's own environment.
- */
-export const VoiceTranscriptionEnvironment = Schema.Union([
-  Schema.Struct({ kind: Schema.Literals(["auto", "thread"]) }),
-  Schema.Struct({ kind: Schema.Literal("environment"), environmentId: EnvironmentId }),
-]);
-export type VoiceTranscriptionEnvironment = typeof VoiceTranscriptionEnvironment.Type;
-
 export const TRANSCRIPTION_DICTIONARY_MAX_ENTRIES = 100;
 export const TRANSCRIPTION_DICTIONARY_MAX_ALIASES = 8;
 const TranscriptionDictionaryWord = TrimmedNonEmptyString.check(Schema.isMaxLength(50));
@@ -463,9 +452,6 @@ export const ClientSettingsSchema = Schema.Struct({
     Schema.withDecodingDefault(Effect.succeed(null)),
   ),
   voiceHoldToTalkKey: VoiceHoldToTalkKey.pipe(Schema.withDecodingDefault(Effect.succeed("alt"))),
-  voiceTranscriptionEnvironment: VoiceTranscriptionEnvironment.pipe(
-    Schema.withDecodingDefault(Effect.succeed({ kind: "auto" as const })),
-  ),
   /** The input voice input records from on this device. Null follows the system default. */
   voiceMicrophone: Schema.NullOr(VoiceMicrophone).pipe(
     Schema.withDecodingDefault(Effect.succeed(null)),
@@ -1704,7 +1690,6 @@ export const ClientSettingsPatch = Schema.Struct({
     Schema.NullOr(TrimmedNonEmptyString.check(Schema.isMaxLength(35))),
   ),
   voiceHoldToTalkKey: Schema.optionalKey(VoiceHoldToTalkKey),
-  voiceTranscriptionEnvironment: Schema.optionalKey(VoiceTranscriptionEnvironment),
   voiceMicrophone: Schema.optionalKey(Schema.NullOr(VoiceMicrophone)),
   voiceAvoidBluetoothMicrophone: Schema.optionalKey(Schema.Boolean),
   proactivePanelsEnabled: Schema.optionalKey(Schema.Boolean),
