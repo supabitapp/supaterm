@@ -1007,6 +1007,7 @@ function PullRequestCodeTab({
       {metadata.draft && draft && canSelectLines ? (
         <DiffCommentAnnotation
           kind="draft"
+          voiceEnvironmentId={environmentId}
           rangeLabel={`${draft.path}:${getReviewPositionAnchor(draft.position).line}`}
           text=""
           submitLabel={canCommentOnLines ? "Add to review" : "Add to agent"}

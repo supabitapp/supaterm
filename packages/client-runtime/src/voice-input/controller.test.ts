@@ -5,6 +5,7 @@ import { createServerVoiceTranscriber, VoiceUploadError } from "../state/transcr
 import {
   resetVoiceInputGlobalsForTests,
   resolveTranscriptCommit,
+  voiceInputSessionActive,
   VoiceInputController,
   voiceInputCue,
   VOICE_RECORDING_LIMIT_SECONDS,
@@ -129,6 +130,25 @@ describe("resolveTranscriptCommit", () => {
       kind: "stale",
     });
   });
+
+  it.each([
+    ["English", "Hello", 5, "world", "en-US", "Hello world"],
+    ["Korean", "코드를", 3, "검토해 주세요", "ko_KR", "코드를 검토해 주세요"],
+    ["a supplementary letter", "𞤀", 2, "𞤦", "ff-Adlm", "𞤀 𞤦"],
+    ["a trailing combining mark", "नमस्ते", 6, "दुनिया", "hi-IN", "नमस्ते दुनिया"],
+    ["a non-ASCII word after the caret", "Änderungen", 0, "Weitere", "de_DE", "Weitere Änderungen"],
+    ["spaceless Japanese", "修正キャッシュ", 7, "テストも", "ja-JP", "修正キャッシュテストも"],
+    ["spaceless Thai", "โลก", 0, "สวัสดี", "th-TH", "สวัสดีโลก"],
+  ])(
+    "inserts at a caret with the recorded language's word spacing: %s",
+    (_case, text, caret, spoken, locale, expected) => {
+      const captured = draft({ text, selection: { start: caret, end: caret } });
+      expect(resolveTranscriptCommit(captured, captured, spoken, locale)).toMatchObject({
+        kind: "commit",
+        text: expected,
+      });
+    },
+  );
 
   it("reports an empty or whitespace-only transcript without committing anything", () => {
     const captured = draft();
@@ -573,13 +593,18 @@ describe("VoiceInputController", () => {
   });
 
   it("still rejects a second start while the first recording is active", async () => {
+    expect(voiceInputSessionActive()).toBe(false);
     const first = createHarness();
     await first.controller.start();
+    expect(voiceInputSessionActive()).toBe(true);
     const next = createHarness();
     await next.controller.start();
     expect(next.controller.currentState.error).toContain("already active");
     expect(next.recorder.record).not.toHaveBeenCalled();
-    await first.controller.interruptRecording();
+    // A cancelled recording still releases its microphone, but no longer holds the shortcut.
+    const discarding = first.controller.interruptRecording();
+    expect(voiceInputSessionActive()).toBe(false);
+    await discarding;
   });
 
   it("does not start a canceled waiter or let it release another recording", async () => {

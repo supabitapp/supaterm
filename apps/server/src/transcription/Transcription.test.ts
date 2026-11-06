@@ -71,100 +71,104 @@ interface BackendCall {
   readonly durationMs: number;
 }
 
-const makeHarness = Effect.gen(function* () {
-  const calls = yield* Ref.make<ReadonlyArray<BackendCall>>([]);
-  const started = yield* Queue.unbounded<void>();
-  const responses =
-    yield* Queue.unbounded<Effect.Effect<{ readonly text: string }, TranscriptionError>>();
-  const backend: ProviderTranscription = {
-    acceptsKeyterms: true,
-    supportsLanguage: (code) => code === "en" || code === "no",
-    transcribe: (input) =>
-      Ref.update(calls, (current) => [
-        ...current,
-        {
-          language: input.language,
-          keyterms: input.keyterms,
-          durationMs: input.audio.durationMs,
-        },
-      ]).pipe(
-        Effect.andThen(Queue.offer(started, undefined)),
-        Effect.andThen(Queue.take(responses)),
-        Effect.flatten,
-      ),
-  };
-  const transcriptionStatus = yield* Ref.make<ServerProvider["transcription"]>({ status: "ready" });
-  const instance = {
-    instanceId: INSTANCE,
-    driverKind: "claudeAgent",
-    enabled: true,
-    transcription: backend,
-    snapshot: {
-      getSnapshot: Ref.get(transcriptionStatus).pipe(
-        Effect.map((transcription) => ({ instanceId: INSTANCE, transcription })),
-      ),
-    },
-    snapshotForCwd: () => Effect.die("transcription must not probe the workspace"),
-  } as unknown as ProviderInstance;
-  const provider = {
-    instanceId: INSTANCE,
-    driver: "claudeAgent",
-    enabled: true,
-    transcription: { status: "ready" },
-    skills: [skill("machine")],
-    workspaceSnapshots: [
-      {
-        cwd: "/worktrees/voice",
-        checkedAt: "2026-10-27T00:00:00.000Z",
-        slashCommands: [],
-        skills: [
-          skill("thermos"),
-          skill("emil-ui-polish"),
-          skill("kstack", false),
-          skill("security:scan"),
-        ],
+const makeHarnessWith = (settings: Parameters<typeof ServerSettings.layerTest>[0] = {}) =>
+  Effect.gen(function* () {
+    const calls = yield* Ref.make<ReadonlyArray<BackendCall>>([]);
+    const started = yield* Queue.unbounded<void>();
+    const responses =
+      yield* Queue.unbounded<Effect.Effect<{ readonly text: string }, TranscriptionError>>();
+    const backend: ProviderTranscription = {
+      acceptsKeyterms: true,
+      supportsLanguage: (code) => code === "en" || code === "no",
+      transcribe: (input) =>
+        Ref.update(calls, (current) => [
+          ...current,
+          {
+            language: input.language,
+            keyterms: input.keyterms,
+            durationMs: input.audio.durationMs,
+          },
+        ]).pipe(
+          Effect.andThen(Queue.offer(started, undefined)),
+          Effect.andThen(Queue.take(responses)),
+          Effect.flatten,
+        ),
+    };
+    const transcriptionStatus = yield* Ref.make<ServerProvider["transcription"]>({
+      status: "ready",
+    });
+    const instance = {
+      instanceId: INSTANCE,
+      driverKind: "claudeAgent",
+      enabled: true,
+      transcription: backend,
+      snapshot: {
+        getSnapshot: Ref.get(transcriptionStatus).pipe(
+          Effect.map((transcription) => ({ instanceId: INSTANCE, transcription })),
+        ),
       },
-    ],
-  } as unknown as ServerProvider;
-  const shell = {
-    id: THREAD,
-    projectId: PROJECT,
-    branch: "supaterm/voice-transcription",
-    worktreePath: "/worktrees/voice",
-  } as unknown as OrchestrationV2ThreadShell;
-  const project = {
-    id: PROJECT,
-    title: "supaterm",
-    workspaceRoot: "/code/supaterm-app",
-  } as unknown as Project;
+      snapshotForCwd: () => Effect.die("transcription must not probe the workspace"),
+    } as unknown as ProviderInstance;
+    const provider = {
+      instanceId: INSTANCE,
+      driver: "claudeAgent",
+      enabled: true,
+      transcription: { status: "ready" },
+      skills: [skill("machine")],
+      workspaceSnapshots: [
+        {
+          cwd: "/worktrees/voice",
+          checkedAt: "2026-10-27T00:00:00.000Z",
+          slashCommands: [],
+          skills: [
+            skill("thermos"),
+            skill("emil-ui-polish"),
+            skill("kstack", false),
+            skill("security:scan"),
+          ],
+        },
+      ],
+    } as unknown as ServerProvider;
+    const shell = {
+      id: THREAD,
+      projectId: PROJECT,
+      branch: "supaterm/voice-transcription",
+      worktreePath: "/worktrees/voice",
+    } as unknown as OrchestrationV2ThreadShell;
+    const project = {
+      id: PROJECT,
+      title: "supaterm",
+      workspaceRoot: "/code/supaterm-app",
+    } as unknown as Project;
 
-  const layer = Transcription.layer.pipe(
-    Layer.provideMerge(
-      Layer.mergeAll(
-        Layer.mock(ProviderInstanceRegistry.ProviderInstanceRegistry)({
-          getInstance: (instanceId) =>
-            Effect.succeed(instanceId === INSTANCE ? instance : undefined),
-        }),
-        Layer.mock(ProviderRegistry.ProviderRegistry)({
-          getProviders: Effect.succeed([provider]),
-        }),
-        Layer.mock(ProjectionStore.ProjectionStoreV2)({
-          getThreadShell: (threadId) => Effect.succeed(threadId === THREAD ? shell : null),
-        }),
-        Layer.mock(ProjectService.ProjectService)({
-          getById: (projectId) =>
-            Effect.succeed(projectId === PROJECT ? Option.some(project) : Option.none()),
-        }),
-        ServerSettings.ServerSettingsService.layerTest(),
+    const layer = Transcription.layer.pipe(
+      Layer.provideMerge(
+        Layer.mergeAll(
+          Layer.mock(ProviderInstanceRegistry.ProviderInstanceRegistry)({
+            getInstance: (instanceId) =>
+              Effect.succeed(instanceId === INSTANCE ? instance : undefined),
+          }),
+          Layer.mock(ProviderRegistry.ProviderRegistry)({
+            getProviders: Effect.succeed([provider]),
+          }),
+          Layer.mock(ProjectionStore.ProjectionStoreV2)({
+            getThreadShell: (threadId) => Effect.succeed(threadId === THREAD ? shell : null),
+          }),
+          Layer.mock(ProjectService.ProjectService)({
+            getById: (projectId) =>
+              Effect.succeed(projectId === PROJECT ? Option.some(project) : Option.none()),
+          }),
+          ServerSettings.ServerSettingsService.layerTest(settings),
+        ),
       ),
-    ),
-    Layer.provideMerge(
-      ServerConfig.layerTest(process.cwd(), { prefix: "supaterm-transcription-" }),
-    ),
-    Layer.provideMerge(NodeServices.layer),
-  );
-  return { calls, started, responses, transcriptionStatus, layer };
-});
+      Layer.provideMerge(
+        ServerConfig.layerTest(process.cwd(), { prefix: "supaterm-transcription-" }),
+      ),
+      Layer.provideMerge(NodeServices.layer),
+    );
+    return { calls, started, responses, transcriptionStatus, layer };
+  });
+const makeHarness = makeHarnessWith();
 
 const upload = (bytes: Buffer) =>
   Effect.gen(function* () {
@@ -496,6 +500,48 @@ describe("Transcription", () => {
         expect(call?.keyterms).not.toContain("kstack");
         expect(call?.keyterms.some((term) => term.includes("emil"))).toBe(false);
         expect(call?.keyterms.some((term) => term.includes("security"))).toBe(false);
+      }).pipe(Effect.provide(harness.layer));
+    }),
+  );
+
+  it.effect("spells Supaterm in an environment that never set a dictionary", () =>
+    Effect.gen(function* () {
+      const harness = yield* makeHarness;
+      yield* Effect.gen(function* () {
+        const service = yield* Transcription.Transcription;
+        const audio = yield* upload(wav({ durationMs: 1_000 }));
+        yield* Queue.offer(harness.responses, Effect.succeed({ text: "Open super term." }));
+        expect(
+          yield* service.transcribe({
+            providerInstanceId: INSTANCE,
+            audioAttachmentId: audio.attachmentId,
+          }),
+        ).toEqual({ text: "Open Supaterm." });
+      }).pipe(Effect.provide(harness.layer));
+    }),
+  );
+
+  it.effect("spells the transcript with the environment's dictionary and keeps fillers", () =>
+    Effect.gen(function* () {
+      const harness = yield* makeHarnessWith({
+        transcriptionDictionary: [{ term: "Kubernetes", aliases: ["cube and eighties"] }],
+      });
+      yield* Effect.gen(function* () {
+        const service = yield* Transcription.Transcription;
+        const audio = yield* upload(wav({ durationMs: 1_000 }));
+        yield* Queue.offer(
+          harness.responses,
+          Effect.succeed({ text: "Um, deploy it to cube and eighties, uh, today." }),
+        );
+        expect(
+          yield* service.transcribe({
+            providerInstanceId: INSTANCE,
+            audioAttachmentId: audio.attachmentId,
+            language: "en-US",
+          }),
+        ).toEqual({ text: "Um, deploy it to Kubernetes, uh, today." });
+        const [call] = yield* Ref.get(harness.calls);
+        expect(call?.keyterms[0]).toBe("Kubernetes");
       }).pipe(Effect.provide(harness.layer));
     }),
   );

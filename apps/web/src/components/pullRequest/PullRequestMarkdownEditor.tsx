@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import {
   AuthSourceControlWriteScope,
   type EnvironmentId,
@@ -8,6 +8,7 @@ import {
 import { cn } from "~/lib/utils";
 import { readEnvironmentScope, useEnvironmentScope } from "~/state/session";
 
+import { TextFieldVoiceInput } from "../chat/TextFieldVoiceInput";
 import { Button } from "../ui/button";
 import { Textarea } from "../ui/textarea";
 import { Toggle, ToggleGroup } from "../ui/toggle-group";
@@ -42,12 +43,14 @@ export function PullRequestMarkdownEditor({
   const [draft, setDraft] = useState(value);
   const [preview, setPreview] = useState(false);
   const [seed, setSeed] = useState(value);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const [voiceBusy, setVoiceBusy] = useState(false);
   if (seed !== value) {
     setSeed(value);
     setDraft(value);
   }
   const empty = draft.trim().length === 0;
-  const saveDisabled = !canWriteSourceControl || saving || (empty && !allowEmpty);
+  const saveDisabled = !canWriteSourceControl || saving || voiceBusy || (empty && !allowEmpty);
 
   return (
     <div
@@ -103,8 +106,10 @@ export function PullRequestMarkdownEditor({
         </div>
       ) : (
         <Textarea
+          ref={textareaRef}
           autoFocus
           disabled={saving}
+          readOnly={voiceBusy}
           value={draft}
           rows={6}
           placeholder={placeholder}
@@ -113,19 +118,27 @@ export function PullRequestMarkdownEditor({
         />
       )}
       <div className="flex justify-end gap-2">
+        {preview ? null : (
+          <span className="mr-auto">
+            <TextFieldVoiceInput
+              environmentId={environmentId}
+              threadId={threadRef?.environmentId === environmentId ? threadRef.threadId : null}
+              disabled={saving}
+              fieldRef={textareaRef}
+              onChange={setDraft}
+              onBusyChange={setVoiceBusy}
+            />
+          </span>
+        )}
         <Button size="xs" variant="ghost" disabled={saving} onClick={onCancel}>
           Cancel
         </Button>
         <Button
           size="xs"
           variant="outline"
-          disabled={!canWriteSourceControl || saving || (empty && !allowEmpty)}
+          disabled={saveDisabled}
           onClick={() => {
-            if (
-              !readEnvironmentScope(environmentId, AuthSourceControlWriteScope) ||
-              saving ||
-              (empty && !allowEmpty)
-            )
+            if (saveDisabled || !readEnvironmentScope(environmentId, AuthSourceControlWriteScope))
               return;
             onSave(draft);
           }}

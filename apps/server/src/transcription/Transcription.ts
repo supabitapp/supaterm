@@ -41,6 +41,7 @@ import * as ProjectService from "../project/ProjectService.ts";
 import * as ServerSettings from "../serverSettings.ts";
 import * as ProviderInstanceRegistry from "../provider/ProviderInstanceRegistry.ts";
 import * as ProviderRegistry from "../provider/ProviderRegistry.ts";
+import { applyDictionary } from "./TranscriptionDictionary.ts";
 import { keytermCandidates } from "./TranscriptionKeyterms.ts";
 
 // At least as long as an upload URL lives, so a replayed upload finds the
@@ -197,6 +198,19 @@ const make = Effect.gen(function* () {
     return audio;
   });
 
+  // Unreadable settings fall back to the raw transcript rather than failing work already paid for.
+  const readDictionary = settings.getSettings.pipe(
+    Effect.map((current) => current.transcriptionDictionary),
+    Effect.orElseSucceed(() => []),
+  );
+
+  const spelled = Effect.flatMap((result: TranscriptionTranscribeResult) =>
+    Effect.map(readDictionary, (dictionary) => ({
+      ...result,
+      text: applyDictionary(result.text, dictionary),
+    })),
+  );
+
   // Every lookup is optional: a missing thread or project only drops its hints.
   const readKeyterms = Effect.fn("Transcription.readKeyterms")(function* (
     instanceId: ProviderInstanceId,
@@ -218,7 +232,9 @@ const make = Effect.gen(function* () {
     const workspaceSkills = cwd
       ? provider?.workspaceSnapshots?.find((snapshot) => snapshot.cwd === cwd)?.skills
       : undefined;
+    const dictionary = yield* readDictionary;
     return keytermCandidates({
+      dictionaryTerms: dictionary.map((entry) => entry.term),
       projectTitle: project?.title,
       projectFolder: project?.workspaceRoot.split(/[\\/]/).findLast((part) => part !== ""),
       branch: shell?.branch ?? undefined,
@@ -275,9 +291,9 @@ const make = Effect.gen(function* () {
         keytermCount: keyterms.length,
       });
       const limiter = yield* limiterFor(inputs.providerInstanceId);
-      return yield* limiter.withPermits(1)(
-        backend.transcribe({ audio, language: inputs.language, keyterms }),
-      );
+      return yield* limiter
+        .withPermits(1)(backend.transcribe({ audio, language: inputs.language, keyterms }))
+        .pipe(spelled);
     },
     Effect.timeoutOrElse({
       duration: RUN_TIMEOUT_MS,
@@ -478,7 +494,7 @@ const make = Effect.gen(function* () {
         limiter.takeIfAvailable(1),
         (taken) =>
           taken
-            ? stream({ audio: input.audio, language: inputs.language, keyterms })
+            ? stream({ audio: input.audio, language: inputs.language, keyterms }).pipe(spelled)
             : Effect.fail(unavailable("rateLimited")),
         (taken) => (taken ? limiter.release(1) : Effect.void),
       );

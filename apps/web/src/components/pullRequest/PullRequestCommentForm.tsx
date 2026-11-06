@@ -7,6 +7,7 @@ import { useState, type RefObject } from "react";
 import { useInlineConfirm } from "~/hooks/useInlineConfirm";
 import { pullRequestEnvironment } from "~/state/pullRequests";
 
+import { TextFieldVoiceInput } from "../chat/TextFieldVoiceInput";
 import { InlineConfirmIcon, InlineConfirmLabel } from "../InlineConfirm";
 import { Button } from "../ui/button";
 import { Textarea } from "../ui/textarea";
@@ -36,6 +37,7 @@ export function PullRequestCommentForm({
   onClose: () => void;
 }) {
   const [body, setBody] = useState("");
+  const [voiceBusy, setVoiceBusy] = useState(false);
   const [submitting, setSubmitting] = useState<"comment" | "close" | "reopen" | null>(null);
   const postComment = useAtomCommand(pullRequestEnvironment.comment, {
     reportFailure: false,
@@ -51,7 +53,7 @@ export function PullRequestCommentForm({
         ? ("reopen" as const)
         : null;
   const confirm = useInlineConfirm<"close">();
-  const disabled = body.trim().length === 0 || submitting !== null || actionPending;
+  const disabled = body.trim().length === 0 || submitting !== null || actionPending || voiceBusy;
 
   const submit = async (action: "comment" | "close" | "reopen") => {
     if (disabled) return;
@@ -90,6 +92,7 @@ export function PullRequestCommentForm({
         ref={textareaRef}
         // Lock while posting because success clears the draft.
         disabled={submitting !== null || actionPending}
+        readOnly={voiceBusy}
         value={body}
         rows={3}
         placeholder="Leave a comment"
@@ -110,6 +113,15 @@ export function PullRequestCommentForm({
         }}
       />
       <div className="flex flex-wrap justify-end gap-2">
+        <span className="mr-auto">
+          <TextFieldVoiceInput
+            environmentId={environmentId}
+            disabled={submitting !== null || actionPending}
+            fieldRef={textareaRef}
+            onChange={setBody}
+            onBusyChange={setVoiceBusy}
+          />
+        </span>
         {followUpAction === "close" ? (
           <Button
             size="xs"

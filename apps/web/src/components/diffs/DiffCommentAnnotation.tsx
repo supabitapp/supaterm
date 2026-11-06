@@ -1,8 +1,11 @@
+import type { EnvironmentId } from "@supaterm/contracts";
 import { MessageCircleIcon, TrashIcon } from "@supaterm/icons";
 import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
 
 import { Button } from "~/components/ui/button";
+import { TextFieldVoiceInput } from "~/components/chat/TextFieldVoiceInput";
 import { Textarea } from "~/components/ui/textarea";
+import { useThreadRouteRef } from "~/hooks/useThreadRouteTarget";
 import { textDirection } from "~/textDirection";
 
 import { isCommentSubmitShortcut } from "./commentSubmitShortcut";
@@ -27,6 +30,8 @@ interface DiffCommentAnnotationProps {
   pending?: boolean;
   secondaryAction?: DiffCommentSecondaryAction;
   focusOnMount?: boolean;
+  /** Where dictation goes outside a thread route, as on a pull request page. */
+  voiceEnvironmentId?: EnvironmentId | undefined;
 }
 
 export function DiffCommentAnnotation({
@@ -42,11 +47,19 @@ export function DiffCommentAnnotation({
   pending = false,
   secondaryAction,
   focusOnMount = true,
+  voiceEnvironmentId,
 }: DiffCommentAnnotationProps) {
   const [localDraftText, setLocalDraftText] = useState("");
   const displayedText = kind === "draft" && !onTextChange ? localDraftText : text;
   const trimmedText = displayedText.trim();
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const threadRef = useThreadRouteRef();
+  const voiceTarget = voiceEnvironmentId
+    ? { environmentId: voiceEnvironmentId, threadId: null }
+    : threadRef;
+  const [voiceBusy, setVoiceBusy] = useState(false);
+  const changeText = onTextChange ?? setLocalDraftText;
+  const canComment = !pending && !voiceBusy && trimmedText.length > 0;
 
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- focuses the draft textarea on the next animation frame after mount
   useLayoutEffect(() => {
@@ -99,11 +112,12 @@ export function DiffCommentAnnotation({
         ref={textareaRef}
         autoFocus={focusOnMount}
         size="sm"
+        readOnly={voiceBusy}
         value={displayedText}
         dir={textDirection(displayedText)}
         placeholder={placeholder}
         aria-label={`Comment on lines ${rangeLabel}`}
-        onChange={(event) => (onTextChange ?? setLocalDraftText)(event.target.value)}
+        onChange={(event) => changeText(event.target.value)}
         onFocus={(event) => {
           const end = event.currentTarget.value.length;
           event.currentTarget.setSelectionRange(end, end);
@@ -113,13 +127,23 @@ export function DiffCommentAnnotation({
             event.preventDefault();
             onCancel();
           }
-          if (isCommentSubmitShortcut(event, trimmedText, pending)) {
+          if (isCommentSubmitShortcut(event, trimmedText, pending || voiceBusy)) {
             event.preventDefault();
             onComment(trimmedText);
           }
         }}
       />
       <div className="mt-1.5 flex items-center gap-1">
+        {voiceTarget ? (
+          <TextFieldVoiceInput
+            environmentId={voiceTarget.environmentId}
+            threadId={voiceTarget.threadId}
+            disabled={pending}
+            fieldRef={textareaRef}
+            onChange={changeText}
+            onBusyChange={setVoiceBusy}
+          />
+        ) : null}
         <span className="mr-auto text-3xs text-muted-foreground/70">⌘/Ctrl Enter to send</span>
         <Button variant="ghost-muted" size="xs" onClick={onCancel}>
           Cancel
@@ -128,14 +152,14 @@ export function DiffCommentAnnotation({
           <Button
             size="xs"
             variant="outline"
-            disabled={!secondaryAction.allowEmpty && !trimmedText}
+            disabled={voiceBusy || (!secondaryAction.allowEmpty && !trimmedText)}
             onClick={() => secondaryAction.onAction(trimmedText)}
           >
             {secondaryAction.icon}
             {secondaryAction.label}
           </Button>
         ) : null}
-        <Button size="xs" disabled={pending || !trimmedText} onClick={() => onComment(trimmedText)}>
+        <Button size="xs" disabled={!canComment} onClick={() => onComment(trimmedText)}>
           {submitLabel}
         </Button>
       </div>

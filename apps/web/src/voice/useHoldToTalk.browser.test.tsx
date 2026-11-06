@@ -5,17 +5,31 @@ import { fakeTimers, render } from "../../test/render";
 import { followKeyHold, KEY_HOLD_MS } from "./keyHold";
 import { type ComposerDraft, type HoldToTalk, useHoldToTalk } from "./useHoldToTalk";
 
-function Composer(props: { readonly holdKey: "alt" | "space"; readonly handlers: HoldToTalk }) {
+type Editor = "rich" | "textarea";
+
+function Composer(props: {
+  readonly holdKey: "alt" | "space";
+  readonly editor: Editor;
+  readonly handlers: HoldToTalk;
+}) {
   const ref = useRef<HTMLDivElement>(null);
   useHoldToTalk(ref, props.holdKey, props.handlers);
   return (
     <div ref={ref}>
-      <div aria-label="Message" contentEditable role="textbox" suppressContentEditableWarning />
+      {props.editor === "textarea" ? (
+        <textarea aria-label="Message" />
+      ) : (
+        <div aria-label="Message" contentEditable role="textbox" suppressContentEditableWarning />
+      )}
     </div>
   );
 }
 
-async function setup(initial: ComposerDraft, holdKey: "alt" | "space" = "space") {
+async function setup(
+  initial: ComposerDraft,
+  holdKey: "alt" | "space" = "space",
+  editorKind: Editor = "rich",
+) {
   let draft = initial;
   const release = vi.fn();
   const handlers = {
@@ -30,9 +44,12 @@ async function setup(initial: ComposerDraft, holdKey: "alt" | "space" = "space")
     cancel: vi.fn(),
     followPress: followKeyHold,
   };
-  const screen = await render(<Composer holdKey={holdKey} handlers={handlers} />, {
-    router: false,
-  });
+  const screen = await render(
+    <Composer holdKey={holdKey} editor={editorKind} handlers={handlers} />,
+    {
+      router: false,
+    },
+  );
   const editor = screen.getByLabelText("Message").element();
   /** Returns whether the key went through to the editor. */
   const key = (type: "keydown" | "keyup", init: KeyboardEventInit = {}) =>
@@ -75,24 +92,27 @@ describe("useHoldToTalk", () => {
     expect(draft().text).toBe("hello ");
   });
 
-  it("takes back the space a held Space typed", async () => {
-    const before = { text: "hello world", selection: { start: 5, end: 5 } };
-    const { screen, handlers, release, key, type, draft } = await setup(before);
-    await using _screen = screen;
-    using _timers = fakeTimers();
+  it.each(["rich", "textarea"] as const)(
+    "takes back the space a held Space typed in a %s editor",
+    async (editor) => {
+      const before = { text: "hello world", selection: { start: 5, end: 5 } };
+      const { screen, handlers, release, key, type, draft } = await setup(before, "space", editor);
+      await using _screen = screen;
+      using _timers = fakeTimers();
 
-    key("keydown");
-    type("hello  world");
-    expect(key("keydown", { repeat: true })).toBe(false);
-    vi.advanceTimersByTime(KEY_HOLD_MS);
+      key("keydown");
+      type("hello  world");
+      expect(key("keydown", { repeat: true })).toBe(false);
+      vi.advanceTimersByTime(KEY_HOLD_MS);
 
-    expect(draft()).toEqual(before);
-    expect(handlers.start).toHaveBeenCalledOnce();
-    expect(key("keydown", { repeat: true })).toBe(false);
-    key("keyup");
-    expect(release).toHaveBeenCalledOnce();
-    expect(key("keydown", { repeat: true })).toBe(true);
-  });
+      expect(draft()).toEqual(before);
+      expect(handlers.start).toHaveBeenCalledOnce();
+      expect(key("keydown", { repeat: true })).toBe(false);
+      key("keyup");
+      expect(release).toHaveBeenCalledOnce();
+      expect(key("keydown", { repeat: true })).toBe(true);
+    },
+  );
 
   it("keeps a draft that changed for another reason while Space was held", async () => {
     const { screen, handlers, key, type, draft } = await setup({

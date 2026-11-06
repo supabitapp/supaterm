@@ -7,6 +7,7 @@ import { useState, type ReactNode, type RefObject } from "react";
 import { pullRequestEnvironment } from "~/state/pullRequests";
 import { squashAtomCommandFailure } from "@supaterm/client-runtime/state/runtime";
 
+import { TextFieldVoiceInput } from "../chat/TextFieldVoiceInput";
 import { Button } from "../ui/button";
 import { Select, SelectItem, SelectPopup, SelectTrigger } from "../ui/select";
 import { Textarea } from "../ui/textarea";
@@ -67,6 +68,7 @@ export function PullRequestReviewForm({
   onSubmitted: () => void;
 }) {
   const [requestedVerdict, setRequestedVerdict] = useState<PullRequestReviewVerdict>("comment");
+  const [voiceBusy, setVoiceBusy] = useState(false);
   const comments = usePendingReviewComments(reference);
   const reviewKey = pullRequestReviewKey(reference);
   const body = usePullRequestReviewStore((store) => store.summaries[reviewKey] ?? "");
@@ -82,7 +84,7 @@ export function PullRequestReviewForm({
     offered.find((verdict) => verdict.value === requestedVerdict) ?? offered[0];
 
   const submit = async (verdict: (typeof VERDICTS)[number]) => {
-    if (pending) return;
+    if (pending || voiceBusy) return;
     const submittedBody = body;
     const submittedComments = comments;
     onPendingChange(true);
@@ -134,12 +136,20 @@ export function PullRequestReviewForm({
       <Textarea
         ref={textareaRef}
         rows={3}
+        readOnly={voiceBusy}
         value={body}
         placeholder={placeholder}
         aria-label="Review summary"
         onChange={(event) => setSummary(reviewKey, event.target.value)}
       />
       <div className="mt-2 flex justify-end gap-2">
+        <TextFieldVoiceInput
+          environmentId={environmentId}
+          disabled={pending}
+          fieldRef={textareaRef}
+          onChange={(text) => setSummary(reviewKey, text)}
+          onBusyChange={setVoiceBusy}
+        />
         {offered.length > 1 ? (
           <Select
             value={selectedVerdict?.value ?? null}
@@ -169,7 +179,10 @@ export function PullRequestReviewForm({
         <Button
           size="xs"
           disabled={
-            pending || selectedVerdict === undefined || !canSubmit(selectedVerdict.value, body)
+            pending ||
+            voiceBusy ||
+            selectedVerdict === undefined ||
+            !canSubmit(selectedVerdict.value, body)
           }
           onClick={() => {
             if (selectedVerdict !== undefined) void submit(selectedVerdict);

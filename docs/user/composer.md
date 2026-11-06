@@ -222,7 +222,7 @@ and use **Attach again** or remove the missing file before sending.
 
 Press the microphone in the composer, or `ctrl+m` on web and desktop, to record a
 prompt of up to five minutes. Hold `ctrl+m` instead to talk only while it is down; letting
-go stops and reviews. Holding Option (Alt off macOS) in the composer does the same. Pressing
+go stops and reviews. Holding Option (Alt off macOS) in the composer or a comment field does the same. Pressing
 another key or clicking while you hold it treats it as a shortcut and drops the recording.
 **Settings → Voice transcription → Hold to talk** can switch the key to Space, which records when held with no
 text selected while a tap still types a space, or turn it off. On web and desktop, the
@@ -236,6 +236,11 @@ recording stays in the composer while you speak:
   reachable. With text or attachments in the draft, Send transcribes the recording, adds
   it, and sends everything together.
 - **Discard**, or `Escape`, throws the recording away and keeps your draft.
+
+Comment fields have a microphone too: pull request descriptions, comments and review
+summaries, diff comments, and comments on cited text. While one of them has focus, `ctrl+m`
+dictates into it instead of the composer. The field stays locked until the transcript is in,
+so it can't be sent half-dictated.
 
 The environment transcribes with the provider chosen under **Settings → Voice
 transcription**, and that login is charged
@@ -251,6 +256,12 @@ your subscription. Choose the language you speak under **Settings → Voice tran
 Voice language**; it follows your system language by default and lists only the languages the chosen
 provider transcribes, which for Codex is many more than for Claude. On iPhone and Android,
 voice input always uses your phone's language.
+
+Under **Dictionary**, add names and jargon to spell your way, and what the transcript gets
+instead. It starts with Supaterm, heard as "super term", which you can remove. It is saved on the environment that
+transcribes and applies to everything it transcribes, including voice messages and
+`supaterm transcribe`. With Claude, dictionary words also tell the speech model what to
+listen for.
 
 Recording in a browser needs HTTPS or `localhost`. A remote browser on a plain `http://`
 address can't use the microphone. The first time you record, allow microphone access; on

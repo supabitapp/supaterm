@@ -42,6 +42,9 @@ wait. Resubmitting after a reconnect joins the running work or returns the
 recorded outcome. Only a deliberate user action, such as trying again or switching source,
 should send `retry: true`, because a retry spends the account again.
 
+The dictionary runs in `Transcription` on the text a backend returns, so
+review, voice messages, agents, and the CLI get the same transcript.
+
 The [shared controller](../../packages/client-runtime/src/voice-input/controller.ts)
 owns the operation while the client supplies capture and transcription. Preparation
 binds the transcriber and resolved locale for the whole recording. Draft ownership,

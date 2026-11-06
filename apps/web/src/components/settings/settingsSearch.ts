@@ -559,6 +559,13 @@ export const SETTINGS_SEARCH_ITEMS = [
     ],
   },
   {
+    id: "voice-dictionary",
+    title: "Dictionary",
+    to: "/settings/voice",
+    scope: "environment-defaults",
+    searchTerms: ["voice dictation transcript custom words vocabulary names jargon spelling"],
+  },
+  {
     id: "next-prompt-suggestions",
     title: "Claude prompt suggestions",
     to: "/settings/threads",
