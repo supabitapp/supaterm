@@ -95,13 +95,6 @@ describe("searchSettings", () => {
     expect(searchSettings("encrypted tunnel")[0]?.id).toBe("public-relay");
   });
 
-  it("finds usage providers", () => {
-    expect(searchSettings("usage providers")[0]).toMatchObject({
-      id: "usage-providers",
-      to: "/settings/providers",
-    });
-  });
-
   it("hides desktop-only settings from browser search", () => {
     expect(SETTINGS_SEARCH_ITEMS.some((item) => item.id === "quit-confirmation")).toBe(true);
     expect(searchSettings("hold to quit")).toEqual([]);
@@ -113,7 +106,6 @@ describe("searchSettings", () => {
     const available = filterAvailableSettingsSearchItems({
       hasEnvironment: false,
       hasProviderSettingsEnvironment: false,
-      hasMacProviderSettingsEnvironment: false,
       canManageLocalBackend: false,
       isWslSettingsRowVisible: false,
       hasThreadAutoMarkDone: false,
@@ -124,7 +116,6 @@ describe("searchSettings", () => {
       "git-fetch-interval",
       "network-access",
       "provider-health-check-interval",
-      "cursor-keychain-usage",
       "source-control-writer-model",
       "review-guide-model",
       "review-guide-instructions",
@@ -242,7 +233,6 @@ describe("auto-mark-done search availability", () => {
     const items = filterAvailableSettingsSearchItems({
       hasEnvironment: true,
       hasProviderSettingsEnvironment: true,
-      hasMacProviderSettingsEnvironment: false,
       canManageLocalBackend: false,
       isWslSettingsRowVisible: false,
       hasThreadAutoMarkDone: availability.eligibleEnvironmentIds.length > 0,

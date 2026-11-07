@@ -19,7 +19,7 @@ import {
   remainingPercent,
 } from "@supaterm/shared/usageLimits";
 import { GaugeIcon, TrendingDownIcon, TrendingUpIcon } from "@supaterm/icons";
-import { Fragment, type ReactNode, useLayoutEffect, useState } from "react";
+import { Fragment, useLayoutEffect, useState } from "react";
 
 import { useInlineConfirm } from "../../hooks/useInlineConfirm";
 import { usePrimarySettings } from "../../hooks/useSettings";
@@ -349,12 +349,10 @@ export function UsageLimitsSection({
   selectedEnvironmentIds,
   hiddenProviders,
   now,
-  cursorPrompt,
 }: {
   readonly selectedEnvironmentIds: ReadonlySet<EnvironmentId> | null;
   readonly hiddenProviders: ReadonlySet<UsageProviderKind>;
   readonly now: number;
-  readonly cursorPrompt?: ReactNode;
 }) {
   const presentations = useAtomValue(environmentPresentations.presentationsWithProvidersAtom);
   const hiddenDrivers = new Set<ServerProvider["driver"]>(
@@ -381,5 +379,5 @@ export function UsageLimitsSection({
       ];
     }),
   );
-  return <UsageLimitsPooled presentations={selected} now={now} cursorPrompt={cursorPrompt} />;
+  return <UsageLimitsPooled presentations={selected} now={now} />;
 }

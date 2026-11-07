@@ -91,7 +91,6 @@ import { AddProviderInstanceDialog } from "./AddProviderInstanceDialog";
 import { ExpandableText } from "./ExpandableText";
 import { IntervalSecondsField } from "./IntervalSecondsField";
 import { ProviderInstanceCard } from "./ProviderInstanceCard";
-import { UsageProviderSettings } from "./UsageProviderSettings";
 import { ProviderSetupSection, readAntigravityAuthMethod } from "./ProviderSetupSection";
 import { ProviderAuthenticationSection } from "./ProviderAuthenticationSection";
 import { CodexSetupSection, CodexManagedRuntimeFields } from "./CodexSetupSection";
@@ -335,27 +334,12 @@ function ProviderSettingsPanelContent(target: ProviderSettingsTarget) {
       hasServerConfig: environment.serverConfig !== null,
     }),
   )?.environmentId;
-  const searchableCursorEnvironmentId = options.find(
-    (environment) =>
-      environment.serverConfig?.environment.platform.os === "darwin" &&
-      isProviderSettingsEnvironmentAvailable({
-        connectionPhase: environment.connection.phase,
-        hasServerConfig: true,
-      }),
-  )?.environmentId;
   const searchEnvironmentId =
     !target.scoped &&
-    (searchTargetId === searchableSetting("cursor-keychain-usage").id ||
-      searchTargetId === searchableSetting("usage-providers").id) &&
-    (!selectedEnvironmentCanRenderSettings ||
-      selectedEnvironment?.serverConfig?.environment.platform.os !== "darwin") &&
-    searchableCursorEnvironmentId !== undefined
-      ? searchableCursorEnvironmentId
-      : !target.scoped &&
-          searchTargetId === searchableSetting("provider-health-check-interval").id &&
-          !selectedEnvironmentCanRenderSettings
-        ? searchableEnvironmentId
-        : undefined;
+    searchTargetId === searchableSetting("provider-health-check-interval").id &&
+    !selectedEnvironmentCanRenderSettings
+      ? searchableEnvironmentId
+      : undefined;
   if (searchEnvironmentId !== undefined && searchEnvironmentId !== selectedEnvironmentId) {
     setSelectedEnvironmentId(searchEnvironmentId);
   }
@@ -1051,13 +1035,6 @@ export function EnvironmentProviderSettings({
           </div>
         </SettingsGroup>
       </SettingsSection>
-
-      <UsageProviderSettings
-        key={environmentId}
-        environmentId={environmentId}
-        cursorKeychainUsageEnabled={settings.cursorKeychainUsageEnabled}
-        readOnly={readOnly}
-      />
 
       <SettingsSection title="Advanced">
         <SettingsRow
