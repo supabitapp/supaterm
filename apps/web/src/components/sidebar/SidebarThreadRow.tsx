@@ -17,7 +17,10 @@ import {
   hasQueuedTurnStart,
   QUEUED_TURN_START_GRACE_MS,
 } from "@supaterm/client-runtime/state/thread-snooze";
-import { resolveDoneThreadTimestamp } from "@supaterm/client-runtime/state/thread-sort";
+import {
+  resolveDoneThreadTimestamp,
+  resolveThreadActivityTimestamp,
+} from "@supaterm/client-runtime/state/thread-sort";
 import { resolveThreadProviderStack } from "@supaterm/client-runtime/state/models";
 import { scopeThreadRef, scopedThreadKey } from "@supaterm/client-runtime/environment";
 import {
@@ -135,10 +138,6 @@ function compactSidebarTimeLabel(label: string): string {
   return label.endsWith(" ago") ? label.slice(0, -4) : label;
 }
 
-function threadTimeTimestamp(thread: SidebarThreadSummary): string {
-  return thread.latestUserMessageAt ?? thread.updatedAt;
-}
-
 // Subscribes to the minute tick itself, so the label keeps counting while the
 // memoized row stays cached on its thread.
 function CompactRelativeTimeLabel(props: { timestamp: string | null }) {
@@ -168,10 +167,11 @@ function SidebarRelativeTime({
   timestamp,
   className,
 }: {
-  timestamp: string;
+  timestamp: string | null;
   className?: string | undefined;
 }) {
   const nowMinute = useNowMinute();
+  if (timestamp === null) return null;
   return (
     <time
       dateTime={timestamp}
@@ -1294,7 +1294,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
                         timestamp={
                           variantAction === "reopen"
                             ? resolveDoneThreadTimestamp(thread)
-                            : threadTimeTimestamp(thread)
+                            : resolveThreadActivityTimestamp(thread)
                         }
                       />
                     </span>
@@ -1449,9 +1449,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
                       ) : null}
                     </span>
                   ) : (
-                    <SidebarRelativeTime
-                      timestamp={thread.latestUserMessageAt ?? thread.updatedAt}
-                    />
+                    <SidebarRelativeTime timestamp={resolveThreadActivityTimestamp(thread)} />
                   )}
                 </span>
                 <span
