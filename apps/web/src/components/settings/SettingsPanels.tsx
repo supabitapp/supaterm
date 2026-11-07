@@ -665,7 +665,7 @@ export function useSettingsRestore(onRestored?: () => void) {
   };
 }
 
-const AUTO_MARK_DONE_DEFAULT_DAYS = DEFAULT_UNIFIED_SETTINGS.sidebarAutoMarkDoneAfterDays ?? 3;
+const AUTO_MARK_DONE_DEFAULT_DAYS = DEFAULT_UNIFIED_SETTINGS.sidebarAutoMarkDoneAfterDays ?? 7;
 
 export function GeneralSettingsPanel() {
   const settings = useScopedSettings();
