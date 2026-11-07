@@ -299,9 +299,9 @@ describe("ClientSettings follow-up behavior", () => {
 });
 
 describe("ServerSettings thread completion", () => {
-  it("defaults merge completion on and inactivity completion to three days", () => {
+  it("defaults merge completion on and inactivity completion to seven days", () => {
     const settings = decodeServerSettings({});
-    expect(settings.sidebarAutoMarkDoneAfterDays).toBe(3);
+    expect(settings.sidebarAutoMarkDoneAfterDays).toBe(7);
     expect(settings.sidebarAutoMarkDoneOnMerge).toBe(true);
   });
 

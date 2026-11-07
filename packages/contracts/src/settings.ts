@@ -86,7 +86,7 @@ export const SidebarAutoMarkDoneAfterDays = Schema.Number.check(
   }),
 );
 export type SidebarAutoMarkDoneAfterDays = typeof SidebarAutoMarkDoneAfterDays.Type;
-const DEFAULT_SIDEBAR_AUTO_MARK_DONE_AFTER_DAYS: SidebarAutoMarkDoneAfterDays = 3;
+const DEFAULT_SIDEBAR_AUTO_MARK_DONE_AFTER_DAYS: SidebarAutoMarkDoneAfterDays = 7;
 
 export const MAX_SNOOZE_PRESET_MINUTES = 30 * 24 * 60;
 export const MAX_SNOOZE_PRESETS = 8;
