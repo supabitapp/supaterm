@@ -25,11 +25,9 @@ const RAINBOW = [
 
 type Timeline = ReadonlyArray<readonly [led: number, delayMs: number]>;
 
-const ROLL: Timeline = Array.from({ length: SIDE_PULSE_LED_COUNT }, (_, led) => [led, led * 95]);
-const SWEEP_OUT: Timeline = Array.from({ length: SIDE_PULSE_LED_COUNT }, (_, led) => [
-  led,
-  led * 85,
-]);
+const LEDS = Array.from({ length: SIDE_PULSE_LED_COUNT }, (_, led) => led);
+const ROLL: Timeline = LEDS.map((led) => [led, led * 95]);
+const SWEEP_OUT: Timeline = LEDS.map((led) => [led, led * 85]);
 const SWEEP_BACK: Timeline = [6, 5, 4, 3, 2, 1].map((led, step) => [led, step * 85]);
 const RIPPLE: Timeline = [
   [3, 0],

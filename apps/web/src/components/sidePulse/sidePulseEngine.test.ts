@@ -1,5 +1,4 @@
 import {
-  DEFAULT_CLIENT_SETTINGS,
   SIDE_PULSE_EFFECTS,
   SIDE_PULSE_LED_STATES,
   type SidePulseEffect,
@@ -18,14 +17,11 @@ function compileEngine() {
   );
 }
 
-function settings(brightness: number, effect?: SidePulseEffect) {
-  const { sidePulse } = DEFAULT_CLIENT_SETTINGS;
+function settings(brightness: number, effect: SidePulseEffect) {
   return {
-    ...sidePulse,
+    enabled: true,
     brightness,
-    effects: effect
-      ? { idle: effect, done: effect, working: effect, attention: effect }
-      : sidePulse.effects,
+    effects: { idle: effect, done: effect, working: effect, attention: effect },
   };
 }
 
@@ -44,11 +40,11 @@ describe("SidePulse LED programs", () => {
 
   it("renders the program's colors at the chosen brightness", async () => {
     const engine = await instantiateSidePulseEngine(await compileEngine());
-    engine.play(sidePulseProgram("done", settings(100)));
+    engine.play(sidePulseProgram("done", settings(100, "solid")));
     expect([...engine.step(1000)]).toEqual(Array.from({ length: 8 }, () => [0, 255, 102]).flat());
-    engine.play(sidePulseProgram("done", settings(50)));
+    engine.play(sidePulseProgram("done", settings(50, "solid")));
     expect([...engine.step(1000)]).toEqual(Array.from({ length: 8 }, () => [0, 128, 51]).flat());
-    engine.play(sidePulseProgram(null, settings(100)));
+    engine.play(sidePulseProgram(null, settings(100, "solid")));
     expect([...engine.step(1000)]).toEqual(Array(24).fill(0));
   });
 });

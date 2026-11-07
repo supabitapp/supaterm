@@ -97,6 +97,36 @@ function updateSidePulseEffect(state: SidePulseLedState, effect: SidePulseEffect
   }));
 }
 
+function EffectSelect({
+  label,
+  effect,
+  onChange,
+}: {
+  readonly label: string;
+  readonly effect: SidePulseEffect;
+  readonly onChange: (effect: SidePulseEffect) => void;
+}) {
+  return (
+    <Select
+      value={effect}
+      onValueChange={(next) => {
+        if (next !== null) onChange(next);
+      }}
+    >
+      <SelectTrigger size="sm" className="w-full sm:w-36" aria-label={label}>
+        <SelectValue>{EFFECT_LABELS[effect]}</SelectValue>
+      </SelectTrigger>
+      <SelectPopup align="end" alignItemWithTrigger={false}>
+        {SIDE_PULSE_EFFECTS.map((option) => (
+          <SelectItem key={option} value={option}>
+            {EFFECT_LABELS[option]}
+          </SelectItem>
+        ))}
+      </SelectPopup>
+    </Select>
+  );
+}
+
 function connectionSummary(
   enabled: boolean,
   state: SidePulseDeviceState | null,
@@ -215,27 +245,11 @@ function SidePulseSettingsPage({ bridge }: { readonly bridge: DesktopSidePulseBr
                     settings={settings}
                     fallbackColor={light.color}
                   />
-                  <Select
-                    value={effect}
-                    onValueChange={(next) => {
-                      if (next !== null) void updateSidePulseEffect(light.state, next);
-                    }}
-                  >
-                    <SelectTrigger
-                      size="sm"
-                      className="w-full sm:w-36"
-                      aria-label={`${light.title} effect`}
-                    >
-                      <SelectValue>{EFFECT_LABELS[effect]}</SelectValue>
-                    </SelectTrigger>
-                    <SelectPopup align="end" alignItemWithTrigger={false}>
-                      {SIDE_PULSE_EFFECTS.map((option) => (
-                        <SelectItem key={option} value={option}>
-                          {EFFECT_LABELS[option]}
-                        </SelectItem>
-                      ))}
-                    </SelectPopup>
-                  </Select>
+                  <EffectSelect
+                    label={`${light.title} effect`}
+                    effect={effect}
+                    onChange={(next) => void updateSidePulseEffect(light.state, next)}
+                  />
                 </>
               }
             />
