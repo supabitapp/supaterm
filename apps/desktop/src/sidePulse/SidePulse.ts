@@ -6,7 +6,11 @@ import {
   type SidePulseLedState,
   type SidePulseSettings,
 } from "@supaterm/contracts";
-import { SIDE_PULSE_OFF_PROGRAM, sidePulseProgram } from "@supaterm/shared/sidePulsePrograms";
+import {
+  SIDE_PULSE_OFF_PROGRAM,
+  sidePulsePreviewMs,
+  sidePulseProgram,
+} from "@supaterm/shared/sidePulsePrograms";
 import * as Clock from "effect/Clock";
 import * as Context from "effect/Context";
 import * as Duration from "effect/Duration";
@@ -82,6 +86,7 @@ export class SidePulse extends Context.Service<
     /** Cheap and idempotent: runs on every client-settings write. */
     readonly configure: (settings: SidePulseSettings) => Effect.Effect<void>;
     readonly setLedState: (ledState: SidePulseLedState | null) => Effect.Effect<void>;
+    readonly preview: (light: SidePulseLedState) => Effect.Effect<void>;
     readonly state: Effect.Effect<SidePulseDeviceState>;
     readonly subscribeState: (listener: StateListener) => Effect.Effect<void, never, Scope.Scope>;
   }
@@ -98,7 +103,9 @@ export const make = Effect.fn("SidePulse.make")(function* (mountRoots: ReadonlyA
   let ledState: SidePulseLedState | null = null;
   let devices = new Map<string, TrackedDevice>();
   let poller: Fiber.Fiber<void> | undefined;
-  let state: SidePulseDeviceState = { enabled: false, devices: [], ledState };
+  let preview: SidePulseLedState | null = null;
+  let previewTimer: Fiber.Fiber<void> | undefined;
+  let state: SidePulseDeviceState = { enabled: false, devices: [], ledState, preview };
   const stateListeners = new Set<StateListener>();
 
   const publish = Effect.suspend(() => {
@@ -106,6 +113,7 @@ export const make = Effect.fn("SidePulse.make")(function* (mountRoots: ReadonlyA
       enabled: settings.enabled,
       devices: Array.from(devices.values(), (tracked) => tracked.device),
       ledState,
+      preview,
     };
     if (Equal.equals(next, state)) return Effect.void;
     state = next;
@@ -171,7 +179,7 @@ export const make = Effect.fn("SidePulse.make")(function* (mountRoots: ReadonlyA
         next.set(volume.path, { device, written: null, activityAt: now });
         continue;
       }
-      const program = sidePulseProgram(ledState, settings);
+      const program = sidePulseProgram(preview ?? ledState, settings);
       let tracked: TrackedDevice = previous ?? { device, written: null, activityAt: now };
       if (tracked.written !== program) {
         const error = yield* writeLedFile(volume.path, program);
@@ -212,10 +220,18 @@ export const make = Effect.fn("SidePulse.make")(function* (mountRoots: ReadonlyA
     );
   });
 
+  const endPreview = Effect.gen(function* () {
+    const timer = previewTimer;
+    previewTimer = undefined;
+    preview = null;
+    if (timer !== undefined) yield* Fiber.interrupt(timer);
+  });
+
   const stop = Effect.gen(function* () {
     const fiber = poller;
     poller = undefined;
     if (fiber !== undefined) yield* Fiber.interrupt(fiber);
+    yield* endPreview;
     yield* turnOff;
     yield* publish;
   });
@@ -240,9 +256,37 @@ export const make = Effect.fn("SidePulse.make")(function* (mountRoots: ReadonlyA
   ) {
     yield* lock.withPermit(
       Effect.suspend(() => {
-        if (next === ledState) return Effect.void;
+        // A preview ends with the window that asked for it, so the LEDs go dark with that window.
+        const endingPreview = next === null && preview !== null;
+        if (next === ledState && !endingPreview) return Effect.void;
         ledState = next;
-        return syncDevices;
+        return endingPreview ? Effect.andThen(endPreview, syncDevices) : syncDevices;
+      }),
+    );
+  });
+
+  // A newer preview restarts the timer, so the last pick plays for its full length.
+  const previewLight = Effect.fn("desktop.sidePulse.preview")(function* (light: SidePulseLedState) {
+    yield* lock.withPermit(
+      Effect.gen(function* () {
+        if (!settings.enabled || ledState === null) return;
+        yield* endPreview;
+        preview = light;
+        yield* syncDevices;
+        previewTimer = yield* Effect.forkIn(
+          Effect.sleep(Duration.millis(sidePulsePreviewMs(settings.effects[light]))).pipe(
+            Effect.andThen(
+              lock.withPermit(
+                Effect.suspend(() => {
+                  preview = null;
+                  previewTimer = undefined;
+                  return syncDevices;
+                }),
+              ),
+            ),
+          ),
+          serviceScope,
+        );
       }),
     );
   });
@@ -250,6 +294,7 @@ export const make = Effect.fn("SidePulse.make")(function* (mountRoots: ReadonlyA
   return SidePulse.of({
     configure,
     setLedState,
+    preview: previewLight,
     state: Effect.sync(() => state),
     subscribeState: Effect.fn("SidePulse.subscribeState")(function (listener) {
       return Effect.acquireRelease(

@@ -18,5 +18,6 @@ export function makeSidePulseBridge(platform: NodeJS.Platform): DesktopSidePulse
         ipcRenderer.removeListener(IpcChannels.SIDE_PULSE_STATE_CHANNEL, wrappedListener);
     },
     setLedState: (state) => ipcRenderer.invoke(IpcChannels.SIDE_PULSE_SET_LED_STATE_CHANNEL, state),
+    preview: (light) => ipcRenderer.invoke(IpcChannels.SIDE_PULSE_PREVIEW_CHANNEL, light),
   };
 }
