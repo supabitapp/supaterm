@@ -503,6 +503,13 @@ function OpenCommandPaletteDialog(props: {
   });
   const sideChat = useSideChat({
     parent: sideChatBlockedReason === null ? (activeThread ?? null) : null,
+    readSettings: () => ({
+      runtimeMode:
+        (activeThreadRef &&
+          useComposerDraftStore.getState().getComposerDraft(activeThreadRef)?.runtimeMode) ??
+        undefined,
+      modelSelection: composerHandleRef?.current?.getSendContext().selectedModelSelection,
+    }),
     onError: (message) =>
       toastManager.add({
         type: "error",

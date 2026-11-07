@@ -1398,6 +1398,10 @@ export default function ChatView(props: ChatViewProps) {
   });
   const sideChat = useSideChat({
     parent: sideChatDisabledReason === null ? serverThread : null,
+    readSettings: () => ({
+      runtimeMode,
+      modelSelection: composerRef.current?.getSendContext().selectedModelSelection,
+    }),
     onError: (message) => {
       if (activeThread) setThreadError(activeThread.id, message);
     },
