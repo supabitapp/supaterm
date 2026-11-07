@@ -106,7 +106,7 @@ describe("SidePulse", () => {
     }).pipe(Effect.scoped, Effect.provide(NodeServices.layer)),
   );
 
-  it.effect("plays a picked light for a few seconds, then returns to the agent state", () =>
+  it.effect("plays a picked light briefly, and goes dark with the window that asked", () =>
     Effect.gen(function* () {
       const { mount, read, sidePulse } = yield* setup();
       yield* mount("SidePulse");
@@ -124,6 +124,14 @@ describe("SidePulse", () => {
       yield* TestClock.adjust("3 seconds");
       yield* Deferred.await(ended);
       assert.strictEqual(yield* read("SidePulse"), ATTENTION);
+
+      yield* sidePulse.preview("done");
+      yield* sidePulse.setLedState(null);
+      assert.strictEqual(yield* read("SidePulse"), "off 1s");
+      assert.strictEqual((yield* sidePulse.state).preview, null);
+
+      yield* sidePulse.preview("done");
+      assert.strictEqual(yield* read("SidePulse"), "off 1s");
     }).pipe(Effect.scoped, Effect.provide(NodeServices.layer)),
   );
 

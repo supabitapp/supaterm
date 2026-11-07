@@ -256,9 +256,11 @@ export const make = Effect.fn("SidePulse.make")(function* (mountRoots: ReadonlyA
   ) {
     yield* lock.withPermit(
       Effect.suspend(() => {
-        if (next === ledState) return Effect.void;
+        // A preview ends with the window that asked for it, so the LEDs go dark with that window.
+        const endingPreview = next === null && preview !== null;
+        if (next === ledState && !endingPreview) return Effect.void;
         ledState = next;
-        return syncDevices;
+        return endingPreview ? Effect.andThen(endPreview, syncDevices) : syncDevices;
       }),
     );
   });
@@ -267,7 +269,7 @@ export const make = Effect.fn("SidePulse.make")(function* (mountRoots: ReadonlyA
   const previewLight = Effect.fn("desktop.sidePulse.preview")(function* (light: SidePulseLedState) {
     yield* lock.withPermit(
       Effect.gen(function* () {
-        if (!settings.enabled) return;
+        if (!settings.enabled || ledState === null) return;
         yield* endPreview;
         preview = light;
         yield* syncDevices;
