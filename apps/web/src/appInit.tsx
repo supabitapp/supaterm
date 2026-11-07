@@ -27,6 +27,7 @@ import {
 import { startDefaultThemeAdoption } from "./hooks/useDefaultTheme";
 import { startEnvironmentThemeRepaint } from "./hooks/useEnvironmentTheme";
 import { readLocalStorageValue, subscribeLocalStorageKey } from "./hooks/useLocalStorage";
+import { startHostEnvironmentLookup } from "./state/primaryEnvironment";
 import { getClientSettings, subscribeClientSettings } from "./hooks/useSettings";
 import { syncBrowserChromeTheme } from "./hooks/useTheme";
 import { installDesktopPasteAsText } from "./lib/desktopPasteAsText";
@@ -135,6 +136,7 @@ export function startAppServices(): AppRouter {
 
   startClientAppearance();
   document.title = APP_DISPLAY_NAME;
+  startHostEnvironmentLookup();
   startEnvironmentThemeRepaint();
   startBrowserChromeThemeSync(router);
   startDefaultThemeAdoption();
