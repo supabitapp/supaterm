@@ -313,7 +313,7 @@ export function ArchivedThreadsPanel() {
                 ) : null}
                 <TableHead className="w-24 text-right">Archived</TableHead>
                 <TableHead className="hidden w-24 text-right sm:table-cell">Created</TableHead>
-                <TableHead className="w-11">
+                <TableHead className="w-16">
                   <span className="sr-only">Actions</span>
                 </TableHead>
               </TableRow>
@@ -412,7 +412,7 @@ export function ArchivedThreadsPanel() {
                         </span>
                       </TableCell>
                       <TableCell>
-                        <span className="flex justify-end opacity-0 transition-opacity duration-150 group-hover/row:opacity-100 group-focus-within/row:opacity-100 pointer-coarse:opacity-100">
+                        <span className="flex justify-end gap-0.5 opacity-0 transition-opacity duration-150 group-hover/row:opacity-100 group-focus-within/row:opacity-100 pointer-coarse:opacity-100">
                           <Tooltip>
                             <TooltipTrigger
                               render={
@@ -432,6 +432,26 @@ export function ArchivedThreadsPanel() {
                               }
                             />
                             <TooltipPopup side="top">Unarchive</TooltipPopup>
+                          </Tooltip>
+                          <Tooltip>
+                            <TooltipTrigger
+                              render={
+                                <Button
+                                  aria-label={`Delete ${row.title}`}
+                                  disabled={pendingAction !== null}
+                                  onClick={(event) => {
+                                    event.stopPropagation();
+                                    void deleteRows([row]);
+                                  }}
+                                  size="icon-xs"
+                                  type="button"
+                                  variant="ghost-destructive"
+                                >
+                                  <TrashIcon />
+                                </Button>
+                              }
+                            />
+                            <TooltipPopup side="top">Delete</TooltipPopup>
                           </Tooltip>
                         </span>
                       </TableCell>
