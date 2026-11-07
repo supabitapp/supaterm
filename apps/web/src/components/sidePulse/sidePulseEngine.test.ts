@@ -1,4 +1,9 @@
-import { SIDE_PULSE_LED_STATES } from "@supaterm/contracts";
+import {
+  DEFAULT_CLIENT_SETTINGS,
+  SIDE_PULSE_EFFECTS,
+  SIDE_PULSE_LED_STATES,
+  type SidePulseEffect,
+} from "@supaterm/contracts";
 import { sidePulseProgram } from "@supaterm/shared/sidePulsePrograms";
 import { describe, expect, it } from "vite-plus/test";
 
@@ -13,24 +18,37 @@ function compileEngine() {
   );
 }
 
+function settings(brightness: number, effect?: SidePulseEffect) {
+  const { sidePulse } = DEFAULT_CLIENT_SETTINGS;
+  return {
+    ...sidePulse,
+    brightness,
+    effects: effect
+      ? { idle: effect, done: effect, working: effect, attention: effect }
+      : sidePulse.effects,
+  };
+}
+
 describe("SidePulse LED programs", () => {
-  it("parse on the firmware engine for every state and brightness", async () => {
+  it("parse on the firmware engine for every effect, state, and brightness", async () => {
     const engine = await instantiateSidePulseEngine(await compileEngine());
-    for (const ledState of [...SIDE_PULSE_LED_STATES, null]) {
-      for (const brightness of [100, 50, 0]) {
-        const program = sidePulseProgram(ledState, brightness);
-        expect(engine.play(program), program).toBe(true);
+    for (const effect of SIDE_PULSE_EFFECTS) {
+      for (const ledState of [...SIDE_PULSE_LED_STATES, null]) {
+        for (const brightness of [100, 50, 0]) {
+          const program = sidePulseProgram(ledState, settings(brightness, effect));
+          expect(engine.play(program), program).toBe(true);
+        }
       }
     }
   });
 
   it("renders the program's colors at the chosen brightness", async () => {
     const engine = await instantiateSidePulseEngine(await compileEngine());
-    engine.play(sidePulseProgram("done", 100));
+    engine.play(sidePulseProgram("done", settings(100)));
     expect([...engine.step(1000)]).toEqual(Array.from({ length: 8 }, () => [0, 255, 102]).flat());
-    engine.play(sidePulseProgram("done", 50));
+    engine.play(sidePulseProgram("done", settings(50)));
     expect([...engine.step(1000)]).toEqual(Array.from({ length: 8 }, () => [0, 128, 51]).flat());
-    engine.play(sidePulseProgram(null, 100));
+    engine.play(sidePulseProgram(null, settings(100)));
     expect([...engine.step(1000)]).toEqual(Array(24).fill(0));
   });
 });

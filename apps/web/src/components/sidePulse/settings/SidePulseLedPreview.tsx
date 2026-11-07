@@ -1,4 +1,4 @@
-import type { SidePulseLedState } from "@supaterm/contracts";
+import type { SidePulseEffect, SidePulseLedState, SidePulseSettings } from "@supaterm/contracts";
 import { SIDE_PULSE_LED_COUNT, sidePulseProgram } from "@supaterm/shared/sidePulsePrograms";
 import { useEffect, useRef } from "react";
 
@@ -12,11 +12,18 @@ const HEIGHT = 18;
 // Cost scales with frame rate; 20 fps still shows every step of the 95 ms roll.
 const FRAME_MS = 1000 / 20;
 // A moment when each animation is lit, so the first frame and the reduced-motion still show it.
-const LIT_MS: Readonly<Record<SidePulseLedState, number>> = {
-  attention: 800,
-  working: 900,
-  done: 1000,
-  idle: 3900,
+const LIT_MS: Readonly<Record<SidePulseEffect, number>> = {
+  solid: 1000,
+  breathe: 2000,
+  pulse: 800,
+  heartbeat: 130,
+  glow: 3900,
+  roll: 900,
+  ripple: 910,
+  scanner: 430,
+  twinkle: 1170,
+  rainbow: 1000,
+  spectrum: 2250,
 };
 
 const PANEL_WIDTH = SIDE_PULSE_LED_COUNT * LED_PITCH + GLOW_ROOM * 2;
@@ -96,20 +103,21 @@ function drawLeds(canvas: HTMLCanvasElement, rgb: ArrayLike<number>) {
 /** A SidePulse running `ledState` through its own firmware engine, as the device would show it. */
 export function SidePulseLedPreview({
   ledState,
-  brightness,
+  settings,
   fallbackColor,
 }: {
   readonly ledState: SidePulseLedState;
-  readonly brightness: number;
+  readonly settings: SidePulseSettings;
   readonly fallbackColor: string;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const program = sidePulseProgram(ledState, settings);
+  const litMs = LIT_MS[settings.effects[ledState]];
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- drives the canvas from SidePulse's firmware engine, only while the preview is on screen
   useEffect(() => {
     const canvas = canvasRef.current;
     if (canvas === null) return;
     const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
-    const program = sidePulseProgram(ledState, brightness);
     let engine: SidePulseEngine | null = null;
     let startedAt = 0;
     let disposed = false;
@@ -128,8 +136,8 @@ export function SidePulseLedPreview({
     const showLitFrame = () => {
       if (engine === null) return;
       engine.play(program);
-      startedAt = performance.now() - LIT_MS[ledState];
-      paintAt(LIT_MS[ledState]);
+      startedAt = performance.now() - litMs;
+      paintAt(litMs);
     };
     const sync = () => {
       const animate =
@@ -178,7 +186,7 @@ export function SidePulseLedPreview({
       document.removeEventListener("visibilitychange", sync);
       reducedMotion.removeEventListener("change", onMotionPreferenceChange);
     };
-  }, [ledState, brightness, fallbackColor]);
+  }, [program, litMs, fallbackColor]);
 
   return (
     <span className="inline-flex rounded-full bg-led-panel px-1 py-0.5 ring-1 ring-border">

@@ -1,16 +1,25 @@
-import type {
-  DesktopSidePulseBridge,
-  SidePulseDeviceState,
-  SidePulseLedState,
-  SidePulseSettings as SidePulseSettingsValue,
+import {
+  DEFAULT_CLIENT_SETTINGS,
+  SIDE_PULSE_EFFECTS,
+  type DesktopSidePulseBridge,
+  type SidePulseDeviceState,
+  type SidePulseEffect,
+  type SidePulseLedState,
+  type SidePulseSettings as SidePulseSettingsValue,
 } from "@supaterm/contracts";
 
 import { useDesktopDeviceState } from "../../../hooks/useDesktopDeviceState";
 import { updateClientSettings, useClientSettings } from "../../../hooks/useSettings";
 import { cn, isMacPlatform } from "../../../lib/utils";
+import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "../../ui/select";
 import { Switch } from "../../ui/switch";
 import { BrightnessSlider } from "../../settings/BrightnessSlider";
-import { SettingsPageContainer, SettingsRow, SettingsSection } from "../../settings/settingsLayout";
+import {
+  SettingResetButton,
+  SettingsPageContainer,
+  SettingsRow,
+  SettingsSection,
+} from "../../settings/settingsLayout";
 import { searchableSetting } from "../../settings/settingsSearch";
 import { getSidePulseBridge } from "../sidePulseBridge";
 import { SidePulseLedPreview } from "./SidePulseLedPreview";
@@ -36,31 +45,56 @@ const LIGHTS: ReadonlyArray<{
   {
     state: "attention",
     title: "Needs you",
-    description: "Amber pulse: an agent is waiting for your approval or answer, or failed",
+    description: "An agent is waiting for your approval or answer, or failed",
     color: "#FF3A00",
   },
   {
     state: "working",
     title: "Working",
-    description: "Cyan roll: an agent is running",
+    description: "An agent is running",
     color: "#00E5FF",
   },
   {
     state: "done",
     title: "Done",
-    description: "Solid green: an agent finished with a reply you have not seen",
+    description: "An agent finished with a reply you have not seen",
     color: "#00FF66",
   },
   {
     state: "idle",
     title: "Idle",
-    description: "Dim teal pulse: nothing needs you",
+    description: "Nothing needs you",
     color: "#006060",
   },
 ];
 
+const EFFECT_LABELS: Readonly<Record<SidePulseEffect, string>> = {
+  solid: "Solid",
+  breathe: "Breathe",
+  pulse: "Pulse",
+  heartbeat: "Heartbeat",
+  glow: "Glow",
+  roll: "Roll",
+  ripple: "Ripple",
+  scanner: "Scanner",
+  twinkle: "Twinkle",
+  rainbow: "Rainbow",
+  spectrum: "Spectrum",
+};
+
+const DEFAULT_EFFECTS = DEFAULT_CLIENT_SETTINGS.sidePulse.effects;
+
 function updateSidePulseSettings(patch: Partial<SidePulseSettingsValue>) {
   return updateClientSettings((current) => ({ sidePulse: { ...current.sidePulse, ...patch } }));
+}
+
+function updateSidePulseEffect(state: SidePulseLedState, effect: SidePulseEffect) {
+  return updateClientSettings((current) => ({
+    sidePulse: {
+      ...current.sidePulse,
+      effects: { ...current.sidePulse.effects, [state]: effect },
+    },
+  }));
 }
 
 function connectionSummary(
@@ -155,25 +189,58 @@ function SidePulseSettingsPage({ bridge }: { readonly bridge: DesktopSidePulseBr
         />
       </SettingsSection>
       <SettingsSection id="sidepulse-lights" title="Lights">
-        {LIGHTS.map((light) => (
-          <SettingsRow
-            key={light.state}
-            title={light.title}
-            description={light.description}
-            control={
-              <>
-                {showing === light.state ? (
-                  <span className="text-xs text-muted-foreground">Showing now</span>
-                ) : null}
-                <SidePulseLedPreview
-                  ledState={light.state}
-                  brightness={settings.brightness}
-                  fallbackColor={light.color}
-                />
-              </>
-            }
-          />
-        ))}
+        {LIGHTS.map((light) => {
+          const effect = settings.effects[light.state];
+          const defaultEffect = DEFAULT_EFFECTS[light.state];
+          return (
+            <SettingsRow
+              key={light.state}
+              title={light.title}
+              description={light.description}
+              resetAction={
+                effect === defaultEffect ? null : (
+                  <SettingResetButton
+                    label={`${light.title} effect`}
+                    onClick={() => void updateSidePulseEffect(light.state, defaultEffect)}
+                  />
+                )
+              }
+              control={
+                <>
+                  {showing === light.state ? (
+                    <span className="text-xs text-muted-foreground">Showing now</span>
+                  ) : null}
+                  <SidePulseLedPreview
+                    ledState={light.state}
+                    settings={settings}
+                    fallbackColor={light.color}
+                  />
+                  <Select
+                    value={effect}
+                    onValueChange={(next) => {
+                      if (next !== null) void updateSidePulseEffect(light.state, next);
+                    }}
+                  >
+                    <SelectTrigger
+                      size="sm"
+                      className="w-full sm:w-36"
+                      aria-label={`${light.title} effect`}
+                    >
+                      <SelectValue>{EFFECT_LABELS[effect]}</SelectValue>
+                    </SelectTrigger>
+                    <SelectPopup align="end" alignItemWithTrigger={false}>
+                      {SIDE_PULSE_EFFECTS.map((option) => (
+                        <SelectItem key={option} value={option}>
+                          {EFFECT_LABELS[option]}
+                        </SelectItem>
+                      ))}
+                    </SelectPopup>
+                  </Select>
+                </>
+              }
+            />
+          );
+        })}
       </SettingsSection>
     </SettingsPageContainer>
   );
