@@ -157,6 +157,10 @@ function ProviderAccount({
   const complete = useAtomCommand(serverEnvironment.completeProviderAuth, options);
   const cancel = useAtomCommand(serverEnvironment.cancelProviderAuth, options);
   const logout = useAtomCommand(serverEnvironment.logoutProviderAuth, options);
+  const removeMethod = useAtomCommand(serverEnvironment.removeProviderAuthMethod, options);
+  const canRemoveMethod = useAtomValue(
+    serverEnvironment.removeProviderAuthMethod.permissionAtom(environmentId),
+  );
   const name = provider.displayName ?? provider.driver;
   // Matches ListRowLayout: large text moves the action below the status instead of squeezing the name.
   const stacked = useWindowDimensions().fontScale >= 1.5;
@@ -285,9 +289,10 @@ function ProviderAccount({
       </View>
     );
   }
+  const removableMethods = (state?.methods ?? []).filter((method) => method.canRemove);
   function chooseMethod() {
     const methods = state?.methods ?? [];
-    if (methods.length <= 1) {
+    if (methods.length <= 1 && removableMethods.length === 0) {
       void run(() => start(target));
       return;
     }
@@ -448,6 +453,28 @@ function ProviderAccount({
                 setChoosingMethod(false);
                 void run(() =>
                   start({
+                    environmentId,
+                    input: {
+                      instanceId,
+                      methodId: method.id,
+                    },
+                  }),
+                );
+              }}
+            />
+          ))}
+          {removableMethods.map((method) => (
+            <SettingsActionRow
+              key={`remove:${method.id}`}
+              icon="trash"
+              tone="danger"
+              label={`Remove incomplete ${method.name}`}
+              accessibilityLabel={`Remove incomplete ${name} connection ${method.name}`}
+              disabled={disabled || !canRemoveMethod}
+              onPress={() => {
+                setChoosingMethod(false);
+                void run(() =>
+                  removeMethod({
                     environmentId,
                     input: {
                       instanceId,
