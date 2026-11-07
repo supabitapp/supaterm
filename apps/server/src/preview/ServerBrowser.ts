@@ -396,6 +396,36 @@ const modifiersOf = (message: Record<string, unknown>) => {
   return Number.isInteger(value) && value >= 0 && value < 16 ? value : 0;
 };
 
+interface PointerMotion {
+  readonly move: Record<string, unknown> | null;
+  readonly wheel: Record<string, unknown> | null;
+}
+
+// Chromium acknowledges pointer input only after a page frame, so motion waiting behind it
+// collapses to the latest move and the summed wheel, as clients collapse it per frame.
+// Splitting by point or direction would let touch pans and jittery trackpads queue again.
+const pointerMotionOf = (message: Record<string, unknown>): PointerMotion | null => {
+  if (message.type === "wheel") return { move: null, wheel: message };
+  const move =
+    message.type === "mouse" &&
+    message.action === "move" &&
+    typeof message.button === "string" &&
+    typeof message.buttons === "number";
+  return move ? { move: message, wheel: null } : null;
+};
+
+const mergePointerMotion = (waiting: PointerMotion, next: PointerMotion): PointerMotion => ({
+  move: next.move ?? waiting.move,
+  wheel:
+    waiting.wheel && next.wheel
+      ? {
+          ...next.wheel,
+          deltaX: num(waiting.wheel.deltaX) + num(next.wheel.deltaX),
+          deltaY: num(waiting.wheel.deltaY) + num(next.wheel.deltaY),
+        }
+      : (next.wheel ?? waiting.wheel),
+});
+
 // Cmd shortcuts from Apple viewers are no editing shortcut for Linux or headless
 // Chromium, so they carry the command. Ctrl already works natively on Linux,
 // except copy and cut, which headless Chromium only runs as commands.
@@ -2705,16 +2735,22 @@ const make = Effect.gen(function* () {
                   : {}),
               });
             } else {
-              const dispatch = () => dispatchViewerInput(tab, session, viewer, message);
-              if (
-                message.type === "mouse" &&
-                message.action === "move" &&
-                message.button === "none" &&
-                message.buttons === 0
-              ) {
-                await tab.control.humanLatest(viewer.id, `hover:${modifiersOf(message)}`, dispatch);
+              const motion = pointerMotionOf(message);
+              if (motion) {
+                await tab.control.humanLatest(
+                  viewer.id,
+                  `pointer:${modifiersOf(message)}`,
+                  motion,
+                  async ({ move, wheel }) => {
+                    if (move) await dispatchViewerInput(tab, session, viewer, move);
+                    if (wheel) await dispatchViewerInput(tab, session, viewer, wheel);
+                  },
+                  mergePointerMotion,
+                );
               } else {
-                await tab.control.human(viewer.id, dispatch);
+                await tab.control.human(viewer.id, () =>
+                  dispatchViewerInput(tab, session, viewer, message),
+                );
               }
             }
           } catch {
