@@ -2,6 +2,7 @@ import {
   sourceControlClients,
   type ChangeRequestTerminology,
 } from "@supaterm/client-runtime/source-control-clients";
+import type { MenuAction } from "@react-native-menu/menu";
 import type { PullRequestDetail, PullRequestLinkedThreadsResult } from "@supaterm/contracts";
 
 export type PullRequestAgentTask = "ask" | "explain" | "feedback" | "conflicts" | "watch";
@@ -11,7 +12,39 @@ export function pullRequestAgentThread(
   threadId?: string,
 ) {
   if (threadId) return threads.find((thread) => thread.id === threadId);
-  return threads.length === 1 ? threads[0] : undefined;
+  return threads.length === 1 && !threads[0]?.done && !threads[0]?.archivedAt
+    ? threads[0]
+    : undefined;
+}
+
+export function pullRequestAgentThreadActions(
+  threads: PullRequestLinkedThreadsResult["threads"],
+  task: PullRequestAgentTask,
+  canAsk: boolean,
+): MenuAction[] {
+  const active: MenuAction[] = [];
+  const done: MenuAction[] = [];
+  for (const thread of threads) {
+    const action = {
+      id: `${task}:${thread.id}`,
+      title: thread.title,
+      subtitle: thread.archivedAt
+        ? "Archived thread"
+        : thread.done
+          ? "Done thread"
+          : "Continue thread",
+      image: "bubble.left.and.bubble.right",
+      attributes: { disabled: task !== "ask" && Boolean(thread.archivedAt) },
+    };
+    (thread.done ? done : active).push(action);
+  }
+  return [
+    ...(canAsk ? [{ id: `${task}:new`, title: "Start a new thread", image: "plus" }] : []),
+    ...active,
+    ...(done.length
+      ? [{ id: `${task}:done`, title: "Done threads", subactions: done }]
+      : []),
+  ];
 }
 
 export function pullRequestAgentPrompt(
