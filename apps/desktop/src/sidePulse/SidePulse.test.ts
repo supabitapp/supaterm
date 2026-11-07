@@ -101,7 +101,29 @@ describe("SidePulse", () => {
         enabled: false,
         devices: [],
         ledState: "working",
+        preview: null,
       });
+    }).pipe(Effect.scoped, Effect.provide(NodeServices.layer)),
+  );
+
+  it.effect("plays a picked light for a few seconds, then returns to the agent state", () =>
+    Effect.gen(function* () {
+      const { mount, read, sidePulse } = yield* setup();
+      yield* mount("SidePulse");
+      yield* sidePulse.setLedState("attention");
+      yield* sidePulse.configure({ ...SETTINGS, enabled: true });
+
+      yield* sidePulse.preview("working");
+      assert.strictEqual(yield* read("SidePulse"), WORKING);
+      assert.strictEqual((yield* sidePulse.state).preview, "working");
+
+      const ended = yield* Deferred.make<void>();
+      yield* sidePulse.subscribeState((state) =>
+        state.preview === null ? Deferred.succeed(ended, undefined) : Effect.void,
+      );
+      yield* TestClock.adjust("3 seconds");
+      yield* Deferred.await(ended);
+      assert.strictEqual(yield* read("SidePulse"), ATTENTION);
     }).pipe(Effect.scoped, Effect.provide(NodeServices.layer)),
   );
 

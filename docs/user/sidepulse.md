@@ -34,9 +34,11 @@ Archived and snoozed threads don't count.
 A reply or failure counts as seen once you open the thread. The LEDs turn off while no Supaterm
 window is open. **Brightness** scales every animation.
 
-To change how a light moves, pick an effect from its menu under **Lights**. The preview next to
-it plays the effect as the device will. Every effect keeps the light's color except **Rainbow**
-and **Spectrum**, so give those to one light if you want to tell the others apart at a glance.
+To change a light, pick an effect from its menu under **Lights** and a color from the swatch
+beside it. The preview next to it plays the result, and a connected SidePulse plays it for a few
+seconds before going back to what your agents are doing. **Rainbow** and **Spectrum** bring their
+own colors, so give those to one light if you want to tell the others apart at a glance. The reset
+button next to a light's name restores its default effect and color.
 
 **Can't write** means this computer doesn't allow writing to removable storage, which some managed
 Macs block.

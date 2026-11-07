@@ -43,12 +43,34 @@ const SidePulseEffects = Schema.Struct({
   attention: effectSetting("pulse"),
 });
 
+export const SidePulseColor = Schema.String.check(Schema.isPattern(/^#[\da-f]{6}$/i));
+export type SidePulseColor = typeof SidePulseColor.Type;
+
+// Null is the light's own color. A malformed color decodes to null instead of failing the document.
+const colorSetting = Schema.Union([
+  Schema.NullOr(SidePulseColor),
+  Schema.String.pipe(
+    Schema.decodeTo(Schema.Null, {
+      decode: SchemaGetter.transform(() => null),
+      encode: SchemaGetter.forbidden(() => "Malformed SidePulse colors are decode-only."),
+    }),
+  ),
+]).pipe(Schema.withDecodingDefault(Effect.succeed(null)));
+
+const SidePulseColors = Schema.Struct({
+  idle: colorSetting,
+  done: colorSetting,
+  working: colorSetting,
+  attention: colorSetting,
+});
+
 export const SidePulseSettings = Schema.Struct({
   enabled: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
   brightness: Schema.Int.check(Schema.isBetween({ minimum: 0, maximum: 100 })).pipe(
     Schema.withDecodingDefault(Effect.succeed(100)),
   ),
   effects: SidePulseEffects.pipe(Schema.withDecodingDefault(Effect.succeed({}))),
+  colors: SidePulseColors.pipe(Schema.withDecodingDefault(Effect.succeed({}))),
 });
 export type SidePulseSettings = typeof SidePulseSettings.Type;
 
@@ -67,6 +89,8 @@ export const SidePulseDeviceState = Schema.Struct({
   devices: Schema.Array(SidePulseDevice),
   /** Null while no Supaterm window is reporting thread state, which turns the LEDs off. */
   ledState: Schema.NullOr(SidePulseLedState),
+  /** The light the LEDs play for a few seconds after its effect or color changes. */
+  preview: Schema.NullOr(SidePulseLedState),
 });
 export type SidePulseDeviceState = typeof SidePulseDeviceState.Type;
 
@@ -75,4 +99,6 @@ export interface DesktopSidePulseBridge {
   onStateChange: (listener: (state: SidePulseDeviceState) => void) => () => void;
   /** Null when this window stops reporting thread state, which turns the LEDs off. */
   setLedState: (state: SidePulseLedState | null) => Promise<void>;
+  /** Plays a light on the LEDs long enough to see its effect, then returns to the agent state. */
+  preview: (light: SidePulseLedState) => Promise<void>;
 }

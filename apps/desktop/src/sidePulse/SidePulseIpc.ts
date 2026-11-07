@@ -41,6 +41,15 @@ const makeSetLedState = Effect.gen(function* () {
   });
 });
 
+const preview = DesktopIpc.makeIpcMethod({
+  channel: IpcChannels.SIDE_PULSE_PREVIEW_CHANNEL,
+  payload: SidePulseLedState,
+  result: Schema.Void,
+  handler: Effect.fn("desktop.ipc.sidePulse.preview")(function* (light) {
+    yield* (yield* SidePulse.SidePulse).preview(light);
+  }),
+});
+
 export const install = Effect.gen(function* () {
   const ipc = yield* DesktopIpc.DesktopIpc;
   const sidePulse = yield* SidePulse.SidePulse;
@@ -50,6 +59,7 @@ export const install = Effect.gen(function* () {
   );
   yield* ipc.handle(getState);
   yield* ipc.handle(yield* makeSetLedState);
+  yield* ipc.handle(preview);
   yield* (yield* DesktopClientSettings.DesktopClientSettings).get.pipe(
     Effect.map(
       Option.match({
