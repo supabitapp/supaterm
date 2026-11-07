@@ -367,9 +367,9 @@ On mobile, type `/side` or `/btw` in the composer, or choose **Start side chat**
 the command palette. A thread lists its side chats above the composer; tap one to
 open it.
 
-A side chat starts with the thread's model and permission mode, and works in the
-same folder as the thread. Its agent cannot start or message other threads, and it
-cannot be forked.
+A side chat starts with the permissions, model, and reasoning level shown in the
+thread's composer, including for its first reply, and works in the same folder as the
+thread. Its agent cannot start or message other threads, and it cannot be forked.
 
 The side chat's actions sit at its top on web and desktop, and above its composer on
 mobile:
