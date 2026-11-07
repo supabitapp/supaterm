@@ -514,6 +514,22 @@ describe("server model preferences", () => {
   });
 });
 
+describe("SidePulse effects", () => {
+  it("loads an unknown effect as that state's default and keeps the others", () => {
+    const decoded = decodeClientSettings({
+      sidePulse: { enabled: true, effects: { working: "aurora", idle: "rainbow" } },
+    });
+    expect(decoded.sidePulse).toEqual({
+      enabled: true,
+      brightness: 100,
+      effects: { idle: "rainbow", done: "solid", working: "roll", attention: "pulse" },
+    });
+    expect(decodeClientSettings(encodeClientSettings(decoded)).sidePulse).toEqual(
+      decoded.sidePulse,
+    );
+  });
+});
+
 describe("thread grouping preference", () => {
   it("defaults existing client settings to status", () => {
     expect(decodeClientSettings({}).sidebarThreadGrouping).toBe("status");

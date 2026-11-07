@@ -1,5 +1,6 @@
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { assert, describe, it } from "@effect/vitest";
+import { DEFAULT_CLIENT_SETTINGS } from "@supaterm/contracts";
 import * as Deferred from "effect/Deferred";
 import * as Effect from "effect/Effect";
 import * as Fiber from "effect/Fiber";
@@ -15,6 +16,7 @@ const WORKING = [
   "repeat",
 ].join("\n");
 const ATTENTION = "off\n#FF3A00 1.6s pulse\nrepeat";
+const SETTINGS = DEFAULT_CLIENT_SETTINGS.sidePulse;
 
 const setup = Effect.fn("setup")(function* (
   serviceFileSystem: (fs: FileSystem.FileSystem) => FileSystem.FileSystem = (fs) => fs,
@@ -50,7 +52,7 @@ describe("SidePulse", () => {
       yield* fs.makeDirectory(`${root}/SidePulse 1`);
 
       yield* sidePulse.setLedState("working");
-      yield* sidePulse.configure({ enabled: true, brightness: 100 });
+      yield* sidePulse.configure({ ...SETTINGS, enabled: true, brightness: 100 });
 
       assert.strictEqual(yield* read("SidePulse"), WORKING);
       assert.strictEqual(yield* read("SidePulse Pro"), WORKING);
@@ -62,11 +64,22 @@ describe("SidePulse", () => {
         ["SidePulse", "SidePulse Pro"],
       );
 
-      yield* sidePulse.configure({ enabled: true, brightness: 50 });
+      yield* sidePulse.configure({ ...SETTINGS, enabled: true, brightness: 50 });
       assert.strictEqual(yield* read("SidePulse"), `brightness 128\n${WORKING}`);
 
       yield* sidePulse.setLedState("attention");
       assert.strictEqual(yield* read("SidePulse Pro"), `brightness 128\n${ATTENTION}`);
+
+      yield* sidePulse.configure({
+        ...SETTINGS,
+        enabled: true,
+        brightness: 50,
+        effects: { ...SETTINGS.effects, attention: "heartbeat" },
+      });
+      assert.strictEqual(
+        yield* read("SidePulse Pro"),
+        "brightness 128\noff\n#FF3A00 220ms pulse\n#FF3A00 340ms pulse\noff 1s\nrepeat",
+      );
     }).pipe(Effect.scoped, Effect.provide(NodeServices.layer)),
   );
 
@@ -74,7 +87,7 @@ describe("SidePulse", () => {
     Effect.gen(function* () {
       const { mount, read, sidePulse } = yield* setup();
       yield* mount("SidePulse");
-      yield* sidePulse.configure({ enabled: true, brightness: 100 });
+      yield* sidePulse.configure({ ...SETTINGS, enabled: true, brightness: 100 });
       yield* sidePulse.setLedState("done");
       assert.strictEqual(yield* read("SidePulse"), "#00FF66 320ms cosine");
 
@@ -82,7 +95,7 @@ describe("SidePulse", () => {
       assert.strictEqual(yield* read("SidePulse"), "off 1s");
 
       yield* sidePulse.setLedState("working");
-      yield* sidePulse.configure({ enabled: false, brightness: 100 });
+      yield* sidePulse.configure({ ...SETTINGS, enabled: false, brightness: 100 });
       assert.strictEqual(yield* read("SidePulse"), "off 1s");
       assert.deepStrictEqual(yield* sidePulse.state, {
         enabled: false,
@@ -114,11 +127,11 @@ describe("SidePulse", () => {
       yield* mount("Backup");
 
       yield* sidePulse.setLedState("working");
-      yield* sidePulse.configure({ enabled: false, brightness: 50 });
+      yield* sidePulse.configure({ ...SETTINGS, enabled: false, brightness: 50 });
       yield* TestClock.adjust("1 minute");
       assert.deepStrictEqual(touched, []);
 
-      yield* sidePulse.configure({ enabled: true, brightness: 50 });
+      yield* sidePulse.configure({ ...SETTINGS, enabled: true, brightness: 50 });
       assert.deepStrictEqual(touched, [
         root,
         `${root}/SidePulse/LEDS.LED`,
@@ -149,7 +162,7 @@ describe("SidePulse", () => {
       }));
       yield* mount("SidePulse");
       yield* sidePulse.setLedState("attention");
-      yield* sidePulse.configure({ enabled: true, brightness: 100 });
+      yield* sidePulse.configure({ ...SETTINGS, enabled: true, brightness: 100 });
       assert.deepStrictEqual(
         (yield* sidePulse.state).devices.map((device) => device.error),
         ["access-denied"],
@@ -185,7 +198,7 @@ describe("SidePulse", () => {
       }));
       yield* mount("SidePulse");
       yield* sidePulse.setLedState("working");
-      yield* sidePulse.configure({ enabled: true, brightness: 100 });
+      yield* sidePulse.configure({ ...SETTINGS, enabled: true, brightness: 100 });
       assert.strictEqual(yield* read("SidePulse"), WORKING);
 
       failWrites = true;
@@ -196,7 +209,7 @@ describe("SidePulse", () => {
       );
 
       failWrites = false;
-      yield* sidePulse.configure({ enabled: false, brightness: 100 });
+      yield* sidePulse.configure({ ...SETTINGS, enabled: false, brightness: 100 });
       assert.strictEqual(yield* read("SidePulse"), "off 1s");
     }).pipe(Effect.scoped, Effect.provide(NodeServices.layer)),
   );
@@ -217,7 +230,7 @@ describe("SidePulse", () => {
       });
 
       const enabling = yield* Effect.forkChild(
-        sidePulse.configure({ enabled: true, brightness: 100 }),
+        sidePulse.configure({ ...SETTINGS, enabled: true, brightness: 100 }),
       );
       yield* Deferred.await(scanning);
       // Each update runs until it waits on the scan still holding the device lock.
@@ -240,7 +253,7 @@ describe("SidePulse", () => {
       const { fs, root, mount, read, sidePulse, awaitDeviceCount } = yield* setup();
       yield* mount("SidePulse");
       yield* sidePulse.setLedState("attention");
-      yield* sidePulse.configure({ enabled: true, brightness: 100 });
+      yield* sidePulse.configure({ ...SETTINGS, enabled: true, brightness: 100 });
 
       yield* mount("SidePulse 1");
       const secondFound = yield* awaitDeviceCount(2);

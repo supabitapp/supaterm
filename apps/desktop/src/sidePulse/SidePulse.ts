@@ -171,7 +171,7 @@ export const make = Effect.fn("SidePulse.make")(function* (mountRoots: ReadonlyA
         next.set(volume.path, { device, written: null, activityAt: now });
         continue;
       }
-      const program = sidePulseProgram(ledState, settings.brightness);
+      const program = sidePulseProgram(ledState, settings);
       let tracked: TrackedDevice = previous ?? { device, written: null, activityAt: now };
       if (tracked.written !== program) {
         const error = yield* writeLedFile(volume.path, program);
