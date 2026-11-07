@@ -35,6 +35,7 @@ import {
 import {
   sortActiveThreadsByOrderKey,
   resolveDoneThreadTimestamp,
+  resolveThreadActivityTimestamp,
   sortPinnedThreadsByOrderKey,
   sortDoneThreads,
 } from "@supaterm/client-runtime/state/thread-sort";
@@ -569,7 +570,7 @@ function resolveThreadListV2ItemTimeLabel(
     return "";
   const doneTimestamp = variant === "slim" && !snoozed ? resolveDoneThreadTimestamp(thread) : null;
   return relativeTime(
-    doneTimestamp ?? thread.latestUserMessageAt ?? thread.updatedAt ?? thread.createdAt,
+    doneTimestamp ?? resolveThreadActivityTimestamp(thread) ?? thread.createdAt,
   );
 }
 
