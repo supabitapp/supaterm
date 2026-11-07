@@ -29,7 +29,12 @@ export function resolveDoneThreadTimestamp(thread: DoneThreadTimestampInput): st
   if (thread.doneAt != null && toSortableTimestamp(thread.doneAt) !== null) {
     return thread.doneAt;
   }
+  return resolveThreadActivityTimestamp(thread);
+}
 
+export function resolveThreadActivityTimestamp(
+  thread: Pick<EnvironmentThreadShell, "latestUserMessageAt" | "latestRun" | "updatedAt">,
+): string | null {
   let latest: string | null = null;
   let latestMs = Number.NEGATIVE_INFINITY;
   for (const candidate of [
