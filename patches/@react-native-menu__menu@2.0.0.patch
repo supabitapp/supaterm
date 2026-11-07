@@ -202,9 +202,18 @@ index 6a2a205f95c1001f3fdf6fb835815fa7c4c02c16..4f42b64349966fb1438f72439cec8256
 +
  }
 diff --git a/ios/Shared/MenuViewImplementation.swift b/ios/Shared/MenuViewImplementation.swift
-index 5c4e0da4292b15d3a27b5ea1555f11452a470815..5723f8a5cb3dcd590a1bd79395da9897907b0d8a 100644
+index 5c4e0da4292b15d3a27b5ea1555f11452a470815..26d510a873db88df8f6105cc252dcc579f559847 100644
 --- a/ios/Shared/MenuViewImplementation.swift
 +++ b/ios/Shared/MenuViewImplementation.swift
+@@ -17,7 +17,7 @@ public class MenuViewImplementation: UIButton {
+             }
+             _actions.removeAll()
+             actions.forEach { menuAction in
+-                _actions.append(RCTMenuAction(details: menuAction).createUIMenuElement({action in self.sendButtonAction(action)}))
++                _actions.append(RCTMenuAction(details: menuAction).createUIMenuElement({action in self.didSelectAction = true; self.sendButtonAction(action)}))
+             }
+             self.setup()
+         }
 @@ -42,6 +42,12 @@ public class MenuViewImplementation: UIButton {
          }
      }
@@ -218,7 +227,7 @@ index 5c4e0da4292b15d3a27b5ea1555f11452a470815..5723f8a5cb3dcd590a1bd79395da9897
      private var _themeVariant: String?
      @objc public var themeVariant: NSString? {
          didSet {
-@@ -52,25 +58,58 @@ public class MenuViewImplementation: UIButton {
+@@ -52,25 +58,110 @@ public class MenuViewImplementation: UIButton {
  
      @objc public var hitSlop: UIEdgeInsets = .zero
  
@@ -246,6 +255,7 @@ index 5c4e0da4292b15d3a27b5ea1555f11452a470815..5723f8a5cb3dcd590a1bd79395da9897
 +            self.setup()
 +        }
 +        isMenuPresented = true
++        didSelectAction = false
 +        sendMenuInteractionStart()
          return UIContextMenuConfiguration(identifier: nil, previewProvider: nil) { [weak self] _ in
              guard let self = self else { return nil }
@@ -275,13 +285,64 @@ index 5c4e0da4292b15d3a27b5ea1555f11452a470815..5723f8a5cb3dcd590a1bd79395da9897
 +        }
      }
  
++    public override func contextMenuInteraction(_ interaction: UIContextMenuInteraction, previewForHighlightingMenuWithConfiguration configuration: UIContextMenuConfiguration) -> UITargetedPreview? {
++        return contentPreview() ?? super.contextMenuInteraction(interaction, previewForHighlightingMenuWithConfiguration: configuration)
++    }
++
++    public override func contextMenuInteraction(_ interaction: UIContextMenuInteraction, previewForDismissingMenuWithConfiguration configuration: UIContextMenuConfiguration) -> UITargetedPreview? {
++        guard let preview = contentPreview() else {
++            return super.contextMenuInteraction(interaction, previewForDismissingMenuWithConfiguration: configuration)
++        }
++        // A selection usually re-renders the trigger, so fade instead of landing on its old look.
++        return didSelectAction ? nil : preview
++    }
++
++    // The button is a transparent overlay: morph from the React content so UIKit hides and restores it.
++    // iOS 26 only, and only for content with its own corner radius; otherwise keep UIButton's default.
++    private func contentPreview() -> UITargetedPreview? {
++        guard #available(iOS 26.0, *) else {
++            return nil
++        }
++        guard !shouldOpenOnLongPress, let siblings = self.superview?.subviews.filter({ $0 !== self }), siblings.count == 1, let content = siblings.first, content.window != nil, let (target, radius) = previewTarget(content) else {
++            return nil
++        }
++        let bounds = target.bounds
++        let parameters = UIPreviewParameters()
++        parameters.backgroundColor = .clear
++        parameters.visiblePath = UIBezierPath(roundedRect: bounds, cornerRadius: min(radius, bounds.height / 2, bounds.width / 2))
++        return UITargetedPreview(view: target, parameters: parameters)
++    }
++
++    // Walks the content's full-size single-child chain for its corner radius. A preview of a view
++    // above a glass effect view drops the glass until UIKit restores the source, so target the glass view.
++    private func previewTarget(_ content: UIView) -> (UIView, CGFloat)? {
++        var radius: CGFloat?
++        var view = content
++        for depth in 0...4 {
++            if radius == nil, view.layer.cornerRadius > 0 {
++                radius = view.layer.cornerRadius
++            }
++            if let radius, view is UIVisualEffectView {
++                return (view, radius)
++            }
++            guard depth < 4, view.subviews.count == 1, let child = view.subviews.first,
++                  abs(child.frame.size.width - view.bounds.size.width) <= 0.5,
++                  abs(child.frame.size.height - view.bounds.size.height) <= 0.5 else {
++                break
++            }
++            view = child
++        }
++        return radius.map { (content, $0) }
++    }
++
++    private var didSelectAction = false
 +    private var isMenuPresented = false
 +    private var pendingMenu: UIMenu?
 +
      func setup () {
          let menu = UIMenu(title: _title,
              identifier: nil,
-@@ -86,8 +125,100 @@ public class MenuViewImplementation: UIButton {
+@@ -86,8 +177,100 @@ public class MenuViewImplementation: UIButton {
              }
          }
  
@@ -382,7 +443,7 @@ index 5c4e0da4292b15d3a27b5ea1555f11452a470815..5723f8a5cb3dcd590a1bd79395da9897
      }
  
      public override func reactSetFrame(_ frame: CGRect) {
-@@ -124,4 +255,8 @@ public class MenuViewImplementation: UIButton {
+@@ -124,4 +307,8 @@ public class MenuViewImplementation: UIButton {
      @objc func sendMenuOpen() {
          // NO-OP (should be overriden by parent)
      }
