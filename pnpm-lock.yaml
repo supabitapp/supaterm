@@ -1535,9 +1535,6 @@ importers:
       '@cursor/sdk':
         specifier: 1.2.0
         version: 1.2.0(zod@4.6.5)
-      '@napi-rs/keyring':
-        specifier: ^1.3.0
-        version: 1.3.0
       '@supaterm/contracts':
         specifier: workspace:*
         version: link:../contracts

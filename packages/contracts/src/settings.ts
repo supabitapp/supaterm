@@ -1342,9 +1342,6 @@ export const ServerSettings = Schema.Struct({
   sourceControlHosts: Schema.Record(Schema.String, SourceControlHostSettings).pipe(
     Schema.withDecodingDefault(Effect.succeed({})),
   ),
-  cursorKeychainUsageEnabled: Schema.Boolean.pipe(
-    Schema.withDecodingDefault(Effect.succeed(false)),
-  ),
 
   usagePriceOverrides: Schema.Record(TrimmedNonEmptyString, UsageModelPriceOverride).pipe(
     Schema.withDecodingDefault(Effect.succeed({})),
@@ -1604,7 +1601,6 @@ export const ServerSettingsPatch = Schema.Struct({
   // entries is intentionally out of scope: the map is small, and partial
   // patches risk leaving driver-specific config in a half-merged state.
   providerInstances: Schema.optionalKey(Schema.Record(ProviderInstanceId, ProviderInstanceConfig)),
-  cursorKeychainUsageEnabled: Schema.optionalKey(Schema.Boolean),
 
   usagePriceOverrides: Schema.optionalKey(
     Schema.Record(TrimmedNonEmptyString, Schema.NullOr(UsageModelPriceOverride)),
