@@ -38,6 +38,16 @@ describe("SidePulse LED programs", () => {
     }
   });
 
+  it("gives each light its own program for every effect that keeps the light's color", () => {
+    for (const effect of SIDE_PULSE_EFFECTS) {
+      if (effect === "rainbow" || effect === "spectrum") continue;
+      const programs = SIDE_PULSE_LED_STATES.map((ledState) =>
+        sidePulseProgram(ledState, settings(100, effect)),
+      );
+      expect(new Set(programs).size, effect).toBe(SIDE_PULSE_LED_STATES.length);
+    }
+  });
+
   it("renders the program's colors at the chosen brightness", async () => {
     const engine = await instantiateSidePulseEngine(await compileEngine());
     engine.play(sidePulseProgram("done", settings(100, "solid")));

@@ -3,12 +3,13 @@ import type { SidePulseEffect, SidePulseLedState, SidePulseSettings } from "@sup
 export const SIDE_PULSE_LED_COUNT = 8;
 export const SIDE_PULSE_OFF_PROGRAM = "off 1s";
 
-// Each state's color and its soft companion: the same hue at about half the OKLCH lightness and chroma.
-const STATE_COLORS: Readonly<Record<SidePulseLedState, { color: string; soft: string }>> = {
-  idle: { color: "#00E5FF", soft: "#006060" },
-  done: { color: "#00FF66", soft: "#006A27" },
-  working: { color: "#00E5FF", soft: "#006060" },
-  attention: { color: "#FF3A00", soft: "#6A1300" },
+// Each light's color and Glow's brighter center. Idle's pair is SidePulse's own dim teal and cyan;
+// the others are the same hue 0.06 lighter in OKLCH, at the most chroma sRGB allows there.
+const STATE_COLORS: Readonly<Record<SidePulseLedState, { color: string; bright: string }>> = {
+  idle: { color: "#006060", bright: "#00E5FF" },
+  done: { color: "#00FF66", bright: "#B1FFBA" },
+  working: { color: "#00E5FF", bright: "#97F0FF" },
+  attention: { color: "#FF3A00", bright: "#FF6E4F" },
 };
 
 // Eight OKLCH hues 45° apart from 20°, each at the most vivid color sRGB can show.
@@ -57,12 +58,12 @@ function pulses(color: string, durationMs: number, timeline: Timeline): string {
 }
 
 // LEDS.LED programs. A pulse returns to its line's start color, so animations start from `off`.
-const EFFECTS: Readonly<Record<SidePulseEffect, (color: string, soft: string) => string>> = {
+const EFFECTS: Readonly<Record<SidePulseEffect, (color: string, bright: string) => string>> = {
   solid: (color) => `${color} 320ms cosine`,
   breathe: (color) => `off\n${color} 4s pulse\nrepeat`,
   pulse: (color) => `off\n${color} 1.6s pulse\nrepeat`,
-  heartbeat: (color, soft) => `off\n${color} 220ms pulse\n${soft} 340ms pulse\noff 1s\nrepeat`,
-  glow: (color, soft) => `off 2s\n2:${soft} 3:${color} 4:${color} 5:${soft} 2s ease\nrepeat`,
+  heartbeat: (color) => `off\n${color} 220ms pulse\n${color} 340ms pulse\noff 1s\nrepeat`,
+  glow: (color, bright) => `off 2s\n2:${color} 3:${bright} 4:${bright} 5:${color} 2s ease\nrepeat`,
   roll: (color) => `off 320ms cosine\n${pulses(color, 760, ROLL)}\nrepeat`,
   ripple: (color) => `off 320ms cosine\n${pulses(color, 760, RIPPLE)}\nrepeat`,
   scanner: (color) =>
@@ -78,8 +79,8 @@ export function sidePulseProgram(
   settings: SidePulseSettings,
 ): string {
   if (ledState === null) return SIDE_PULSE_OFF_PROGRAM;
-  const { color, soft } = STATE_COLORS[ledState];
-  const program = EFFECTS[settings.effects[ledState]](color, soft);
+  const { color, bright } = STATE_COLORS[ledState];
+  const program = EFFECTS[settings.effects[ledState]](color, bright);
   const level = Math.round((settings.brightness / 100) * 255);
   return level >= 255 ? program : `brightness ${level}\n${program}`;
 }

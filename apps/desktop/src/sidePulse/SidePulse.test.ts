@@ -78,7 +78,7 @@ describe("SidePulse", () => {
       });
       assert.strictEqual(
         yield* read("SidePulse Pro"),
-        "brightness 128\noff\n#FF3A00 220ms pulse\n#6A1300 340ms pulse\noff 1s\nrepeat",
+        "brightness 128\noff\n#FF3A00 220ms pulse\n#FF3A00 340ms pulse\noff 1s\nrepeat",
       );
     }).pipe(Effect.scoped, Effect.provide(NodeServices.layer)),
   );
