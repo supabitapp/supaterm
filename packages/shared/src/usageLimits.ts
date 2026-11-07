@@ -647,8 +647,11 @@ export function hasProviderUsageLimits(
 
 /** Advertise on workspace catalogs too, which replace the global command list. */
 export function withUsageLimitsCommands(providers: readonly ServerProvider[]): ServerProvider[] {
+  const supportedDrivers = new Set(
+    providersWithLimits(providers).map((provider) => provider.driver),
+  );
   return providers.map((provider) => {
-    if (!hasProviderUsageLimits(provider.driver, providers)) return provider;
+    if (!supportedDrivers.has(provider.driver)) return provider;
     const commands = (items: readonly ServerProviderSlashCommand[]) => [
       ...items.filter((command) => command.name !== USAGE_LIMITS_COMMAND.name),
       USAGE_LIMITS_COMMAND,
