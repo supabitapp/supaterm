@@ -13,6 +13,7 @@ import { refreshAssetUrl } from "../state/assets";
 import { filePreviewGallery, filePreviewKey, filePreviewName } from "../lib/filePreviewGallery";
 import { FilePreviewGallery } from "./FilePreviewGallery";
 import { FilePreview } from "./FilePreview";
+import type { MediaActionsSource } from "../lib/mediaActionsSource";
 import type { FilePreviewItem, FilePreviewSource } from "./FilePreviewModal.types";
 
 export type {
@@ -58,6 +59,18 @@ async function resolvePreviewUri(
       );
     });
   return { uri: url + (item.srcFragment ?? "") };
+}
+
+// Shares from the unresolved item so remote URLs refresh and draft files take their own lease.
+function pdfActionsSource(item: FilePreviewItem): MediaActionsSource {
+  const metadata = {
+    name: filePreviewName(item),
+    mimeType: item.mimeType ?? "application/pdf",
+    ...(item.sourceIdentifier ? { sourceIdentifier: item.sourceIdentifier } : {}),
+  };
+  if ("uri" in item) return { ...metadata, uri: item.uri };
+  if ("attachment" in item) return { ...metadata, attachment: item.attachment };
+  return { ...metadata, environmentId: item.environmentId, resource: item.resource };
 }
 
 function ResolvedFilePreview(props: {
@@ -176,9 +189,16 @@ function ResolvedFilePreview(props: {
         : []),
     ]);
   };
+  const actionsSource =
+    selected.kind === "pdf" ? (selected.actionsSource ?? pdfActionsSource(selected)) : undefined;
   return (
     <FilePreview
-      source={{ ...selected, kind: selected.kind, uri }}
+      source={{
+        ...selected,
+        kind: selected.kind,
+        uri,
+        ...(actionsSource ? { actionsSource } : {}),
+      }}
       onRequestClose={props.onRequestClose}
       onOpenError={onOpenError}
     />
