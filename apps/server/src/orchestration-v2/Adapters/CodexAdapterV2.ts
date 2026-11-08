@@ -103,6 +103,7 @@ import { ChildProcess, ChildProcessSpawner } from "effect/process";
 
 import { resolveAttachmentPath, resolveAttachmentPathById } from "../../attachmentStore.ts";
 import * as ServerSettings from "../../serverSettings.ts";
+import * as PromptSuggestionHub from "../PromptSuggestionHub.ts";
 import * as PortScanner from "../../preview/PortScanner.ts";
 import { getCodexServiceTierOptionValue } from "../../codexModelOptions.ts";
 import { ServerConfig } from "../../config.ts";
@@ -5938,7 +5939,8 @@ export const makeCodexAdapterV2 = Effect.fn("makeCodexAdapterV2")(function* (
               prompt: CODEX_NEXT_PROMPT_REQUEST,
             })
             .pipe(
-              Effect.timeout("30 seconds"),
+              // The hub's wait starts no earlier than this sample, so a capped sample always lands.
+              Effect.timeout(PromptSuggestionHub.PREDICTION_WAIT),
               Effect.flatMap(decodeCodexThreadSampleResponse),
               Effect.flatMap(({ text }) =>
                 text === null
