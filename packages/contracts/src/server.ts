@@ -687,6 +687,7 @@ export const ServerConfig = Schema.Struct({
    * `getThreadFamily` and `getWorktreeThreadIds` serve the rows it leaves out.
    */
   shellThreadFamilies: Schema.optionalKey(Schema.Boolean),
+  threadLinkMetadata: Schema.optionalKey(Schema.Boolean),
   /**
    * The shell can leave older done threads out of snapshots (`omitOlderDone`), and
    * `getOlderDoneThreads` serves them. Only servers that also advertise `shellThreadFamilies`.
