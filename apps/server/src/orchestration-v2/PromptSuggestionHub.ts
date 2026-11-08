@@ -17,8 +17,8 @@ interface PromptSuggestionTarget {
   readonly runId: RunId;
 }
 
-// Claude sends its prediction a couple of seconds after the turn ends, and nothing at all when
-// it declines to predict (a first turn, plan mode, near a usage limit), so the wait is bounded.
+// Predictions arrive a few seconds after the turn ends, and never when the provider declines or
+// fails to predict (a first turn, plan mode, near a usage limit), so the wait is bounded.
 const PREDICTION_WAIT = Duration.seconds(20);
 const CAPACITY = 256;
 

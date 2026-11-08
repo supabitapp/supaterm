@@ -567,7 +567,7 @@ export const SETTINGS_SEARCH_ITEMS = [
   },
   {
     id: "next-prompt-suggestions",
-    title: "Claude prompt suggestions",
+    title: "Next prompt suggestions",
     to: "/settings/threads",
     scope: "environment-defaults",
     searchTerms: [

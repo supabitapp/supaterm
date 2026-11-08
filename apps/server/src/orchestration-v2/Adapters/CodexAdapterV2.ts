@@ -102,6 +102,7 @@ import * as Stream from "effect/Stream";
 import { ChildProcess, ChildProcessSpawner } from "effect/process";
 
 import { resolveAttachmentPath, resolveAttachmentPathById } from "../../attachmentStore.ts";
+import * as ServerSettings from "../../serverSettings.ts";
 import * as PortScanner from "../../preview/PortScanner.ts";
 import { getCodexServiceTierOptionValue } from "../../codexModelOptions.ts";
 import { ServerConfig } from "../../config.ts";
@@ -233,6 +234,11 @@ const decodeCodexBackgroundTerminalTerminateResponse = Schema.decodeUnknownEffec
 const decodeCodexBackgroundTerminalsListResponse = Schema.decodeUnknownEffect(
   CodexBackgroundTerminalsListResponse,
 );
+const decodeCodexThreadSampleResponse = Schema.decodeUnknownEffect(
+  Schema.Struct({ text: Schema.NullOr(Schema.String) }),
+);
+export const CODEX_NEXT_PROMPT_REQUEST =
+  "This message is from the app, not the user. Predict the message the user is most likely to send next, written in their voice as an instruction to you. Reply with only that message: one line, 2 to 12 words, no quotes, no question. If no next step is clear, reply NONE.";
 const CODEX_CLIENT_CAPABILITIES = {
   experimentalApi: true,
   optOutNotificationMethods: ["turn/diff/updated"],
@@ -1638,6 +1644,7 @@ export const createCodexAdapterV2 = Effect.fn("CodexAdapterV2.createCodexAdapter
   const hostEnvironment = yield* HostProcess.Environment;
   const idAllocator = yield* IdAllocator.IdAllocatorV2;
   const serverConfig = yield* ServerConfig;
+  const serverSettings = yield* Effect.serviceOption(ServerSettings.ServerSettingsService);
   const homeLayout = yield* resolveCodexHomeLayout(config);
 
   yield* materializeCodexShadowHome(homeLayout).pipe(
@@ -1669,6 +1676,14 @@ export const createCodexAdapterV2 = Effect.fn("CodexAdapterV2.createCodexAdapter
     idAllocator,
     serverConfig,
     continuationRequests,
+    promptSuggestionsEnabled: Option.match(serverSettings, {
+      onNone: () => Effect.succeed(false),
+      onSome: (service) =>
+        service.getSettings.pipe(
+          Effect.map((current) => current.nextPromptSuggestionsEnabled),
+          Effect.orElseSucceed(() => false),
+        ),
+    }),
     ...hooks,
   });
 });
@@ -1683,6 +1698,7 @@ export interface CodexAdapterV2Options {
   readonly compatibility?: (
     version: string,
   ) => Effect.Effect<ServerProviderCompatibilityAdvisory | undefined>;
+  readonly promptSuggestionsEnabled?: Effect.Effect<boolean>;
   readonly crypto: Crypto.Crypto;
   readonly fileSystem: FileSystem.FileSystem;
   readonly idAllocator: IdAllocator.IdAllocatorV2["Service"];
@@ -5888,9 +5904,52 @@ export const makeCodexAdapterV2 = Effect.fn("makeCodexAdapterV2")(function* (
               );
               return;
             }
+            if (event.status === "completed") {
+              yield* suggestNextPrompt(input.context, input.nativeTurnId);
+            }
             yield* emitRootTerminal(input.context, event);
           },
         );
+
+        // Runs before the terminal so a client that sees the run complete finds the prediction pending.
+        const suggestNextPrompt = Effect.fn("CodexAdapterV2.suggestNextPrompt")(function* (
+          context: ActiveCodexTurnContext,
+          nativeTurnId: string,
+        ) {
+          const nativeThreadId = context.providerThread.nativeThreadRef?.nativeId;
+          if (
+            nativeThreadId == null ||
+            !(yield* adapterOptions.promptSuggestionsEnabled ?? Effect.succeed(false))
+          ) {
+            return;
+          }
+          const target = {
+            driver: CODEX_PROVIDER,
+            threadId: context.input.threadId,
+            runId: context.input.runId,
+          };
+          yield* emitProviderEvent({ type: "prompt_suggestion.expected", ...target });
+          yield* client.raw
+            .request("thread/sample", {
+              threadId: nativeThreadId,
+              expectedTurnId: nativeTurnId,
+              prompt: CODEX_NEXT_PROMPT_REQUEST,
+            })
+            .pipe(
+              Effect.flatMap(decodeCodexThreadSampleResponse),
+              Effect.flatMap(({ text }) =>
+                text === null
+                  ? Effect.void
+                  : emitProviderEvent({
+                      type: "prompt_suggestion.ready",
+                      ...target,
+                      suggestion: text,
+                    }),
+              ),
+              Effect.ignore({ log: "Debug", message: "Codex next prompt suggestion failed" }),
+              Effect.forkIn(scope),
+            );
+        });
 
         // A goal must not read as active once its run ends. Claiming the hold first
         // makes a turn Codex starts during the pause an orphan, which is stopped.

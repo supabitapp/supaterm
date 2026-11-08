@@ -64,14 +64,14 @@ const make = Effect.gen(function* () {
     return DateTime.isGreaterThan(run.completedAt, DateTime.subtractDuration(now, FRESHNESS));
   });
 
-  // Only Claude predicts next prompts, from the whole turn and its warm prompt cache. Other
+  // Claude and Codex predict next prompts from the whole turn and its warm prompt cache. Other
   // providers have no prediction and get no suggestion.
   const predict = Effect.fn("NextPromptSuggestionService.predict")(function* (key: SuggestionKey) {
     const predicted = Option.getOrNull(yield* providerPredictions.await(key));
     return predicted === null ? null : sanitizeNextPrompt(predicted);
   });
 
-  // Every client showing the thread asks about the same run; they share one wait for Claude. An
+  // Every client showing the thread asks about the same run; they share one wait. An
   // interrupted wait is not kept, so the next request waits again.
   const suggestions = yield* Cache.makeWith(predict, {
     capacity: 256,
