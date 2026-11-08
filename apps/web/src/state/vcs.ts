@@ -25,3 +25,9 @@ export const vcsStatusRevalidation = createVcsStatusRevalidationAtomFamily({
   subscribeWake: subscribeDocumentReturn,
   wakeDebounceMs: 250,
 });
+
+export const vcsBranchRevalidation = createVcsStatusRevalidationAtomFamily({
+  refreshStatus: vcsEnvironment.refreshBranch,
+  subscribeWake: subscribeDocumentReturn,
+  wakeDebounceMs: 250,
+});
