@@ -1262,6 +1262,7 @@ interface CodexGoalHold {
   readonly context: ActiveCodexTurnContext;
   readonly event: Extract<CodexRootTerminalEvent, { readonly failure: null }>;
   readonly completedTurn: OrchestrationV2ProviderTurn;
+  readonly nativeTurnId: string;
   readonly next: Deferred.Deferred<ActiveCodexTurnContext | undefined>;
 }
 
@@ -5892,6 +5893,7 @@ export const makeCodexAdapterV2 = Effect.fn("makeCodexAdapterV2")(function* (
                 context: input.context,
                 event,
                 completedTurn: input.goalHoldTurn,
+                nativeTurnId: input.nativeTurnId,
                 next: yield* Deferred.make<ActiveCodexTurnContext | undefined>(),
               });
               yield* Effect.sleep(CODEX_GOAL_CONTINUATION_GRACE).pipe(
@@ -5936,6 +5938,7 @@ export const makeCodexAdapterV2 = Effect.fn("makeCodexAdapterV2")(function* (
               prompt: CODEX_NEXT_PROMPT_REQUEST,
             })
             .pipe(
+              Effect.timeout("30 seconds"),
               Effect.flatMap(decodeCodexThreadSampleResponse),
               Effect.flatMap(({ text }) =>
                 text === null
@@ -6010,6 +6013,7 @@ export const makeCodexAdapterV2 = Effect.fn("makeCodexAdapterV2")(function* (
             threadId: hold.context.projectionThreadId,
             providerTurn: hold.completedTurn,
           });
+          if (status === "completed") yield* suggestNextPrompt(hold.context, hold.nativeTurnId);
           yield* emitRootTerminal(hold.context, { ...hold.event, status });
           yield* Deferred.succeed(hold.next, undefined);
         });

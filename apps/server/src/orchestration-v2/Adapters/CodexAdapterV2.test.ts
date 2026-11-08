@@ -8219,9 +8219,21 @@ describe("CodexAdapterV2 post-settle continuation", () => {
               { threadId: nativeThreadId, status: "paused" },
               { goal: codexGoal("paused", 11) },
             ),
+            ...request(
+              5,
+              "thread/sample",
+              {
+                threadId: nativeThreadId,
+                expectedTurnId: "goal-turn",
+                prompt: CodexAdapterV2.CODEX_NEXT_PROMPT_REQUEST,
+              },
+              { sourceTurnId: "goal-turn", responseId: "resp-goal", text: "Resume the goal." },
+            ),
           ],
         });
-        const harness = yield* makeCodexReplayHarness(transcript);
+        const harness = yield* makeCodexReplayHarness(transcript, undefined, undefined, undefined, {
+          promptSuggestionsEnabled: Effect.succeed(true),
+        });
         yield* harness.runtime.startTurn(
           makeCodexTestTurnInput({
             threadId: harness.threadId,
@@ -8246,6 +8258,12 @@ describe("CodexAdapterV2 post-settle continuation", () => {
         assert.deepEqual(
           harness.terminalEvents().map((event) => event.status),
           ["completed"],
+        );
+        yield* harness.until(() =>
+          harness.events.some(
+            (event) =>
+              event.type === "prompt_suggestion.ready" && event.suggestion === "Resume the goal.",
+          ),
         );
       }).pipe(
         Effect.scoped,
