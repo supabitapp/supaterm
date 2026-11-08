@@ -4272,14 +4272,15 @@ export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(function* 
           detail: `The worktree location "${options?.worktreesDirectory}" must be an absolute folder on this machine, not a drive root. Change it in Settings → Worktrees.`,
         });
       }
-      let directoryName = targetBranch.replace(/\//g, "-");
-      // Leave room for files beneath the worktree on Windows, regardless of branch length.
-      if (directoryName.length > 40) {
-        const hash = yield* digest.digest(Digest.sha256, new TextEncoder().encode(targetBranch));
-        // Avoid splitting a surrogate pair, which Git would list back as a different path.
-        const prefix = directoryName.slice(0, 23).replace(/[\uD800-\uDBFF]$/, "");
-        directoryName = `${prefix}-${Hex.encode(hash).slice(0, 16)}`;
+      const identity = `${yield* readGitCommonDir(input.cwd)}\0${targetBranch}`;
+      const hash = yield* digest.digest(Digest.sha256, new TextEncoder().encode(identity));
+      // UTF-8 bytes bound UTF-16 length too, leaving room for files on Windows.
+      let prefix = "";
+      for (const character of targetBranch.replace(/\//g, "-")) {
+        if (Buffer.byteLength(prefix + character) > 23) break;
+        prefix += character;
       }
+      const directoryName = `${prefix}-${Hex.encode(hash).slice(0, 16)}`;
       worktreePath = path.join(parentDir, repoName, directoryName);
     }
     const newRefName = input.newRefName;
