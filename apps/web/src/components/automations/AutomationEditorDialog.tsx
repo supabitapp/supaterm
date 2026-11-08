@@ -21,15 +21,17 @@ import {
   isAtomCommandInterrupted,
   squashAtomCommandFailure,
 } from "@supaterm/client-runtime/state/runtime";
+import { ChevronDownIcon, MessageSquareIcon } from "@supaterm/icons";
 import { resolvePastedPath } from "@supaterm/shared/path";
 
 import { useEnvironmentSettings } from "../../hooks/useSettings";
 import { getCustomModelOptionsByInstance } from "../../modelSelection";
 import { providerInstanceEntriesFor } from "../../providerInstances";
 import { useEnvironment, type EnvironmentPresentation } from "../../state/environments";
-import { useProjects, useThreadShell } from "../../state/entities";
+import { useProjects, useThreadShell, useThreadShells } from "../../state/entities";
 import { scopeThreadRef } from "@supaterm/client-runtime/environment";
 import { readEnvironmentScope, useEnvironmentScope } from "../../state/session";
+import { useThreadSearch } from "../../state/queries";
 import { useEnvironmentQuery } from "../../state/query";
 import { EMPTY_SERVER_PROVIDERS, serverEnvironment } from "../../state/server";
 import { threadFamilies } from "../../state/threads";
@@ -39,6 +41,15 @@ import { EnvironmentMachineIcon } from "../EnvironmentMachineIcon";
 import { ProviderModelPicker } from "../chat/ProviderModelPicker";
 import { SETTINGS_PICKER_TRIGGER_CLASSNAME } from "../settings/settingsLayout";
 import { Button } from "../ui/button";
+import {
+  Combobox,
+  ComboboxEmpty,
+  ComboboxItem,
+  ComboboxList,
+  ComboboxPopup,
+  ComboboxSearchInput,
+  ComboboxTrigger,
+} from "../ui/combobox";
 import {
   Dialog,
   DialogClose,
@@ -60,13 +71,17 @@ import { ToggleGroup, Toggle } from "../ui/toggle-group";
 import type { ResolvedSettingsScope } from "../settings/settingsScope";
 import { settingsScopeEnvironmentLabels } from "../settings/settingsScopeAxis";
 import {
+  changeDraftProject,
   defaultAutomationProjectId,
   matchesAutomationScope,
+  moveDraftToThread,
   scheduleDraftErrors,
   scheduleFromDraft,
   scheduledTaskDefaultModel,
+  scheduledTaskDestinationThreads,
   taskToDraft,
   toDateTimeLocalValue,
+  unbindDraftFromThread,
   WEEKDAY_LABELS,
   type DraftState,
   type WorkspaceMode,
@@ -75,6 +90,9 @@ import {
 /** JS day-of-week (0 = Sunday) rendered Monday-first, matching how people read a week. */
 const WEEKDAY_ORDER = [1, 2, 3, 4, 5, 6, 0] as const;
 const WEEKDAY_SHORT = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"] as const;
+
+// Thread ids are trimmed, so the leading space keeps this from matching one.
+const NEW_THREAD_DESTINATION = " new-thread";
 
 const WORKSPACE_MODE_LABELS: Record<WorkspaceMode, string> = {
   worktree: "Create a new worktree",
@@ -132,16 +150,24 @@ const THREAD_MODE_LABELS: Record<ScheduledTaskThreadMode, string> = {
 
 function ScheduledTaskDestination({
   environmentId,
+  projectId,
   threadId,
   threadMode,
+  disabled,
+  onSelect,
   onThreadModeChange,
 }: {
   readonly environmentId: EnvironmentId;
+  readonly projectId: string;
   readonly threadId: ThreadId | null;
   readonly threadMode: ScheduledTaskThreadMode;
+  readonly disabled: boolean;
+  readonly onSelect: (thread: { id: ThreadId; projectId: ProjectId } | null) => void;
   /** Absent on servers that predate thread modes. */
   readonly onThreadModeChange: ((mode: ScheduledTaskThreadMode) => void) | undefined;
 }) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
   const ref = threadId === null ? null : scopeThreadRef(environmentId, threadId);
   const shell = useThreadShell(ref);
   // The shell can omit older done threads; their family read still carries the title.
@@ -149,11 +175,38 @@ function ScheduledTaskDestination({
     ref !== null && shell === null ? threadFamilies.familyAtom(environmentId, ref.threadId) : null,
   );
   const thread = shell ?? family.data?.threads.find((row) => row.id === threadId);
-  const bound = ref !== null && threadMode !== "new_thread";
+  const currentLabel =
+    ref !== null
+      ? thread?.title.trim() || `Thread ${ref.threadId}`
+      : threadMode === "new_thread"
+        ? "New thread each run"
+        : "Started by the first run";
+  const shells = useThreadShells(open);
+  // Mounts older done threads matching the query, which shells may leave out.
+  useThreadSearch(open && projectId ? [environmentId] : [], query, {
+    titlesOnly: true,
+    projectIds: [projectId as ProjectId],
+  });
+  const threads = scheduledTaskDestinationThreads(shells, {
+    environmentId,
+    projectId,
+    currentThreadId: threadId,
+    query,
+  });
+  const search = query.trim().toLocaleLowerCase();
+  const items: ReadonlyArray<string> = [
+    ...(search ? [] : [NEW_THREAD_DESTINATION]),
+    ...(threadId !== null && currentLabel.toLocaleLowerCase().includes(search) ? [threadId] : []),
+    ...threads.map((row) => row.id),
+  ];
+  const handleOpenChange = (next: boolean) => {
+    setOpen(next);
+    if (!next) setQuery("");
+  };
   const detail =
     threadMode === "new_thread"
       ? "Each run starts a new thread with the workspace and model below."
-      : !bound
+      : ref === null
         ? threadMode === "continue"
           ? "The first run starts a thread with the workspace and model below. Later runs continue that conversation."
           : "The first run starts a thread with the workspace and model below. Later runs post there, each in a fresh session without earlier runs' context."
@@ -179,10 +232,66 @@ function ScheduledTaskDestination({
           </SelectPopup>
         </Select>
       ) : null}
+      {!onThreadModeChange || threadMode !== "new_thread" ? (
+        <Combobox
+          items={items}
+          filteredItems={items}
+          filter={null}
+          autoHighlight
+          open={open && !disabled}
+          onOpenChange={handleOpenChange}
+          value={threadId ?? (threadMode === "new_thread" ? NEW_THREAD_DESTINATION : null)}
+          onValueChange={(value) => {
+            if (value === NEW_THREAD_DESTINATION) {
+              onSelect(null);
+              handleOpenChange(false);
+              return;
+            }
+            const picked = threads.find((row) => row.id === value);
+            if (picked) onSelect(picked);
+            handleOpenChange(false);
+          }}
+        >
+          <ComboboxTrigger
+            id={
+              onThreadModeChange
+                ? "scheduled-task-destination-thread"
+                : "scheduled-task-destination"
+            }
+            aria-label={onThreadModeChange ? "Destination thread" : undefined}
+            disabled={disabled}
+            render={<Button variant="outline" size="sm" />}
+            className="w-full justify-between"
+          >
+            <MessageSquareIcon className="size-3.5 shrink-0 text-muted-foreground" />
+            <span className="min-w-0 flex-1 truncate text-left">{currentLabel}</span>
+            <ChevronDownIcon className="size-3.5 shrink-0 text-muted-foreground" />
+          </ComboboxTrigger>
+          <ComboboxPopup align="start" side="bottom" className="w-80">
+            <ComboboxSearchInput
+              aria-label="Search threads"
+              placeholder="Search all threads..."
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+            />
+            <ComboboxEmpty>No threads found.</ComboboxEmpty>
+            <ComboboxList className="max-h-72">
+              {items.map((value, index) => (
+                <ComboboxItem key={value} index={index} value={value}>
+                  <span className="block truncate">
+                    {value === NEW_THREAD_DESTINATION
+                      ? "New thread each run"
+                      : value === threadId
+                        ? currentLabel
+                        : threads.find((row) => row.id === value)?.title || "Untitled thread"}
+                  </span>
+                </ComboboxItem>
+              ))}
+            </ComboboxList>
+          </ComboboxPopup>
+        </Combobox>
+      ) : null}
       <div className="space-y-1 text-sm">
-        {bound ? (
-          <p className="wrap-anywhere">{thread?.title.trim() || `Thread ${ref.threadId}`}</p>
-        ) : null}
         <p className="text-muted-foreground">{detail}</p>
         {threadMode !== "new_thread" ? (
           <p className="text-muted-foreground">Deleting the thread also deletes this task.</p>
@@ -426,7 +535,7 @@ export function AutomationEditorDialog({
                   if (!next) return;
                   setEnvironmentId(next.environmentId);
                   setDraft((current) => ({
-                    ...current,
+                    ...unbindDraftFromThread(current),
                     projectId: defaultAutomationProjectId(projectsOn(next.environmentId), scope),
                     modelKey: "",
                     baseModelSelection: null,
@@ -504,11 +613,24 @@ export function AutomationEditorDialog({
 
             <ScheduledTaskDestination
               environmentId={environmentId}
+              projectId={selectedProjectId}
               threadId={draft.threadId ? (draft.threadId as ThreadId) : null}
               threadMode={draft.threadMode}
+              disabled={saving || !connected}
+              onSelect={(thread) =>
+                setDraft((current) =>
+                  thread === null
+                    ? { ...unbindDraftFromThread(current), threadMode: "new_thread" }
+                    : moveDraftToThread(current, thread),
+                )
+              }
               onThreadModeChange={
                 offersThreadModes
-                  ? (threadMode) => setDraft((current) => ({ ...current, threadMode }))
+                  ? (threadMode) =>
+                      setDraft((current) => ({
+                        ...(threadMode === "new_thread" ? unbindDraftFromThread(current) : current),
+                        threadMode,
+                      }))
                   : undefined
               }
             />
@@ -518,7 +640,7 @@ export function AutomationEditorDialog({
                 <Select
                   value={selectedProjectId}
                   onValueChange={(projectId) =>
-                    setDraft((current) => ({ ...current, projectId: projectId ?? "" }))
+                    setDraft((current) => changeDraftProject(current, projectId ?? ""))
                   }
                 >
                   <SelectTrigger size="sm" id="scheduled-task-project">
