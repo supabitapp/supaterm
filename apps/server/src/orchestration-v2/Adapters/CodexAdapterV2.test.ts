@@ -1893,6 +1893,7 @@ describe("CodexAdapterV2 post-settle continuation", () => {
           config: {
             "tools.update_plan.enabled": true,
             mcp_optional_startup_grace_ms: 10_000,
+            "features.concurrent_reasoning_summaries": true,
             "shell_environment_policy.set.SUPATERM_THREAD_ID": `thread-${scenario}`,
             "mcp_servers.supaterm": {
               url: "http://127.0.0.1:43123/mcp",
