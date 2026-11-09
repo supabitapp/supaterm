@@ -114,6 +114,8 @@ export const ExecutionEnvironmentCapabilities = Schema.Struct({
   desktopAppUpdate: Schema.optionalKey(Schema.Boolean),
   /** The desktop app switches update tracks when a server update request names one. */
   desktopAppChannelSwitch: Schema.optionalKey(Schema.Boolean),
+  /** Mints pairing codes that approve one agent sign-in at a set level (`AUTO-…`). */
+  mcpApprovalCodes: Schema.optionalKey(Schema.Boolean),
   /** Server answers server.prepareTriage. */
   triage: Schema.optionalKey(Schema.Boolean),
   /** Server answers projects.createFromThread. */

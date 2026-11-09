@@ -407,8 +407,9 @@ const make = Effect.gen(function* () {
 
   const approve: McpOAuth["Service"]["approve"] = Effect.fn("McpOAuth.approve")(function* (input) {
     const { decision } = input;
+    let access = decision.access;
     if (decision._tag === "pairing-code") {
-      yield* environmentAuth.consumeMcpApprovalCode(decision.code, decision.access).pipe(
+      access = yield* environmentAuth.consumeMcpApprovalCode(decision.code, decision.access).pipe(
         Effect.catchIf(EnvironmentAuth.isServerAuthInternalError, (cause) =>
           Effect.logError("MCP approval code check failed.", { cause }).pipe(
             Effect.andThen(
@@ -435,10 +436,10 @@ const make = Effect.gen(function* () {
         });
       }
     }
-    const code = yield* mintCode(input.authorization, decision.access);
+    const code = yield* mintCode(input.authorization, access);
     yield* Effect.logInfo("Approved an MCP client sign-in.", {
       client: input.authorization.client.name,
-      access: decision.access,
+      access,
       method: decision._tag,
     });
     return redirectWith(input.authorization.redirectUri, {

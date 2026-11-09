@@ -463,6 +463,73 @@ it.live("denies requests and refuses codes without the scopes it grants", () =>
   ),
 );
 
+it.live("an app approval code approves only an app sign-in, at its own level", () =>
+  withRoutes((handler, auth) =>
+    Effect.gen(function* () {
+      const clientId = yield* registeredClientId(handler);
+      const params = authorizeParams(clientId);
+      const issued = yield* auth.issuePairingCredential({ access: "approval-required" });
+      expect(issued.access).toBe("approval-required");
+      const code = issued.credential;
+      expect(code).toMatch(/^SUPERVISED-[2-9A-HJ-NP-Z]{12}$/);
+
+      // Signing in a browser and a token exchange both refuse it and leave it unspent.
+      const browser = yield* handler(
+        at("/api/auth/browser-session", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: encodeJson({ credential: code }),
+        }),
+      );
+      expect(browser.status).toBe(401);
+      const exchanged = yield* auth
+        .exchangeBootstrapCredentialForAccessToken(code, undefined, { deviceType: "bot" })
+        .pipe(Effect.flip);
+      expect(exchanged._tag).toBe("ServerAuthInvalidCredentialError");
+
+      // Supervised and Auto share scopes, so only the code's own level may spend it.
+      const otherLevel = yield* decide(handler, params, {
+        _tag: "pairing-code",
+        access: "auto",
+        code,
+      });
+      expect(otherLevel.status).toBe(400);
+
+      const approved = yield* decide(handler, params, {
+        _tag: "pairing-code",
+        access: "approval-required",
+        code: code.toLowerCase(),
+      });
+      expect(approved.status).toBe(200);
+      const token = yield* handler(
+        at(
+          "/oauth/mcp/token",
+          form({
+            grant_type: "authorization_code",
+            code: new URL(approved.redirectTo!).searchParams.get("code")!,
+            redirect_uri: params.redirect_uri,
+            client_id: clientId,
+            code_verifier: verifier,
+          }),
+        ),
+      ).pipe(Effect.flatMap(json<{ access_token: string }>));
+      const signedIn = yield* auth.authenticateMcpClient(
+        HttpServerRequest.fromWeb(
+          at("/mcp", { headers: { authorization: `Bearer ${token.access_token}` } }),
+        ),
+      );
+      expect(signedIn.access).toBe("approval-required");
+      expect(
+        (yield* decide(handler, params, {
+          _tag: "pairing-code",
+          access: "approval-required",
+          code,
+        })).status,
+      ).toBe(400);
+    }),
+  ),
+);
+
 it.live("one-click approves only access the browser session holds the scopes for", () =>
   withRoutes((handler, auth) =>
     Effect.gen(function* () {
