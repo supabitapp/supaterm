@@ -102,6 +102,8 @@ describe("MessagesTimeline end-follow", () => {
         getState: () => ({ isAtEnd: timelineIsAtEnd, indexByKey: () => undefined }),
         getScrollableNode: () => null,
         scrollToEnd,
+        cancelScroll: () => {},
+        anchorVisibleContent: () => undefined,
       } as unknown as LegendListRef;
       const onToolOutputCollapsedAtEnd = vi.fn();
       await act(async () =>
@@ -168,53 +170,72 @@ describe("MessagesTimeline end-follow", () => {
     await vi.waitFor(() => expect(onFooterGrow).toHaveBeenCalledOnce());
   });
 
-  it("holds end-follow off until a disclosure nested in a row settles", async () => {
-    await using _fixture = await setup();
+  it.each([
+    { isWorking: false, isFollowingEnd: true, anchors: true },
+    { isWorking: true, isFollowingEnd: false, anchors: true },
+    { isWorking: true, isFollowingEnd: true, anchors: false },
+  ])(
+    "anchors a disclosure nested in a row unless a streaming turn follows the end: $isWorking, $isFollowingEnd",
+    async ({ isWorking, isFollowingEnd, anchors }) => {
+      await using _fixture = await setup();
 
-    const following = () =>
-      container
-        .querySelector('[data-testid="legend-list"]')
-        ?.getAttribute("data-maintain-scroll-at-end") === "enabled";
-    const text = Array.from({ length: 9 }, (_, index) =>
-      index === 8
-        ? "deep hidden detail only after expand"
-        : `Line ${index + 1}: ${"verbose prompt content ".repeat(8).trim()}`,
-    ).join("\n");
-    await act(async () =>
-      fixtureScreen.rerender(
-        <MessagesTimeline
-          {...baseProps()}
-          timelineEntries={[
-            {
-              id: "entry-1",
-              kind: "message",
-              createdAt: CREATED_AT,
-              message: {
-                id: MessageId.make("message-1"),
-                role: "user",
-                text,
-                runId: null,
+      const props = baseProps();
+      const cancelScroll = vi.fn();
+      const anchorVisibleContent = vi.fn();
+      props.listRef.current = {
+        getState: () => ({ isAtEnd: true, isFollowingEnd, indexByKey: () => undefined }),
+        getScrollableNode: () => null,
+        cancelScroll,
+        anchorVisibleContent,
+      } as unknown as LegendListRef;
+      const following = () =>
+        container
+          .querySelector('[data-testid="legend-list"]')
+          ?.getAttribute("data-maintain-scroll-at-end") === "enabled";
+      const text = Array.from({ length: 9 }, (_, index) =>
+        index === 8
+          ? "deep hidden detail only after expand"
+          : `Line ${index + 1}: ${"verbose prompt content ".repeat(8).trim()}`,
+      ).join("\n");
+      await act(async () =>
+        fixtureScreen.rerender(
+          <MessagesTimeline
+            {...props}
+            isWorking={isWorking}
+            timelineEntries={[
+              {
+                id: "entry-1",
+                kind: "message",
                 createdAt: CREATED_AT,
-                updatedAt: CREATED_AT,
-                streaming: false,
+                message: {
+                  id: MessageId.make("message-1"),
+                  role: "user",
+                  text,
+                  runId: null,
+                  createdAt: CREATED_AT,
+                  updatedAt: CREATED_AT,
+                  streaming: false,
+                },
               },
-            },
-          ]}
-        />,
-      ),
-    );
-    expect(following()).toBe(true);
+            ]}
+          />,
+        ),
+      );
 
-    const toggle = [...container.querySelectorAll("button")].find(
-      (button) => button.textContent === "Show full message",
-    )!;
-    await act(async () => toggle.click());
-    expect(following()).toBe(false);
-    await flushFrames(2);
-    expect(following()).toBe(false);
-    await flushFrames(1);
-    expect(following()).toBe(true);
-  });
+      const toggle = [...container.querySelectorAll("button")].find(
+        (button) => button.textContent === "Show full message",
+      )!;
+      await act(async () => toggle.click());
+      expect(following()).toBe(true);
+      if (anchors) {
+        expect(cancelScroll).toHaveBeenCalledOnce();
+        expect(anchorVisibleContent).toHaveBeenCalledExactlyOnceWith({ key: "entry-1" });
+      } else {
+        expect(cancelScroll).not.toHaveBeenCalled();
+        expect(anchorVisibleContent).not.toHaveBeenCalled();
+      }
+    },
+  );
 });
 
 async function setup() {
