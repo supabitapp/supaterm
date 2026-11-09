@@ -292,8 +292,9 @@ patchedDependencies:
   expo-network@58.0.4: patches/expo-network@58.0.4.patch
   expo-sharing@58.0.22: patches/expo-sharing@58.0.22.patch
   "@ff-labs/fff-node@0.11.0": patches/@ff-labs__fff-node@0.11.0.patch
-  # Re-requests a ResizeObserver delivery when a layout measurement disagrees with it, and lets a
-  # native scroll event at the target finish a re-armed initial bootstrap on iOS.
+  # Re-requests a ResizeObserver delivery when a layout measurement disagrees with it, lets a
+  # native scroll event at the target finish a re-armed initial bootstrap on iOS, and keeps a
+  # feed following its end at the end through a size-only reflow in one pass.
   "@legendapp/list@3.7.2": patches/@legendapp__list@3.7.2.patch
   # Exports the dependency-light subpaths mobile and the web diff parser import, and keeps
   # measured wrapped-row heights above an edit (fileEditorVirtualization.test.ts).
