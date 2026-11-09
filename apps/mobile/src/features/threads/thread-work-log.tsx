@@ -78,7 +78,7 @@ import {
 import { resolveWorkGroupScrollAnchor } from "@supaterm/client-runtime/work-log/scroll-anchor";
 import { notificationChildThreadId } from "@supaterm/client-runtime/state/thread-execution";
 import type { MarkdownImageRenderer } from "../../native/SelectableMarkdownText";
-import type { FilePreviewSource } from "../../components/FilePreviewModal";
+import type { FilePreviewSource } from "../../components/ui/FilePreviewModal";
 import Animated, {
   useAnimatedScrollHandler,
   useAnimatedStyle,

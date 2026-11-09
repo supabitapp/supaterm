@@ -6,7 +6,7 @@ import { Platform, ScrollView, View, useWindowDimensions } from "react-native";
 import { KeyboardAvoidingView, KeyboardStickyView } from "react-native-keyboard-controller";
 import Animated, { FadeOut } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { FilePreviewModal, type FilePreviewSource } from "../../components/FilePreviewModal";
+import { FilePreviewModal, type FilePreviewSource } from "../../components/ui/FilePreviewModal";
 
 import { AppText as Text, AppTextInput as TextInput } from "../../components/ui/AppText";
 import { SheetHeader } from "../../components/ui/SheetHeader";

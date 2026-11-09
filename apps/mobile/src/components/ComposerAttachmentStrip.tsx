@@ -1,4 +1,4 @@
-import { FilePreviewGallery, useFilePreviewGallery } from "./FilePreviewGallery";
+import { FilePreviewGallery, useFilePreviewGallery } from "./ui/FilePreviewGallery";
 import { composerImageGallery } from "../lib/composerImageGallery";
 import { SymbolView } from "./ui/AppSymbol";
 import { imageMimeType } from "@supaterm/shared/image";
@@ -22,7 +22,7 @@ import { resolveOwnedComposerAttachmentFileUri } from "../lib/composerAttachment
 import { VideoAttachmentTile } from "./VideoAttachmentTile";
 import { type MediaActionsSource } from "../lib/mediaActionsSource";
 import { PresentationSource } from "./ui/NativePresentation";
-import type { FilePreviewSource } from "./FilePreviewModal";
+import type { FilePreviewSource } from "./ui/FilePreviewModal";
 import { isPdfFile } from "../lib/filePreview";
 import type { EnvironmentId } from "@supaterm/contracts";
 import {

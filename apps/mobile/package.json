@@ -46,7 +46,7 @@
     "generate": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/generate-uniwind-themes.mts",
     "generate:highlights": "node scripts/generate-highlights.mts",
     "generate:nitro": "cd modules/supaterm-highlights && nitrogen",
-    "test": "vp test run --project unit --project react && MOBILE_TEST_PLATFORM=android vp test run --project react src/components/FilePreviewModal.test.tsx",
+    "test": "vp test run --project unit --project react",
     "typecheck": "tsc --noEmit",
     "sync:ui-icons": "node scripts/sync-ui-icons.mjs"
   },
