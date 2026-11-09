@@ -438,27 +438,6 @@ export default defineConfig({
         },
       },
       {
-        files: ["apps/mobile/src/features/**"],
-        rules: {
-          "eslint/no-restricted-imports": [
-            "error",
-            {
-              paths: [...RESTRICTED_IMPORT_PATHS, RESTRICTED_PULL_REQUEST_GLYPH_IMPORTS],
-              patterns: [
-                {
-                  group: [
-                    "**/components/ui/AndroidScreenHeader",
-                    "**/components/ui/WorkspaceAppBar*",
-                  ],
-                  importNames: ["AndroidScreenHeader", "WorkspaceAppBar"],
-                  message: "Use AppBar, so every screen gets the same header and button metrics.",
-                },
-              ],
-            },
-          ],
-        },
-      },
-      {
         files: ["apps/web/src/components/pullRequest/pullRequestIcons.tsx"],
         rules: { "eslint/no-restricted-imports": ["error", { paths: RESTRICTED_IMPORT_PATHS }] },
       },
@@ -533,7 +512,7 @@ export default defineConfig({
         files: ["apps/mobile/src/**"],
         excludeFiles: [
           "apps/mobile/src/components/ui/AppSymbol.tsx",
-          "apps/mobile/src/components/ui/AppSymbol.ios.tsx",
+          "apps/mobile/src/components/ui/AppSymbol.android.tsx",
           "apps/mobile/src/features/pull-requests/pullRequestGlyphs.ts",
         ],
         rules: { "supaterm/no-mobile-pull-request-glyph-literals": "error" },
