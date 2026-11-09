@@ -212,9 +212,7 @@ function getTraitsSectionVisibility(input: {
     input.allowPromptInjectedEffort ?? true,
   );
 
-  const speedToggle = selected.modelIsUnavailable
-    ? null
-    : getSpeedToggle(input.provider, selected.descriptors);
+  const speedToggle = selected.modelIsUnavailable ? null : getSpeedToggle(selected.descriptors);
   const toggleOnlyDescriptorId = speedToggle?.coversDescriptor ? speedToggle.descriptorId : null;
   const hasMenuControls =
     selected.descriptors.some(

@@ -305,7 +305,7 @@ function SidebarThreadTooltip({
         selections: thread.modelSelection.options,
       })
     : [];
-  const speedToggle = getSpeedToggle(driverKind, descriptors);
+  const speedToggle = getSpeedToggle(descriptors);
   const previousProviderNames = thread.providerInstanceHistory
     .filter((instanceId) => instanceId !== modelInstanceId)
     .map((instanceId) => providerEntryByInstanceId.get(instanceId)?.displayName ?? instanceId);

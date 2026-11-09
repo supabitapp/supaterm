@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vite-plus/test";
-import { ProviderDriverKind, type ProviderOptionDescriptor } from "@supaterm/contracts";
+import type { ProviderOptionDescriptor } from "@supaterm/contracts";
 import { getSpeedToggle } from "@supaterm/client-runtime/provider-speed-toggle";
 import { buildTraitsTriggerLabel } from "@supaterm/client-runtime/model-traits";
 
@@ -51,15 +51,13 @@ const CONTEXT_WINDOW = selectDescriptor(
   "1m",
 );
 
-const CODEX = ProviderDriverKind.make("codex");
-
 function label(
   descriptors: ReadonlyArray<ProviderOptionDescriptor>,
   ultrathinkPromptControlled = false,
 ) {
   return buildTraitsTriggerLabel({
     descriptors,
-    speedToggle: getSpeedToggle(CODEX, descriptors),
+    speedToggle: getSpeedToggle(descriptors),
     primarySelectDescriptorId: "reasoningEffort",
     ultrathinkPromptControlled,
   });
