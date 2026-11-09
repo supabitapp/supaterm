@@ -312,6 +312,7 @@ import {
 } from "./ThreadMarkdownImage";
 import { openSettings } from "../settings/settings-navigation";
 import { useSelectWorkspaceDetail } from "../layout/workspace/useSelectWorkspaceDetail";
+import { formatMessageTimestamp } from "./messageTimestamp";
 
 const WIDE_MARKDOWN_BLOCK_OPTIONS = {
   // Native iOS blockquotes and adjacent selectable text are separate layout
@@ -320,18 +321,6 @@ const WIDE_MARKDOWN_BLOCK_OPTIONS = {
   includeBlockquotes: Platform.OS === "ios",
   includeOrderedLists: Platform.OS === "android",
 } as const;
-
-const MESSAGE_TIME_FORMATTER = new Intl.DateTimeFormat(undefined, {
-  hour: "numeric",
-  minute: "2-digit",
-});
-function formatMessageTime(input: string): string {
-  const timestamp = Date.parse(input);
-  if (Number.isNaN(timestamp)) {
-    return "";
-  }
-  return MESSAGE_TIME_FORMATTER.format(timestamp);
-}
 
 const TURN_FOLD_HEIGHT = 42;
 const FEED_PADDING_TOP = 12;
@@ -1912,7 +1901,7 @@ function renderFeedEntry(
     const presentation = resolveUserMessagePresentation(message);
     const renderedText = renderAssistantCitationsAsText(presentation.text);
     const styles = isUser ? markdownStyles.user : markdownStyles.assistant;
-    const timestampLabel = formatMessageTime(isUser ? message.createdAt : message.updatedAt);
+    const timestampLabel = formatMessageTimestamp(isUser ? message.createdAt : message.updatedAt);
     const messagePin = pinToggleOf(props.pins, message.projectedItem);
     const hasCopyText = presentation.text.trim().length > 0;
     const attachments = message.attachments ?? [];
