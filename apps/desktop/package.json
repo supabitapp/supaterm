@@ -10,7 +10,7 @@
     "test": "vp test run"
   },
   "dependencies": {
-    "@crowecawcaw/xa11y": "0.13.0",
+    "@crowecawcaw/xa11y": "0.15.4",
     "@effect/platform-node": "catalog:",
     "@napi-rs/keyring": "^1.3.0",
     "@particle/dbus-next": "0.11.4",
