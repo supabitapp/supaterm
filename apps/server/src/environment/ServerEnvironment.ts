@@ -220,6 +220,7 @@ export const make = Effect.gen(function* () {
       threadStop: true,
       sideChats: true,
       vcsBranchStatus: true,
+      ...(hostPlatform === "darwin" ? { fastWorktreeCheckout: true } : {}),
       threadForceStop: true,
       ...(hostPlatform === "win32" ? {} : { localServerStop: true }),
       queuedRunStart: true,
