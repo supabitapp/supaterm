@@ -7,6 +7,7 @@ import { scopeThreadRef } from "@supaterm/client-runtime/environment";
 import type { ThreadId } from "@supaterm/contracts";
 import { DEFAULT_CLIENT_SETTINGS } from "@supaterm/contracts/settings";
 import type * as Context from "effect/Context";
+import { AsyncResult } from "effect/reactivity";
 import { expect, it, vi } from "vite-plus/test";
 import { commands, page, userEvent } from "vite-plus/test/browser";
 
@@ -16,6 +17,8 @@ import { AppRoot } from "~/AppRoot";
 import { openSideChatBeside } from "~/chatPanes/actions";
 import { __setClientSettingsForTests } from "~/hooks/useSettings";
 import { getRouter, type AppRouter } from "~/router";
+import { appAtomRegistry } from "~/rpc/atomRegistry";
+import { vcsEnvironment } from "~/state/vcs";
 import {
   ENVIRONMENT_ID,
   assistantItem,
@@ -328,6 +331,56 @@ it("app-switch-settings-section", async () => {
   ]);
 });
 
+// ChatView reads only a few status fields, so changing file counts should not reach it.
+// Keep git scenarios last: the status they leave cached adds renders to later scenarios.
+it("app-git-file-counts-with-side-chat", async () => {
+  using _clock = frozenClock();
+  await using _app = (await openThread(WARM)).screen;
+  const sideChat = {
+    kind: "server",
+    threadRef: scopeThreadRef(ENVIRONMENT_ID, SIDE_CHAT.id),
+  } as const;
+  await act(() =>
+    openSideChatBeside(sideChat, { parentRef: scopeThreadRef(ENVIRONMENT_ID, WARM), sideChat }),
+  );
+  await expect.element(lastAnswer(SIDE_CHAT.id)).toBeVisible();
+  const gitStatus = vcsEnvironment.status({
+    environmentId: ENVIRONMENT_ID,
+    input: { cwd: "/workspace/render" },
+  });
+  const local = (insertions: number, refName = "main") => ({
+    isRepo: true,
+    hasPrimaryRemote: true,
+    isDefaultRef: true,
+    refName,
+    hasWorkingTreeChanges: true,
+    workingTree: {
+      files: [{ path: "src/app.ts", insertions, deletions: 0 }],
+      insertions,
+      deletions: 0,
+    },
+  });
+  await act(() => emitVcsStatus({ _tag: "snapshot", local: local(0), remote: null }));
+  const counted = await measure(async () => {
+    for (let update = 1; update <= GIT_STATUS_UPDATES; update++) {
+      await act(() => emitVcsStatus({ _tag: "localUpdated", local: local(update) }));
+    }
+    // Zero renders only counts if the last update arrived inside this window.
+    await vi.waitFor(() => {
+      const status = AsyncResult.getOrElse(appAtomRegistry.get(gitStatus), () => null);
+      expect(status?.workingTree.insertions).toBe(GIT_STATUS_UPDATES);
+    });
+  });
+  expect(counted.components.ChatView).toBeUndefined();
+  // A field the chat view does read still reaches both chats.
+  const branchSwitch = await measure(() =>
+    act(() => emitVcsStatus({ _tag: "localUpdated", local: local(0, "feature") })),
+  );
+  expect(branchSwitch.components.ChatView).toBe(2);
+  await report("app-git-file-counts-with-side-chat", [counted]);
+});
+
+// ChatView re-renders when the tree goes dirty or clean; the composer and side chat timeline should not.
 it("app-git-status-updates-with-side-chat", async () => {
   using _clock = frozenClock();
   await using _app = (await openThread(WARM)).screen;
