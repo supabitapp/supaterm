@@ -107,10 +107,13 @@ type TraitsPersistence =
   | {
       threadRef?: ScopedThreadRef;
       draftId?: DraftId;
+      /** Runs after a change is written to the draft. */
+      onDraftModelOptionsChange?: () => void;
       onModelOptionsChange?: never;
     }
   | {
       threadRef?: undefined;
+      onDraftModelOptionsChange?: never;
       onModelOptionsChange: (nextOptions: ProviderOptions | undefined) => void;
     };
 
@@ -360,6 +363,7 @@ function useUpdateModelOptions(
       model,
       persistSticky: true,
     });
+    persistence.onDraftModelOptionsChange?.();
   };
 }
 
