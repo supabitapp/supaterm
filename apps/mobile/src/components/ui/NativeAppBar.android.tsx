@@ -20,7 +20,7 @@ export function NativeAppBar(props: {
   return (
     <NativeThemeHost matchContents={{ vertical: true }} style={{ width: "100%" }}>
       <TopAppBar
-        applyWindowInsets={false}
+        windowInsets={{}}
         modifiers={[fillMaxWidth(), height(Math.max(64, layout.height))]}
         colors={{
           containerColor: colors["--color-header"],
