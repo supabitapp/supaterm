@@ -104,8 +104,10 @@ import {
   threadTraversalDirectionFromCommand,
 } from "../keybindings";
 import { useShortcutModifierState } from "../shortcutModifierState";
+import { isPreviewFocused } from "../lib/previewFocus";
 import { isModelPickerOpen } from "../modelPickerVisibility";
 import { selectThreadTerminalUiState, useTerminalUiStateStore } from "../terminalUiStateStore";
+import { selectActiveRightPanel, useRightPanelStore } from "../rightPanelStore";
 import { isMacPlatform } from "~/lib/utils";
 import { readLocalApi } from "../localApi";
 import { useSidebarPendingFileDropStore } from "../sidebarPendingFileDropStore";
@@ -1067,6 +1069,9 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
     routeThreadRef
       ? selectThreadTerminalUiState(state.terminalUiStateByThreadKey, routeThreadRef).terminalOpen
       : false,
+  );
+  const routePreviewOpen = useRightPanelStore(
+    (state) => selectActiveRightPanel(state.byThreadKey, routeThreadRef) === "preview",
   );
 
   // A selection made under one scope can hold threads the next scope hides.
@@ -2764,13 +2769,16 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
       navigateToThread(scopeThreadRef(targetThread.environmentId, targetThread.id));
     },
   );
-  const readRouteTerminalOpen = useEffectEvent(() => routeTerminalOpen);
+  const readRoutePanelsOpen = useEffectEvent(() => ({
+    terminalOpen: routeTerminalOpen,
+    previewOpen: routePreviewOpen,
+  }));
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- registers thread traversal and jump commands with the dispatcher for the sidebar's lifetime
   useEffect(
     () =>
       registerCommands((command, invocation) => navigateForCommand(command, invocation), {
         when: () => !isCommandPaletteOpen() && !isModelPickerOpen(),
-        context: () => ({ terminalOpen: readRouteTerminalOpen() }),
+        context: () => readRoutePanelsOpen(),
       }),
     [],
   );
@@ -2783,6 +2791,8 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
       context: {
         terminalFocus: terminalFocused,
         terminalOpen: routeTerminalOpen,
+        previewFocus: isPreviewFocused(),
+        previewOpen: routePreviewOpen,
         modelPickerOpen: isModelPickerOpen(),
         isWeb: !isElectron,
         isDesktop: isElectron,
