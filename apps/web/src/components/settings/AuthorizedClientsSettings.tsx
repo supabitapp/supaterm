@@ -53,6 +53,8 @@ import {
   type ServerClientSessionRecord,
   type ServerPairingLinkRecord,
 } from "~/environments/primary";
+import type { EnvironmentPresentation } from "~/state/environments";
+import { UseInAnotherAppDialog } from "../mcp/UseInAnotherAppDialog";
 import { ConnectionStatusDot } from "../ConnectionStatusDot";
 import { ITEM_ROW_CLASSNAME, ITEM_ROW_INNER_CLASSNAME } from "./itemRows";
 
@@ -629,6 +631,8 @@ type AuthorizedClientsHeaderActionProps = {
   isRevokingOtherClients: boolean;
   onRevokeOtherClients: () => void;
   delegatableScopes: ReadonlyArray<AuthEnvironmentScope>;
+  /** Set when the environment mints level-bound MCP approval codes. */
+  mcpEnvironment: EnvironmentPresentation | null;
 };
 
 export const AuthorizedClientsHeaderAction = memo(function AuthorizedClientsHeaderAction({
@@ -640,10 +644,12 @@ export const AuthorizedClientsHeaderAction = memo(function AuthorizedClientsHead
   isRevokingOtherClients,
   onRevokeOtherClients,
   delegatableScopes,
+  mcpEnvironment,
 }: AuthorizedClientsHeaderActionProps) {
   const hasOtherClients = clientSessions?.some((clientSession) => !clientSession.current) ?? false;
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex flex-wrap items-center justify-end gap-2">
+      {mcpEnvironment ? <UseInAnotherAppDialog environment={mcpEnvironment} /> : null}
       <RevokeButton
         label="Revoke others"
         pending={isRevokingOtherClients}

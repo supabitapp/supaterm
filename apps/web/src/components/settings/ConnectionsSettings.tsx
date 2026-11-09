@@ -1321,6 +1321,11 @@ function ConnectionsSettingsContent({
                     triggerRef={pairingLinkTriggerRef}
                     relayEnabled={accessServerConfig?.settings.publicRelayEnabled ?? false}
                     delegatableScopes={currentSessionScopes ?? []}
+                    mcpEnvironment={
+                      accessServerConfig?.environment.capabilities.mcpApprovalCodes === true
+                        ? accessEnvironment
+                        : null
+                    }
                     onPairingLinkCreated={handlePairingLinkCreated}
                     clientSessions={
                       canReadAccess &&
