@@ -28,9 +28,11 @@ import {
   type ServerConfigStreamEvent,
   type ServerProvider,
 } from "@supaterm/contracts";
+import * as Cause from "effect/Cause";
 import * as Deferred from "effect/Deferred";
 import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
+import * as Exit from "effect/Exit";
 import * as Fiber from "effect/Fiber";
 import * as Layer from "effect/Layer";
 import * as PubSub from "effect/PubSub";
@@ -1409,6 +1411,43 @@ it.effect("a publish whose push fails still refreshes the new remote", () =>
     ),
     Effect.scoped,
   ),
+);
+
+// A cursor the server cannot replay resyncs from a snapshot, or, for a shell client that loads it
+// over HTTP, is told to without the server building one.
+it.effect.each([false, true])(
+  "shell resume from a cursor ahead of the database head (HTTP fallback: %s)",
+  (httpSnapshotFallback) =>
+    Effect.gen(function* () {
+      const exit = yield* subscribeOrchestrationV2Shell({
+        afterSequence: 1_000,
+        ...(httpSnapshotFallback ? { httpSnapshotFallback: true as const } : {}),
+      }).pipe(
+        Effect.flatMap(Stream.runCollect),
+        Effect.provideService(ThreadManagement.ThreadManagementService, {
+          ensureLegacyTranscript: () => Effect.void,
+          getShellSnapshot: () => Effect.die("snapshot"),
+          listActiveShellIndex: () => Effect.die("snapshot"),
+          readShellSnapshot: () => Effect.die("snapshot"),
+          listActiveSubagentThreadIds: () => Effect.die("replay"),
+        } as unknown as ThreadManagement.ThreadManagementService["Service"]),
+        Effect.provideService(ProjectStore.ProjectStoreV2, {
+          listShells: () => Effect.succeed([]),
+        } as unknown as ProjectStore.ProjectStoreV2["Service"]),
+        Effect.provideService(
+          ProjectService.ProjectService,
+          {} as ProjectService.ProjectService["Service"],
+        ),
+        Effect.provideService(ProjectEnrichment.ProjectEnrichmentService, {
+          subscribeChanges: PubSub.subscribe(yield* PubSub.unbounded()),
+        } as ProjectEnrichment.ProjectEnrichmentService["Service"]),
+        Effect.exit,
+      );
+      assert.deepEqual(
+        Exit.isFailure(exit) ? Cause.squash(exit.cause) : Array.from(exit.value),
+        httpSnapshotFallback ? [{ kind: "snapshot-required" }] : "snapshot",
+      );
+    }).pipe(Effect.scoped, Effect.provide(ReplayTestLayer)),
 );
 
 // Compaction keeps the oldest and newest event per message, so a cursor older
