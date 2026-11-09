@@ -329,7 +329,7 @@ patchedDependencies:
   react-native-enriched-markdown@1.2.0-supacode.19: af701fcf25161cb0a7f5f0b4381e6bc58305be27163b2272bfd2d321506b1aa7
   react-native-gesture-handler@3.5.0: 25b41728fe1796cc791bf394ec07fbe232072e78c508cf325759a96ca19db0d8
   react-native-image-viewing@0.2.2: 4aa038d541c7ddcc8f1437eb3e7b4f769f61de78e7f91b53f9805dfca608474d
-  react-native-keyboard-controller@1.23.0: d4e13b49f6e3e4fc7a2a68fd06d3e83966bffaa446bbb7838c733acaaf93e8e2
+  react-native-keyboard-controller@1.23.0: b69ec09df266b16af49506db322ef642be3d41e370d19f38137508099a24a7f6
   react-native-pdf-jsi@5.0.0: 6f52854210f61bef499850ebd498229a111bc34ec5b2a4925e644f2f48f42760
   react-native-reanimated@4.7.1: fe67f118086d479c071fafc045414bf11defa7620e2eb199711d6b9df3cd2cdf
   react-native-svg@15.16.1: 110f9243ffad03654ce40dd1cdb09f01af16b8fa2ccb2b2cd3d62e682c180399
@@ -676,7 +676,7 @@ importers:
         version: 0.2.2(patch_hash=4aa038d541c7ddcc8f1437eb3e7b4f769f61de78e7f91b53f9805dfca608474d)(@types/react-native@0.72.8(react-native@0.88.0(@babel/core@7.29.7(supports-color@8.1.1))(@react-native/metro-config@0.88.0(@babel/core@7.29.7(supports-color@8.1.1))(bufferutil@4.1.0)(supports-color@8.1.1)(utf-8-validate@6.0.6))(@types/react@19.3.0)(bufferutil@4.1.0)(react@19.3.0)(supports-color@8.1.1)(utf-8-validate@6.0.6)))(@types/react@19.3.0)(react-native@0.88.0(@babel/core@7.29.7(supports-color@8.1.1))(@react-native/metro-config@0.88.0(@babel/core@7.29.7(supports-color@8.1.1))(bufferutil@4.1.0)(supports-color@8.1.1)(utf-8-validate@6.0.6))(@types/react@19.3.0)(bufferutil@4.1.0)(react@19.3.0)(supports-color@8.1.1)(utf-8-validate@6.0.6))(react@19.3.0)
       react-native-keyboard-controller:
         specifier: 1.23.0
-        version: 1.23.0(patch_hash=d4e13b49f6e3e4fc7a2a68fd06d3e83966bffaa446bbb7838c733acaaf93e8e2)(91ea5cfb1395da182d313d71161a6ef3)
+        version: 1.23.0(patch_hash=b69ec09df266b16af49506db322ef642be3d41e370d19f38137508099a24a7f6)(91ea5cfb1395da182d313d71161a6ef3)
       react-native-nitro-modules:
         specifier: 0.37.1
         version: 0.37.1(@types/react@19.3.0)(react-native@0.88.0(@babel/core@7.29.7(supports-color@8.1.1))(@react-native/metro-config@0.88.0(@babel/core@7.29.7(supports-color@8.1.1))(bufferutil@4.1.0)(supports-color@8.1.1)(utf-8-validate@6.0.6))(@types/react@19.3.0)(bufferutil@4.1.0)(react@19.3.0)(supports-color@8.1.1)(utf-8-validate@6.0.6))(react@19.3.0)
@@ -20350,7 +20350,7 @@ snapshots:
       react: 19.3.0
       react-native: 0.88.0(@babel/core@7.29.7(supports-color@8.1.1))(@react-native/metro-config@0.88.0(@babel/core@7.29.7(supports-color@8.1.1))(bufferutil@4.1.0)(supports-color@8.1.1)(utf-8-validate@6.0.6))(@types/react@19.3.0)(bufferutil@4.1.0)(react@19.3.0)(supports-color@8.1.1)(utf-8-validate@6.0.6)
 
-  react-native-keyboard-controller@1.23.0(patch_hash=d4e13b49f6e3e4fc7a2a68fd06d3e83966bffaa446bbb7838c733acaaf93e8e2)(91ea5cfb1395da182d313d71161a6ef3):
+  react-native-keyboard-controller@1.23.0(patch_hash=b69ec09df266b16af49506db322ef642be3d41e370d19f38137508099a24a7f6)(91ea5cfb1395da182d313d71161a6ef3):
     dependencies:
       '@types/react': 19.3.0
       react: 19.3.0
