@@ -6,6 +6,7 @@ import {
 } from "./lib/foundation-fast-refresh";
 import * as Linking from "expo-linking";
 import * as SplashScreen from "expo-splash-screen";
+import { requireNativeModule } from "expo";
 import { useEffect } from "react";
 import { Platform, StatusBar } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
@@ -210,6 +211,14 @@ export default function App() {
 function AppContent() {
   const { themeAppearance } = useAppearancePreferences();
   const navigationTheme = useMobileNavigationTheme();
+
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- matches the Android navigation bar to the app theme, as StatusBar does for the status bar
+  useEffect(() => {
+    if (Platform.OS !== "android") return;
+    void requireNativeModule<{ setNavigationBarStyle(light: boolean): Promise<void> }>(
+      "SupatermNativeControls",
+    ).setNavigationBarStyle(themeAppearance === "light");
+  }, [themeAppearance]);
 
   return (
     <>
