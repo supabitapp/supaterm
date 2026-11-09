@@ -176,6 +176,7 @@ const ANDROID_ICON_BY_MATERIAL_NAME = {
   close: IconNodes.X,
   construction: IconNodes.Hammer,
   content_copy: IconNodes.Copy,
+  content_paste: IconNodes.FileText,
   desktop_windows: IconNodes.Monitor,
   edit: IconNodes.SquarePen,
   error: IconNodes.CircleAlert,
