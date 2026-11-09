@@ -87,6 +87,8 @@ const SETTINGS_SEARCH_TERMS = {
     "branch prefix",
     "submodules",
     "start from remote",
+    "fast worktree checkout",
+    "clone cache",
   ],
   SettingsEnvironmentMaintenance: ["updates", "provider updates", "restart", "manage environments"],
   SettingsAbout: [

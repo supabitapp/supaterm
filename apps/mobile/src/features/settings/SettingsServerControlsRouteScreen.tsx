@@ -427,6 +427,24 @@ function ServerSettingsDetail(props: { readonly page: SettingsPage }) {
                     disabled={disabledFor("newWorktreesStartFromOrigin")}
                     onValueChange={(value) => write({ newWorktreesStartFromOrigin: value })}
                   />
+                  {displayTargets.every(
+                    (target) =>
+                      target.environment.serverConfig.environment.capabilities
+                        .fastWorktreeCheckout === true,
+                  ) ? (
+                    <SettingsSwitchRow
+                      icon={{ ios: "bolt.circle", android: "bolt" }}
+                      label="Fast worktree checkout"
+                      subtitle={
+                        projectSelected
+                          ? "Environment-wide setting. Select All projects to change it."
+                          : "On a Mac, clone new worktrees from a checkout cached in the Supaterm home folder instead of writing every file. Uses Git’s normal checkout when it can’t. Turning it off deletes the cache."
+                      }
+                      value={uniform("fastWorktreeCheckout")}
+                      disabled={disabledFor("fastWorktreeCheckout")}
+                      onValueChange={(value) => write({ fastWorktreeCheckout: value })}
+                    />
+                  ) : null}
                 </SettingsSection>
                 <SettingsSection
                   title="Worktree submodules"
