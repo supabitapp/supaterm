@@ -36,7 +36,7 @@ import {
   type CodexFeedbackSubmission,
   type EnvironmentThreadStatus,
 } from "@supaterm/client-runtime/state/threads";
-import { useKeyboardChatComposerInset, useKeyboardScrollToEnd } from "@legendapp/list/keyboard";
+import { useKeyboardScrollToEnd } from "@legendapp/list/keyboard";
 import { resolveProviderSkillsForCwd } from "@supaterm/client-runtime/providerSkills";
 import type { LegendListRef } from "@legendapp/list/react-native";
 import { NativeLayoutObserver } from "../../native/NativeLayoutObserver";
@@ -91,7 +91,6 @@ import {
   View,
   type GestureResponderEvent,
   type LayoutChangeEvent,
-  type ViewInstance,
 } from "react-native";
 import {
   KeyboardController,
@@ -104,7 +103,6 @@ import Animated, {
   FadeInDown,
   FadeOut,
   ReduceMotion,
-  runOnJS,
   useAnimatedReaction,
   useAnimatedStyle,
   useDerivedValue,
@@ -196,19 +194,14 @@ import {
 } from "./ThreadComposer";
 import { ComposerPopoverHost } from "./ComposerPopoverHost";
 import { useNextPromptSuggestion } from "./useNextPromptSuggestion";
-import {
-  ThreadFeed,
-  type ThreadFeedHandle,
-  type ThreadFeedHistoryControls,
-  type ThreadFeedPins,
-} from "./ThreadFeed";
+import { ThreadFeed, type ThreadFeedHistoryControls, type ThreadFeedPins } from "./ThreadFeed";
 import type { MessageJump, MessageJumpHandlers } from "@supaterm/client-runtime/message-jump";
 import { WorkspaceMutationIdProvider } from "./WorkspaceMutationIdProvider";
 import { ComposerQueuedEditBanner } from "./ComposerQueuedEdit";
 import { SideChatActionsRow } from "./SideChatActionsRow";
 import { ThreadSideChatsRow } from "./ThreadSideChatsRow";
 import type { ThreadContentPresentation } from "./threadContentPresentation";
-import { resolveThreadFeedSubmissionAnchor } from "./thread-feed-live-follow";
+import { resolveThreadFeedSubmissionAnchor } from "./thread-feed-scroll-position";
 import { useOpenLinkedThread } from "./useOpenLinkedThread";
 import { useGlobalVoiceInput } from "../voice-input/VoiceInputProvider";
 import type { OrchestrationV2ProviderSession } from "@supaterm/contracts";
@@ -569,7 +562,6 @@ function ThreadDetailBody(
     const frame = requestAnimationFrame(() => composerEditorRef.current?.focus());
     return () => cancelAnimationFrame(frame);
   }, [composerEditorRef, editingRunId]);
-  const composerOverlayRef = useRef<ViewInstance>(null);
   const listRef = useRef<LegendListRef>(null);
   const feedTouchStartRef = useRef<{ pageX: number; pageY: number } | null>(null);
   // Aborted when the screen hides or unmounts; a hidden Activity pane keeps its state but re-runs
@@ -580,8 +572,7 @@ function ThreadDetailBody(
   const [anchorMessageId, setAnchorMessageId] = useState<MessageId | null>(null);
   const [sendingWithKeyboard, setSendingWithKeyboard] = useState(false);
   if (sendingWithKeyboard && !isKeyboardVisible) setSendingWithKeyboard(false);
-  const feedRef = useRef<ThreadFeedHandle>(null);
-  const [endFollowEnabled, setEndFollowEnabled] = useState(true);
+  const [isAtEnd, setIsAtEnd] = useState(true);
   const [composerHeight, setComposerHeight] = useState<number | null>(null);
   // The composer animates its height and reports a layout every frame. The feed follows those
   // frames on the UI thread through onComposerLayout; this is only an estimate, so committing
@@ -1079,17 +1070,13 @@ function ThreadDetailBody(
       ? deviceType !== "duo-unfolded" || (composerOwnsKeyboard && !sidebarSearchActive)
       : !keyboardStateSuspect;
   const estimatedOverlayHeight = composerOverlapHeight;
-  // The overlay height already includes the home-indicator inset, and automatic insets make UIKit
-  // add the safe-area bottom again. Report it minus the safe area; ThreadFeed hands LegendList the
-  // same delta via contentInsetEndStaticAdjustment.
-  const nativeInsetOvercount =
-    props.usesAutomaticContentInsets === true && Platform.OS === "ios" ? insets.bottom : 0;
-  const { contentInsetEndAdjustment, onComposerLayout } = useKeyboardChatComposerInset(
-    listRef,
-    composerOverlayRef,
-    Math.max(0, estimatedOverlayHeight - nativeInsetOvercount),
-    -nativeInsetOvercount,
-    Platform.OS === "ios" ? COMPOSER_TRANSITION_DURATION_MS : 0,
+  const contentInsetEndAdjustment = useSharedValue(estimatedOverlayHeight);
+  const onComposerLayout = useCallback(
+    (event: LayoutChangeEvent) => {
+      // The composer already animates its measured height on each layout.
+      contentInsetEndAdjustment.set(event.nativeEvent.layout.height);
+    },
+    [contentInsetEndAdjustment],
   );
   // Android lays the screen out below its opaque header and reports a zero
   // header height, so the window height overstates the room by the header.
@@ -1181,34 +1168,7 @@ function ThreadDetailBody(
   const composerPopoverHeight = useSharedValue(0);
   const { freeze, scrollMessageToEnd } = useKeyboardScrollToEnd({ listRef });
   const reduceMotion = useReducedMotion();
-  // Repin timers fire after the render that scheduled them, so they read follow
-  // state from the ref the writers below keep in step with it.
-  const endFollowEnabledRef = useRef(true);
-  const overlayRepinTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const scheduleOverlayRepin = (delayMs: number) => {
-    if (overlayRepinTimerRef.current !== null) {
-      clearTimeout(overlayRepinTimerRef.current);
-    }
-    overlayRepinTimerRef.current = setTimeout(() => {
-      overlayRepinTimerRef.current = null;
-      const list = listRef.current;
-      if (!endFollowEnabledRef.current || !list || list.getState().isAtEnd) return;
-      void list.scrollToEnd({ animated: Platform.OS === "ios" && !reduceMotion });
-    }, delayMs);
-  };
-  // LegendList does not re-anchor short followed conversations when floating
-  // coverage changes after load. Re-pin each time it settles at a new value;
-  // the repin checks follow state so a user who scrolled up stays put.
   const floatingCoverageTarget = showFloatingStatus ? FLOATING_WORKING_CONTROL_COVERAGE : 0;
-  const settledFloatingCoverageRef = useRef(floatingCoverageTarget);
-  const markCoverageSettled = (coverage: number) => {
-    settledFloatingCoverageRef.current = coverage;
-  };
-  const repinAfterCoverageSettles = (coverage: number) => {
-    if (coverage === settledFloatingCoverageRef.current) return;
-    settledFloatingCoverageRef.current = coverage;
-    scheduleOverlayRepin(50);
-  };
   const floatingControlCoverage = useSharedValue(floatingCoverageTarget);
   useAnimatedReaction(
     () => floatingCoverageTarget,
@@ -1217,22 +1177,17 @@ function ThreadDetailBody(
       // The target can change after the first render but before this first run.
       if (previous === null) {
         floatingControlCoverage.set(target);
-        runOnJS(markCoverageSettled)(target);
         return;
       }
       floatingControlCoverage.set(
-        withTiming(target, { duration: 180, reduceMotion: ReduceMotion.System }, (finished) => {
-          if (finished) runOnJS(repinAfterCoverageSettles)(target);
-        }),
+        withTiming(target, { duration: 180, reduceMotion: ReduceMotion.System }),
       );
     },
     [floatingCoverageTarget],
   );
   const userInputCoverageApplies = Platform.OS === "ios" && activeUserInputRequestId !== null;
   const questionStatusSpace = useAnimatedStyle(() => ({ height: floatingControlCoverage.value }));
-  const combinedContentInsetEndAdjustment = useSharedValue(
-    Math.max(0, estimatedOverlayHeight - nativeInsetOvercount),
-  );
+  const combinedContentInsetEndAdjustment = useSharedValue(estimatedOverlayHeight);
   useAnimatedReaction(
     () =>
       questionInFlow
@@ -1261,17 +1216,12 @@ function ThreadDetailBody(
       ),
     [userInputCoverageApplies],
   );
-  const handleEndFollowEnabledChange = (enabled: boolean) => {
-    endFollowEnabledRef.current = enabled;
-    setEndFollowEnabled(enabled);
-  };
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- arms a fresh thread scope when shown, then aborts it and clears its timers when the screen hides or unmounts
   useEffect(() => {
     if (threadScope.current.signal.aborted) threadScope.current = new AbortController();
     const scope = threadScope.current;
     return () => {
       scope.abort();
-      if (overlayRepinTimerRef.current !== null) clearTimeout(overlayRepinTimerRef.current);
       if (composerHeightSettle.current !== null) clearTimeout(composerHeightSettle.current);
     };
   }, []);
@@ -1281,11 +1231,9 @@ function ThreadDetailBody(
     }
     if (userInputCollapsed) {
       setUserInputToggle({ requestId: activeUserInputRequestId, collapsed: false });
-      if (!questionInFlow) scheduleOverlayRepin(USER_INPUT_TOGGLE_DURATION_MS + 50);
     } else {
       Keyboard.dismiss();
       setUserInputToggle({ requestId: activeUserInputRequestId, collapsed: true });
-      if (!questionInFlow) scheduleOverlayRepin(60);
     }
   };
   const showContent = props.showContent ?? true;
@@ -1436,7 +1384,6 @@ function ThreadDetailBody(
       queuedMessageCount: props.selectedThreadQueueCount,
       deliveryDeferred: props.connectionStateLabel !== "connected",
     });
-    feedRef.current?.resetEndFollow();
     setAnchorMessageId(nextAnchorMessageId);
     if (!dismissingKeyboard) composerEditorRef.current?.blur();
     const followSubmission =
@@ -1449,7 +1396,7 @@ function ThreadDetailBody(
         // Scrolling freezes the keyboard inset, so wait until dismissal has removed it.
         void KeyboardController.dismiss()
           .then(() => {
-            if (!followSubmission || scope.aborted || !endFollowEnabledRef.current) return;
+            if (!followSubmission || scope.aborted) return;
             return scrollMessageToEnd({ animated: !reduceMotion, closeKeyboard: false });
           })
           .catch(() => {
@@ -1535,8 +1482,7 @@ function ThreadDetailBody(
     });
   };
 
-  const showScrollToEndButton =
-    !props.draftMode && contentPresentationKind === "ready" && !endFollowEnabled;
+  const showScrollToEndButton = !props.draftMode && contentPresentationKind === "ready" && !isAtEnd;
   const { themeAppearance } = useAppearancePreferences();
   const isDarkMode = themeAppearance === "dark";
 
@@ -1635,7 +1581,6 @@ function ThreadDetailBody(
                 listRef={listRef}
                 freeze={freeze}
                 anchorMessageId={anchorMessageId}
-                ref={feedRef}
                 contentInsetEndAdjustment={combinedContentInsetEndAdjustment}
                 keyboardOffset={composerKeyboardOffset}
                 sendingWithKeyboard={sendingWithKeyboard}
@@ -1658,7 +1603,7 @@ function ThreadDetailBody(
                 layoutVariant={layoutVariant}
                 usesAutomaticContentInsets={props.usesAutomaticContentInsets}
                 onHeaderMaterialVisibilityChange={props.onHeaderMaterialVisibilityChange}
-                onEndFollowEnabledChange={handleEndFollowEnabledChange}
+                onIsAtEndChange={setIsAtEnd}
                 skills={selectedProviderSkills}
                 onUseArtifactTemplate={handleUseArtifactTemplate}
               />
@@ -1729,11 +1674,7 @@ function ThreadDetailBody(
               {/* No paddingTop here: the overlay's measured height becomes the
                 list's bottom inset, so any padding above the pill/composer
                 pushes the resting content floor up by the same amount. */}
-              <View
-                ref={composerOverlayRef}
-                onLayout={handleComposerOverlayLayout}
-                className="w-full"
-              >
+              <View onLayout={handleComposerOverlayLayout} className="w-full">
                 <View className="w-full self-center" style={{ maxWidth: contentMaxWidth }}>
                   <FloatingWorkingControl
                     colorScheme={isDarkMode ? "dark" : "light"}

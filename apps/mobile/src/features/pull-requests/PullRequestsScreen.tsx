@@ -309,10 +309,9 @@ export function PullRequestsScreen(
         }
         alwaysBounceVertical
         recycleItems
-        renderScrollComponent={NativeScrollView}
-        // UIKit owns the bar's inset, so a minimizing bar and a resized column move
-        // the list in the same frame as the bar.
-        contentInsetAdjustmentBehavior="automatic"
+        renderScrollComponent={Platform.OS === "ios" ? NativeScrollView : undefined}
+        contentInsetAdjustmentBehavior="never"
+        contentInset={Platform.OS === "ios" ? { top: contentTopInset } : undefined}
         initialScrollOffset={
           !initialAnchor && initialOffset > 0 ? initialOffset - contentTopInset : undefined
         }
@@ -321,11 +320,8 @@ export function PullRequestsScreen(
             ? { index: initialIndex, viewOffset: initialAnchor.viewOffset, viewPosition: 0 }
             : undefined
         }
-        contentInsetStartAdjustment={contentTopInset}
         contentContainerStyle={{
-          paddingBottom:
-            Math.max(bottomSafeArea, workspace.bottomClearance) -
-            (Platform.OS === "ios" ? bottomSafeArea : 0),
+          paddingBottom: Math.max(bottomSafeArea, workspace.bottomClearance),
         }}
         onScroll={(event) => {
           workspace.recordScrollOffset(

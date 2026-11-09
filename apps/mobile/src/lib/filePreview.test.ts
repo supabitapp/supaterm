@@ -210,13 +210,13 @@ vi.mock("../native/SelectableMarkdownText", () => ({
 vi.mock("@legendapp/list/keyboard", () => ({
   KeyboardAwareLegendList: (props: {
     data: ThreadFeedEntry[];
-    onLoad?: () => void;
+    onReady?: () => void;
     onStartReached?: () => void;
     renderItem(info: { item: ThreadFeedEntry; index: number }): ReactNode;
   }) => {
     feedList.data = props.data;
     feedList.onStartReached = props.onStartReached;
-    useEffect(() => props.onLoad?.(), []);
+    useEffect(() => props.onReady?.(), []);
     return props.data.map((item, index) =>
       createElement("div", { key: item.id }, props.renderItem({ item, index })),
     );
@@ -1465,7 +1465,15 @@ describe("ThreadFeed history", () => {
     const timestamp = "2026-10-20T00:00:00.000Z";
     const onLoadEarlier = vi.fn();
     const listRef = {
-      current: { getState: () => ({ data: feedList.data, scroll: 0, scrollLength: 800 }) },
+      current: {
+        getState: () => ({
+          data: feedList.data,
+          scroll: 0,
+          scrollLength: 800,
+          isAtEnd: true,
+          listen: () => () => {},
+        }),
+      },
     } as unknown as Parameters<typeof ThreadFeed>[0]["listRef"];
     const root = createRoot(document.createElement("div"));
     try {
