@@ -95,6 +95,8 @@ export const ExecutionEnvironmentCapabilities = Schema.Struct({
   fastWorktreeCheckout: Schema.optionalKey(Schema.Boolean),
   /** Serves `orchestration.forceStopThread`; hide Force stop where it is absent. */
   threadForceStop: Schema.optionalKey(Schema.Boolean),
+  /** Honors `modelCatalogOnly`; older servers drop the field and probe every provider. */
+  modelCatalogRefresh: Schema.optionalKey(Schema.Boolean),
   /** Absent on older servers and on Windows hosts, which cannot stop a discovered server. */
   localServerStop: Schema.optionalKey(Schema.Boolean),
   /** The server accepts queued-run.start, which sends one held message now. */

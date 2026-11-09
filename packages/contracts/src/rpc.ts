@@ -625,6 +625,11 @@ export const WsServerRefreshProvidersRpc = Rpc.make(WS_METHODS.serverRefreshProv
      * Background status refreshes must not open agent sessions. */
     refreshModels: Schema.optional(Schema.Boolean),
     /**
+     * A model picker opened: refetch a model manifest older than a few minutes and probe providers
+     * only when it changed. The other fields are ignored and the config stream carries the result.
+     */
+    modelCatalogOnly: Schema.optional(Schema.Boolean),
+    /**
      * Reply without snapshots, or with only the requested instance's cwd snapshot. Snapshots then
      * reach the client only through these replies, so another client's scan shows on its next
      * refresh, at most one TTL later.

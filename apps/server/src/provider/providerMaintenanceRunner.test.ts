@@ -211,6 +211,7 @@ function makeRegistry(
       },
       refreshWorkspaceSnapshot: () => Ref.get(providersRef),
       invalidateModelCaches: () => Effect.void,
+      refreshModelCatalog: Effect.void,
       getProviderMaintenanceCapabilitiesForInstance: (_instanceId, provider) =>
         Effect.succeed(lifecycleFor(provider)),
       setProviderMaintenanceActionState,
@@ -248,6 +249,7 @@ const makeTestRunner = (
               current: Effect.succeed(manifest),
               refresh: Effect.succeed(manifest),
               forceRefresh: Effect.succeed(manifest),
+              refreshOnDemand: Effect.succeed(manifest),
               refreshInBackground: Effect.void,
             }),
             latestVersions,
