@@ -1389,34 +1389,36 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
     })();
   };
 
-  const handleThreadClick = (event: ReactMouseEvent, threadRef: ScopedThreadRef) => {
-    if (isSidebarNestedLinkClick(event.target)) return;
-    if (readThreadShell(threadRef) === null) {
-      event.preventDefault();
-      void navigateToThread(threadRef);
-      return;
-    }
-    const isMac = isMacPlatform(navigator.platform);
-    const isModClick = isMac ? event.metaKey : event.ctrlKey;
-    const threadKey = scopedThreadKey(threadRef);
-    if (isModClick) {
-      event.preventDefault();
-      toggleThreadSelection(threadKey);
-      return;
-    }
-    if (event.shiftKey) {
-      event.preventDefault();
-      rangeSelectTo(
-        threadKey,
-        orderedThreadKeysRef.current.filter((key) => serverThreadKeys.has(key)),
-      );
-      return;
-    }
-    if (isTrailingDoubleClick(event.detail)) {
-      return;
-    }
-    navigateToThread(threadRef);
-  };
+  const handleThreadClick = useStableCallback(
+    (event: ReactMouseEvent, threadRef: ScopedThreadRef) => {
+      if (isSidebarNestedLinkClick(event.target)) return;
+      if (readThreadShell(threadRef) === null) {
+        event.preventDefault();
+        void navigateToThread(threadRef);
+        return;
+      }
+      const isMac = isMacPlatform(navigator.platform);
+      const isModClick = isMac ? event.metaKey : event.ctrlKey;
+      const threadKey = scopedThreadKey(threadRef);
+      if (isModClick) {
+        event.preventDefault();
+        toggleThreadSelection(threadKey);
+        return;
+      }
+      if (event.shiftKey) {
+        event.preventDefault();
+        rangeSelectTo(
+          threadKey,
+          orderedThreadKeysRef.current.filter((key) => serverThreadKeys.has(key)),
+        );
+        return;
+      }
+      if (isTrailingDoubleClick(event.detail)) {
+        return;
+      }
+      navigateToThread(threadRef);
+    },
+  );
 
   // Parking the open thread moves to the next remaining card, or a fresh draft when it was the
   // last active one. Callers snapshot the plan BEFORE the command mutates the partition;
@@ -2107,26 +2109,28 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
     }
     return { status: "success" } as const;
   };
-  const attemptSnooze = (
-    threadRef: ScopedThreadRef,
-    preset: Pick<SnoozePreset, "snoozedUntil">,
-    opts: { coSnoozingKeys?: ReadonlySet<string> } = {},
-  ) => {
-    void (async () => {
-      const outcome = await performSnooze(threadRef, preset, opts);
-      if (outcome.status === "failure") {
-        toastManager.add(
-          stackedThreadToast({
-            type: "error",
-            title: "Failed to snooze thread",
-            description:
-              outcome.error instanceof Error ? outcome.error.message : "An error occurred.",
-          }),
-        );
-        return;
-      }
-    })();
-  };
+  const attemptSnooze = useStableCallback(
+    (
+      threadRef: ScopedThreadRef,
+      preset: Pick<SnoozePreset, "snoozedUntil">,
+      opts: { coSnoozingKeys?: ReadonlySet<string> } = {},
+    ) => {
+      void (async () => {
+        const outcome = await performSnooze(threadRef, preset, opts);
+        if (outcome.status === "failure") {
+          toastManager.add(
+            stackedThreadToast({
+              type: "error",
+              title: "Failed to snooze thread",
+              description:
+                outcome.error instanceof Error ? outcome.error.message : "An error occurred.",
+            }),
+          );
+          return;
+        }
+      })();
+    },
+  );
 
   const handleMultiSelectContextMenu = useStableCallback(
     async (position: { x: number; y: number }) => {
