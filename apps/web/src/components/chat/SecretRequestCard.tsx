@@ -5,6 +5,7 @@ import {
   secretRequestAnswerInput,
   secretRequestDisplay,
   secretRequestFailureMessage,
+  secretRequestLink,
   SECRET_REQUEST_PRIVACY_NOTE,
   type SecretRequestItem,
 } from "@supaterm/client-runtime/secret-request";
@@ -13,7 +14,7 @@ import {
   squashAtomCommandFailure,
 } from "@supaterm/client-runtime/state/runtime";
 import type { EnvironmentId, OrchestrationV2ProjectedTurnItem } from "@supaterm/contracts";
-import { CheckIcon, LockIcon, MinusIcon, ShieldCheckIcon } from "@supaterm/icons";
+import { CheckIcon, ExternalLinkIcon, LockIcon, MinusIcon, ShieldCheckIcon } from "@supaterm/icons";
 import { useId, useRef, useState, type FormEvent } from "react";
 
 import { serverEnvironment } from "../../state/server";
@@ -100,6 +101,7 @@ function PendingSecretRequestForm(props: {
     event.preventDefault();
     void send({ type: "save", secret });
   };
+  const link = secretRequestLink(item);
 
   return (
     <form
@@ -125,6 +127,22 @@ function PendingSecretRequestForm(props: {
           <p className="text-sm wrap-anywhere text-muted-foreground">{item.reason}</p>
         ) : null}
       </div>
+      {link !== null ? (
+        <div className="flex min-w-0 flex-col items-start gap-1.5">
+          <Button
+            variant="outline"
+            size="sm"
+            render={<a href={link.href} target="_blank" rel="noopener noreferrer" />}
+          >
+            Open {link.host}
+            <ExternalLinkIcon aria-hidden />
+          </Button>
+          {/* A link found in the reason is already shown there. */}
+          {item.url !== undefined ? (
+            <p className="font-mono text-xs wrap-anywhere text-muted-foreground">{item.url}</p>
+          ) : null}
+        </div>
+      ) : null}
       <div className="flex min-w-0 items-center gap-2">
         <div className="min-w-0 flex-1">
           <Input
