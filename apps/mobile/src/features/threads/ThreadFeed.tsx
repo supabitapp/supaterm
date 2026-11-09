@@ -3652,15 +3652,16 @@ export const ThreadFeed = memo(function ThreadFeed(props: ThreadFeedProps) {
 
   return (
     <PresentationSource identifier={fileShareSourceIdentifier} style={{ flex: 1 }}>
-      {/* While the pane tracks a sliding sidebar, rows keep its done width and re-wrap once. */}
-      <View
-        className="flex-1"
-        style={settledPaneWidth !== null ? { width: settledPaneWidth } : undefined}
-        onLayout={handleViewportLayout}
-      >
+      <View className="flex-1" onLayout={handleViewportLayout}>
+        {/* In a split, rows only re-wrap in the render that hands the list its new width. A native
+            column resize would re-wrap them first, and the list would place the taller or shorter
+            rows at their old offsets until their measurements came back. */}
         <Animated.View
           className="flex-1"
-          style={reduceMotion ? { opacity: feedLoading ? 0 : 1 } : feedRevealStyle}
+          style={[
+            splitLayout && viewportWidth > 0 ? { width: viewportWidth } : undefined,
+            reduceMotion ? { opacity: feedLoading ? 0 : 1 } : feedRevealStyle,
+          ]}
           pointerEvents={feedLoading ? "none" : "auto"}
           accessibilityElementsHidden={feedLoading}
           importantForAccessibility={feedLoading ? "no-hide-descendants" : "auto"}
