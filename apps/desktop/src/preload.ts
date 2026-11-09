@@ -51,6 +51,18 @@ function isRelayViaChange(value: unknown): value is DesktopRelayViaChange {
   return typeof address === "string" && (via === null || via === "relay" || via === "direct");
 }
 
+const syncHtmlFullscreen = () => {
+  const element = document.fullscreenElement;
+  // A preview guest's fullscreen surfaces here as its <webview>, which stays inside the window.
+  void ipcRenderer.invoke(
+    IpcChannels.SYNC_HTML_FULLSCREEN_CHANNEL,
+    element !== null && element.tagName !== "WEBVIEW",
+  );
+};
+// A reload or renderer crash never reports the old document's exit, so each document reports its start.
+syncHtmlFullscreen();
+document.addEventListener("fullscreenchange", syncHtmlFullscreen);
+
 function unwrapEnsureSshEnvironmentResult(result: unknown) {
   if (
     typeof result === "object" &&
