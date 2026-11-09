@@ -92,7 +92,8 @@ The desktop app installs its bundled `supaterm` command on startup when possible
 It preserves an existing `supaterm` command from a separate installation. On macOS
 and Linux it creates a link in a writable command folder; on Windows it adds the
 app's command folder to your `PATH`. Open a new terminal afterwards. If the command
-folder is not on your `PATH`, add it to run `supaterm` by name.
+folder is not on your `PATH`, **Add to PATH** in the welcome setup or **Settings →
+About** adds one line to your shell's startup file.
 
 **Settings → About → supaterm command** lets you retry installation or
 remove the command. **Remove** also disables automatic installation until you
