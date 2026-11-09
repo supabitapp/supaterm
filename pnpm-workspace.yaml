@@ -52,7 +52,7 @@ catalog:
   react-dom: 19.3.0
   tailwindcss: 4.3.3
   typescript: npm:@tsc-rs/typescript@0.8.0
-  undici: 8.12.3
+  undici: 8.12.4
   vite: npm:@voidzero-dev/vite-plus-core@1.4.0
   vite-plus: 1.4.0
   yaml: ^2.9.0
