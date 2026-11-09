@@ -194,7 +194,8 @@ overrides:
   react-native-gesture-handler: 3.5.0
   react-native-reanimated: 4.7.1
   react-native-keyboard-controller: 1.23.0
-  react-native-pdf-jsi: 5.0.0
+  # 6.1.1 cannot build Android: it downloads PDFium from a release asset that was never published.
+  react-native-pdf-jsi: 6.1.0
   react-native-webview: 14.0.1
   react-native-svg: 15.16.1
   expo-modules-core: 58.0.30
@@ -309,7 +310,6 @@ patchedDependencies:
   # at opacity 0 (blank thread rows). Drop those hunks once a stable release includes it.
   react-native-reanimated@4.7.1: patches/react-native-reanimated@4.7.1.patch
   react-native-keyboard-controller@1.23.0: patches/react-native-keyboard-controller@1.23.0.patch
-  react-native-pdf-jsi@5.0.0: patches/react-native-pdf-jsi@5.0.0.patch
   # Android: a nested WebView hands a vertical drag to its scrolling parent at the page's edge.
   react-native-webview@14.0.1: patches/react-native-webview@14.0.1.patch
   # Code blocks start with their lines wrapped; the header toggle unwraps a block.
