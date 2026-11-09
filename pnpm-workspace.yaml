@@ -181,10 +181,10 @@ overrides:
   micromark-extension-llm-math: 3.1.1-20250610
   micromark: 4.0.2
   mdast-util-to-hast: 13.2.1
-  expo-audio: 58.0.9
-  expo-network: 58.0.3
-  expo-sharing: 58.0.19
-  expo-video: 58.0.11
+  expo-audio: 58.0.11
+  expo-network: 58.0.4
+  expo-sharing: 58.0.22
+  expo-video: 58.0.13
   "@ff-labs/fff-node": 0.11.0
   "@legendapp/list": 3.7.2
   "@pierre/diffs": 1.6.1
@@ -196,10 +196,8 @@ overrides:
   react-native-keyboard-controller: 1.22.8
   react-native-pdf-jsi: 5.0.0
   react-native-webview: 14.0.1
-  react-native-svg: 15.16.0
-  "@expo/ui": 58.0.20
-  expo-modules-core: 58.0.22
-  "@expo/fingerprint": 0.21.5
+  react-native-svg: 15.16.1
+  expo-modules-core: 58.0.30
   app-builder-lib: 26.17.0
   # Keep jsdom's optional peer consistent so Vite+ has one test-runner instance.
   "@exodus/bytes>@noble/hashes": "1.8.0"
@@ -223,10 +221,9 @@ overrides:
   "@effect/platform-node-shared": "catalog:"
   "@effect/vitest": "catalog:"
   "@expo/dom-webview": 58.0.2
-  "@expo/metro-config": 58.0.14
-  expo-constants: 58.0.12
+  expo-constants: 58.0.15
   expo-router: 58.0.20
-  "expo-sharing>@expo/config-plugins": 58.0.9
+  "expo-sharing>@expo/config-plugins": 58.0.12
   "expo-sharing>@expo/config-types": 58.0.3
   "@pierre/diffs>@shikijs/transformers": ^4.2.0
   # Resolve below remark-math so Vite, Metro and Node use the same tokenizer.
@@ -273,8 +270,8 @@ packageExtensions:
   # Its config plugin requires @expo/config-plugins but declares it only as a devDependency.
   expo-quick-actions@*:
     dependencies:
-      "@expo/config-plugins": 58.0.9
-  expo-widgets@58.0.20:
+      "@expo/config-plugins": 58.0.12
+  expo-widgets@58.0.27:
     dependencies:
       "@expo/spawn-async": ^1.8.0
       resolve-workspace-root: ^2.0.0
@@ -290,11 +287,10 @@ patchedDependencies:
   micromark-extension-gfm-table@2.1.2: patches/micromark-extension-gfm-table@2.1.2.patch
   micromark@4.0.2: patches/micromark@4.0.2.patch
   mdast-util-to-hast@13.2.1: patches/mdast-util-to-hast@13.2.1.patch
-  expo-audio@58.0.9: patches/expo-audio@58.0.9.patch
-  expo-video@58.0.11: patches/expo-video@58.0.11.patch
-  expo-network@58.0.3: patches/expo-network@58.0.3.patch
-  "@expo/metro-config@58.0.14": patches/@expo__metro-config@58.0.14.patch
-  expo-sharing@58.0.19: patches/expo-sharing@58.0.19.patch
+  expo-audio@58.0.11: patches/expo-audio@58.0.11.patch
+  expo-video@58.0.13: patches/expo-video@58.0.13.patch
+  expo-network@58.0.4: patches/expo-network@58.0.4.patch
+  expo-sharing@58.0.22: patches/expo-sharing@58.0.22.patch
   "@ff-labs/fff-node@0.11.0": patches/@ff-labs__fff-node@0.11.0.patch
   # Re-requests a ResizeObserver delivery when a layout measurement disagrees with it, and lets a
   # native scroll event at the target finish a re-armed initial bootstrap on iOS.
@@ -318,16 +314,12 @@ patchedDependencies:
   # Code blocks start with their lines wrapped; the header toggle unwraps a block.
   # A newline in a copied table cell becomes <br>, so Copy as Markdown keeps the row whole.
   react-native-enriched-markdown@1.2.0-supacode.19: patches/react-native-enriched-markdown@1.2.0-supacode.19.patch
-  "@expo/ui@58.0.20": patches/@expo__ui@58.0.20.patch
   # Android: a Compose host that requests layout in a mount (a new screen's app bar) is laid out
   # before that frame is drawn, instead of a frame later.
-  expo-modules-core@58.0.22: patches/expo-modules-core@58.0.22.patch
-  # Android: Maven-resolved gradle plugins (expo-widgets) have no sourceDir; without this
-  # skip, the fingerprint silently drops every Expo native module and OTAs reach stale binaries.
-  "@expo/fingerprint@0.21.5": patches/@expo__fingerprint@0.21.5.patch
+  expo-modules-core@58.0.30: patches/expo-modules-core@58.0.30.patch
   app-builder-lib@26.17.0: patches/app-builder-lib@26.17.0.patch
   # Android: a marker orient other than "auto" or a number (auto-start-reverse) no longer throws.
-  react-native-svg@15.16.0: patches/react-native-svg@15.16.0.patch
+  react-native-svg@15.16.1: patches/react-native-svg@15.16.1.patch
 
 peerDependencyRules:
   allowAny:
