@@ -333,7 +333,17 @@ const startup = Effect.gen(function* () {
   }
   yield* appIdentity.configure;
   yield* applicationMenu.configure;
-  yield* Effect.forkScoped(cliCommand.installAutomatically);
+  // Only the user's own login shell PATH shows every supaterm a new terminal runs; a fresh install has
+  // no cached one. Without it, the command is left to Settings.
+  yield* Effect.forkScoped(
+    shellEnvironment.awaitUserShellDiscovery.pipe(
+      Effect.flatMap((found) =>
+        found || environment.platform === "win32"
+          ? cliCommand.installAutomatically
+          : logStartupInfo("skipped installing the supaterm command without the shell PATH"),
+      ),
+    ),
+  );
   yield* updates.configure;
   yield* DesktopRemoteUpdates.listen;
   yield* DesktopStartupRecovery.listen;
