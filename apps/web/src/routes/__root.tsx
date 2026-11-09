@@ -144,29 +144,36 @@ function RootRouteBranch() {
     return <Outlet />;
   }
 
-  // Ahead of first-run onboarding, which would otherwise send a new visitor to the welcome
-  // wizard and lose the link.
+  // Ahead of first-run onboarding, which would otherwise send a new visitor to the Welcome
+  // page and lose the link.
   if (hostedPromptLinkLanding !== null) {
     return hostedPromptLinkLanding;
   }
 
-  if (pathname === "/welcome") {
-    return (
-      <>
-        <CustomSnoozeDialogHost />
-        <CommandPalette>
-          <AppSidebarLayout>
-            <Outlet />
-          </AppSidebarLayout>
-        </CommandPalette>
-      </>
-    );
-  }
-
+  const isWelcome = pathname === "/welcome";
   if (authGateState.status !== "authenticated" && authGateState.status !== "hosted-static") {
     return <Outlet />;
   }
 
+  // Settings can reopen /welcome mid-session, so it mounts everything the app does except the
+  // first-run gate and the event router, whose first navigation would leave the page.
+  const appHosts = (
+    <>
+      {primaryEnvironmentAuthenticated ? <DesktopAppActivationCoordinator /> : null}
+      {primaryEnvironmentAuthenticated || localEnvironmentDisabled ? (
+        <DesktopWebLinkCoordinator />
+      ) : null}
+      {isElectron ? <RunningThreadKeepAlive /> : null}
+      <SshPasswordPromptDialog />
+      <SnapShotCoordinator />
+      <ReopenClosedViewShortcut />
+      <ConfirmDialogHost />
+      <CustomSnoozeDialogHost />
+      <ProjectCloneToastCoordinator />
+      <AddProjectToMachineDialogHost />
+      {import.meta.env.DEV && primaryEnvironmentAuthenticated ? <DevReplayHost /> : null}
+    </>
+  );
   const appShell = (
     <CommandPalette>
       {getCodexMicroBridge() === null ? null : (
@@ -175,7 +182,8 @@ function RootRouteBranch() {
         </Suspense>
       )}
       <SidePulseCoordinator />
-      <AppSidebarLayout>
+      {/* Setup starts with an empty workspace, so the Welcome page has no thread list. */}
+      <AppSidebarLayout showSidebar={!isWelcome}>
         <Outlet />
       </AppSidebarLayout>
     </CommandPalette>
@@ -184,32 +192,27 @@ function RootRouteBranch() {
   return (
     <>
       <ChatGptWelcomeCoordinator />
-      <FirstRunGate
-        enabled={primaryEnvironmentAuthenticated}
-        hostedStatic={authGateState.status === "hosted-static"}
-      >
-        {primaryEnvironmentAuthenticated ? <DesktopAppActivationCoordinator /> : null}
-        {primaryEnvironmentAuthenticated || localEnvironmentDisabled ? (
-          <DesktopWebLinkCoordinator />
-        ) : null}
-        {isElectron ? <RunningThreadKeepAlive /> : null}
-        <SshPasswordPromptDialog />
-        <SnapShotCoordinator />
-        <ReopenClosedViewShortcut />
-        <ConfirmDialogHost />
-        <CustomSnoozeDialogHost />
-        <ProjectCloneToastCoordinator />
-        <AddProjectToMachineDialogHost />
-        {import.meta.env.DEV && primaryEnvironmentAuthenticated ? <DevReplayHost /> : null}
-        {primaryEnvironmentAuthenticated ? (
-          <EventRouter skipInitialBootstrapNavigation={returningFromWelcome} />
-        ) : null}
-        {/* Hosted Nightly is "hosted-static", not authenticated, and needs it too. */}
-        {appShell}
-        {/* Above the router: a theme draft is judged by walking the app, so the
-          editor has to survive navigation away from settings. */}
-        <ThemeEditorHost />
-      </FirstRunGate>
+      {isWelcome ? (
+        <>
+          {appHosts}
+          {appShell}
+        </>
+      ) : (
+        <FirstRunGate
+          enabled={primaryEnvironmentAuthenticated}
+          hostedStatic={authGateState.status === "hosted-static"}
+        >
+          {appHosts}
+          {primaryEnvironmentAuthenticated ? (
+            <EventRouter skipInitialBootstrapNavigation={returningFromWelcome} />
+          ) : null}
+          {/* Hosted Nightly is "hosted-static", not authenticated, and needs it too. */}
+          {appShell}
+        </FirstRunGate>
+      )}
+      {/* Above both shells and the router: a theme draft is judged by walking the app, so the
+        editor has to survive navigation away from settings, including to /welcome. */}
+      <ThemeEditorHost />
     </>
   );
 }
