@@ -119,6 +119,16 @@ describe("thread links", () => {
     expect(threadLinkRefs("[a](<supaterm-thread://v2/there/t2>)", local)).toEqual([
       ref("there", "t2"),
     ]);
+    for (const threadId of ["mcp:launch:qa(1)", "mcp:launch:qa)"]) {
+      const thread = ref("there", threadId);
+      const link = formatThreadLink(thread, "Original");
+      expect(link).toBe(`[Original](<supaterm-thread://v2/there/${threadId}>)`);
+      expect(threadLinkRefs(link, local)).toEqual([thread]);
+      expect(relabelThreadLinks(link, local, () => "Renamed")).toBe(
+        `[Renamed](<supaterm-thread://v2/there/${threadId}>)`,
+      );
+      expect(relabelThreadLinks(link, local, () => undefined)).toBe("Original");
+    }
   });
 
   it("turns a v2 link it cannot resolve into plain text, never the raw link", () => {

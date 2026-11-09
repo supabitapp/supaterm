@@ -8,7 +8,7 @@ const V2_PREFIX = `${THREAD_LINK_PROTOCOL}://v2/`;
 // Code comes first in the alternation so a link written inside a code span or fence is skipped.
 // A labeled link's destination may be angle-bracketed, as CommonMark allows: [label](<href>).
 const THREAD_LINK_OUTSIDE_CODE =
-  /(?<fence>(`{3,}|~{3,})[\s\S]*?(?:\2|$))|(?<span>(`+)[^\n]*?\4)|\[(?<label>[^\]\n]*)\]\(<?(?<href>supaterm-thread:\/\/v[12]\/[^\s>)]+)>?\)|<(?<autolink>supaterm-thread:\/\/v[12]\/[^\s<>]+)>/g;
+  /(?<fence>(`{3,}|~{3,})[\s\S]*?(?:\2|$))|(?<span>(`+)[^\n]*?\4)|\[(?<label>[^\]\n]*)\]\((?:<(?<angleHref>supaterm-thread:\/\/v[12]\/[^\s<>]+)>|(?<href>supaterm-thread:\/\/v[12]\/[^\s>)]+))\)|<(?<autolink>supaterm-thread:\/\/v[12]\/[^\s<>]+)>/g;
 
 const decodeThreadId = Schema.decodeUnknownOption(ThreadId);
 const decodeEnvironmentId = Schema.decodeUnknownOption(EnvironmentId);
@@ -85,7 +85,9 @@ export function formatThreadLink(ref: ThreadLink, label?: string): string {
     ?.replace(/[[\]\\\r\n]/g, " ")
     .replace(/\s+/g, " ")
     .trim();
-  return cleaned ? `[${cleaned}](${threadLinkHref(ref)})` : `<${threadLinkHref(ref)}>`;
+  const href = threadLinkHref(ref);
+  const destination = /[()]/.test(href) ? `<${href}>` : href;
+  return cleaned ? `[${cleaned}](${destination})` : `<${href}>`;
 }
 
 export function hasThreadLinks(markdown: string): boolean {
@@ -101,7 +103,7 @@ export function threadLinkRefs(
   // Hermes' matchAll yields matches without `groups`; exec keeps them.
   const pattern = new RegExp(THREAD_LINK_OUTSIDE_CODE);
   for (let match = pattern.exec(markdown); match !== null; match = pattern.exec(markdown)) {
-    const href = match.groups?.href ?? match.groups?.autolink;
+    const href = match.groups?.angleHref ?? match.groups?.href ?? match.groups?.autolink;
     const link = href === undefined ? null : parseThreadLinkHref(href);
     if (link === null) continue;
     for (const ref of threadLinkCandidates(link, messageEnvironmentId)) {
@@ -131,8 +133,14 @@ export function relabelThreadLinks(
 ): string {
   if (!hasThreadLinks(markdown)) return markdown;
   return markdown.replace(THREAD_LINK_OUTSIDE_CODE, (source, ...args) => {
-    const groups = args.at(-1) as { href?: string; autolink?: string; label?: string };
-    const href = groups.href ?? groups.autolink;
+    const groups = args.at(-1) as {
+      angleHref?: string;
+      href?: string;
+      autolink?: string;
+      label?: string;
+    };
+    const labeledHref = groups.angleHref ?? groups.href;
+    const href = labeledHref ?? groups.autolink;
     if (href === undefined) return source;
     const written = parseThreadLinkHref(href);
     if (written === null) return source;
@@ -146,7 +154,7 @@ export function relabelThreadLinks(
         : written.threadId;
     const current = title({ environmentId, threadId });
     if (current === undefined) {
-      if (groups.href !== undefined && written.environmentId === null) return source;
+      if (labeledHref !== undefined && written.environmentId === null) return source;
       return groups.label?.trim() || unknownThreadLinkLabel(written, messageEnvironmentId);
     }
     return formatThreadLink(
