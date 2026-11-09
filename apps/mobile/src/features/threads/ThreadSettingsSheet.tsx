@@ -35,7 +35,15 @@ import {
 import { type NativeStackNavigationProp } from "@react-navigation/native-stack";
 import * as Haptics from "expo-haptics";
 import { AsyncResult } from "effect/reactivity";
-import { createContext, use, useEffectEvent, useRef, useState, type ReactNode } from "react";
+import {
+  createContext,
+  use,
+  useEffect,
+  useEffectEvent,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import { Platform, Pressable, RefreshControl, ScrollView, View } from "react-native";
 import Animated, {
   FadeIn,
@@ -930,6 +938,19 @@ function ThreadSettingsMainContent(props: {
     reportFailure: false,
   });
   const refreshProviderCatalog = createProviderCatalogRefreshRunner(refreshProvidersCommand);
+  const registry = use(RegistryContext);
+  const refreshModelCatalog = useEffectEvent(() => {
+    const environmentId = session.environmentId;
+    if (!environmentId) return;
+    // An older server drops the field and probes every provider.
+    const config = registry.get(environmentServerConfigsAtom).get(environmentId);
+    if (config?.environment.capabilities.modelCatalogRefresh !== true) return;
+    void refreshProvidersCommand({ environmentId, input: { modelCatalogOnly: true } });
+  });
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- asks the server for newly released models when the model list opens
+  useEffect(() => {
+    refreshModelCatalog();
+  }, []);
   const [isRefreshingProviders, setIsRefreshingProviders] = useState(false);
   const refreshProviders = () => {
     if (!session.environmentId || isRefreshingProviders) return;
