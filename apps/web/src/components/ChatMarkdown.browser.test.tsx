@@ -583,6 +583,25 @@ describe("ChatMarkdown streaming", () => {
       expect(streaming()).toBe("");
     },
   );
+
+  it.each([
+    ["read-only", undefined],
+    ["editable", () => {}],
+  ])(
+    "unchecks the remaining %s task when the checked row above it is removed",
+    async (_, onTaskListChange) => {
+      setup();
+      const message = (text: string) => (
+        <ChatMarkdown cwd="/tmp/project" text={text} onTaskListChange={onTaskListChange} />
+      );
+      await using screen = await render(message("- [x] Completed item\n- [ ] Pending item"));
+      await screen.rerender(message("- [ ] Pending item"));
+      const checkboxes =
+        screen.container.querySelectorAll<HTMLInputElement>('input[type="checkbox"]');
+      expect(checkboxes).toHaveLength(1);
+      expect(checkboxes[0]!.checked).toBe(false);
+    },
+  );
 });
 
 describe("ChatMarkdown diagrams", () => {
