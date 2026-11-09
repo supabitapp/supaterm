@@ -34,7 +34,7 @@ catalog:
   "@effect/platform-node": 4.1.2
   "@effect/platform-node-shared": 4.1.2
   "@effect/vitest": 4.1.2
-  "@legendapp/list": 3.3.5
+  "@legendapp/list": 3.7.2
   "@noble/hashes": 1.8.0
   "@pierre/diffs": 1.6.1
   "@pierre/highlights": 0.2.0
@@ -82,7 +82,7 @@ minimumReleaseAgeExclude:
   - "@effect/platform-node@4.1.2"
   - "@effect/vitest@4.1.2"
   - effect@4.1.2
-  - "@legendapp/list@3.3.5"
+  - "@legendapp/list@3.7.2"
   - "@expo/cli@58.1.1 || 58.1.9 || 58.1.11"
   - "@expo/env@2.5.1"
   - "@expo/metro-config@58.0.14"
@@ -186,7 +186,7 @@ overrides:
   expo-sharing: 58.0.19
   expo-video: 58.0.11
   "@ff-labs/fff-node": 0.11.0
-  "@legendapp/list": 3.3.5
+  "@legendapp/list": 3.7.2
   "@pierre/diffs": 1.6.1
   "@react-native-menu/menu": 2.0.0
   "@react-navigation/native-stack": 7.21.0
@@ -296,7 +296,9 @@ patchedDependencies:
   "@expo/metro-config@58.0.14": patches/@expo__metro-config@58.0.14.patch
   expo-sharing@58.0.19: patches/expo-sharing@58.0.19.patch
   "@ff-labs/fff-node@0.11.0": patches/@ff-labs__fff-node@0.11.0.patch
-  "@legendapp/list@3.3.5": patches/@legendapp__list@3.3.5.patch
+  # Re-requests a ResizeObserver delivery when a layout measurement disagrees with it, and lets a
+  # native scroll event at the target finish a re-armed initial bootstrap on iOS.
+  "@legendapp/list@3.7.2": patches/@legendapp__list@3.7.2.patch
   # Exports the dependency-light subpaths mobile and the web diff parser import, and keeps
   # measured wrapped-row heights above an edit (fileEditorVirtualization.test.ts).
   "@pierre/diffs@1.6.1": patches/@pierre%2Fdiffs@1.6.1.patch
