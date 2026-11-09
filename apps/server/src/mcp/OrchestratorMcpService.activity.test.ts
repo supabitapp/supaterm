@@ -135,6 +135,7 @@ it("readThread preserves caller access errors and prefers activity-run status ov
       makeRun({ id: cancelledRunId, ordinal: 2, status: "cancelled" }),
     ],
     visibleTurnItems: [],
+    providerTurns: [],
     runtimeRequests: [],
     messages: [],
     contextTransfers: [],
@@ -220,6 +221,7 @@ it("readThread pages cut-off text without splitting an emoji across pages", asyn
     }),
     runs: [makeRun({ id: activeRunId, ordinal: 1, status: "running" })],
     visibleTurnItems: [],
+    providerTurns: [],
     runtimeRequests: [],
     messages: [],
     contextTransfers: [],
@@ -309,6 +311,7 @@ it("taskStatus returns task.providerInstanceId rather than the driver kind", asy
     }),
     runs: [makeRun({ id: activeRunId, ordinal: 1, status: "running" })],
     visibleTurnItems: [],
+    providerTurns: [],
     runtimeRequests: [],
     messages: [],
     contextTransfers: [],
@@ -362,6 +365,7 @@ it("taskStatus returns task.providerInstanceId rather than the driver kind", asy
       }),
     ],
     visibleTurnItems: [],
+    providerTurns: [],
     runtimeRequests: [],
     messages: [],
     contextTransfers: [
@@ -434,6 +438,7 @@ it("readThread and sendToThread reach threads in other projects", async () => {
       return parentRuns;
     },
     visibleTurnItems: [],
+    providerTurns: [],
     runtimeRequests: [],
     messages: [],
     contextTransfers: [],
@@ -470,6 +475,7 @@ it("readThread and sendToThread reach threads in other projects", async () => {
           },
         },
       ],
+      providerTurns: [],
       runtimeRequests: [],
       messages: [],
       contextTransfers: [],
@@ -665,6 +671,7 @@ it("requestSecret saves a pasted value to a file without opening a card", async 
     }),
     runs: [{ ...makeRun({ id: activeRunId, ordinal: 1, status: "running" }), rootNodeId: taskId }],
     visibleTurnItems: [],
+    providerTurns: [],
     runtimeRequests: [],
     messages: [],
     contextTransfers: [],
@@ -772,6 +779,7 @@ it("requestSecret returns the unsaved note for a declined, cancelled or timed-ou
           card === undefined
             ? []
             : [{ type: "secret_request", id: card.turnItemId, secretStatus: outcome }],
+        providerTurns: [],
         runtimeRequests: [],
         messages: [],
         contextTransfers: [],
