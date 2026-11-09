@@ -67,6 +67,7 @@ export interface SettingsSearchItem {
   readonly providerSettingsOnly?: boolean;
   readonly localBackendManagementOnly?: boolean;
   readonly wslAvailableOnly?: boolean;
+  readonly fastWorktreeCheckoutOnly?: boolean;
   readonly secondary?: boolean;
   readonly requiresThreadAutoMarkDone?: boolean;
 }
@@ -77,6 +78,7 @@ export interface SettingsSearchAvailability {
   readonly canManageLocalBackend: boolean;
   readonly isWslSettingsRowVisible: boolean;
   readonly hasThreadAutoMarkDone: boolean;
+  readonly hasFastWorktreeCheckoutEnvironment?: boolean;
 }
 
 export const SETTINGS_SECTION_LABELS: Readonly<Record<SettingsPath, string>> = {
@@ -268,6 +270,14 @@ export const SETTINGS_SEARCH_ITEMS = [
     to: "/settings/worktrees",
     scope: "environment-defaults",
     searchTerms: ["worktree location folder directory path drive external disk"],
+  },
+  {
+    id: "worktree-fast-checkout",
+    title: "Fast worktree checkout",
+    to: "/settings/worktrees",
+    scope: "environment-defaults",
+    fastWorktreeCheckoutOnly: true,
+    searchTerms: ["fast worktree checkout clone apfs copy-on-write cache macos speed"],
   },
   {
     id: "storage-artifacts",
@@ -1257,7 +1267,8 @@ export function filterAvailableSettingsSearchItems(
       (!item.providerSettingsOnly || availability.hasProviderSettingsEnvironment) &&
       (!item.localBackendManagementOnly || availability.canManageLocalBackend) &&
       (!item.wslAvailableOnly || availability.isWslSettingsRowVisible) &&
-      (!item.requiresThreadAutoMarkDone || availability.hasThreadAutoMarkDone),
+      (!item.requiresThreadAutoMarkDone || availability.hasThreadAutoMarkDone) &&
+      (!item.fastWorktreeCheckoutOnly || availability.hasFastWorktreeCheckoutEnvironment === true),
   );
 }
 

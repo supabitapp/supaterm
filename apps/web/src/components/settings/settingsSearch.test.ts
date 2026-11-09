@@ -126,6 +126,7 @@ describe("searchSettings", () => {
       "auto-mark-done-merged-threads",
       "auto-mark-done-keep-pull-requests",
       "days-before-auto-mark-done",
+      "worktree-fast-checkout",
     ]);
     expect(available.map((item) => item.id).filter((id) => gatedIds.has(id))).toEqual([]);
   });

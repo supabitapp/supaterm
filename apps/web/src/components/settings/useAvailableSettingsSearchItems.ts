@@ -25,6 +25,13 @@ export function useAvailableSettingsSearchItems() {
         hasServerConfig: environment.serverConfig !== null,
       }),
     ) === true;
+  // Any machine that offers it; the row then shows for a settings scope where all selected ones do.
+  const hasFastWorktreeCheckoutEnvironment =
+    environments.some(
+      (environment) =>
+        environment.connection.phase === "connected" &&
+        environment.serverConfig?.environment.capabilities.fastWorktreeCheckout === true,
+    ) === true;
   const hasThreadAutoMarkDone =
     getThreadAutoMarkDoneSearchAvailability(environments).eligibleEnvironmentIds.length > 0;
   const primaryEnvironmentId = usePrimaryEnvironmentId();
@@ -43,5 +50,6 @@ export function useAvailableSettingsSearchItems() {
     canManageLocalBackend,
     isWslSettingsRowVisible: wslSettingsRowVisible,
     hasThreadAutoMarkDone,
+    hasFastWorktreeCheckoutEnvironment,
   });
 }
