@@ -39,9 +39,9 @@ function areaPane(area: HTMLElement): HTMLElement | null {
 }
 
 /** An area's identity: its name, qualified by its pane when threads are side by side. */
-function areaKey(area: HTMLElement): string {
+function areaKey(area: HTMLElement, name = area.dataset.workspaceArea!): string {
   const pane = areaPane(area)?.dataset.chatPane;
-  return pane ? `${area.dataset.workspaceArea}@${pane}` : area.dataset.workspaceArea!;
+  return pane ? `${name}@${pane}` : name;
 }
 
 /** The named area in the focused pane, else the first one with that name. */
@@ -267,26 +267,36 @@ export function createWorkspaceFocusController(doc: Document) {
     return focusArea(area);
   };
 
-  // Focus that drops to the body because its element was hidden, made inert, or removed
-  // returns to the same control when React remounted it, else to its area, else the content.
+  // Focus that drops to the body because its element was hidden, made inert, disabled, or removed
+  // returns to a remounted control, else its area, or the composer for a finished timeline prompt.
   const recover = (event: FocusEvent) => {
     const lost = event.target;
     if (!(lost instanceof HTMLElement) || event.relatedTarget) return;
     const lostArea = workspaceArea(lost);
-    const areaName = lostArea ? areaKey(lostArea) : undefined;
+    const recoveryArea = lostArea
+      ? areaKey(
+          lostArea,
+          lostArea.dataset.workspaceArea === "conversation" ? "composer" : undefined,
+        )
+      : undefined;
     const label = lost.getAttribute("aria-label");
     requestAnimationFrame(() => {
-      if (doc.activeElement !== doc.body || !doc.hasFocus() || isWorkspaceElementVisible(lost))
+      if (
+        doc.activeElement !== doc.body ||
+        !doc.hasFocus() ||
+        (isWorkspaceElementVisible(lost) && !lost.matches(":disabled"))
+      )
         return;
       const remounted = Array.from(doc.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)).find(
         (element) =>
           element.tagName === lost.tagName &&
           ((lost.id && element.id === lost.id) ||
             (label && element.getAttribute("aria-label") === label)) &&
-          isWorkspaceElementVisible(element),
+          isWorkspaceElementVisible(element) &&
+          !element.matches(":disabled"),
       );
       if (remounted) remounted.focus({ preventScroll: true });
-      else if (!areaName || !focus(areaName)) focus("content");
+      else if (!recoveryArea || !focus(recoveryArea)) focus("content");
     });
   };
   doc.addEventListener("focusout", recover);
