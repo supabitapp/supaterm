@@ -986,12 +986,12 @@ export const ThreadListV2Row = memo(function ThreadListV2Row(props: {
               subactions: [
                 {
                   id: "auto-mark-done:enabled",
-                  title: "Enabled",
+                  title: "Follow settings",
                   state: thread.autoMarkDoneDisabledAt == null ? "on" : "off",
                 },
                 {
                   id: "auto-mark-done:disabled",
-                  title: "Disabled",
+                  title: "Never",
                   state: thread.autoMarkDoneDisabledAt == null ? "off" : "on",
                 },
               ],
