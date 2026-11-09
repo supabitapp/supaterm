@@ -80,6 +80,7 @@ import {
   useThreadReportedModelSelection,
 } from "../../state/use-thread-detail";
 import { activeComposerDraftKey, useQueuedRunEdit } from "../../state/queued-run-edit";
+import { selectThreadModel } from "../../state/thread-model-selection";
 import { useThreadSelection } from "../../state/use-thread-selection";
 import { threadAllowsProviderSwitch } from "../../state/thread-provider-switching";
 import { environmentServerConfigsAtom, serverEnvironment } from "../../state/server";
@@ -1357,7 +1358,7 @@ export function ExistingThreadSettingsRouteScreen({
         option.selection.model === modelSelection.model,
     ) ?? null;
   const updateModelSelection = (selection: ModelSelection) =>
-    updateComposerDraftSettings(threadKey, { modelSelection: selection });
+    selectThreadModel(route.params, selection);
 
   return (
     <ThreadSettingsPickerScreen

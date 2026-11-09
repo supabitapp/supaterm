@@ -74,10 +74,10 @@ import {
   scheduleUnusedComposerAttachmentCleanup,
   setComposerDraftText,
   setFreshSessionPending,
-  updateComposerDraftSettings,
   useComposerDraft,
   useComposerDraftSettings,
 } from "./use-composer-drafts";
+import { selectThreadModel } from "./thread-model-selection";
 import { isClearComposerCommand } from "@supaterm/shared/composerTrigger";
 import {
   resolveComposerDispatchMode,
@@ -803,10 +803,13 @@ export function useThreadComposerState() {
   };
 
   const onUpdateModelSelection = (value: ModelSelection) => {
-    if (!selectedThreadKey) {
+    if (!selectedThreadShell) {
       return;
     }
-    updateComposerDraftSettings(selectedThreadKey, { modelSelection: value });
+    selectThreadModel(
+      { environmentId: selectedThreadShell.environmentId, threadId: selectedThreadShell.id },
+      value,
+    );
   };
 
   return {
