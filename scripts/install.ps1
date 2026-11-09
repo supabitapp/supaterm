@@ -20,6 +20,8 @@ $repo = "supabitapp/supaterm"
 $baseUrl = if ($env:SUPATERM_RELEASE_BASE_URL) { $env:SUPATERM_RELEASE_BASE_URL.TrimEnd("/") } else { "https://github.com/$repo/releases/download" }
 $supatermHome = if ($env:SUPATERM_HOME) { $env:SUPATERM_HOME } else { Join-Path $HOME ".supaterm" }
 $binDir = if ($env:SUPATERM_INSTALL_BIN_DIR) { $env:SUPATERM_INSTALL_BIN_DIR } else { Join-Path $HOME ".local\bin" }
+# Absolute, so PATH never gets a folder that changes with the working directory.
+$binDir = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($binDir)
 
 function Fail([string] $message) {
   Write-Error "supaterm install: $message"
@@ -202,19 +204,50 @@ if ((Test-Path $marker) -and ((Get-Content $marker -Raw).Trim() -eq $version)) {
 Step "Setting up the supaterm command..."
 New-Item -ItemType Directory -Force -Path $binDir | Out-Null
 $shim = Join-Path $binDir "supaterm.cmd"
+# Replace only a shim that runs a version in this home; never the desktop app's or another supaterm.
+if (Test-Path -LiteralPath $shim) {
+  $existingTarget = ""
+  # The shim is UTF-8 without a BOM; Windows PowerShell 5.1 reads files as ANSI by default.
+  # Only a shim exactly as written here counts; a user's wrapper that also runs supaterm.exe does not.
+  $existing = [System.IO.File]::ReadAllText($shim, [System.Text.Encoding]::UTF8)
+  if ($existing -match '^@echo off\r?\n"([^"]+)" %\*\s*$') { $existingTarget = $Matches[1] }
+  # Full paths, so a target like versions\..\other cannot pass as ours.
+  $ownedPrefix = [System.IO.Path]::GetFullPath($versionsDir).TrimEnd('\', '/') + [System.IO.Path]::DirectorySeparatorChar
+  if ($existingTarget) { $existingTarget = [System.IO.Path]::GetFullPath($existingTarget) }
+  # Exactly <version>\supaterm.exe, never another program inside a version.
+  $owned = $existingTarget.StartsWith($ownedPrefix, [System.StringComparison]::OrdinalIgnoreCase) -and
+    ($existingTarget.Substring($ownedPrefix.Length) -match '^[^\\/]+\\supaterm\.exe$')
+  if (-not $owned) {
+    Fail "another supaterm is already at $shim. Remove it and run this again, or run $(Join-Path $targetDir 'supaterm.exe') directly."
+  }
+}
 # UTF-8 without a BOM: cmd.exe reads the shim as-is, and ASCII would corrupt
 # non-ASCII characters in the user's home path.
 [System.IO.File]::WriteAllText($shim, "@echo off`r`n`"$(Join-Path $targetDir 'supaterm.exe')`" %*", (New-Object System.Text.UTF8Encoding $false))
 # Pruning keeps what this shim points at; a background service cannot see $binDir otherwise.
 $launchers = Join-Path $supatermHome "runtime\launchers"
-$shimPath = (Resolve-Path $shim).Path
+$shimPath = (Resolve-Path -LiteralPath $shim).Path
 if (-not ((Test-Path $launchers) -and ((Get-Content $launchers) -contains $shimPath))) {
   [System.IO.File]::AppendAllText($launchers, "$shimPath`r`n", (New-Object System.Text.UTF8Encoding $false))
 }
 if ($interactive) { [Console]::Error.Write("`r$esc[2K") }
 [Console]::Error.WriteLine("  ${green}Installed Supaterm $version$reset`n")
-if (($env:PATH -split ";") -notcontains $binDir) {
-  Write-Host "  Add $binDir to your PATH, then run ${bold}supaterm$reset.`n"
+if ($binDir.Contains(";")) {
+  # PATH would split the folder at the `;`, so name the command in full instead.
+  Write-Host "  Run ${bold}& '$($shim.Replace("'", "''"))'$reset to get started.`n"
 } else {
-  Write-Host "  Run ${bold}supaterm$reset to get started.`n"
+  # Either side may end in a separator. Trim only here: a drive root keeps its `\` for Join-Path.
+  $added = ($env:PATH -split ";" | ForEach-Object { $_.TrimEnd('\', '/') }) -notcontains $binDir.TrimEnd('\', '/')
+  # `irm | iex` runs in the user's own session, so supaterm works in this window right away.
+  # Last, so it never shadows another supaterm.
+  if ($added) { $env:Path = "$env:Path;$binDir" }
+  # A supaterm earlier on PATH runs instead, so name this one in full.
+  $first = Get-Command supaterm -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
+  if ($first -and [System.IO.Path]::GetFullPath($first.Source) -ne [System.IO.Path]::GetFullPath($shimPath)) {
+    Write-Host "  Another supaterm at $($first.Source) runs first, so run ${bold}& '$($shim.Replace("'", "''"))'$reset to use this one.`n"
+  } elseif ($added) {
+    Write-Host "  Run ${bold}supaterm$reset to get started. For new windows, add $binDir to your PATH.`n"
+  } else {
+    Write-Host "  Run ${bold}supaterm$reset to get started.`n"
+  }
 }

@@ -31,10 +31,13 @@ On Windows, in PowerShell, install the packaged command line with:
 irm https://supaterm.com/install.ps1 | iex
 ```
 
-This installs the `supaterm` binary to `~/.local/bin`. If your shell reports
-`command not found` afterwards, add that directory to `PATH`. Set
-`SUPATERM_CHANNEL=nightly` to install the nightly train, or `SUPATERM_VERSION` to pin an exact
-version.
+This installs the `supaterm` binary to `~/.local/bin`. If that folder is not on your
+`PATH` yet, the installer says so and, for zsh, bash on Linux, and fish, prints
+a command to add it. On Windows, `supaterm` works in the same PowerShell window right
+away; add the folder to your `PATH` for new windows. If a `supaterm` that the
+installer or the desktop app did not create is already there, it leaves that
+one alone and stops. Set `SUPATERM_CHANNEL=nightly` to install the nightly train, or
+`SUPATERM_VERSION` to pin an exact version.
 
 ### Intel Macs
 
@@ -63,6 +66,12 @@ If you have a packaged `supaterm` executable installed, these commands are avail
 | List supported server settings                   | `supaterm settings list`                                                      |
 
 Run `supaterm --help` for the full reference.
+
+To try Supaterm without installing it, run `npx supaterm@latest` (needs Node.js
+for `npx`). It offers to install the `supaterm` command first. If you say no, it
+asks again at the next minor release, and `npx supaterm install` installs it
+later. `npx supaterm` always runs the version npm picked, even when a `supaterm`
+is installed.
 
 ## Desktop app
 
