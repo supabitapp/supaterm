@@ -209,12 +209,13 @@ import type { OrchestrationV2ProviderSession } from "@supaterm/contracts";
 export interface ThreadDetailScreenProps {
   readonly header?: React.ReactNode;
   readonly draftMode?: {
+    /** viewportHeight excludes the composer so draft chrome can resize it without feedback. */
     readonly content: (
       headerInset: number,
       bottomInset: number,
-      availableHeight: number,
+      viewportHeight: number,
     ) => React.ReactNode;
-    readonly controls: React.ReactNode;
+    readonly controls: (viewportHeight: number) => React.ReactNode;
     readonly editorRef: React.RefObject<ComposerEditorHandle | null>;
     readonly sendBlockedReason: string | null;
     readonly interactionLocked: boolean;
@@ -1085,6 +1086,7 @@ function ThreadDetailBody(
     setScreenHeight(event.nativeEvent.layout.height);
   };
   const screenAreaHeight = screenHeight ?? windowHeight;
+  const draftViewportHeight = screenAreaHeight - navigationHeaderHeight - liveKeyboardHeight;
   // The question card reads the keyboard frame on the UI thread, in the same frame the sticky
   // view translates, so it gets the full height while the keyboard is closed and never crosses
   // the header while the keyboard moves.
@@ -1523,11 +1525,7 @@ function ThreadDetailBody(
         props.draftMode.content(
           navigationHeaderHeight,
           liveKeyboardHeight + estimatedOverlayHeight + 24,
-          screenAreaHeight -
-            navigationHeaderHeight -
-            liveKeyboardHeight -
-            estimatedOverlayHeight -
-            24,
+          draftViewportHeight,
         )
       ) : showContent ? (
         <View
@@ -1907,7 +1905,7 @@ function ThreadDetailBody(
                     </View>
                   ) : (
                     <>
-                      {props.draftMode?.controls}
+                      {props.draftMode?.controls(draftViewportHeight)}
                       <ThreadComposer
                         isDraft={Boolean(props.draftMode)}
                         canOperateThread={props.canOperateThread}
