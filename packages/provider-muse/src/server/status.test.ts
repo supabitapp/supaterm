@@ -70,6 +70,7 @@ it.layer(NodeServices.layer)("Muse status", (it) => {
         );
         expect(snapshot.installed).toBe(true);
         expect(snapshot.status).toBe("error");
+        expect(snapshot.supportsConversationRollback).toBe(false);
         expect(snapshot.message).not.toContain("secret-test-value");
         expect(createHost).not.toHaveBeenCalled();
       }),

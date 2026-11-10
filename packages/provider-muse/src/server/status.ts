@@ -22,6 +22,7 @@ import {
 
 const MUSE_PRESENTATION = {
   displayName: "Muse Code",
+  supportsConversationRollback: false,
   showInteractionModeToggle: false,
   reportsContextWindow: true,
 
