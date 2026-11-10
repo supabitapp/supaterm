@@ -8,8 +8,6 @@ apps/*/dist
 apps/*/dist-exe
 .astro
 packages/*/dist
-.env
-.env.local
 build/
 .logs/
 release/
@@ -43,8 +41,6 @@ apps/mobile/.bundle/
 apps/mobile/fastlane/report.xml
 .github/pr-assets/
 native/**/target/
-node_modules/
-*.log
 .env*
 
 # pnpm content-addressable store; never belongs in the repo.

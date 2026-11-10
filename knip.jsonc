@@ -26,8 +26,6 @@
       "entry": [
         "check-commit-message.ts",
         "clean-worktree.ts",
-        // These fixture scripts are injected into a browser page by path.
-        "fixtures/*/*.js",
         "knip-schemas.ts",
         "linux-after-pack.ts",
         "mobile-native-client.ts",
@@ -97,9 +95,8 @@
       "ignoreDependencies": ["playwright-core", "electron-builder"],
     },
     "apps/web": {
-      // The first dev start (scripts/dev-runner.ts) runs this directly, and evidence
-      // fixtures run under node.
-      "entry": ["scripts/warm-dep-cache.ts", "test/fixtures/**/*.mjs"],
+      // The first dev start (scripts/dev-runner.ts) runs this directly.
+      "entry": ["scripts/warm-dep-cache.ts"],
       // UI component modules are copied and adapted as cohesive sets. Keep their
       // named subcomponents even before they have callers; the file audit still
       // reports an entire component module when nothing imports it.
