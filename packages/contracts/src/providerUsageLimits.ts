@@ -19,10 +19,22 @@ export const ServerProviderUsageWindow = Schema.Struct({
 });
 export type ServerProviderUsageWindow = typeof ServerProviderUsageWindow.Type;
 
+/** One kind of banked reset, such as Claude's weekly reset or its Fable-only reset. */
+export const ServerProviderResetCreditOption = Schema.Struct({
+  creditId: TrimmedNonEmptyString,
+  label: TrimmedNonEmptyString,
+  description: TrimmedNonEmptyString,
+  availableCount: NonNegativeInt,
+  expiresAt: Schema.optional(IsoDateTime),
+});
+export type ServerProviderResetCreditOption = typeof ServerProviderResetCreditOption.Type;
+
 export const ServerProviderResetCredits = Schema.Struct({
   availableCount: NonNegativeInt,
   nextExpiresAt: Schema.optional(IsoDateTime),
   nextCreditId: Schema.optional(TrimmedNonEmptyString),
+  /** Present when resets differ in what they refill; redeem one by its `creditId`. */
+  options: Schema.optional(ForwardCompatibleArray(ServerProviderResetCreditOption)),
 });
 export type ServerProviderResetCredits = typeof ServerProviderResetCredits.Type;
 
@@ -53,7 +65,10 @@ export const ProviderUsageLimitsUpdate = Schema.Struct({
 });
 export type ProviderUsageLimitsUpdate = typeof ProviderUsageLimitsUpdate.Type;
 
-export const ProviderConsumeResetCreditInput = Schema.Struct({ instanceId: ProviderInstanceId });
+export const ProviderConsumeResetCreditInput = Schema.Struct({
+  instanceId: ProviderInstanceId,
+  creditId: Schema.optional(TrimmedNonEmptyString),
+});
 export type ProviderConsumeResetCreditInput = typeof ProviderConsumeResetCreditInput.Type;
 
 export const ProviderConsumeResetCreditOutcome = Schema.Literals([
