@@ -66,6 +66,7 @@ import {
   ThreadId,
   isOrchestrationV2WorkActive,
   TurnItemId,
+  resolveProjectProviderInstanceEnabled,
 } from "@supaterm/contracts";
 import { getProviderOptionCurrentValue } from "@supaterm/shared/model";
 import { runRanAfter } from "@supaterm/shared/orchestrationV2ThreadError";
@@ -2222,8 +2223,16 @@ const make = Effect.gen(function* () {
         runtimeMode: limits.runtimeMode,
         interactionMode: limits.interactionMode,
         providers: providers.map((provider) => {
+          // Snapshots list instances any project enables; delegate_task checks the caller's project.
+          const enabledForCaller =
+            parent === undefined ||
+            resolveProjectProviderInstanceEnabled(
+              settings,
+              parent.thread.projectId,
+              provider.instanceId,
+            );
           const constraints = providerConstraints(
-            provider,
+            enabledForCaller ? provider : { ...provider, enabled: false },
             orchestrationCapableInstanceIds.has(provider.instanceId),
           );
           const { listed, omitted } = listCapabilityModels({
