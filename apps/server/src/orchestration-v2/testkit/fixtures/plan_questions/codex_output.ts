@@ -18,7 +18,7 @@ import {
   projectionFor,
 } from "../shared.ts";
 
-export function assertPlanQuestionsOutputBase(
+function assertPlanQuestionsOutputBase(
   result: OrchestratorV2ScenarioResult,
   transcript: ProviderReplayTranscript,
 ) {

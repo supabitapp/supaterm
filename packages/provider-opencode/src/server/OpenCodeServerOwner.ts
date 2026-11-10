@@ -1,8 +1,6 @@
-import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Exit from "effect/Exit";
 import * as Fiber from "effect/Fiber";
-import * as Layer from "effect/Layer";
 import * as Scope from "effect/Scope";
 import * as Semaphore from "effect/Semaphore";
 
@@ -17,21 +15,17 @@ interface OpenCodeServerOwnerState {
   idleCloseFiber: Fiber.Fiber<void, never> | null;
 }
 
-export class OpenCodeServerOwner extends Context.Service<
-  OpenCodeServerOwner,
-  {
-    readonly withServer: <A, E, R>(
-      use: (server: OpenCodeRuntime.OpenCodeServerProcess) => Effect.Effect<A, E, R>,
-    ) => Effect.Effect<A, E | OpenCodeRuntime.OpenCodeRuntimeError, R>;
-  }
->()("@supaterm/provider-opencode/server/OpenCodeServerOwner") {}
+interface OpenCodeServerOwner {
+  readonly withServer: <A, E, R>(
+    use: (server: OpenCodeRuntime.OpenCodeServerProcess) => Effect.Effect<A, E, R>,
+  ) => Effect.Effect<A, E | OpenCodeRuntime.OpenCodeRuntimeError, R>;
+}
 
 export const make = Effect.fn("OpenCodeServerOwner.make")(function* (input: {
   readonly binaryPath: string;
   readonly directory: string;
-  readonly serverPassword?: string;
   readonly environment?: NodeJS.ProcessEnv;
-  readonly verify?: (url: string) => Effect.Effect<string, OpenCodeRuntime.OpenCodeRuntimeError>;
+  readonly verify: (url: string) => Effect.Effect<string, OpenCodeRuntime.OpenCodeRuntimeError>;
 }) {
   const runtime = yield* OpenCodeRuntime.OpenCodeRuntime;
   const ownerScope = yield* Effect.acquireRelease(Scope.make(), (scope) =>
@@ -102,11 +96,8 @@ export const make = Effect.fn("OpenCodeServerOwner.make")(function* (input: {
                 .startOpenCodeServerProcess({
                   binaryPath: input.binaryPath,
                   directory: input.directory,
-                  ...(input.serverPassword !== undefined
-                    ? { serverPassword: input.serverPassword }
-                    : {}),
                   ...(input.environment ? { environment: input.environment } : {}),
-                  ...(input.verify ? { verify: input.verify } : {}),
+                  verify: input.verify,
                 })
                 .pipe(Effect.provideService(Scope.Scope, serverScope)),
             ),
@@ -165,7 +156,7 @@ export const make = Effect.fn("OpenCodeServerOwner.make")(function* (input: {
     ),
   );
 
-  return OpenCodeServerOwner.of({
+  const owner: OpenCodeServerOwner = {
     withServer: Effect.fn("OpenCodeServerOwner.withServer")(function (use) {
       return Effect.uninterruptibleMask((restore) =>
         restore(acquireServer).pipe(
@@ -175,14 +166,6 @@ export const make = Effect.fn("OpenCodeServerOwner.make")(function* (input: {
         ),
       );
     }),
-  });
+  };
+  return owner;
 });
-
-/** @public */
-export const layer = (input: {
-  readonly binaryPath: string;
-  readonly directory: string;
-  readonly serverPassword?: string;
-  readonly environment?: NodeJS.ProcessEnv;
-  readonly verify?: (url: string) => Effect.Effect<string, OpenCodeRuntime.OpenCodeRuntimeError>;
-}) => Layer.effect(OpenCodeServerOwner, make(input));

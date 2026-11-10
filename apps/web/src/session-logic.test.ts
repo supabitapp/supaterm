@@ -30,7 +30,6 @@ import {
   deriveTimelineEntriesFromVisibleTurnItemsWithState,
   deriveRevertTurnCountByUserMessageId,
   derivePhase,
-  findLatestProposedPlan,
   isLatestRunSettled,
   selectComposerTasksPlan,
   selectMessageImageResources,
@@ -183,59 +182,11 @@ describe("V2 session presentation", () => {
     ).toMatchObject({ label: "Provider error after 10/10 retries" });
   });
 
-  it("selects the latest proposed plan for a run", () => {
-    const runId = RunId.make("run-1");
-    const planId = PlanId.make("plan-1");
-    const nodeId = NodeId.make("node-plan");
-    const now = DateTime.makeUnsafe("2026-06-20T00:00:01.000Z");
-    const baseProjection = makeThreadProjectionFixture();
-    const plan = findLatestProposedPlan(
-      {
-        ...baseProjection,
-        plans: [
-          {
-            id: planId,
-            threadId: baseProjection.thread.id,
-            nodeId,
-            kind: "proposed_plan" as const,
-            markdown: "Plan",
-            status: "active" as const,
-            runId,
-          },
-        ],
-        turnItems: [
-          {
-            id: TurnItemId.make("item-plan"),
-            threadId: baseProjection.thread.id,
-            nodeId,
-            providerThreadId: null,
-            providerTurnId: null,
-            nativeItemRef: null,
-            parentItemId: null,
-            ordinal: 0,
-            status: "completed" as const,
-            title: null,
-            startedAt: now,
-            completedAt: now,
-            updatedAt: now,
-            type: "proposed_plan" as const,
-            planId,
-            markdown: "Plan",
-            streaming: false,
-            runId,
-          },
-        ],
-      },
-      runId,
-    );
-    expect(plan?.planMarkdown).toBe("Plan");
-  });
-
   it("dates a plan without a plan item by its run rather than the thread's last update", () => {
     const runId = RunId.make("run-plan");
     const completedAt = DateTime.makeUnsafe("2026-06-20T00:00:05.000Z");
     const baseProjection = makeThreadProjectionFixture();
-    const plan = findLatestProposedPlan(
+    const plan = deriveActivePlanState(
       {
         ...baseProjection,
         runs: [
@@ -262,9 +213,9 @@ describe("V2 session presentation", () => {
             id: PlanId.make("plan-without-item"),
             threadId: baseProjection.thread.id,
             nodeId: NodeId.make("node-plan"),
-            kind: "proposed_plan" as const,
-            markdown: "Plan",
+            kind: "todo_list" as const,
             status: "active" as const,
+            steps: [{ id: "step", text: "Step", status: "pending" as const }],
             runId,
           },
         ],

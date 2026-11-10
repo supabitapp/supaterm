@@ -8,7 +8,6 @@ import {
   branchNamingChoiceOf,
   branchNamingChoicePatch,
   ClientSettingsSchema,
-  ClientSettingsPatch,
   ClaudeSettings,
   DEFAULT_SERVER_SETTINGS,
   requiredScopesForProjectMutation,
@@ -20,7 +19,6 @@ import {
 } from "./settings.ts";
 
 const decodeClientSettings = Schema.decodeUnknownSync(ClientSettingsSchema);
-const decodeClientSettingsPatch = Schema.decodeUnknownSync(ClientSettingsPatch);
 const encodeClientSettings = Schema.encodeSync(ClientSettingsSchema);
 const decodeServerSettings = Schema.decodeUnknownSync(ServerSettings);
 const decodeServerSettingsPatch = Schema.decodeUnknownSync(ServerSettingsPatch);
@@ -240,8 +238,6 @@ describe("ClientSettings notifications", () => {
   it("requires opt-in when existing settings omit notification preferences", () => {
     expect(decodeClientSettings({}).notificationMode).toBe("off");
     expect(decodeClientSettings({}).inAppNotificationsEnabled).toBe(false);
-    expect(decodeClientSettingsPatch({})).not.toHaveProperty("inAppNotificationsEnabled");
-    expect(decodeClientSettingsPatch({})).not.toHaveProperty("notificationMode");
   });
 });
 
@@ -250,7 +246,6 @@ describe("ClientSettings panel animations", () => {
     const stored = { panelAnimationDurationMs: value, chatWidth: "wide" };
     expect(decodeClientSettings(stored)).not.toHaveProperty("panelAnimationDurationMs");
     expect(decodeClientSettings(stored).chatWidth).toBe("wide");
-    expect(decodeClientSettingsPatch(stored)).toEqual({ chatWidth: "wide" });
   });
 });
 
@@ -258,7 +253,6 @@ describe("ClientSettings retired environment identification", () => {
   it("drops the old presentation preference", () => {
     const stored = { environmentIdentificationMode: "none" };
     expect(decodeClientSettings(stored)).not.toHaveProperty("environmentIdentificationMode");
-    expect(decodeClientSettingsPatch(stored)).toEqual({});
   });
 });
 
@@ -266,12 +260,11 @@ describe("ClientSettings sidebar", () => {
   it.each(["cards", "compact"])("ignores the retired %s display preference", (mode) => {
     const stored = { sidebarThreadDisplay: mode };
     expect(decodeClientSettings(stored)).not.toHaveProperty("sidebarThreadDisplay");
-    expect(decodeClientSettingsPatch(stored)).toEqual({});
   });
 });
 
 describe("ClientSettings removed feature settings", () => {
-  it("drops removed feature settings from stored values and patches", () => {
+  it("drops removed feature settings from stored values", () => {
     const stored = {
       planModeEnabled: true,
       contextWindowMeterEnabled: true,
@@ -281,7 +274,6 @@ describe("ClientSettings removed feature settings", () => {
     expect(decoded).not.toHaveProperty("planModeEnabled");
     expect(decoded).not.toHaveProperty("contextWindowMeterEnabled");
     expect(decoded).not.toHaveProperty("legacySidebarEnabled");
-    expect(decodeClientSettingsPatch(stored)).toEqual({});
   });
 });
 
@@ -290,11 +282,7 @@ describe("ClientSettings follow-up behavior", () => {
     expect(decodeClientSettings({}).followUpBehavior).toBe("steer");
     for (const followUpBehavior of ["queue", "steer"]) {
       expect(decodeClientSettings({ followUpBehavior }).followUpBehavior).toBe(followUpBehavior);
-      expect(decodeClientSettingsPatch({ followUpBehavior }).followUpBehavior).toBe(
-        followUpBehavior,
-      );
     }
-    expect(() => decodeClientSettingsPatch({ followUpBehavior: "invalid" })).toThrow();
   });
 });
 
@@ -553,10 +541,6 @@ describe("thread grouping preference", () => {
   it.each(["status", "project"])("round trips %s", (sidebarThreadGrouping) => {
     const input = { sidebarThreadGrouping };
     expect(encodeClientSettings(decodeClientSettings(input))).toMatchObject(input);
-    expect(decodeClientSettingsPatch(input)).toEqual(input);
-  });
-  it("rejects unknown grouping modes in patches", () => {
-    expect(() => decodeClientSettingsPatch({ sidebarThreadGrouping: "unknown" })).toThrow();
   });
   it("loads saved settings with an unknown grouping as Default and keeps the rest", () => {
     const decoded = decodeClientSettings({

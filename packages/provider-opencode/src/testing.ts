@@ -1,6 +1,2 @@
-export {
-  OPENCODE_DEFAULT_INSTANCE_ID,
-  OPENCODE_PROVIDER,
-  OPENCODE_SDK_PROTOCOL,
-} from "./server/adapter.ts";
+export { OPENCODE_PROVIDER } from "./server/kinds.ts";
 export { OPENCODE_2_STILL_STOPPING, supatermMcpServerName } from "./server/v2/adapter.ts";

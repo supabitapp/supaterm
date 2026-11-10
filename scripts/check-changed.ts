@@ -264,19 +264,6 @@ const vitestTests = [...tests].filter((file) => !nodeTests.includes(file));
 const runKnip = files.some(
   (file) => CODE.test(file) || NodePath.basename(file) === "package.json" || file === "knip.jsonc",
 );
-// CI runs knip:check as a task that depends on one script per pass. The passes
-// do not depend on each other, so they run side by side here.
-const rootScripts: Record<string, string> = JSON.parse(
-  NodeFS.readFileSync(NodePath.join(root, "package.json"), "utf8"),
-).scripts;
-const knipCommands = [rootScripts["knip:check:files"], rootScripts["knip:check:exports"]];
-const knipPasses = knipCommands.map((command = "", index, all) => {
-  const [bin, ...args] = command.trim().split(/\s+/);
-  if (bin !== "knip" || /["'$\\|;&<>]/.test(command)) {
-    throw new Error(`check:changed cannot split knip:check: ${command}`);
-  }
-  return { name: `knip ${index + 1}/${all.length}`, args: ["exec", "knip", ...args] };
-});
 
 // A version bump can leave a patch unused, causing pnpm to reject the install
 // with ERR_PNPM_UNUSED_PATCH. Check it here as Release Smoke does in CI.
@@ -393,7 +380,7 @@ const steps = [
     args: ["fmt", "--check", "--no-error-on-unmatched-pattern", ...present],
   },
   code.length > 0 && { name: "lint", args: ["lint", "--no-error-on-unmatched-pattern", ...code] },
-  ...(runKnip ? knipPasses : []),
+  runKnip && { name: "knip", args: ["run", "knip:check"] },
   ...graphql.map((dir) => ({
     name: `graphql (${dir})`,
     args: ["run", "--filter", `./${dir}`, "generate", "--check"],

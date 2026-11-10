@@ -220,7 +220,6 @@
     "PackagePlus": "PlusSquare",
     "Paintbrush": "PaintBrush",
     "Palette": "Palette",
-    "PanelBottom": "SquareHalfBottom",
     "PanelLeft": "SidebarSimple",
     "PanelRight": {
       "icon": "SidebarSimple",
@@ -234,7 +233,6 @@
     "Pause": "Pause",
     "PenLine": "PencilLine",
     "Pencil": "Pencil",
-    "PictureInPicture": "PictureInPicture",
     "Pilcrow": "Paragraph",
     "Pin": "PushPin",
     "PinFilled": {

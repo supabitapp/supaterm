@@ -26,8 +26,6 @@
       "entry": [
         "check-commit-message.ts",
         "clean-worktree.ts",
-        // These fixture scripts are injected into a browser page by path.
-        "fixtures/*/*.js",
         "knip-schemas.ts",
         "linux-after-pack.ts",
         "mobile-native-client.ts",
@@ -97,15 +95,17 @@
       "ignoreDependencies": ["playwright-core", "electron-builder"],
     },
     "apps/web": {
-      // The first dev start (scripts/dev-runner.ts) runs this directly, and evidence
-      // fixtures run under node.
-      "entry": ["scripts/warm-dep-cache.ts", "test/fixtures/**/*.mjs"],
+      // The first dev start (scripts/dev-runner.ts) runs this directly.
+      "entry": ["scripts/warm-dep-cache.ts"],
       // UI component modules are copied and adapted as cohesive sets. Keep their
       // named subcomponents even before they have callers; the file audit still
       // reports an entire component module when nothing imports it.
       "ignoreIssues": { "src/components/ui/*.tsx": ["exports", "nsExports", "duplicates"] },
     },
     "apps/marketing": {
+      // scripts/lib/studio-icon-render.ts bundles this module and calls its exports by name
+      // inside a browser page.
+      "entry": ["src/lib/boltComputer/icon.ts"],
       // `astro check` runs from the typecheck task in vite.config.ts, which knip does not read.
       "ignoreDependencies": ["@astrojs/check"],
     },
@@ -154,6 +154,9 @@
     },
     "packages/icons": {
       "includeEntryExports": true,
+      // The generator writes a component and node data for every manifest entry, and each
+      // surface draws an icon from only one of the two.
+      "ignoreIssues": { "src/generated/{components,nodes}.ts": ["exports"] },
     },
     "packages/source-control-github": {
       // graphqlgen reads its config; the generated operations export every selection's class.

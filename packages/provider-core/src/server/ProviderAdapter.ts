@@ -190,18 +190,6 @@ export const ProviderAdapterV2Event = Schema.Union([
 ]);
 export type ProviderAdapterV2Event = typeof ProviderAdapterV2Event.Type;
 
-export class ProviderAdapterCapabilitiesError extends Schema.TaggedError<ProviderAdapterCapabilitiesError>()(
-  "ProviderAdapterCapabilitiesError",
-  {
-    driver: ProviderDriverKind,
-    cause: Schema.optional(Schema.Defect()),
-  },
-) {
-  override get message(): string {
-    return `Failed to read ${this.driver} provider capabilities.`;
-  }
-}
-
 export class ProviderAdapterOpenSessionError extends Schema.TaggedError<ProviderAdapterOpenSessionError>()(
   "ProviderAdapterOpenSessionError",
   {
@@ -213,19 +201,6 @@ export class ProviderAdapterOpenSessionError extends Schema.TaggedError<Provider
 ) {
   override get message(): string {
     return `Failed to open ${this.driver} provider session ${this.providerSessionId}.`;
-  }
-}
-
-export class ProviderAdapterCloseSessionError extends Schema.TaggedError<ProviderAdapterCloseSessionError>()(
-  "ProviderAdapterCloseSessionError",
-  {
-    driver: ProviderDriverKind,
-    providerSessionId: ProviderSessionId,
-    cause: Schema.optional(Schema.Defect()),
-  },
-) {
-  override get message(): string {
-    return `Failed to close ${this.driver} provider session ${this.providerSessionId}.`;
   }
 }
 
@@ -441,9 +416,7 @@ export class ProviderAdapterSessionStoppedError extends Schema.TaggedError<Provi
 }
 
 export const ProviderAdapterV2Error = Schema.Union([
-  ProviderAdapterCapabilitiesError,
   ProviderAdapterOpenSessionError,
-  ProviderAdapterCloseSessionError,
   ProviderAdapterResumeThreadError,
   ProviderAdapterThreadInUseError,
   ProviderAdapterEnsureThreadError,

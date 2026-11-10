@@ -96,11 +96,6 @@ import { assertMultiTurnClaudeOutput } from "./multi_turn/claude_output.ts";
 import { assertMultiTurnOutput } from "./multi_turn/codex_output.ts";
 import { assertPiMultiTurnOutput } from "./multi_turn/pi_output.ts";
 import { multiTurnInput } from "./multi_turn/input.ts";
-import { openCodeChildApprovalInput } from "./opencode_child_approval/input.ts";
-import { assertOpenCodeChildApprovalOutput } from "./opencode_child_approval/output.ts";
-import { openCodeRunningChildApprovalInput } from "./opencode_running_child_approval/input.ts";
-import { assertOpenCodeRunningChildApprovalOutput } from "./opencode_running_child_approval/output.ts";
-import { openCodeSubagentInput } from "./opencode_subagent/input.ts";
 import { openCode2InboxInput } from "./opencode2_inbox/input.ts";
 import { openCode2RevertInput } from "./opencode2_revert/input.ts";
 import { assertOpenCode2RevertOutput } from "./opencode2_revert/output.ts";
@@ -129,12 +124,10 @@ import { assertOpenCode2SkillOutput } from "./opencode2_skill/output.ts";
 import { assertOpenCode2SimpleOutput } from "./opencode2_simple/output.ts";
 import { openCode2ToolCallInput } from "./opencode2_tool_call/input.ts";
 import { assertOpenCode2ToolCallOutput } from "./opencode2_tool_call/output.ts";
-import { assertOpenCodeSubagentOutput } from "./opencode_subagent/output.ts";
 import {
   assertCodexPlanQuestionsOutput,
   assertPlanQuestionsOutput,
 } from "./plan_questions/codex_output.ts";
-import { assertOpenCodePlanQuestionsOutput } from "./plan_questions/opencode_output.ts";
 import { planQuestionsInput } from "./plan_questions/input.ts";
 import { acpTitledMultiSelectInput } from "./acp_titled_multiselect/input.ts";
 import { assertAcpTitledMultiSelectOutput } from "./acp_titled_multiselect/output.ts";
@@ -247,7 +240,6 @@ import {
   GROK_MODEL_SELECTION,
   KIRO_MODEL_SELECTION,
   MUSE_MODEL_SELECTION,
-  OPENCODE_MODEL_SELECTION,
   OPENCODE2_MODEL_SELECTION,
   PI_MODEL_SELECTION,
   READ_ONLY_NEVER_POLICY,
@@ -851,12 +843,6 @@ export const ORCHESTRATOR_REPLAY_FIXTURES: ReadonlyArray<OrchestratorReplayFixtu
         assertOutput: assertSimpleOutput,
       },
       {
-        driver: ProviderDriverKind.make("opencode"),
-        transcriptFile: new URL("./simple/opencode_transcript.ndjson", import.meta.url),
-        modelSelection: OPENCODE_MODEL_SELECTION,
-        assertOutput: assertSimpleOutput,
-      },
-      {
         driver: ProviderDriverKind.make("pi"),
         transcriptFile: new URL("./simple/pi_transcript.ndjson", import.meta.url),
         modelSelection: PI_MODEL_SELECTION,
@@ -1160,18 +1146,6 @@ export const ORCHESTRATOR_REPLAY_FIXTURES: ReadonlyArray<OrchestratorReplayFixtu
     ],
   },
   {
-    name: "opencode_subagent",
-    buildInput: openCodeSubagentInput,
-    providers: [
-      {
-        driver: ProviderDriverKind.make("opencode"),
-        transcriptFile: new URL("./opencode_subagent/opencode_transcript.ndjson", import.meta.url),
-        modelSelection: OPENCODE_MODEL_SELECTION,
-        assertOutput: assertOpenCodeSubagentOutput,
-      },
-    ],
-  },
-  {
     name: "opencode2_simple",
     buildInput: openCode2SimpleInput,
     providers: [
@@ -1390,36 +1364,6 @@ export const ORCHESTRATOR_REPLAY_FIXTURES: ReadonlyArray<OrchestratorReplayFixtu
       },
     ],
   })),
-  {
-    name: "opencode_child_approval",
-    buildInput: openCodeChildApprovalInput,
-    providers: [
-      {
-        driver: ProviderDriverKind.make("opencode"),
-        transcriptFile: new URL(
-          "./opencode_child_approval/opencode_transcript.ndjson",
-          import.meta.url,
-        ),
-        modelSelection: OPENCODE_MODEL_SELECTION,
-        assertOutput: assertOpenCodeChildApprovalOutput,
-      },
-    ],
-  },
-  {
-    name: "opencode_running_child_approval",
-    buildInput: openCodeRunningChildApprovalInput,
-    providers: [
-      {
-        driver: ProviderDriverKind.make("opencode"),
-        transcriptFile: new URL(
-          "./opencode_running_child_approval/opencode_transcript.ndjson",
-          import.meta.url,
-        ),
-        modelSelection: OPENCODE_MODEL_SELECTION,
-        assertOutput: assertOpenCodeRunningChildApprovalOutput,
-      },
-    ],
-  },
   {
     name: "multi_turn",
     buildInput: multiTurnInput,
@@ -1705,13 +1649,6 @@ export const ORCHESTRATOR_REPLAY_FIXTURES: ReadonlyArray<OrchestratorReplayFixtu
         runtimePolicyOverride: READ_ONLY_NEVER_POLICY,
         assertOutput: assertPlanQuestionsOutput,
       },
-      {
-        driver: ProviderDriverKind.make("opencode"),
-        transcriptFile: new URL("./plan_questions/opencode_transcript.ndjson", import.meta.url),
-        modelSelection: OPENCODE_MODEL_SELECTION,
-        runtimePolicyOverride: READ_ONLY_NEVER_POLICY,
-        assertOutput: assertOpenCodePlanQuestionsOutput,
-      },
     ],
   },
   {
@@ -1825,13 +1762,6 @@ export const ORCHESTRATOR_REPLAY_FIXTURES: ReadonlyArray<OrchestratorReplayFixtu
         driver: ProviderDriverKind.make("acpRegistry"),
         transcriptFile: new URL("./turn_interrupt/registry_transcript.ndjson", import.meta.url),
         modelSelection: ACP_REGISTRY_MODEL_SELECTION,
-        runtimePolicyOverride: WORKSPACE_NEVER_POLICY,
-        assertOutput: assertTurnInterruptOutput,
-      },
-      {
-        driver: ProviderDriverKind.make("opencode"),
-        transcriptFile: new URL("./turn_interrupt/opencode_transcript.ndjson", import.meta.url),
-        modelSelection: OPENCODE_MODEL_SELECTION,
         runtimePolicyOverride: WORKSPACE_NEVER_POLICY,
         assertOutput: assertTurnInterruptOutput,
       },

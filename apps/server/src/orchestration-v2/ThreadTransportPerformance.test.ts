@@ -1,10 +1,9 @@
 import {
   EventId,
-  OrchestrationV2RpcSchemas,
   ThreadId,
   TurnItemId,
   type OrchestrationV2DomainEvent,
-  type OrchestrationV2ThreadStreamItem,
+  OrchestrationV2ThreadStreamItem,
   type OrchestrationV2TurnItem,
 } from "@supaterm/contracts";
 import * as DateTime from "effect/DateTime";
@@ -22,7 +21,7 @@ const PRE_OMISSION_COMMAND_EVENT_RPC_JSON_BYTES = 8_790;
 const MAX_PROJECTED_COMMAND_EVENT_RPC_JSON_BYTES = 1_024;
 
 const encodeThreadStreamItem = Schema.encodeSync(
-  Schema.toCodecJson(OrchestrationV2RpcSchemas.subscribeThread.output),
+  Schema.toCodecJson(OrchestrationV2ThreadStreamItem),
 );
 
 function encodedBytes(value: unknown): number {

@@ -1,37 +1,7 @@
-import type { OpencodeClient } from "@opencode-ai/sdk/v2";
-import * as NodeServices from "@effect/platform-node/NodeServices";
-import { ProviderReplayEntry, type ProviderReplayTranscript } from "@supaterm/contracts";
+import type { ProviderReplayTranscript } from "@supaterm/contracts";
 import * as Effect from "effect/Effect";
 import * as Duration from "effect/Duration";
-import * as Layer from "effect/Layer";
 import * as Schema from "effect/Schema";
-
-import { OpenCodeAdapterV2Driver } from "@supaterm/provider-opencode/server";
-import * as OpenCodeRuntime from "@supaterm/provider-opencode/server/OpenCodeRuntime";
-import * as TestProviderHost from "@supaterm/provider-testing/TestProviderHost";
-import * as ProviderEventLoggers from "@supaterm/provider-core/server/ProviderEventLoggers";
-import * as IdAllocator from "@supaterm/provider-core/server/IdAllocator";
-import { ProviderAdapterDriverCreateError } from "@supaterm/provider-core/server/adapterDriver";
-import * as ProviderAdapterRegistry from "../ProviderAdapterRegistry.ts";
-import { type OrchestratorV2ProviderReplayHarness } from "../testkit/ProviderReplayHarness.ts";
-import {
-  OPENCODE_DEFAULT_INSTANCE_ID,
-  OPENCODE_PROVIDER,
-  OPENCODE_SDK_PROTOCOL,
-} from "@supaterm/provider-opencode/testing";
-
-const OPENCODE_SDK_REPLAY_PROTOCOL = OPENCODE_SDK_PROTOCOL;
-
-const OpenCodeSdkReplayTranscript = Schema.Struct({
-  provider: Schema.Literal(OPENCODE_PROVIDER),
-  protocol: Schema.Literal(OPENCODE_SDK_REPLAY_PROTOCOL),
-  version: Schema.String,
-  scenario: Schema.String,
-  metadata: Schema.optional(Schema.Record(Schema.String, Schema.Unknown)),
-  entries: Schema.Array(ProviderReplayEntry),
-});
-export type OpenCodeSdkReplayTranscript = typeof OpenCodeSdkReplayTranscript.Type;
-const decodeOpenCodeSdkReplayTranscript = Schema.decodeUnknownEffect(OpenCodeSdkReplayTranscript);
 
 export class OpenCodeReplayTranscriptDecodeError extends Schema.TaggedError<OpenCodeReplayTranscriptDecodeError>()(
   "OpenCodeReplayTranscriptDecodeError",
@@ -73,19 +43,6 @@ export class OpenCodeReplayIncompleteError extends Schema.TaggedError<OpenCodeRe
     return `OpenCode replay ended with ${this.remaining} unconsumed entries in scenario ${this.scenario}.`;
   }
 }
-
-export const OpenCodeReplayError = Schema.Union([
-  OpenCodeReplayTranscriptDecodeError,
-  OpenCodeReplayMismatchError,
-  OpenCodeReplayIncompleteError,
-]);
-export type OpenCodeReplayError = typeof OpenCodeReplayError.Type;
-export const OpenCodeOrchestratorReplayHarnessError = Schema.Union([
-  OpenCodeReplayError,
-  ProviderAdapterDriverCreateError,
-]);
-export type OpenCodeOrchestratorReplayHarnessError =
-  typeof OpenCodeOrchestratorReplayHarnessError.Type;
 
 function replayValueMatches(expected: unknown, actual: unknown): boolean {
   if (expected === "<any>" || expected === "<workspace>") return true;
@@ -151,14 +108,9 @@ export class OpenCodeReplayController {
       const actualFrame = frameRecord(actual);
       const messageIds = new Map(this.messageIds);
       let conflictingMessageId = false;
-      const idKey = expectedFrame?.type === "session.promptAsync" ? "messageID" : "id";
-      if (
-        (expectedFrame?.type === "session.promptAsync" ||
-          expectedFrame?.type === "session.prompt") &&
-        actualFrame?.type === expectedFrame.type
-      ) {
-        const recordedId = frameRecord(expectedFrame.input)?.[idKey];
-        const actualId = frameRecord(actualFrame.input)?.[idKey];
+      if (expectedFrame?.type === "session.prompt" && actualFrame?.type === expectedFrame.type) {
+        const recordedId = frameRecord(expectedFrame.input)?.id;
+        const actualId = frameRecord(actualFrame.input)?.id;
         if (
           typeof recordedId === "string" &&
           typeof actualId === "string" &&
@@ -219,15 +171,6 @@ export class OpenCodeReplayController {
         this.fail(mismatch);
         throw mismatch;
       }
-      await this.changed();
-    }
-  }
-
-  async untilEventsDelivered(): Promise<void> {
-    while (true) {
-      this.throwFailure();
-      const entry = this.transcript.entries[this.cursor];
-      if (entry?.type !== "emit_inbound" || frameRecord(entry.frame)?.type !== "sdk.event") return;
       await this.changed();
     }
   }
@@ -329,144 +272,3 @@ export class OpenCodeReplayController {
     });
   }
 }
-
-function makeReplayClient(controller: OpenCodeReplayController): OpencodeClient {
-  const request = async (operation: string, input: unknown) => {
-    await controller.expectOutbound({ type: operation, input });
-    return { data: await controller.response(operation) };
-  };
-  return {
-    event: {
-      subscribe: async (_input?: unknown, options?: { readonly signal?: AbortSignal }) => {
-        await controller.expectOutbound({ type: "event.subscribe" });
-        return { stream: controller.events(options?.signal) };
-      },
-    },
-    session: {
-      create: (input: unknown) => request("session.create", input),
-      get: (input: unknown) => request("session.get", input),
-      children: (input: unknown) => request("session.children", input),
-      update: (input: unknown) => request("session.update", input),
-      messages: (input: unknown) => request("session.messages", input),
-      promptAsync: (input: unknown) => request("session.promptAsync", input),
-      abort: (input: unknown) => request("session.abort", input),
-      revert: (input: unknown) => request("session.revert", input),
-      unrevert: (input: unknown) => request("session.unrevert", input),
-      fork: (input: unknown) => request("session.fork", input),
-    },
-    permission: {
-      reply: (input: unknown) => request("permission.reply", input),
-    },
-    question: {
-      reply: (input: unknown) => request("question.reply", input),
-    },
-    mcp: {
-      status: () => request("mcp.status", {}),
-      add: (input: unknown) => request("mcp.add", input),
-    },
-  } as unknown as OpencodeClient;
-}
-
-function layerOpenCodeReplayRuntime(transcript: OpenCodeSdkReplayTranscript) {
-  return Layer.effect(
-    OpenCodeRuntime.OpenCodeRuntime,
-    Effect.gen(function* () {
-      const controller = new OpenCodeReplayController(transcript);
-      yield* Effect.addFinalizer(() =>
-        Effect.sync(() => {
-          controller.assertComplete();
-        }),
-      );
-      const client = makeReplayClient(controller);
-      return OpenCodeRuntime.OpenCodeRuntime.of({
-        startOpenCodeServerProcess: () =>
-          Effect.fail(
-            new OpenCodeRuntime.OpenCodeRuntimeError({
-              operation: "startOpenCodeServerProcess",
-              detail: "OpenCode replay uses an external in-memory SDK boundary.",
-            }),
-          ),
-        connectToOpenCodeServer: () =>
-          Effect.succeed({
-            url: "replay://opencode",
-            version: "0.0.0-replay",
-            exitCode: null,
-            external: true,
-          }),
-        runOpenCodeCommand: () =>
-          Effect.fail(
-            new OpenCodeRuntime.OpenCodeRuntimeError({
-              operation: "runOpenCodeCommand",
-              detail: "OpenCode replay does not execute commands.",
-            }),
-          ),
-        createOpenCodeSdkClient: () => client,
-        loadOpenCodeInventory: () =>
-          Effect.fail(
-            new OpenCodeRuntime.OpenCodeRuntimeError({
-              operation: "loadOpenCodeInventory",
-              detail: "OpenCode replay does not load inventory.",
-            }),
-          ),
-        loadOpenCodeSkills: () =>
-          Effect.fail(
-            new OpenCodeRuntime.OpenCodeRuntimeError({
-              operation: "loadOpenCodeSkills",
-              detail: "OpenCode replay does not load skills.",
-            }),
-          ),
-      } satisfies OpenCodeRuntime.OpenCodeRuntime["Service"]);
-    }),
-  );
-}
-
-function layerOpenCodeProviderAdapterRegistryReplay(transcript: OpenCodeSdkReplayTranscript) {
-  return ProviderAdapterRegistry.layerFromAdaptersEffect(
-    OpenCodeAdapterV2Driver.create({
-      instanceId: OPENCODE_DEFAULT_INSTANCE_ID,
-      environment: [],
-      displayName: undefined,
-      enabled: true,
-      config: { ...OpenCodeAdapterV2Driver.defaultConfig(), serverUrl: "replay://opencode" },
-    }).pipe(Effect.map((adapter) => [adapter])),
-  ).pipe(
-    Layer.provide(
-      Layer.mergeAll(
-        layerOpenCodeReplayRuntime(transcript),
-        TestProviderHost.layer().pipe(Layer.provide(NodeServices.layer)),
-        NodeServices.layer,
-        IdAllocator.layer,
-        Layer.succeed(
-          ProviderEventLoggers.ProviderEventLoggers,
-          ProviderEventLoggers.NoOpProviderEventLoggers,
-        ),
-      ),
-    ),
-  );
-}
-
-function transcriptMetadata(transcript: ProviderReplayTranscript) {
-  return {
-    provider: transcript.provider,
-    protocol: transcript.protocol,
-    scenario: transcript.scenario,
-  };
-}
-
-export const OpenCodeOrchestratorReplayHarness: OrchestratorV2ProviderReplayHarness<
-  OpenCodeSdkReplayTranscript,
-  OpenCodeOrchestratorReplayHarnessError
-> = {
-  driver: OPENCODE_PROVIDER,
-  decodeTranscript: (transcript) =>
-    decodeOpenCodeSdkReplayTranscript(transcript).pipe(
-      Effect.mapError(
-        (cause) =>
-          new OpenCodeReplayTranscriptDecodeError({
-            ...transcriptMetadata(transcript),
-            cause,
-          }),
-      ),
-    ),
-  makeProviderAdapterRegistryLayer: layerOpenCodeProviderAdapterRegistryReplay,
-};

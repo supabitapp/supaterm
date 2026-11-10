@@ -16,6 +16,11 @@ export interface ProbedOpenCode {
   readonly version: string;
 }
 
+export const OPENCODE_1_UNSUPPORTED_MESSAGE =
+  "OpenCode 1.x is no longer supported. Run `npm uninstall -g opencode-ai`, then `npm install -g @opencode/cli`, and refresh provider status.";
+
+export const isOpenCode1 = (probed: ProbedOpenCode) => probed.generation === "v1";
+
 const OPENCODE_VERSION_PROBE_TIMEOUT = "10 seconds";
 const OPENCODE_SERVER_PROBE_TIMEOUT = "5 seconds";
 // 2.x's own CLI decodes `{version, pid}` from `/api/info`; requiring both keeps unrelated JSON out.
@@ -98,7 +103,7 @@ const probeOpenCodeServer = Effect.fn("probeOpenCodeServer")(function* (
       detail: "The OpenCode server URL is not a valid http:// or https:// URL.",
     });
   }
-  // UTF-8, as the 1.x SDK client sends it; `HttpClientRequest.basicAuth` uses Latin-1 `btoa`.
+  // Both versions decode it as UTF-8; `HttpClientRequest.basicAuth` uses Latin-1 `btoa`.
   const authorization = serverPassword
     ? `Basic ${Buffer.from(`opencode:${serverPassword}`, "utf8").toString("base64")}`
     : undefined;
@@ -183,6 +188,5 @@ export const makeOpenCodeRuntimeProbe = <E>(probe: Effect.Effect<ProbedOpenCode,
     (cache) => ({
       get: Cache.get(cache, undefined),
       refresh: Cache.refresh(cache, undefined),
-      lastSuccess: Cache.getSuccess(cache, undefined),
     }),
   );

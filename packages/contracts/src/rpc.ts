@@ -28,7 +28,7 @@ import * as Schema from "effect/Schema";
 import * as Rpc from "effect/rpc/Rpc";
 import * as RpcGroup from "effect/rpc/RpcGroup";
 import * as RpcMiddleware from "effect/rpc/RpcMiddleware";
-import { NonNegativeInt, TrimmedNonEmptyString } from "./baseSchemas.ts";
+import { NonNegativeInt, ThreadId, TrimmedNonEmptyString } from "./baseSchemas.ts";
 import {
   ProviderAuthCancelInput,
   ProviderAuthCompleteInput,
@@ -106,7 +106,11 @@ import {
 } from "./chatAttachment.ts";
 import {
   OrchestrationGetFullThreadDiffError,
+  OrchestrationGetFullThreadDiffInput,
+  OrchestrationGetFullThreadDiffResult,
   OrchestrationGetTurnDiffError,
+  OrchestrationGetTurnDiffInput,
+  OrchestrationGetTurnDiffResult,
 } from "./checkpointDiff.ts";
 import {
   WorktreeSetupCancelInput,
@@ -213,8 +217,41 @@ import {
   OrchestrationV2GetShellSnapshotError,
   OrchestrationV2CommandOutputError,
   OrchestrationV2GetThreadProjectionError,
-  OrchestrationV2RpcSchemas,
   OrchestrationV2ThreadLaunchError,
+  OrchestrationV2ArchivedShellSnapshot,
+  OrchestrationV2Command,
+  OrchestrationV2CommandOutputFrame,
+  OrchestrationV2DispatchCommandResult,
+  OrchestrationV2ForceStopThreadInput,
+  OrchestrationV2ForceStopThreadResult,
+  OrchestrationV2GetOlderDoneThreadsInput,
+  OrchestrationV2GetThreadFamilyInput,
+  OrchestrationV2GetThreadProjectionInput,
+  OrchestrationV2GetTurnItemInput,
+  OrchestrationV2GetTurnItemResult,
+  OrchestrationV2GetWorkflowScriptInput,
+  OrchestrationV2GetWorkflowScriptResult,
+  OrchestrationV2GetWorktreeThreadIdsInput,
+  OrchestrationV2OlderDoneThreadsPage,
+  OrchestrationV2ShellStreamItem,
+  OrchestrationV2StopWorkflowInput,
+  OrchestrationV2SubscribeBackgroundTaskOutputInput,
+  OrchestrationV2SubscribeCommandOutputInput,
+  OrchestrationV2SubscribeShellInput,
+  OrchestrationV2SubscribeThreadInput,
+  OrchestrationV2SuggestNextPromptInput,
+  OrchestrationV2SuggestNextPromptResult,
+  OrchestrationV2ThreadFamily,
+  OrchestrationV2ThreadLaunchInput,
+  OrchestrationV2ThreadLaunchResult,
+  OrchestrationV2ThreadProjection,
+  OrchestrationV2ThreadStreamItem,
+  OrchestrationV2WorktreeThreadIds,
+  OrchestrationV2GetNativeChildWorkInput,
+  OrchestrationV2GetNativeChildWorkResult,
+  OrchestrationV2GetThreadTitlesInput,
+  OrchestrationV2ThreadLinkMetadata,
+  OrchestrationV2ThreadTitles,
 } from "./orchestrationV2.ts";
 import {
   ProjectCreateNewInput,
@@ -1710,22 +1747,22 @@ const WsSubscribeDeviceStateRpc = Rpc.make(WS_METHODS.subscribeDeviceState, {
 });
 
 const WsOrchestrationV2DispatchCommandRpc = Rpc.make(ORCHESTRATION_V2_WS_METHODS.dispatchCommand, {
-  payload: OrchestrationV2RpcSchemas.dispatchCommand.input,
-  success: OrchestrationV2RpcSchemas.dispatchCommand.output,
+  payload: OrchestrationV2Command,
+  success: OrchestrationV2DispatchCommandResult,
   error: Schema.Union([OrchestrationV2DispatchCommandError, EnvironmentAuthorizationError]),
 });
 
 const WsOrchestrationV2GetTurnDiffRpc = Rpc.make(ORCHESTRATION_V2_WS_METHODS.getTurnDiff, {
-  payload: OrchestrationV2RpcSchemas.getTurnDiff.input,
-  success: OrchestrationV2RpcSchemas.getTurnDiff.output,
+  payload: OrchestrationGetTurnDiffInput,
+  success: OrchestrationGetTurnDiffResult,
   error: Schema.Union([OrchestrationGetTurnDiffError, EnvironmentAuthorizationError]),
 });
 
 const WsOrchestrationV2GetFullThreadDiffRpc = Rpc.make(
   ORCHESTRATION_V2_WS_METHODS.getFullThreadDiff,
   {
-    payload: OrchestrationV2RpcSchemas.getFullThreadDiff.input,
-    success: OrchestrationV2RpcSchemas.getFullThreadDiff.output,
+    payload: OrchestrationGetFullThreadDiffInput,
+    success: OrchestrationGetFullThreadDiffResult,
     error: Schema.Union([OrchestrationGetFullThreadDiffError, EnvironmentAuthorizationError]),
   },
 );
@@ -1755,29 +1792,29 @@ const WsOrchestrationV2SearchThreadsRpc = Rpc.make(ORCHESTRATION_V2_WS_METHODS.s
 const WsOrchestrationV2GetArchivedShellSnapshotRpc = Rpc.make(
   ORCHESTRATION_V2_WS_METHODS.getArchivedShellSnapshot,
   {
-    payload: OrchestrationV2RpcSchemas.getArchivedShellSnapshot.input,
-    success: OrchestrationV2RpcSchemas.getArchivedShellSnapshot.output,
+    payload: Schema.Struct({}),
+    success: OrchestrationV2ArchivedShellSnapshot,
     error: Schema.Union([OrchestrationV2GetShellSnapshotError, EnvironmentAuthorizationError]),
   },
 );
 
 const WsOrchestrationV2GetThreadFamilyRpc = Rpc.make(ORCHESTRATION_V2_WS_METHODS.getThreadFamily, {
-  payload: OrchestrationV2RpcSchemas.getThreadFamily.input,
-  success: OrchestrationV2RpcSchemas.getThreadFamily.output,
+  payload: OrchestrationV2GetThreadFamilyInput,
+  success: OrchestrationV2ThreadFamily,
   error: Schema.Union([OrchestrationV2GetShellSnapshotError, EnvironmentAuthorizationError]),
 });
 
 const WsOrchestrationV2GetThreadTitlesRpc = Rpc.make(ORCHESTRATION_V2_WS_METHODS.getThreadTitles, {
-  payload: OrchestrationV2RpcSchemas.getThreadTitles.input,
-  success: OrchestrationV2RpcSchemas.getThreadTitles.output,
+  payload: OrchestrationV2GetThreadTitlesInput,
+  success: OrchestrationV2ThreadTitles,
   error: Schema.Union([OrchestrationV2GetShellSnapshotError, EnvironmentAuthorizationError]),
 });
 
 const WsOrchestrationV2GetThreadLinkMetadataRpc = Rpc.make(
   ORCHESTRATION_V2_WS_METHODS.getThreadLinkMetadata,
   {
-    payload: OrchestrationV2RpcSchemas.getThreadLinkMetadata.input,
-    success: OrchestrationV2RpcSchemas.getThreadLinkMetadata.output,
+    payload: OrchestrationV2GetThreadTitlesInput,
+    success: Schema.Record(ThreadId, OrchestrationV2ThreadLinkMetadata),
     error: Schema.Union([OrchestrationV2GetShellSnapshotError, EnvironmentAuthorizationError]),
   },
 );
@@ -1785,8 +1822,8 @@ const WsOrchestrationV2GetThreadLinkMetadataRpc = Rpc.make(
 const WsOrchestrationV2GetWorktreeThreadIdsRpc = Rpc.make(
   ORCHESTRATION_V2_WS_METHODS.getWorktreeThreadIds,
   {
-    payload: OrchestrationV2RpcSchemas.getWorktreeThreadIds.input,
-    success: OrchestrationV2RpcSchemas.getWorktreeThreadIds.output,
+    payload: OrchestrationV2GetWorktreeThreadIdsInput,
+    success: OrchestrationV2WorktreeThreadIds,
     error: Schema.Union([OrchestrationV2GetShellSnapshotError, EnvironmentAuthorizationError]),
   },
 );
@@ -1794,8 +1831,8 @@ const WsOrchestrationV2GetWorktreeThreadIdsRpc = Rpc.make(
 const WsOrchestrationV2GetOlderDoneThreadsRpc = Rpc.make(
   ORCHESTRATION_V2_WS_METHODS.getOlderDoneThreads,
   {
-    payload: OrchestrationV2RpcSchemas.getOlderDoneThreads.input,
-    success: OrchestrationV2RpcSchemas.getOlderDoneThreads.output,
+    payload: OrchestrationV2GetOlderDoneThreadsInput,
+    success: OrchestrationV2OlderDoneThreadsPage,
     error: Schema.Union([OrchestrationV2GetShellSnapshotError, EnvironmentAuthorizationError]),
   },
 );
@@ -1803,38 +1840,38 @@ const WsOrchestrationV2GetOlderDoneThreadsRpc = Rpc.make(
 const WsOrchestrationV2GetThreadProjectionRpc = Rpc.make(
   ORCHESTRATION_V2_WS_METHODS.getThreadProjection,
   {
-    payload: OrchestrationV2RpcSchemas.getThreadProjection.input,
-    success: OrchestrationV2RpcSchemas.getThreadProjection.output,
+    payload: OrchestrationV2GetThreadProjectionInput,
+    success: OrchestrationV2ThreadProjection,
     error: Schema.Union([OrchestrationV2GetThreadProjectionError, EnvironmentAuthorizationError]),
   },
 );
 
 const WsOrchestrationV2StopWorkflowRpc = Rpc.make(ORCHESTRATION_V2_WS_METHODS.stopWorkflow, {
-  payload: OrchestrationV2RpcSchemas.stopWorkflow.input,
-  success: OrchestrationV2RpcSchemas.stopWorkflow.output,
+  payload: OrchestrationV2StopWorkflowInput,
+  success: Schema.Void,
   error: Schema.Union([OrchestrationV2StopWorkflowError, EnvironmentAuthorizationError]),
 });
 
 const WsOrchestrationV2SuggestNextPromptRpc = Rpc.make(
   ORCHESTRATION_V2_WS_METHODS.suggestNextPrompt,
   {
-    payload: OrchestrationV2RpcSchemas.suggestNextPrompt.input,
-    success: OrchestrationV2RpcSchemas.suggestNextPrompt.output,
+    payload: OrchestrationV2SuggestNextPromptInput,
+    success: OrchestrationV2SuggestNextPromptResult,
     error: Schema.Union([OrchestrationV2SuggestNextPromptError, EnvironmentAuthorizationError]),
   },
 );
 
 const WsOrchestrationV2ForceStopThreadRpc = Rpc.make(ORCHESTRATION_V2_WS_METHODS.forceStopThread, {
-  payload: OrchestrationV2RpcSchemas.forceStopThread.input,
-  success: OrchestrationV2RpcSchemas.forceStopThread.output,
+  payload: OrchestrationV2ForceStopThreadInput,
+  success: OrchestrationV2ForceStopThreadResult,
   error: Schema.Union([OrchestrationV2ForceStopThreadError, EnvironmentAuthorizationError]),
 });
 
 const WsOrchestrationV2GetWorkflowScriptRpc = Rpc.make(
   ORCHESTRATION_V2_WS_METHODS.getWorkflowScript,
   {
-    payload: OrchestrationV2RpcSchemas.getWorkflowScript.input,
-    success: OrchestrationV2RpcSchemas.getWorkflowScript.output,
+    payload: OrchestrationV2GetWorkflowScriptInput,
+    success: OrchestrationV2GetWorkflowScriptResult,
     error: Schema.Union([OrchestrationGetWorkflowScriptError, EnvironmentAuthorizationError]),
   },
 );
@@ -1842,34 +1879,34 @@ const WsOrchestrationV2GetWorkflowScriptRpc = Rpc.make(
 const WsOrchestrationV2GetNativeChildWorkRpc = Rpc.make(
   ORCHESTRATION_V2_WS_METHODS.getNativeChildWork,
   {
-    payload: OrchestrationV2RpcSchemas.getNativeChildWork.input,
-    success: OrchestrationV2RpcSchemas.getNativeChildWork.output,
+    payload: OrchestrationV2GetNativeChildWorkInput,
+    success: OrchestrationV2GetNativeChildWorkResult,
     error: Schema.Union([OrchestrationV2GetNativeChildWorkError, EnvironmentAuthorizationError]),
   },
 );
 
 const WsOrchestrationV2GetTurnItemRpc = Rpc.make(ORCHESTRATION_V2_WS_METHODS.getTurnItem, {
-  payload: OrchestrationV2RpcSchemas.getTurnItem.input,
-  success: OrchestrationV2RpcSchemas.getTurnItem.output,
+  payload: OrchestrationV2GetTurnItemInput,
+  success: OrchestrationV2GetTurnItemResult,
   error: Schema.Union([OrchestrationV2GetThreadProjectionError, EnvironmentAuthorizationError]),
 });
 
 const WsOrchestrationV2LaunchThreadRpc = Rpc.make(ORCHESTRATION_V2_WS_METHODS.launchThread, {
-  payload: OrchestrationV2RpcSchemas.launchThread.input,
-  success: OrchestrationV2RpcSchemas.launchThread.output,
+  payload: OrchestrationV2ThreadLaunchInput,
+  success: OrchestrationV2ThreadLaunchResult,
   error: Schema.Union([OrchestrationV2ThreadLaunchError, EnvironmentAuthorizationError]),
 });
 
 const WsOrchestrationV2SubscribeShellRpc = Rpc.make(ORCHESTRATION_V2_WS_METHODS.subscribeShell, {
-  payload: OrchestrationV2RpcSchemas.subscribeShell.input,
-  success: OrchestrationV2RpcSchemas.subscribeShell.output,
+  payload: OrchestrationV2SubscribeShellInput,
+  success: OrchestrationV2ShellStreamItem,
   error: Schema.Union([OrchestrationV2GetShellSnapshotError, EnvironmentAuthorizationError]),
   stream: true,
 });
 
 const WsOrchestrationV2SubscribeThreadRpc = Rpc.make(ORCHESTRATION_V2_WS_METHODS.subscribeThread, {
-  payload: OrchestrationV2RpcSchemas.subscribeThread.input,
-  success: OrchestrationV2RpcSchemas.subscribeThread.output,
+  payload: OrchestrationV2SubscribeThreadInput,
+  success: OrchestrationV2ThreadStreamItem,
   error: Schema.Union([OrchestrationV2GetThreadProjectionError, EnvironmentAuthorizationError]),
   stream: true,
 });
@@ -1877,8 +1914,8 @@ const WsOrchestrationV2SubscribeThreadRpc = Rpc.make(ORCHESTRATION_V2_WS_METHODS
 const WsOrchestrationV2SubscribeCommandOutputRpc = Rpc.make(
   ORCHESTRATION_V2_WS_METHODS.subscribeCommandOutput,
   {
-    payload: OrchestrationV2RpcSchemas.subscribeCommandOutput.input,
-    success: OrchestrationV2RpcSchemas.subscribeCommandOutput.output,
+    payload: OrchestrationV2SubscribeCommandOutputInput,
+    success: OrchestrationV2CommandOutputFrame,
     error: Schema.Union([OrchestrationV2CommandOutputError, EnvironmentAuthorizationError]),
     stream: true,
   },
@@ -1887,8 +1924,8 @@ const WsOrchestrationV2SubscribeCommandOutputRpc = Rpc.make(
 const WsOrchestrationV2SubscribeBackgroundTaskOutputRpc = Rpc.make(
   ORCHESTRATION_V2_WS_METHODS.subscribeBackgroundTaskOutput,
   {
-    payload: OrchestrationV2RpcSchemas.subscribeBackgroundTaskOutput.input,
-    success: OrchestrationV2RpcSchemas.subscribeBackgroundTaskOutput.output,
+    payload: OrchestrationV2SubscribeBackgroundTaskOutputInput,
+    success: OrchestrationV2CommandOutputFrame,
     error: Schema.Union([OrchestrationV2CommandOutputError, EnvironmentAuthorizationError]),
     stream: true,
   },

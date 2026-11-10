@@ -185,7 +185,6 @@ describe("OpenCode version probe", () => {
       );
 
       yield* Effect.flip(probe.get);
-      assert.isTrue((yield* probe.lastSuccess)._tag === "None");
       assert.strictEqual((yield* probe.get).generation, "v2");
       assert.strictEqual((yield* probe.get).generation, "v2");
       assert.strictEqual(calls, 2);

@@ -124,8 +124,8 @@ Cursor replay transcript
   -> consumed by CursorAdapter
 
 OpenCode replay transcript
-  -> OpenCode SDK requests/responses plus ordered SSE events
-  -> consumed by OpenCodeAdapter
+  -> OpenCode 2 HTTP requests/responses plus ordered SSE events
+  -> consumed by the OpenCode adapter
 
 ACP replay transcript
   -> logical JSON-RPC requests/responses/notifications over a strict NDJSON peer
@@ -145,10 +145,9 @@ runtime, adapter normalization, orchestration, persistence, and projections rema
 The generic ACP Registry harness retargets protocol-standard ACP transcripts;
 provider-extension transcripts remain scoped to the flavor that owns the extension.
 
-OpenCode fixtures replace the SDK client at its HTTP/SSE boundary. They must preserve races between
-request responses and SSE events, because user messages and terminal `session.status` events can
-arrive before the corresponding `promptAsync` or `abort` response. Subagent fixtures must retain
-both parent and child session ids so root-only terminal behavior remains testable.
+OpenCode fixtures replace the HTTP client, so they replay recorded responses and SSE events in
+their recorded order. Subagent fixtures must retain both parent and child session ids so root-only
+terminal behavior remains testable.
 
 Provider transcript recorders live with the server orchestration testkit, not with provider client
 packages. Use `bun run record:codex-replay -- --scenario <name>` for Codex app-server transcripts

@@ -23,6 +23,7 @@ import type { TurnDiffSummary } from "../../types";
 import { describe, expect, it } from "vite-plus/test";
 import { EnvironmentId, MessageId, RunId } from "@supaterm/contracts";
 import { serializeAssistantCitation } from "@supaterm/shared/assistantCitations";
+import { resolveSupatermMcpToolPresentation } from "@supaterm/shared/supatermMcpToolPresentation";
 import {
   computeStableMessagesTimelineRows,
   deriveMessagesTimelineRows,
@@ -34,7 +35,6 @@ import {
   resolveAssistantMessageCopyState,
   type MessagesTimelineRow,
   resolveTimelineIsAtEnd,
-  resolveTimelineToolPresentation,
   resolveTimelineTurnStep,
   withExitingWorktreeSetupRow,
   workEntryDisplayLabel,
@@ -392,8 +392,9 @@ describe("deriveMessagesTimelineRows", () => {
     expect(workEntryDisplayLabel(work[1]!, undefined)).toBe("Cloned a repository");
     expect(workEntryDisplayLabel(work[2]!, undefined)).toBe("Failed to clone a repository");
     expect(
-      resolveTimelineToolPresentation(items[1]!.type === "dynamic_tool" ? items[1].toolName : null)
-        ?.logo,
+      resolveSupatermMcpToolPresentation(
+        items[1]!.type === "dynamic_tool" ? items[1].toolName : null,
+      )?.logo,
     ).toBe("supaterm");
     const rows = deriveMessagesTimelineRows({
       timelineEntries: entries,

@@ -11,23 +11,22 @@ session or catalog state. For a new driver, start with [adding a provider](./add
 
 ## Process and account isolation
 
-The `opencode` driver probes the installed version and runs the 1.x or 2.x runtime. OpenCode's MCP
-registrations are directory-scoped, while Supaterm's MCP connection is thread-scoped, so threads in one
-directory must not share one Supaterm MCP entry.
+The `opencode` driver runs OpenCode 2 only. OpenCode's MCP registrations are directory-scoped, while
+Supaterm's MCP connection is thread-scoped, so threads in one directory must not share one Supaterm MCP
+entry. One [server per instance](../../packages/provider-opencode/src/server/v2/OpenCode2Server.ts)
+serves every directory. Each thread registers its own `supaterm-<thread>` MCP entry, and session
+permission rules deny every other thread's entry. See the
+[adapter](../../packages/provider-opencode/src/server/v2/adapter.ts).
 
-- **1.x** uses one Supaterm-managed chat server per thread, so threads cannot replace each other's
-  connection. Catalog and text-generation work can share the
-  [instance-owned helper](../../packages/provider-opencode/src/server/OpenCodeServerOwner.ts), which closes
-  after an idle period. See the [1.x adapter](../../packages/provider-opencode/src/server/adapter.ts).
-- **2.x** serves every directory from one
-  [server per instance](../../packages/provider-opencode/src/server/v2/OpenCode2Server.ts). Each thread
-  registers its own `supaterm-<thread>` MCP entry, and session permission rules deny every other
-  thread's entry. See the [2.x adapter](../../packages/provider-opencode/src/server/v2/adapter.ts).
+The [version probe](../../packages/provider-opencode/src/server/versionProbe.ts) still recognizes
+OpenCode 1.x, only so the driver can report it as unsupported and refuse sessions with upgrade
+guidance instead of a protocol error. A 1.x install can be upgraded in place while Supaterm runs, so
+only a 2.x probe result is cached. The `v2` directory and `OpenCode2*` names stay so upstream
+changes keep merging.
 
 External OpenCode servers remain externally owned and can require an external restart to pick up
-configuration changes. OpenCode stores "always" approval grants for the whole project. Automatic
-full-access replies use `once` so they cannot widen a supervised thread's permissions on a shared
-server. On 2.x, a session-wide approval also replies `once` and becomes Supaterm's own rule on that session.
+configuration changes. OpenCode stores "always" approval grants for the whole project, so a
+session-wide approval replies `once` and becomes Supaterm's own rule on that session.
 
 Pi runs the user's own `pi` install in RPC mode and owns native extension, package, and project
 trust discovery. Supaterm injects only its namespaced MCP bridge, so a Pi session behaves as it does in
@@ -95,8 +94,10 @@ mise tool; mise must resolve the binary and list it in an active install of that
 `latest`, which gets `mise upgrade <tool>`. Supaterm keeps launching the configured path, so that
 path must be a shim or under the tool's `latest` link, which the upgrade repoints: a version
 directory (including one `mise activate` put on `PATH`) would keep running the old binary until mise
-prunes it. Everything else mise touches (fixed version paths, pinned tools, wrappers, OpenCode 1.x,
-whose mise tool crosses into 2.x) stays manual-only, so Supaterm never edits mise config. `mise latest` supplies the version, because settings such as
+prunes it. Everything else mise touches (fixed version paths, pinned tools, wrappers) stays
+manual-only, so Supaterm never edits mise config. A detected OpenCode 1.x gets no update from any
+installer: 2.x converts the shared OpenCode database in place, so that move is the user's to make.
+`mise latest` supplies the version, because settings such as
 `minimum_release_age` can hold mise behind npm. A Grok cask whose Homebrew prefix
 cannot be verified also stays manual-only: `grok update` would install a second copy. npm updates pin `--prefix` because the
 `npm` on `PATH` can belong to a different Node than the one that owns the provider. Homebrew

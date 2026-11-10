@@ -86,7 +86,7 @@ import {
 } from "@supaterm/provider-core/server/subagentProjection";
 import * as ProviderAdapter from "@supaterm/provider-core/server/ProviderAdapter";
 import { turnScopedSelectionTransition } from "@supaterm/provider-core/server/selectionTransition";
-import { OPENCODE_PROVIDER, openCodePermissionRequestKind } from "../adapter.ts";
+import { OPENCODE_PROVIDER, openCodePermissionRequestKind } from "../kinds.ts";
 import { openCodeCommandFailed, openCodeToolTurnItem } from "../toolItems.ts";
 
 const OpenCode2ProviderCapabilities = {

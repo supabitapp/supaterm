@@ -15,14 +15,12 @@ export type PrimaryBackendStartup =
 export class DesktopState extends Context.Service<
   DesktopState,
   {
-    readonly backendReady: Ref.Ref<boolean>;
     readonly quitting: Ref.Ref<boolean>;
     readonly primaryBackendStartup: SubscriptionRef.SubscriptionRef<PrimaryBackendStartup>;
   }
 >()("@supaterm/desktop/app/DesktopState") {}
 
 const make = Effect.all({
-  backendReady: Ref.make(false),
   quitting: Ref.make(false),
   primaryBackendStartup: SubscriptionRef.make<PrimaryBackendStartup>({ _tag: "Starting" }),
 });

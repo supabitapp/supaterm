@@ -56,22 +56,29 @@ const provider: ServerProvider = {
 };
 
 describe("provider compatibility", () => {
-  it("keeps releases before V2 on the OpenCode 1 policy they shipped with", () => {
-    // Older builds fetch main's manifest; their V1 orchestrator cannot drive OpenCode 2.
+  it("keeps each release on the OpenCode policy it shipped with", () => {
+    // Older builds fetch main's manifest: before 0.0.46 the V1 orchestrator cannot drive
+    // OpenCode 2, and before 26.10.13 OpenCode 1.x still runs with limited support.
     const opencode = ProviderDriverKind.make("opencode");
-    for (const [version, expected] of [
-      ["1.14.19", "supported"],
-      ["2.0.18", "broken"],
-      ["1.14.18", "broken"],
+    for (const [supaterm, version, expected, recommended] of [
+      ["0.0.45", "1.14.19", "supported", "1.14.19"],
+      ["0.0.45", "2.0.18", "broken", "1.14.19"],
+      ["0.0.45", "1.14.18", "broken", "1.14.19"],
+      ["26.10.12", "1.18.32", "graceful", null],
+      ["26.10.12", "2.0.17", "unsupported", null],
+      ["26.10.12", "2.0.18", "supported", null],
+      ["26.10.13", "1.18.32", "unknown", null],
+      ["26.10.13", "2.0.17", "unsupported", null],
+      ["26.10.13", "2.0.18", "supported", null],
     ] as const) {
       const advisory = resolveProviderCompatibility(
         ModelManifest.BUNDLED_MODEL_MANIFEST.compatibility,
         opencode,
         version,
-        "0.0.45",
+        supaterm,
       );
-      assert.strictEqual(advisory?.status, expected, `OpenCode ${version} on 0.0.45`);
-      assert.strictEqual(advisory?.recommendedVersion, "1.14.19");
+      assert.strictEqual(advisory?.status, expected, `OpenCode ${version} on ${supaterm}`);
+      assert.strictEqual(advisory?.recommendedVersion, recommended);
     }
     assert.isUndefined(
       resolveProviderCompatibility(

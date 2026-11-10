@@ -571,8 +571,6 @@ interface TerminalUiStateStoreState {
   closeTerminal: (threadRef: ScopedThreadRef, terminalId: string) => void;
   reconcileTerminalIds: (threadRef: ScopedThreadRef, nextIds: string[]) => void;
   clearTerminalUiState: (threadRef: ScopedThreadRef) => void;
-  removeTerminalUiState: (threadRef: ScopedThreadRef) => void;
-  removeOrphanedTerminalUiStates: (activeThreadKeys: Set<string>) => void;
 }
 
 export const useTerminalUiStateStore = create<TerminalUiStateStoreState>()(
@@ -717,50 +715,6 @@ export const useTerminalUiStateStore = create<TerminalUiStateStoreState>()(
                 state.suppressedTerminalIdsByThreadKey,
                 threadKey,
               ),
-            };
-          }),
-        removeTerminalUiState: (threadRef) =>
-          set((state) => {
-            const threadKey = terminalThreadKey(threadRef);
-            const hadTerminalUiState = state.terminalUiStateByThreadKey[threadKey] !== undefined;
-            const hadSuppressedTerminalIds =
-              state.suppressedTerminalIdsByThreadKey[threadKey] !== undefined;
-            if (!hadTerminalUiState && !hadSuppressedTerminalIds) {
-              return state;
-            }
-            return {
-              terminalUiStateByThreadKey: removeRecordEntry(
-                state.terminalUiStateByThreadKey,
-                threadKey,
-              ),
-              suppressedTerminalIdsByThreadKey: removeRecordEntry(
-                state.suppressedTerminalIdsByThreadKey,
-                threadKey,
-              ),
-            };
-          }),
-        removeOrphanedTerminalUiStates: (activeThreadKeys) =>
-          set((state) => {
-            const orphanedIds = new Set(
-              [
-                ...Object.keys(state.terminalUiStateByThreadKey),
-                ...Object.keys(state.suppressedTerminalIdsByThreadKey),
-              ].filter((key) => !activeThreadKeys.has(key)),
-            );
-            if (orphanedIds.size === 0) {
-              return state;
-            }
-            const nextTerminalUiStateByThreadKey = { ...state.terminalUiStateByThreadKey };
-            const nextSuppressedTerminalIdsByThreadKey = {
-              ...state.suppressedTerminalIdsByThreadKey,
-            };
-            for (const id of orphanedIds) {
-              delete nextTerminalUiStateByThreadKey[id];
-              delete nextSuppressedTerminalIdsByThreadKey[id];
-            }
-            return {
-              terminalUiStateByThreadKey: nextTerminalUiStateByThreadKey,
-              suppressedTerminalIdsByThreadKey: nextSuppressedTerminalIdsByThreadKey,
             };
           }),
       };
