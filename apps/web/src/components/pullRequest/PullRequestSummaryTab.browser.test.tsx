@@ -1,15 +1,31 @@
 import { SourceControlProviderKind } from "@supaterm/contracts";
-import { EnvironmentId, ProjectId, type PullRequestDetailView } from "@supaterm/contracts";
+import {
+  EnvironmentId,
+  ProjectId,
+  type PullRequestComment,
+  type PullRequestDetailView,
+} from "@supaterm/contracts";
 import { expect, it, vi } from "vite-plus/test";
 import { userEvent } from "vite-plus/test/browser";
 
+const commands = vi.hoisted(() => ({ run: vi.fn() }));
+
 vi.mock(import("~/state/use-atom-command"), async (original) => ({
   ...(await original()),
-  useAtomCommand: (() => vi.fn()) as never,
+  useAtomCommand: (() => commands.run) as never,
+}));
+vi.mock(import("~/state/session"), async (original) => ({
+  ...(await original()),
+  useEnvironmentScope: () => true,
+  readEnvironmentScope: () => true,
 }));
 
 import { act, render as renderUi } from "../../../test/render";
 import { PullRequestSummaryTab } from "./PullRequestSummaryTab";
+
+function setup() {
+  commands.run.mockReset();
+}
 
 const detail: PullRequestDetailView = {
   provider: SourceControlProviderKind.make("github"),
@@ -105,4 +121,47 @@ it("keeps an unsaved description when collapsed and reopened", async () => {
   expect(screen.expanded("Description")).toBe("false");
   await screen.click("Description");
   expect(screen.container.querySelector("textarea")!.value).toBe("Unsaved description");
+});
+
+const comment = (id: string, body: string): PullRequestComment => ({
+  id,
+  kind: "issue-comment",
+  author: detail.author,
+  body,
+  createdAt: "2026-09-01T00:00:00Z",
+  url: null,
+  path: null,
+  reviewState: null,
+});
+
+it("keeps a comment draft through a failed save when another comment's edit is clicked", async () => {
+  setup();
+  let failSave!: () => void;
+  commands.run.mockReturnValue(
+    new Promise<{ readonly _tag: "Failure" }>((resolve) => {
+      failSave = () => resolve({ _tag: "Failure" });
+    }),
+  );
+  await using screen = await render({
+    ...detail,
+    comments: [comment("first", "First comment"), comment("second", "Second comment")],
+    commentCount: 2,
+  });
+  const clickFirst = (selector: string, text?: string) =>
+    act(async () =>
+      [...screen.container.querySelectorAll<HTMLButtonElement>(selector)]
+        .find((button) => text === undefined || button.textContent === text)!
+        .click(),
+    );
+  const editor = screen.getByRole("textbox", { name: "Edit comment" });
+
+  await clickFirst('button[aria-label="Edit comment"]');
+  await userEvent.fill(editor, "Unsaved comment");
+  await clickFirst("button", "Save");
+  await clickFirst('button[aria-label="Edit comment"]');
+  await expect.element(editor).toHaveValue("Unsaved comment");
+
+  await act(async () => failSave());
+  await expect.element(editor).toBeEnabled();
+  await expect.element(editor).toHaveValue("Unsaved comment");
 });
