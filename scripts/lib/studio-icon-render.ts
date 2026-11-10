@@ -16,7 +16,7 @@ import { BRAND_ASSET_PATHS, ICON_DOCUMENT } from "./brand-assets.ts";
 export const ICON_CHANNELS = ["prod", "nightly", "dev"] as const;
 export type IconChannel = (typeof ICON_CHANNELS)[number];
 
-export const ICON_LAYER_SIZE = 1024;
+const ICON_LAYER_SIZE = 1024;
 export const SCREEN_ART_SIZE = 1536;
 
 export interface StudioIconRender {

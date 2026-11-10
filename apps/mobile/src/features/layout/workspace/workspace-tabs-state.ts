@@ -116,7 +116,6 @@ export function shouldRestoreNativeSearch(tab: WorkspaceTabState, keepsEmptySear
   return tab.searchMode === "active" || tab.query !== "" || keepsEmptySearchOpen;
 }
 
-export const WORKSPACE_TOOLBAR = { height: 48, expandedGap: 10, edge: 16, gap: 8 };
 export const WORKSPACE_DOCK = { height: 48, bottomGap: 6 };
 
 export function workspaceDockBottomClearance(input: {
@@ -124,12 +123,6 @@ export function workspaceDockBottomClearance(input: {
   readonly keyboardHeight: number;
 }) {
   return 64 + Math.max(input.bottomInset, input.keyboardHeight) + 16;
-}
-
-export function workspaceToolbarHeight(mode: WorkspaceSearchMode): number {
-  return mode === "expanded"
-    ? WORKSPACE_TOOLBAR.height * 2 + WORKSPACE_TOOLBAR.expandedGap
-    : WORKSPACE_TOOLBAR.height;
 }
 
 export const NATIVE_WORKSPACE_TAB_SLOTS = [

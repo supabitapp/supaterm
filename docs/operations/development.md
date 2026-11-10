@@ -243,21 +243,18 @@ Windows investigation while that suite is not a required gate.
 
 ### Unused code
 
-`vp run knip:check` checks unused files and dependencies across the repo and, at the same time,
-unused runtime exports in `apps/server`, `apps/desktop`, `apps/web`, and the internal packages under
-`packages/` except `packages/icons` and `packages/mermaid`. `apps/mobile` is not in the exports
-pass. CI enforces both checks.
+`vp run knip:check` checks unused files and dependencies and, at the same time, unused runtime
+exports, in every workspace. CI enforces both checks.
 Exported types and Effect schemas are allowed without consumers. The schema preprocessor
 recognizes schema types, including aliases and schema classes; functions that create or decode
 schemas remain checked. Canonical Effect service construction APIs stay exported with an explicit
 `@public` annotation, which Knip recognizes. Completely unused files remain checked too.
 Named exports in web UI component modules are kept as complete component sets. Knip ignores
 unused exports in `apps/web/src/components/ui/*.tsx`, while still reporting an entire unused file.
-Use `vp run knip --workspace apps/web` to audit one workspace, including exports,
+Use `vp run knip --workspace apps/web` to audit one workspace with every issue type,
 or `vp run knip:production --workspace apps/web` to find code kept alive only by tests.
-The full export audit still has findings and is not a repo-wide CI gate. Extend the
-export check's workspace selectors as more workspaces become clean. Review callers before
-deleting code; production mode can also report development scripts and test fixtures.
+Review callers before deleting code; production mode can also report development scripts and test
+fixtures.
 Runtime-discovered entrypoints and dependency exceptions belong in [knip.jsonc](../../knip.jsonc).
 
 ## Desktop artifacts

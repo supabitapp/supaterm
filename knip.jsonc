@@ -103,6 +103,12 @@
       "ignoreIssues": { "src/components/ui/*.tsx": ["exports", "nsExports", "duplicates"] },
     },
     "apps/marketing": {
+      // scripts/lib/studio-icon-render.ts bundles this module and calls its exports by name
+      // inside a browser page.
+      "entry": ["src/lib/boltComputer/icon.ts"],
+      // Any edit to the bolt computer sources asks for an icon re-render (icons:check-inputs),
+      // so two constants used only inside this file keep their `export`.
+      "ignoreIssues": { "src/lib/boltComputer/faces.ts": ["exports"] },
       // `astro check` runs from the typecheck task in vite.config.ts, which knip does not read.
       "ignoreDependencies": ["@astrojs/check"],
     },
@@ -151,6 +157,9 @@
     },
     "packages/icons": {
       "includeEntryExports": true,
+      // The generator writes a component and node data for every manifest entry, and each
+      // surface draws an icon from only one of the two.
+      "ignoreIssues": { "src/generated/**": ["exports"] },
     },
     "packages/source-control-github": {
       // graphqlgen reads its config; the generated operations export every selection's class.
