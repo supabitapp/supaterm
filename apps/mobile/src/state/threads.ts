@@ -1,3 +1,4 @@
+import { createChildThreadApprovalsAtom } from "@supaterm/client-runtime/state/thread-requests";
 import { useAtomValue } from "@effect/atom-react";
 import { enabledEnvironmentIds } from "@supaterm/client-runtime/state/connections";
 import {
@@ -66,6 +67,10 @@ export const runningThreadKeepAliveAtom = createRunningThreadKeepAliveAtom({
   ]),
   threadsAtom: environmentThreadShells.environmentThreadsAtom,
   stateAtom: environmentThreads.stateAtom,
+});
+export const childThreadApprovalsAtom = createChildThreadApprovalsAtom({
+  childThreadInputsAtom: environmentThreadShells.childThreadInputsAtom,
+  pendingRequestsAtom: environmentThreadDetails.pendingRequestsAtom,
 });
 
 // Long enough for the opened screen to subscribe; its subscription keeps the thread after this.

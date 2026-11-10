@@ -4,11 +4,11 @@ import type { EnvironmentThreadShell } from "@supaterm/client-runtime/state/shel
 import { turnItemDetailRevision } from "@supaterm/client-runtime/work-log/item-detail";
 import { mcpAppFromToolItem } from "@supaterm/shared/toolOutput";
 import { useEffect, useRef, useState } from "react";
-import { Pressable, View } from "react-native";
+import { View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { AppText as Text } from "../../components/ui/AppText";
-import { SymbolView } from "../../components/ui/AppSymbol";
+import { AppBar } from "../../components/ui/AppBar";
 import { orchestrationEnvironment } from "../../state/orchestration";
 import { scopeThreadRef } from "@supaterm/client-runtime/environment";
 import { useThreadShell, useThreadShells } from "../../state/entities";
@@ -109,21 +109,12 @@ export function McpAppFullscreenScreen({ route }: McpAppFullscreenScreenProps) {
   }, [awaitingUser, focused, navigation]);
 
   return (
-    <View className="flex-1 bg-screen" style={{ paddingTop: insets.top }}>
-      <View className="h-11 flex-row items-center justify-between px-3">
-        <Text className="min-w-0 flex-1 text-base font-semibold text-foreground" numberOfLines={1}>
-          {app?.server ?? "App"}
-        </Text>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Exit full screen"
-          hitSlop={8}
-          onPress={onClose}
-          className="shrink-0"
-        >
-          <SymbolView name="xmark" size={18} tintColor="gray" />
-        </Pressable>
-      </View>
+    <View className="flex-1 bg-screen">
+      <AppBar
+        title={app?.server ?? "App"}
+        onClose={onClose}
+        closeAccessibilityLabel="Exit full screen"
+      />
       <View
         className="flex-1"
         style={{ paddingBottom: insets.bottom }}

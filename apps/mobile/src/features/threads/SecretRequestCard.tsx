@@ -6,6 +6,7 @@ import {
   secretRequestDisplay,
   secretRequestFailureMessage,
   SECRET_REQUEST_PRIVACY_NOTE,
+  secretRequestLink,
   type SecretRequestItem,
 } from "@supaterm/client-runtime/secret-request";
 import {
@@ -17,9 +18,11 @@ import { useRef, useState } from "react";
 import { View, type ColorValue } from "react-native";
 
 import { SymbolView, type AppSymbolName } from "../../components/ui/AppSymbol";
-import { AppText as Text, AppTextInput as TextInput } from "../../components/ui/AppText";
+import { AppText as Text } from "../../components/ui/AppText";
+import { SecretTextInput } from "../../components/ui/SecretTextInput";
 import { serverEnvironment } from "../../state/server";
 import { useAtomCommand } from "../../state/use-atom-command";
+import { tryOpenExternalUrl } from "../../lib/openExternalUrl";
 import { Button } from "../../components/ui/Button";
 
 const LOCK_SYMBOL: AppSymbolName = { ios: "lock", android: "lock" };
@@ -100,6 +103,7 @@ function PendingSecretRequestForm(props: {
       pipe(squashAtomCommandFailure(result), secretRequestFailureMessage, setError);
     }
   };
+  const link = secretRequestLink(item);
 
   return (
     <View className="mb-3 gap-3 rounded-[20px] border border-border bg-card-alt p-4">
@@ -111,21 +115,29 @@ function PendingSecretRequestForm(props: {
           </Text>
         ) : null}
       </View>
-      <TextInput
+      {link !== null ? (
+        <View className="gap-1.5">
+          <Button
+            label={`Open ${link.host}`}
+            tone="secondary"
+            fullWidth
+            onPress={() => void tryOpenExternalUrl(link.href, "secret-request")}
+          />
+          {/* A link found in the reason is already shown there. */}
+          {item.url !== undefined ? (
+            <Text selectable className="font-mono text-xs text-foreground-muted">
+              {item.url}
+            </Text>
+          ) : null}
+        </View>
+      ) : null}
+      <SecretTextInput
         accessibilityLabel={item.label}
         placeholder={item.placeholder ?? SECRET_REQUEST_DEFAULT_PLACEHOLDER}
         value={secret}
         onChangeText={setSecret}
         editable={!locked}
-        secureTextEntry
-        autoCorrect={false}
-        autoCapitalize="none"
-        autoComplete="off"
-        textContentType="none"
-        importantForAutofill="no"
-        spellCheck={false}
-        returnKeyType="done"
-        onSubmitEditing={() => void send({ type: "save", secret })}
+        onSubmitEditing={(value) => void send({ type: "save", secret: value })}
       />
       {error !== null ? (
         <Text

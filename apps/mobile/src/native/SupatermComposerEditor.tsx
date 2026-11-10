@@ -18,6 +18,7 @@ export function ComposerEditor({
   contentInsetVertical = 0,
   singleLineCentered: _singleLineCentered,
   enterBehavior: _enterBehavior,
+  readResetGeneration: _readResetGeneration,
   readOnly = false,
   onContentSizeChange,
   ...props
@@ -33,6 +34,7 @@ export function ComposerEditor({
       blur: () => inputRef.current?.blur(),
       setSelection: (nextSelection) =>
         inputRef.current?.setSelection(nextSelection.start, nextSelection.end),
+      flushPendingInput: async () => {},
     }),
     [],
   );

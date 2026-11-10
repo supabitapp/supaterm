@@ -210,13 +210,13 @@ vi.mock("../native/SelectableMarkdownText", () => ({
 vi.mock("@legendapp/list/keyboard", () => ({
   KeyboardAwareLegendList: (props: {
     data: ThreadFeedEntry[];
-    onLoad?: () => void;
+    onReady?: () => void;
     onStartReached?: () => void;
     renderItem(info: { item: ThreadFeedEntry; index: number }): ReactNode;
   }) => {
     feedList.data = props.data;
     feedList.onStartReached = props.onStartReached;
-    useEffect(() => props.onLoad?.(), []);
+    useEffect(() => props.onReady?.(), []);
     return props.data.map((item, index) =>
       createElement("div", { key: item.id }, props.renderItem({ item, index })),
     );
@@ -238,6 +238,7 @@ vi.mock("react-native-reanimated", () => {
     default: { View: ({ children }: { children?: ReactNode }) => children },
     Easing: { bezier: curve, in: curve, out: curve, cubic: () => 0 },
     FadeIn: transition,
+    FadeInDown: transition,
     FadeInUp: transition,
     FadeOut: transition,
     ReduceMotion: { Never: "never", System: "system" },
@@ -263,14 +264,14 @@ vi.mock("../features/threads/PendingVoiceMessage", () => ({
   PendingMessageActions: () => null,
   PendingVoiceMessageBody: () => null,
 }));
-vi.mock("../components/FilePreviewGallery", () => ({
+vi.mock("../components/ui/FilePreviewGallery", () => ({
   FilePreviewGallery: ({ children }: { children?: ReactNode }) => children,
 }));
-vi.mock("../components/FilePreviewModal", () => ({
+vi.mock("../components/ui/FilePreviewModal", () => ({
   FilePreviewModal: (props: { source: { name: string } | null }) =>
     props.source ? createElement("div", { "data-file-preview": props.source.name }) : null,
 }));
-vi.mock("../components/VideoPreviewModal", () => ({ VideoPreviewModal: () => null }));
+vi.mock("../components/ui/VideoPreviewModal", () => ({ VideoPreviewModal: () => null }));
 vi.mock("../components/ComposerContextSheet", () => ({}));
 vi.mock("../native/useOpenPullRequest", () => ({ useOpenPullRequest: () => vi.fn() }));
 vi.mock("../native/useMarkdownImageSource", () => ({ useMarkdownImageSource: () => vi.fn() }));
@@ -285,7 +286,10 @@ vi.mock("../native/NativeScrollViewMarker", () => ({
 vi.mock("../native/NativeWorkspaceColumns", () => ({
   useNativeWorkspaceColumnsSupported: () => false,
 }));
-vi.mock("../native/native-layout-metrics", () => ({ useDeviceType: () => "phone" }));
+vi.mock("../native/native-layout-metrics", () => ({
+  useDeviceType: () => "phone",
+  useNativeColumnLayoutMetrics: () => null,
+}));
 vi.mock("../features/layout/workspace-content-width", () => ({
   useWorkspaceSettledContentWidth: () => null,
 }));
@@ -301,7 +305,7 @@ vi.mock("./openExternalUrl", () => ({}));
 vi.mock("./attachmentDownload", () => ({}));
 vi.mock("./uuid", () => ({}));
 vi.mock("../features/threads/thread-context-divider", () => ({}));
-vi.mock("../features/threads/thread-handoff-row", () => ({}));
+vi.mock("../features/threads/thread-handoff-row", () => ({ ThreadModelSwitchDivider: () => null }));
 vi.mock("../features/threads/thread-feed-loading", () => ({ ThreadFeedLoading: () => null }));
 vi.mock("../features/threads/ThreadGuestShareBar", () => ({ useThreadGuestShare: () => null }));
 vi.mock("../features/threads/SecretRequestCard", () => ({}));
@@ -311,7 +315,7 @@ vi.mock("../features/threads/thread-work-log", () => ({ THREAD_DISCLOSURE_TRANSI
 vi.mock("../features/threads/HtmlRenderWebView", () => ({}));
 vi.mock("../features/threads/McpAppWebView", () => ({}));
 vi.mock("../features/layout/AdaptiveWorkspaceLayout", () => ({
-  useAdaptiveWorkspaceLayout: () => ({ fileInspector: { supported: false } }),
+  useWorkspacePaneState: () => ({ fileInspector: { supported: false } }),
 }));
 vi.mock("../features/threads/thread-workflow-opening", () => ({ useWorkflowOpening: () => null }));
 vi.mock("../features/threads/useFileChipShare", () => ({ useFileChipShare: () => vi.fn() }));
@@ -1461,7 +1465,15 @@ describe("ThreadFeed history", () => {
     const timestamp = "2026-10-20T00:00:00.000Z";
     const onLoadEarlier = vi.fn();
     const listRef = {
-      current: { getState: () => ({ data: feedList.data, scroll: 0, scrollLength: 800 }) },
+      current: {
+        getState: () => ({
+          data: feedList.data,
+          scroll: 0,
+          scrollLength: 800,
+          isAtEnd: true,
+          listen: () => () => {},
+        }),
+      },
     } as unknown as Parameters<typeof ThreadFeed>[0]["listRef"];
     const root = createRoot(document.createElement("div"));
     try {

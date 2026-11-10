@@ -69,7 +69,8 @@ class SupatermReviewDiffModule : Module() {
       AsyncFunction("scrollToTop") { view: SupatermReviewDiffView, animated: Boolean ->
         view.scrollToTop(animated)
       }
-      AsyncFunction("setRowsJson") { view: SupatermReviewDiffView, rowsJson: String ->
+      AsyncFunction("setRowsJson") { view: SupatermReviewDiffView, rowsJson: String, resetKey: String ->
+        view.setContentResetKey(resetKey)
         view.setRowsJson(rowsJson)
       }
       AsyncFunction("setTokensJson") { view: SupatermReviewDiffView, tokensJson: String ->

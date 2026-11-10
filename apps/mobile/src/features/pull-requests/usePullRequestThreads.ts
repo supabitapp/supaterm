@@ -1,12 +1,7 @@
 import { AsyncResult } from "effect/reactivity";
 import { settlePromise, squashAtomCommandFailure } from "@supaterm/client-runtime/state/runtime";
 import * as Dialog from "../../components/ui/Dialog";
-import {
-  StackActions,
-  useNavigation,
-  useNavigationState,
-  useRoute,
-} from "@react-navigation/native";
+import { useNavigationState, useRoute } from "@react-navigation/native";
 import {
   AuthOrchestrationOperateScope,
   AuthSourceControlWriteScope,
@@ -18,8 +13,7 @@ import { formatComposerContextReference } from "@supaterm/shared/composerContext
 import { sourceControlClients } from "@supaterm/client-runtime/source-control-clients";
 import { normalizeThreadPullRequestKey } from "@supaterm/client-runtime/thread-pull-requests";
 import { useRef, useState } from "react";
-import { Platform } from "react-native";
-import { useSelectWorkspaceDetail } from "../workspace/useSelectWorkspaceDetail";
+import { useOpenWorkspaceDetail } from "../layout/useOpenWorkspaceDetail";
 import { pullRequestComposerContext } from "../../lib/composerContext";
 import { scopedThreadKey } from "../../lib/scopedEntities";
 import { uuidv4 } from "../../lib/uuid";
@@ -81,18 +75,15 @@ export function usePullRequestThreads(
   const canOperate = useEnvironmentScope(target.environmentId, AuthOrchestrationOperateScope);
   const canAsk = !connected || canOperate;
   const canCheckout = useEnvironmentScope(target.environmentId, AuthSourceControlWriteScope);
-  const navigation = useNavigation();
-  const selectDetail = useSelectWorkspaceDetail();
+  const openDetail = useOpenWorkspaceDetail();
   const pending = useRef(false);
   const previousPrompts = useRef(new Map<string, string>());
   const openThread = (thread: LinkedThread) => {
     openThreadRoute({ environmentId: params.environmentId, threadId: thread.id });
   };
-  // Android shows one page at a time; iOS opens the thread over the pull request, so Back returns.
-  const openThreadRoute = (destination: ReactNavigation.RootParamList["Thread"]) => {
-    if (Platform.OS === "android") selectDetail({ name: "Thread", params: destination });
-    else navigation.dispatch(StackActions.push("Thread", destination));
-  };
+  const openThreadRoute = (destination: ReactNavigation.RootParamList["Thread"]) =>
+    openDetail({ name: "Thread", params: destination });
+
   const [busy, setBusy] = useState(false);
   const ask = async (thread?: LinkedThread, task: PullRequestAgentTask = "ask") => {
     if (!pr || !canAsk || pending.current) return;

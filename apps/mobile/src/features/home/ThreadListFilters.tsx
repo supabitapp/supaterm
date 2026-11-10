@@ -2,7 +2,7 @@ import { memo, use } from "react";
 import { Pressable, ScrollView } from "react-native";
 import { SymbolView } from "../../components/ui/AppSymbol";
 import { NativePrimaryColumnContext } from "../../native/v5-workspace-context";
-import { ListFilterMenu } from "../workspace/ListFilterMenu";
+import { ListFilterMenu } from "../layout/workspace/ListFilterMenu";
 import {
   buildHomeListFilterMenu,
   type HomeListFilterMenuInput,
@@ -17,7 +17,7 @@ export const ThreadListFilters = memo(function ThreadListFilters(props: HomeList
     <ScrollView
       horizontal
       showsHorizontalScrollIndicator={false}
-      style={{ marginHorizontal: -gutter }}
+      style={{ marginHorizontal: -gutter, overflow: "visible" }}
       contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 2, paddingBottom: 10, gap: 8 }}
     >
       {filters.map((filter) => (

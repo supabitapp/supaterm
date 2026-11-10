@@ -797,6 +797,24 @@ describe("buildThreadFeed", () => {
     expect(messageEntry?.message.sourceThreadId).toBe(threadId);
   });
 
+  it("counts every file of a multi-file patch", () => {
+    const item: OrchestrationV2TurnItem = {
+      ...base("multi-file-change", "2026-06-20T00:00:04.000Z", 3),
+      type: "file_change",
+      fileName: "src/a.ts",
+      changes: [
+        { operation: "update", path: "src/a.ts" },
+        { operation: "add", path: "src/b.ts" },
+        { operation: "update", path: "src/renamed.ts", oldPath: "src/original.ts" },
+      ],
+    };
+    const activity = buildThreadFeed([projected(item, 0)]).flatMap((entry) =>
+      entry.type === "activity-group" ? entry.activities : [],
+    )[0]!;
+    expect(workEntryRowLabel(activity.workEntry)).toBe("src/a.ts +2 more");
+    expect(summarizeToolGroup([activity.workEntry]).summary).toBe("Changed 3 files");
+  });
+
   it("anchors feedback before later committed turns", () => {
     const laterUser = {
       ...userMessage("2026-08-29T00:00:05.000Z"),

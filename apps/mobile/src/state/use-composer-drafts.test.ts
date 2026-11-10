@@ -308,6 +308,7 @@ function modelReconciliationHarness(
       ],
     ]),
   });
+  const noPendingThreadIdsAtom = Atom.make((): ReadonlySet<ThreadId> => new Set());
   const shells = createEnvironmentThreadShellAtoms({
     catalogValueAtom,
     snapshotAtom: () => snapshotAtom,
@@ -320,6 +321,7 @@ function modelReconciliationHarness(
       threadShellAtom: shells.threadShellAtom,
       threadRefsAtom: shells.threadRefsAtom,
       shellStateAtom: () => shellResultAtom,
+      pendingThreadIdsAtom: () => noPendingThreadIdsAtom,
     }),
   );
   flush();
@@ -705,9 +707,15 @@ describe("mobile composer drafts", () => {
           },
         ],
       });
-      expect(findLocalComposerClipboardAttachment(environmentId, file.id)).toEqual(file);
+      expect(findLocalComposerClipboardAttachment([environmentId], environmentId, file.id)).toEqual(
+        file,
+      );
       expect(
-        findLocalComposerClipboardAttachment(EnvironmentId.make("different-environment"), file.id),
+        findLocalComposerClipboardAttachment(
+          [environmentId],
+          EnvironmentId.make("different-environment"),
+          file.id,
+        ),
       ).toBeUndefined();
     },
   );

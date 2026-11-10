@@ -23,7 +23,7 @@ import { suppressKeyboardMotion } from "../../lib/motionInput";
 import {
   firstWorkspaceDetailOpen,
   workspaceHasColumns,
-} from "../workspace/workspace-selection-store";
+} from "../layout/workspace/workspace-selection-store";
 import { SupatermKeyboardCommands } from "../../native/SupatermKeyboardCommands";
 import { useThreadShell } from "../../state/entities";
 import { appAtomRegistry } from "../../state/atom-registry";
@@ -48,7 +48,7 @@ import {
   subscribeToHardwareKeyboardCommandRegistrations,
   type HardwareKeyboardCommand,
 } from "./hardwareKeyboardCommands";
-import { selectWorkspaceDetail } from "../workspace/workspace-detail-selection";
+import { selectWorkspaceDetail } from "../layout/workspace/workspace-detail-selection";
 
 const EMPTY_COPY_FEEDBACK: GitActionProgress = {
   phase: "idle",

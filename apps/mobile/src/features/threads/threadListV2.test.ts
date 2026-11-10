@@ -13,7 +13,7 @@ import {
 } from "./threadOrder";
 import type { EnvironmentThreadShell } from "@supaterm/client-runtime/state/shell";
 import { threadSearchMatchKey } from "@supaterm/client-runtime/state/thread-search";
-import { resolveSnoozePresets } from "@supaterm/client-runtime/state/thread-snooze";
+import { canSnooze, resolveSnoozePresets } from "@supaterm/client-runtime/state/thread-snooze";
 import {
   CommandId,
   EnvironmentId,
@@ -22,8 +22,10 @@ import {
   ProjectId,
   ProviderInstanceId,
   RunId,
+  RuntimeRequestId,
   ThreadId,
 } from "@supaterm/contracts";
+import type { MenuAction } from "@react-native-menu/menu";
 import { describe, expect, it, vi } from "vite-plus/test";
 
 import type { PendingNewTask } from "../../state/use-pending-new-tasks";
@@ -33,6 +35,7 @@ import {
   buildThreadListV2Items,
   buildThreadListV2ListItems,
   getThreadListV2OrderedSection,
+  layoutThreadListV2RowMenuActions,
   resolveThreadListV2SnoozeMenuSelection,
   resolveThreadListV2Status,
   resolveThreadListV2WokeAt,
@@ -105,6 +108,59 @@ describe("resolveThreadListV2SnoozeMenuSelection", () => {
         snoozedUntil: new Date(selectedAt.getTime() + 45 * 60 * 1_000).toISOString(),
       }),
     });
+  });
+});
+
+describe("layoutThreadListV2RowMenuActions", () => {
+  const actions = (...ids: string[]): MenuAction[] => ids.map((id) => ({ id, title: id }));
+  const leafIds = (items: readonly MenuAction[]): string[] =>
+    items.flatMap((item) => (item.subactions ? leafIds(item.subactions) : [item.id!]));
+
+  it("keeps every action once while nesting iOS secondary actions under More", () => {
+    const full = {
+      direct: actions(
+        "new-thread-on-branch",
+        "copy-thread",
+        "copy-thread-id",
+        "mark-done",
+        "snooze",
+      ),
+      reorder: actions("arrange", "move-up", "move-down"),
+      pin: actions("unpin"),
+      secondary: actions("rename", "regenerate-title", "turn-into-project", "archive", "delete"),
+    };
+    const flat = layoutThreadListV2RowMenuActions({ ...full, nested: false });
+    const nested = layoutThreadListV2RowMenuActions({ ...full, nested: true });
+
+    expect(flat.map((action) => action.id)).toEqual(
+      [...full.direct, ...full.reorder, ...full.pin, ...full.secondary].map((action) => action.id),
+    );
+    expect(nested.map((action) => action.id)).toEqual([
+      "new-thread-on-branch",
+      "copy-thread",
+      "copy-thread-id",
+      "mark-done",
+      "snooze",
+      "unpin",
+      "more",
+    ]);
+    expect(nested.at(-1)?.subactions?.map((action) => action.id)).toEqual([
+      "arrange-menu",
+      "rename",
+      "regenerate-title",
+      "turn-into-project",
+      "archive",
+      "delete",
+    ]);
+    expect(leafIds(nested).toSorted()).toEqual(leafIds(flat).toSorted());
+
+    // Slim rows only offer "Arrange threads…", which needs no submenu of its own.
+    const slim = layoutThreadListV2RowMenuActions({
+      ...full,
+      reorder: actions("arrange"),
+      nested: true,
+    });
+    expect(slim.at(-1)?.subactions?.[0]?.id).toBe("arrange");
   });
 });
 
@@ -187,6 +243,35 @@ describe("queued messages keep a done thread active", () => {
 });
 
 describe("resolveThreadListV2SwipeActions", () => {
+  it("offers snooze for a presented input request and moves it onto the snoozed shelf", () => {
+    const raw = makeRawThreadShell({
+      pendingRuntimeRequest: {
+        id: RuntimeRequestId.make("question"),
+        kind: "user_input",
+        createdAt: DateTime.makeUnsafe(NOW),
+      },
+    });
+    const thread = presentThreadShell(environmentId, raw);
+    expect(thread.pendingUserInputAt).toBe(NOW);
+    expect(
+      resolveThreadListV2SwipeActions({
+        variant: "card",
+        markDoneSupported: true,
+        snoozeSupported: true,
+        snoozable: canSnooze(thread, { now: NOW }),
+      }).secondary,
+    ).toBe("snooze");
+
+    const layout = buildShelfLayout({
+      threads: [{ ...thread, snoozedAt: NOW, snoozedUntil: "2026-06-03T00:00:00.000Z" }],
+      environmentId: null,
+      searchQuery: "",
+      now: NOW,
+      snoozedShelfExpanded: true,
+    });
+    expect(layout.snoozedCount).toBe(1);
+  });
+
   it("offers reopen and snooze for done history", () => {
     expect(
       resolveThreadListV2SwipeActions({
@@ -2375,6 +2460,30 @@ describe("buildThreadListV2ListItems row-state stamps", () => {
     doneAt: isoAt(BASE_MS - 3 * 24 * 60 * MINUTE_MS),
   });
   const allEnvironments = new Set<EnvironmentId>([environmentId]);
+
+  it("ages a read row from its latest reply", () => {
+    using _timers = { [Symbol.dispose]: () => vi.useRealTimers() };
+    vi.useFakeTimers({ now: BASE_MS });
+    const label = (latestUserMessageAt: string, completedAt: string) => {
+      const thread = makeThread({
+        id: ThreadId.make("stamp-read"),
+        title: "stamp read",
+        latestUserMessageAt,
+        lastVisitedAt: isoAt(BASE_MS),
+        latestRun: {
+          runId: RunId.make("stamp-read-run"),
+          status: "completed",
+          requestedAt: latestUserMessageAt,
+          startedAt: latestUserMessageAt,
+          completedAt,
+          assistantMessageId: null,
+        },
+      });
+      const row = buildTickList([thread], BASE_MS, []).find((item) => item.type === "v2-thread");
+      return row?.type === "v2-thread" ? row.timeLabel : null;
+    };
+    expect(label(isoAt(BASE_MS - 40 * MINUTE_MS), isoAt(BASE_MS - 2 * MINUTE_MS))).toBe("2m");
+  });
 
   it("stamps queued outbox messages onto the matching row and notices removal", () => {
     const queued = buildTickList([readyThread, doneThread], BASE_MS, [], {

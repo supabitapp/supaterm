@@ -7,13 +7,17 @@ public class SupatermTerminalModule: Module {
     // Bumped when native hardware-keyboard handling changes; surfaced in the JS debug
     // logs so a stale native binary is distinguishable from a broken key pipeline.
     Constants([
-      "hardwareKeyRevision": 3,
+      "hardwareKeyRevision": 4,
       "outputRevision": 1,
     ])
 
     View(SupatermTerminalView.self) {
       AsyncFunction("writeOutput") { (view: SupatermTerminalView, data: String, reset: Bool) in
         view.writeOutput(data, reset: reset)
+      }
+
+      AsyncFunction("resetInput") { (view: SupatermTerminalView) in
+        view.resetInputField()
       }
 
       Prop("terminalKey") { (view: SupatermTerminalView, terminalKey: String) in
@@ -67,7 +71,7 @@ public class SupatermTerminalModule: Module {
       Prop("sharedGrid") { (view: SupatermTerminalView, sharedGrid: [Int]) in
         view.sharedGrid = sharedGrid
       }
-      Events("onInput", "onResize", "onCapture")
+      Events("onInput", "onResize", "onCapture", "onPaste")
 
       OnViewDidUpdateProps { (view: SupatermTerminalView) in
         view.applyPendingBuffer()

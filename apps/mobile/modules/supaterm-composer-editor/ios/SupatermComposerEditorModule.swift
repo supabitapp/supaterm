@@ -127,6 +127,9 @@ public class SupatermComposerEditorModule: Module {
       AsyncFunction("setSelection") { (view: SupatermComposerEditorView, start: Int, end: Int) in
         view.setSelection(start: start, end: end)
       }
+      AsyncFunction("readState") { (view: SupatermComposerEditorView) -> [String: Any] in
+        view.readState()
+      }
     }
   }
 }

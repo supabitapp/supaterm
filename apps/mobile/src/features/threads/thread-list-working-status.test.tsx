@@ -1,4 +1,4 @@
-import { act, create, type ReactTestRenderer } from "react-test-renderer";
+import { act, create, type ReactTestInstance, type ReactTestRenderer } from "react-test-renderer";
 import { afterEach, beforeEach, expect, it, vi } from "vite-plus/test";
 import { ThreadListWorkingStatus } from "./thread-list-working-status";
 
@@ -7,6 +7,8 @@ const app = vi.hoisted(() => ({
   listeners: new Set<(state: string) => void>(),
 }));
 vi.mock("react-native", () => ({
+  Platform: { OS: "ios" },
+  Text: "b",
   AppState: {
     get currentState() {
       return app.state;
@@ -45,7 +47,9 @@ async function mount(start: string | null, label = "Working") {
 }
 
 function text() {
-  return renderer?.root.findByType("span").children.join("");
+  const collect = (node: ReactTestInstance | string): string =>
+    typeof node === "string" ? node : node.children.map(collect).join("");
+  return renderer ? collect(renderer.root.findByType("span")) : undefined;
 }
 
 it("updates seconds, minutes, and hours without rerendering the row", async () => {

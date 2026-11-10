@@ -78,6 +78,8 @@ const SETTINGS_SEARCH_TERMS = {
     "agent credits",
     "default branch",
     "automatically pull",
+    "clone into host folders",
+    "ghq",
   ],
   SettingsWorktrees: [
     "worktree",
@@ -85,6 +87,8 @@ const SETTINGS_SEARCH_TERMS = {
     "branch prefix",
     "submodules",
     "start from remote",
+    "fast worktree checkout",
+    "clone cache",
   ],
   SettingsEnvironmentMaintenance: ["updates", "provider updates", "restart", "manage environments"],
   SettingsAbout: [

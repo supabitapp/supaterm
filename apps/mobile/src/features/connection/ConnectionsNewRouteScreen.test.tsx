@@ -46,7 +46,9 @@ vi.mock("@react-navigation/native", () => ({
     getState: () => ({ index: 0, routes: [{ name: "ConnectionsNew" }] }),
   }),
 }));
-vi.mock("../workspace/workspace-selection-store", () => ({ workspaceHasColumns: () => false }));
+vi.mock("../layout/workspace/workspace-selection-store", () => ({
+  workspaceHasColumns: () => false,
+}));
 vi.mock("react-native", () => ({
   Alert: { alert: state.alert },
   Linking: {},

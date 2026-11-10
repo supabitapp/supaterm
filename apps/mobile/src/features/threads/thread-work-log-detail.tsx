@@ -4,6 +4,7 @@ import type { EnvironmentId } from "@supaterm/contracts";
 import { withOccurrenceKeys } from "@supaterm/shared/occurrenceKeys";
 import { isJavaScriptReplTool } from "@supaterm/shared/toolActivity";
 import {
+  isJsonToolText,
   toolCallLines,
   turnItemOutputImages,
   turnItemOutputText,
@@ -14,7 +15,7 @@ import {
 } from "@supaterm/client-runtime/work-log/presentation";
 
 import { AppText as Text } from "../../components/ui/AppText";
-import type { FilePreviewSource } from "../../components/FilePreviewModal";
+import type { FilePreviewSource } from "../../components/ui/FilePreviewModal";
 import type { MarkdownImageRenderer } from "../../native/SelectableMarkdownText";
 import { cn } from "../../lib/cn";
 import { formatItemFullDetail, type ThreadFeedActivity } from "../../lib/threadActivity";
@@ -25,14 +26,16 @@ import { QuestionAnswerHistory } from "./QuestionAnswerHistory";
 import { ThreadCommandOutput, useCommandOutputStreaming } from "./thread-command-output";
 import { ThreadMarkdownImage } from "./ThreadMarkdownImage";
 
-function ReplCodeText({
+function ToolCodeText({
   code,
+  language,
   theme,
 }: {
   readonly code: string;
+  readonly language: "typescript" | "html" | "json";
   readonly theme: "light" | "dark";
 }) {
-  const lines = useMarkdownCodeHighlight({ code, language: "typescript", theme, enabled: true });
+  const lines = useMarkdownCodeHighlight({ code, language, theme, enabled: true });
   let offset = 0;
   const highlighted = lines?.flatMap((line, lineIndex) => {
     const separator = lineIndex > 0 ? "\n" : "";
@@ -160,12 +163,20 @@ export function ThreadWorkLogDetail(props: {
           withOccurrenceKeys(
             [
               call.command,
-              ...(call.args ?? []).map(([key, value]) =>
-                key === "code" && highlightsCode ? { code: value } : `${key} ${value}`,
-              ),
+              ...(call.args ?? []).map(([key, value]) => {
+                const language: "html" | "typescript" | "json" | null =
+                  key === "html"
+                    ? "html"
+                    : key === "code" && highlightsCode
+                      ? "typescript"
+                      : isJsonToolText(value)
+                        ? "json"
+                        : null;
+                return language ? { name: key, code: value, language } : `${key} ${value}`;
+              }),
               call.argsText,
             ].flatMap((line) => (line ? [line] : [])),
-            (line) => (typeof line === "string" ? line : `code ${line.code}`),
+            (line) => (typeof line === "string" ? line : `${line.name} ${line.code}`),
           ).map(({ item: line, key }) =>
             typeof line === "string" ? (
               <Text
@@ -173,20 +184,32 @@ export function ThreadWorkLogDetail(props: {
                 selectable
                 className="font-mono text-2xs leading-normal text-foreground"
               >
-                {line}
+                {isJsonToolText(line) ? (
+                  <ToolCodeText code={line} language="json" theme={props.themeAppearance} />
+                ) : (
+                  line
+                )}
               </Text>
             ) : (
               <View key={key}>
                 <Text className="font-mono text-2xs leading-normal text-foreground-muted">
-                  code
+                  {line.name}
                 </Text>
-                <ReplCodeText code={line.code} theme={props.themeAppearance} />
+                <ToolCodeText
+                  code={line.code}
+                  language={line.language}
+                  theme={props.themeAppearance}
+                />
               </View>
             ),
           )
         ) : fullDetail ? (
           <Text selectable className="font-mono text-2xs leading-normal text-foreground-muted">
-            {fullDetail}
+            {isJsonToolText(fullDetail) ? (
+              <ToolCodeText code={fullDetail} language="json" theme={props.themeAppearance} />
+            ) : (
+              fullDetail
+            )}
           </Text>
         ) : null}
         {fetchedOutput ? (
@@ -197,7 +220,11 @@ export function ThreadWorkLogDetail(props: {
               (!call || call.command || call.args || call.argsText) && "mt-1.5",
             )}
           >
-            {fetchedOutput}
+            {isJsonToolText(fetchedOutput) ? (
+              <ToolCodeText code={fetchedOutput} language="json" theme={props.themeAppearance} />
+            ) : (
+              fetchedOutput
+            )}
           </Text>
         ) : null}
         {streamsOutput ? null : exitLine}

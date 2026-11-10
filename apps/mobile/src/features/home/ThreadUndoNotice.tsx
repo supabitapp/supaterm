@@ -15,7 +15,7 @@ import type { AppSymbolName } from "../../components/ui/AppSymbol";
 import { Toast } from "../../components/ui/Toast";
 import { MOBILE_MOTION } from "../../lib/designTokens";
 import { useReduceMotion } from "../../lib/useReducedMotionPreference";
-import { useWorkspaceTabs } from "../workspace/WorkspaceTabsContext";
+import { useWorkspaceTabs } from "../layout/workspace/WorkspaceTabsContext";
 import {
   dismissThreadUndoNotice,
   readThreadUndoNotice,
