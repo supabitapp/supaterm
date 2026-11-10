@@ -4,6 +4,7 @@ import {
   MessageId,
   type ModelSelection,
   type OrchestrationV2ProviderCapabilities,
+  type OrchestrationV2ThreadProjection,
   type OrchestrationV2ProviderSession,
   type OrchestrationV2ProviderThread,
   ProjectId,
@@ -41,6 +42,10 @@ const replacementSelection = {
   instanceId: providerInstanceId,
   model: "restart-model-b",
 } satisfies ModelSelection;
+const modelSwitches = (projection: OrchestrationV2ThreadProjection) =>
+  projection.turnItems.flatMap((item) =>
+    item.type === "user_message" && item.modelSwitch !== undefined ? [item.modelSwitch] : [],
+  );
 const pooledCapabilities: OrchestrationV2ProviderCapabilities = CodexProviderCapabilitiesV2;
 const exclusiveCapabilities: OrchestrationV2ProviderCapabilities = {
   ...CodexProviderCapabilitiesV2,
@@ -409,6 +414,9 @@ it.live("retries a failed selection restart session open before completing", () 
         "selection restart supersede must not project hard-Stop interrupt items",
       );
       assert.equal(projection.runs.at(-1)?.modelSelection.model, replacementSelection.model);
+      assert.deepEqual(modelSwitches(projection), [
+        { from: initialSelection, to: replacementSelection },
+      ]);
       assert.equal(projection.runs.at(-1)?.status, "completed");
       assert.isTrue(captured.failedReplacementOpen);
       assert.equal(captured.closedSessionCount, 0);

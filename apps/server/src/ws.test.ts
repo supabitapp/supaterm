@@ -869,7 +869,7 @@ it.effect.each(["pending", "cached"] as const)(
       const expectedSettings = [duringDiscovery, latestSettings].map(
         ServerSettings.redactServerSettingsForClient,
       );
-      const expectedKeybindings = [duringAck, latestKeybindings];
+      const expectedKeybindings = [duringAck.keybindings, latestKeybindings.keybindings];
       // The two sources can interleave, but each must retain its own publication order.
       for (let i = 0; i < 4; i++) {
         const event = yield* Queue.take(responses);
@@ -897,7 +897,7 @@ it.effect.each(["pending", "cached"] as const)(
           resolved.config.settings,
           ServerSettings.redactServerSettingsForClient(latestSettings),
         );
-        assert.deepEqual(resolved.config.keybindings, latestKeybindings);
+        assert.deepEqual(resolved.config.keybindings, latestKeybindings.keybindings);
         yield* acknowledge;
       }
       yield* server.write(0, { _tag: "Interrupt", requestId, interruptors: [] });
