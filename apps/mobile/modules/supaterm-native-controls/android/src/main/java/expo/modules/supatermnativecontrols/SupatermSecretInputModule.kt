@@ -33,15 +33,22 @@ class SupatermSecretInputModule : Module() {
       Prop("inputLabel") { view: SupatermSecretInputView, value: String ->
         view.input.contentDescription = value
       }
-      Prop("textColor") { view: SupatermSecretInputView, value: Int -> view.input.setTextColor(value) }
+      Prop("textColor") { view: SupatermSecretInputView, value: Int ->
+        view.input.setTextColor(value)
+      }
       Prop("placeholderColor") { view: SupatermSecretInputView, value: Int ->
         view.input.setHintTextColor(value)
       }
-      Prop("cursorColor") { view: SupatermSecretInputView, value: Int -> view.setCursorColor(value) }
+      Prop("cursorColor") { view: SupatermSecretInputView, value: Int ->
+        view.setCursorColor(value)
+      }
       Prop("fontSize") { view: SupatermSecretInputView, value: Float ->
         view.input.setTextSize(TypedValue.COMPLEX_UNIT_DIP, value)
       }
-      Prop("editable") { view: SupatermSecretInputView, value: Boolean -> view.input.isEnabled = value }
+      Prop("editable") { view: SupatermSecretInputView, value: Boolean ->
+        view.input.isEnabled =
+          value
+      }
       Events("onChangeText", "onSubmit")
     }
   }
@@ -52,7 +59,10 @@ class SupatermSecretInputModule : Module() {
  * credential autofill, so password managers offer logins above the keyboard; this view owns the
  * EditText so it can.
  */
-class SupatermSecretInputView(context: Context, appContext: AppContext) : ExpoView(context, appContext) {
+class SupatermSecretInputView(
+  context: Context,
+  appContext: AppContext
+) : ExpoView(context, appContext) {
   // Yoga sizes this view; the EditText inside is laid out by Android.
   override val shouldUseAndroidLayout = true
 
