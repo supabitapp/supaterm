@@ -1,9 +1,10 @@
-import type {
-  OrchestrationV2ProjectedTurnItem,
-  OrchestrationV2ThreadProjection,
-  OrchestrationV2TurnItem,
-  ThreadId,
-  TurnItemId,
+import {
+  isOrchestrationV2RunUnsettled,
+  type OrchestrationV2ProjectedTurnItem,
+  type OrchestrationV2ThreadProjection,
+  type OrchestrationV2TurnItem,
+  type ThreadId,
+  type TurnItemId,
 } from "@supaterm/contracts";
 import { pendingBackgroundTurnItems } from "@supaterm/shared/orchestrationV2PendingBackgroundWork";
 
@@ -564,14 +565,7 @@ function messagesForBoundedProjection(
   );
   const retainedRunIds = new Set<string>();
   for (const run of projection.runs) {
-    if (
-      run.id === latestRun?.id ||
-      run.status === "preparing" ||
-      run.status === "starting" ||
-      run.status === "running" ||
-      run.status === "waiting" ||
-      run.status === "queued"
-    ) {
+    if (run.id === latestRun?.id || isOrchestrationV2RunUnsettled(run.status)) {
       retainedRunIds.add(String(run.id));
       retainedMessageIds.add(String(run.userMessageId));
     }

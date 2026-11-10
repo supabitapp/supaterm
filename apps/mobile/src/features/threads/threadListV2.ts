@@ -32,6 +32,7 @@ import {
   sortInboxThreadsByReturn,
   sortWorkingThreadsBySend,
 } from "@supaterm/client-runtime/state/thread-inbox";
+import { resolveThreadRowStatus } from "@supaterm/client-runtime/state/thread-row-status";
 import {
   sortActiveThreadsByOrderKey,
   resolveDoneThreadTimestamp,
@@ -74,19 +75,6 @@ export function resolveThreadListV2ProviderDrivers(
   return currentDriver === undefined ? [] : drivers;
 }
 
-/**
- * Ported from the web sidebar v2 (apps/web/src/components/Sidebar.logic.ts). Waiting (runtime
- * "idle") is the agent parked on open subagents or monitors, blue like active work rather than a
- * false Done; commands left running, such as a dev server, read as ready.
- */
-export type ThreadListV2Status =
-  | "approval"
-  | "input"
-  | "working"
-  | "waiting"
-  | "failed"
-  | "limited"
-  | "ready";
 export type ThreadListV2SwipeAction = "archive" | "mark-done" | "reopen" | "snooze" | "unsnooze";
 
 export function resolveThreadListV2SnoozeMenuSelection(input: {
@@ -253,40 +241,6 @@ export function resolveThreadListV2WokeAt(
   return !Number.isNaN(wokeAtMs) && (Number.isNaN(lastVisitedAtMs) || lastVisitedAtMs < wokeAtMs)
     ? wokeAt
     : null;
-}
-
-export function resolveThreadListV2Status(
-  thread: Pick<
-    EnvironmentThreadShell,
-    | "hasPendingApprovals"
-    | "hasPendingUserInput"
-    | "pendingSubagentRequest"
-    | "runtime"
-    | "blockedOnThreadWait"
-  >,
-): ThreadListV2Status {
-  if (thread.hasPendingApprovals || thread.pendingSubagentRequest === "approval") {
-    return "approval";
-  }
-  if (thread.hasPendingUserInput || thread.pendingSubagentRequest === "user_input") {
-    return "input";
-  }
-  if (thread.runtime?.status === "running" && thread.blockedOnThreadWait === true) {
-    return "waiting";
-  }
-  if (
-    thread.runtime !== null &&
-    ["preparing", "queued", "starting", "running", "waiting"].includes(thread.runtime.status)
-  ) {
-    return "working";
-  }
-  if (thread.runtime?.status === "idle") {
-    return "waiting";
-  }
-  if (thread.runtime?.status === "failed") {
-    return thread.runtime.lastErrorClass === "usage_limit" ? "limited" : "failed";
-  }
-  return "ready";
 }
 
 function parseTimestampMs(isoDate: string): number {
@@ -563,7 +517,7 @@ function resolveThreadListV2ItemTimeLabel(
   if (showSnoozeWakeLabel) return "";
   if (
     variant === "card" &&
-    (resolveThreadListV2Status(thread) !== "ready" ||
+    (resolveThreadRowStatus(thread) !== "ready" ||
       item.wokeAt !== null ||
       threadHasUnseenCompletion(thread))
   )

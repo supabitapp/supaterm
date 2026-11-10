@@ -169,7 +169,6 @@ export function useRightPanelActions(input: RightPanelActionsInput) {
 
   const closePreviewPanel = () => {
     if (activeThreadRef) {
-      useRightPanelStore.getState().setMaximized(activeThreadRef, false);
       useRightPanelStore.getState().close(activeThreadRef);
     }
   };

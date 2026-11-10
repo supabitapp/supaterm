@@ -15,6 +15,8 @@ import {
   type ToolActivitySource,
   type ThreadId,
   type TurnItemId,
+  isOrchestrationV2RunUnsettled,
+  isOrchestrationV2RunNotYetRunning,
 } from "@supaterm/contracts";
 import { extractToolActivityPresentation } from "@supaterm/client-runtime/work-log/tool-presentation";
 import {
@@ -216,14 +218,7 @@ export function isLatestRunSettled(
   runtime: Pick<ThreadRuntimeSummary, "status" | "activeRunId"> | null,
 ): boolean {
   if (latestRun === null) return false;
-  if (
-    latestRun.status === "preparing" ||
-    latestRun.status === "queued" ||
-    latestRun.status === "starting" ||
-    latestRun.status === "running" ||
-    latestRun.status === "waiting"
-  )
-    return false;
+  if (isOrchestrationV2RunUnsettled(latestRun.status)) return false;
   return runtime?.activeRunId !== latestRun.runId;
 }
 
@@ -1130,12 +1125,7 @@ export function findRevertCheckpoint(
 
 export function derivePhase(runtime: ThreadStructureRuntime | null): SessionPhase {
   if (runtime === null) return "disconnected";
-  if (
-    runtime.status === "preparing" ||
-    runtime.status === "starting" ||
-    runtime.status === "queued"
-  )
-    return "connecting";
+  if (isOrchestrationV2RunNotYetRunning(runtime.status)) return "connecting";
   if (runtime.status === "running" || runtime.status === "waiting") return "running";
   return "ready";
 }

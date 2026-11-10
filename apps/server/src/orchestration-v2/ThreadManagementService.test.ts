@@ -276,6 +276,55 @@ it.effect("waitForThread returns the cut run once its continuation is declined",
   }),
 );
 
+it.effect(
+  "waitForThread without a run id answers with the stopped run, not the message Stop held behind it",
+  () =>
+    Effect.gen(function* () {
+      const projectId = ProjectId.make("project:thread-management:wait-held");
+      const threadId = ThreadId.make("thread:thread-management:wait-held");
+      const stoppedRunId = RunId.make("run:thread-management:wait-held:1");
+      const timeoutMs = 60 * 60 * 1_000;
+      const layerTest = ThreadManagementService.layer.pipe(
+        Layer.provide(Layer.mock(ProviderSessionManager.ProviderSessionManagerV2)({})),
+        Layer.provide(
+          Layer.mock(Orchestrator.OrchestratorV2)({
+            getThreadEventSequence: () => Effect.succeed(0),
+            restartContinuationPending: () => Effect.succeed(false),
+            streamStoredEventsFrom: () => Stream.never,
+            getThreadRecords: () =>
+              Effect.succeed({
+                thread: { id: threadId, projectId, deletedAt: null },
+                runs: [
+                  { id: stoppedRunId, ordinal: 1, status: "interrupted" },
+                  {
+                    id: RunId.make("run:thread-management:wait-held:2"),
+                    ordinal: 2,
+                    status: "queued",
+                    queueHeld: true,
+                  },
+                ],
+              } as unknown as OrchestrationV2ThreadProjection),
+          }),
+        ),
+        Layer.provide(ServerSettings.layerTest()),
+        Layer.provide(layerReceiptsTest),
+      );
+      const service = yield* ThreadManagementService.ThreadManagementService.pipe(
+        Effect.provide(layerTest),
+      );
+      const fiber = yield* service
+        .waitForThread({ projectId, threadId, timeoutMs })
+        .pipe(Effect.forkChild);
+      yield* TestClock.adjust(timeoutMs);
+      const result = yield* Fiber.join(fiber);
+
+      expect(result).toMatchObject({
+        timedOut: false,
+        run: { id: stoppedRunId, status: "interrupted" },
+      });
+    }),
+);
+
 it.effect.each(["live", "no-session", "unsupported-runtime"] as const)(
   "marks background work awaited on the thread's active provider thread with state %s",
   (state) =>

@@ -609,9 +609,9 @@ function ThreadNavigationSidebarPane(props: ThreadNavigationSidebarProps) {
           : "px-2 py-4 text-sm text-drawer-foreground-muted"
       }
     >
-      {catalogState.isLoadingConnections
+      {catalogState.phase.type === "loading-catalog"
         ? "Loading threads…"
-        : Platform.OS === "android" && !catalogState.hasConnections
+        : Platform.OS === "android" && catalogState.phase.type === "no-environments"
           ? "No environments connected"
           : props.searchQuery.trim().length > 0
             ? threadSearch.isPending

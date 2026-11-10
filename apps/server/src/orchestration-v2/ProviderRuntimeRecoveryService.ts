@@ -10,6 +10,7 @@ import {
   type OrchestrationV2ThreadProjection,
   isOrchestrationV2WorkActive,
   ThreadId,
+  isOrchestrationV2RunInProgress,
 } from "@supaterm/contracts";
 import * as Cause from "effect/Cause";
 import * as Context from "effect/Context";
@@ -80,16 +81,8 @@ export class ProviderRuntimeRecoveryService extends Context.Service<
   }
 >()("supaterm/orchestration-v2/ProviderRuntimeRecoveryService") {}
 
-function nonterminalRuns(projection: ProjectionStore.ProjectionRuntimeRecoveryState) {
-  return projection.runs.filter((run) => {
-    const status: string = run.status;
-    return (
-      status === "preparing" ||
-      run.status === "starting" ||
-      run.status === "running" ||
-      run.status === "waiting"
-    );
-  });
+function inProgressRuns(projection: ProjectionStore.ProjectionRuntimeRecoveryState) {
+  return projection.runs.filter((run) => isOrchestrationV2RunInProgress(run.status));
 }
 
 function isBackgroundCapableTurnItemType(type: string): boolean {
@@ -206,7 +199,7 @@ export const make = Effect.gen(function* () {
     ) {
       const now = yield* DateTime.now;
       let runs = [] as Array<OrchestrationV2ThreadProjection["runs"][number]>;
-      for (const run of nonterminalRuns(projection)) {
+      for (const run of inProgressRuns(projection)) {
         if (run.status === "waiting") {
           const checkpointEffects = yield* outbox
             .listByCommandId(CommandId.make(`command:effect:checkpoint.capture:${run.id}`))

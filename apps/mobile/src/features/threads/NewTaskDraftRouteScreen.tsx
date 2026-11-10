@@ -132,12 +132,7 @@ export function NewTaskDraftRouteScreen({ route }: StaticScreenProps<NewTaskDraf
   const checkoutProject = project ?? resolvedProject;
   const workspaceRoot = project?.workspaceRoot;
   const needsPreparation = Boolean(initialProjectRef.branch && !pendingTaskId && !draftId);
-  const waitingForProject =
-    !project &&
-    (catalogState.isLoadingConnections ||
-      (!catalogState.hasLoadedShellSnapshot &&
-        catalogState.hasConnectingEnvironment &&
-        catalogState.connectionError === null));
+  const waitingForProject = !project && catalogState.awaitingProjects;
 
   // The checkout is keyed by its request, so a reconnect that drops and
   // restores the project reads the same checkout instead of running another.

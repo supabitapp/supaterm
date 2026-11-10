@@ -15,9 +15,10 @@ const ENVIRONMENT_ID = EnvironmentId.make("environment-1");
 
 function environment(
   phase: EnvironmentPresentation["connection"]["phase"],
-): EnvironmentPresentation {
+  error: string | null = null,
+) {
   const connectionId = `bearer:${ENVIRONMENT_ID}`;
-  return {
+  const presentation: EnvironmentPresentation = {
     environmentId: ENVIRONMENT_ID,
     label: "Julius's MacBook Pro",
     displayUrl: "https://environment.example.test",
@@ -40,11 +41,12 @@ function environment(
     },
     connection: {
       phase,
-      error: phase === "error" ? "Connection failed." : null,
-      traceId: phase === "error" ? "trace-1" : null,
+      error,
+      traceId: error === null ? null : "trace-1",
     },
     serverConfig: null,
   };
+  return projectWorkspaceEnvironment(ENVIRONMENT_ID, presentation);
 }
 
 const EMPTY_SHELL_SUMMARY: EnvironmentShellSummary = {
@@ -53,42 +55,140 @@ const EMPTY_SHELL_SUMMARY: EnvironmentShellSummary = {
   firstError: null,
 };
 
-const CACHED_SHELL_SUMMARY: EnvironmentShellSummary = {
+const LOADING_SHELL_SUMMARY: EnvironmentShellSummary = {
   ...EMPTY_SHELL_SUMMARY,
-  hasSnapshot: true,
   hasSynchronizingShell: true,
 };
 
+const CACHED_SHELL_SUMMARY: EnvironmentShellSummary = {
+  ...LOADING_SHELL_SUMMARY,
+  hasSnapshot: true,
+};
+
+const READY = {
+  isReady: true,
+  networkStatus: "online",
+  shellSummary: EMPTY_SHELL_SUMMARY,
+  hasSyncingConnectedEnvironment: false,
+} as const;
+
+const reconnecting = environment("reconnecting");
+const failing = environment("reconnecting", "Could not reach the environment.");
+
 describe("mobile workspace projection", () => {
-  it("reports offline before stale connected presentations", () => {
-    const environments = [projectWorkspaceEnvironment(ENVIRONMENT_ID, environment("connected"))];
-    const state = projectWorkspaceState({
-      isReady: true,
-      networkStatus: "offline",
-      environments,
-      shellSummary: EMPTY_SHELL_SUMMARY,
-      hasSyncingConnectedEnvironment: false,
-    });
+  it.each([
+    {
+      name: "waits for the saved environments before reading anything else",
+      input: { ...READY, isReady: false, environments: [] },
+      phase: { type: "loading-catalog", offline: false },
+      connectionState: "available",
+      awaitingProjects: true,
+      shellsSettled: false,
+    },
+    {
+      name: "reports a device without environments, online or not",
+      input: { ...READY, networkStatus: "offline", environments: [] },
+      phase: { type: "no-environments", offline: true },
+      connectionState: "available",
+      awaitingProjects: false,
+      shellsSettled: true,
+    },
+    {
+      name: "reports offline before stale connected presentations",
+      input: { ...READY, networkStatus: "offline", environments: [environment("connected")] },
+      phase: { type: "unavailable", reason: "offline", error: null, shell: "none" },
+      connectionState: "offline",
+      awaitingProjects: false,
+      shellsSettled: true,
+    },
+    {
+      name: "still awaits projects offline while an environment is trying unfailed",
+      input: { ...READY, networkStatus: "offline", environments: [reconnecting] },
+      phase: { type: "unavailable", reason: "offline", error: null, shell: "none" },
+      connectionState: "offline",
+      awaitingProjects: true,
+      shellsSettled: false,
+    },
+    {
+      name: "carries the failure of an environment that cannot be used",
+      input: { ...READY, environments: [environment("unsupported", "Update the app.")] },
+      phase: {
+        type: "unavailable",
+        reason: "unsupported",
+        error: "Update the app.",
+        shell: "none",
+      },
+      connectionState: "unsupported",
+      awaitingProjects: false,
+      shellsSettled: true,
+    },
+    {
+      name: "keeps retained snapshots visible while reconnecting without claiming readiness",
+      input: { ...READY, environments: [reconnecting], shellSummary: CACHED_SHELL_SUMMARY },
+      phase: { type: "connecting", environments: [reconnecting], shell: "syncing" },
+      connectionState: "reconnecting",
+      awaitingProjects: false,
+      shellsSettled: false,
+    },
+    {
+      name: "keeps connecting while an environment without a snapshot retries after a failure",
+      input: { ...READY, environments: [failing] },
+      phase: {
+        type: "connecting",
+        environments: [failing],
+        shell: "none",
+      },
+      connectionState: "reconnecting",
+      awaitingProjects: false,
+      shellsSettled: true,
+    },
+    {
+      name: "awaits projects while an environment without a snapshot connects unfailed",
+      input: { ...READY, environments: [reconnecting], shellSummary: LOADING_SHELL_SUMMARY },
+      phase: { type: "connecting", environments: [reconnecting], shell: "loading" },
+      connectionState: "reconnecting",
+      awaitingProjects: true,
+      shellsSettled: false,
+    },
+    {
+      name: "loads the first shell snapshot of a connected environment",
+      input: {
+        ...READY,
+        environments: [environment("connected")],
+        shellSummary: LOADING_SHELL_SUMMARY,
+        hasSyncingConnectedEnvironment: true,
+      },
+      phase: { type: "connected", shell: "loading" },
+      connectionState: "connected",
+      awaitingProjects: true,
+      shellsSettled: false,
+    },
+    {
+      name: "awaits projects of an environment still connecting beside a connected one",
+      input: { ...READY, environments: [environment("connected"), reconnecting] },
+      phase: { type: "connected", shell: "none" },
+      connectionState: "connected",
+      awaitingProjects: true,
+      shellsSettled: false,
+    },
+    {
+      name: "ignores another environment's shell sync once one is connected",
+      input: {
+        ...READY,
+        environments: [environment("connected"), failing],
+        shellSummary: CACHED_SHELL_SUMMARY,
+      },
+      phase: { type: "connected", shell: "loaded" },
+      connectionState: "connected",
+      awaitingProjects: false,
+      shellsSettled: false,
+    },
+  ] as const)("$name", ({ input, phase, connectionState, awaitingProjects, shellsSettled }) => {
+    const state = projectWorkspaceState(input);
 
-    expect(state.connectionState).toBe("offline");
-    expect(state.networkStatus).toBe("offline");
-    expect(state.hasReadyEnvironment).toBe(false);
-  });
-
-  it("keeps retained snapshots visible while reconnecting without claiming readiness", () => {
-    const environments = [projectWorkspaceEnvironment(ENVIRONMENT_ID, environment("reconnecting"))];
-    const state = projectWorkspaceState({
-      isReady: true,
-      networkStatus: "online",
-      environments,
-      shellSummary: CACHED_SHELL_SUMMARY,
-      hasSyncingConnectedEnvironment: false,
-    });
-
-    expect(state.hasLoadedShellSnapshot).toBe(true);
-    expect(state.hasPendingShellSnapshot).toBe(true);
-    expect(state.hasSyncingConnectedEnvironment).toBe(false);
-    expect(state.hasReadyEnvironment).toBe(false);
-    expect(state.connectionState).toBe("reconnecting");
+    expect(state.phase).toEqual(phase);
+    expect(state.connectionState).toBe(connectionState);
+    expect(state.awaitingProjects).toBe(awaitingProjects);
+    expect(state.shellsSettled).toBe(shellsSettled);
   });
 });

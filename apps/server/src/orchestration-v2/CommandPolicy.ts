@@ -10,6 +10,7 @@ import {
   OrchestrationV2ThreadProjection,
   ProviderInstanceId,
   ThreadId,
+  isOrchestrationV2RunInProgress,
 } from "@supaterm/contracts";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
@@ -105,7 +106,7 @@ export function resolveMessageDispatchIntent(
   }
   // A provider that can neither steer nor restart its turn takes the message after the turn.
   const turns =
-    target === undefined || !isActiveRun(target)
+    target === undefined || !isRunInProgress(target)
       ? undefined
       : providerTurnCapabilities(projection, target);
   return turns !== undefined &&
@@ -117,13 +118,8 @@ export function resolveMessageDispatchIntent(
 }
 
 /** A run that still owns the thread's provider turn. */
-export function isActiveRun(run: OrchestrationV2Run): boolean {
-  return (
-    run.status === "preparing" ||
-    run.status === "starting" ||
-    run.status === "running" ||
-    run.status === "waiting"
-  );
+export function isRunInProgress(run: OrchestrationV2Run): boolean {
+  return isOrchestrationV2RunInProgress(run.status);
 }
 
 function providerTurnCapabilities(
@@ -149,7 +145,7 @@ function resolveDeliveryIntent(
 ): MessageDispatchMode {
   if (deliveryIntent === undefined) return requestedMode;
 
-  const activeRun = projection.runs.findLast(isActiveRun);
+  const activeRun = projection.runs.findLast(isRunInProgress);
   if (activeRun === undefined) return { type: "start_immediately" };
   if (deliveryIntent === "steer") {
     return { type: "steer_active", targetRunId: activeRun.id };

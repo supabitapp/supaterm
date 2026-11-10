@@ -160,7 +160,7 @@ import { useDelayedStatus } from "../../lib/useDelayedStatus";
 import type { RunStopPresentation } from "@supaterm/client-runtime/state/thread-execution";
 import type { PendingUserInputDraftAnswer } from "@supaterm/client-runtime/state/pending-user-input";
 import {
-  threadFeedRunIsUnsettled,
+  threadFeedRunIsInProgress,
   type PendingApproval,
   type PendingUserInput,
   type ThreadFeedEntry,
@@ -356,7 +356,7 @@ function useThreadOutcomeHaptics(state: {
       run === null ||
       run.completedAt === null ||
       previous.run?.runId !== run.runId ||
-      !threadFeedRunIsUnsettled(previous.run)
+      !threadFeedRunIsInProgress(previous.run)
     ) {
       return;
     }

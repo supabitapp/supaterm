@@ -3,6 +3,8 @@ import {
   isCompactionCommandMessage,
   type OrchestrationV2ProjectedTurnItem,
   type OrchestrationV2ProviderCapabilities,
+  isOrchestrationV2RunInProgress,
+  isOrchestrationV2RunInterruptible,
 } from "@supaterm/contracts";
 import { latestForkableRun } from "@supaterm/contracts";
 import { copySorted } from "@supaterm/shared/Array";
@@ -10,7 +12,7 @@ import { copySorted } from "@supaterm/shared/Array";
 import {
   type ThreadStructure,
   type ThreadStructureRuntime,
-  threadRuntimeIsActive,
+  threadRuntimeIsUnsettled,
 } from "./models.ts";
 
 type Projection = ThreadStructure;
@@ -18,13 +20,7 @@ type Run = Projection["runs"][number];
 type Message = Projection["messages"][number];
 type ProviderSession = Projection["providerSessions"][number];
 
-const ACTIVE_RUN_STATUSES = new Set<Run["status"]>(["preparing", "starting", "running", "waiting"]);
 const MERGE_BACK_RUN_STATUSES = new Set<Run["status"]>(["waiting", "completed"]);
-const MERGE_BACK_BLOCKING_RUN_STATUSES = new Set<Run["status"]>([
-  "preparing",
-  "starting",
-  "running",
-]);
 
 export interface QueuedThreadRun {
   readonly run: Run;
@@ -47,7 +43,7 @@ export interface ThreadQueueWorkflowState {
 }
 
 export function resolveActiveThreadRun(projection: Pick<Projection, "runs">): Run | null {
-  return projection.runs.findLast((run) => ACTIVE_RUN_STATUSES.has(run.status)) ?? null;
+  return projection.runs.findLast((run) => isOrchestrationV2RunInProgress(run.status)) ?? null;
 }
 
 /** Newer work does not prevent forking the last provider-finished conversation. */
@@ -85,7 +81,7 @@ export function resolveLatestMergeBackRun(projection: Projection): Run | null {
   const hasNewerActiveRun = projection.runs.some(
     (run) =>
       run.ordinal > latestProviderFinishedRun.ordinal &&
-      MERGE_BACK_BLOCKING_RUN_STATUSES.has(run.status),
+      isOrchestrationV2RunInterruptible(run.status),
   );
   return hasNewerActiveRun ? null : latestProviderFinishedRun;
 }
@@ -97,7 +93,8 @@ export function sideChatBringBackBlockedReason(input: {
 }) {
   if (!input.canOperate) return "This connection cannot change threads.";
   // A pending merge-back would fail the main thread's queued message, so the server refuses it.
-  if (threadRuntimeIsActive(input.parentRuntime)) return "Available when the main thread is idle.";
+  if (threadRuntimeIsUnsettled(input.parentRuntime))
+    return "Available when the main thread is idle.";
   return input.mergeRun === null ? "Available after a finished reply." : null;
 }
 

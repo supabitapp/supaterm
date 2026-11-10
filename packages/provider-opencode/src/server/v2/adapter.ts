@@ -274,6 +274,12 @@ interface OpenBlock {
   text: string;
 }
 
+/**
+ * A prompt whose request failed may start its run late; that start is the
+ * run's own, and only a start after it means its end was lost.
+ */
+type UnsettledRun = "none" | "notStarted" | "started";
+
 interface ThreadState {
   readonly sessionId: string;
   providerThread: OrchestrationV2ProviderThread;
@@ -287,12 +293,7 @@ interface ThreadState {
    * request Supaterm could not answer. Execution events carry only the session id,
    * so the next execution end belongs to that run; it clears this and ends no turn.
    */
-  unsettled: boolean;
-  /**
-   * A prompt whose request failed may start its run late; that start is the
-   * run's own, and only a start after it means its end was lost.
-   */
-  unsettledStarted: boolean;
+  unsettledRun: UnsettledRun;
   directory: string;
   agent: string;
   title: string | undefined;
@@ -761,8 +762,7 @@ export const make = Effect.fn("OpenCode2Adapter.make")(function* (instanceId: Pr
       Queue.offer(events, event).pipe(Effect.asVoid);
     const ownerOf = (sessionId: string) => childOwners.get(sessionId) ?? threads.get(sessionId);
     const markUnsettled = (state: ThreadState) => {
-      state.unsettled = true;
-      state.unsettledStarted = busy.has(state.sessionId);
+      state.unsettledRun = busy.has(state.sessionId) ? "started" : "notStarted";
     };
 
     const newThreadState = (
@@ -776,8 +776,7 @@ export const make = Effect.fn("OpenCode2Adapter.make")(function* (instanceId: Pr
       providerTurns: new Map(),
       active: undefined,
       model: undefined,
-      unsettled: false,
-      unsettledStarted: false,
+      unsettledRun: "none",
       directory,
       agent: "build",
       title: undefined,
@@ -1449,7 +1448,7 @@ export const make = Effect.fn("OpenCode2Adapter.make")(function* (instanceId: Pr
           yield* settleCall(nested, status === "completed" ? "interrupted" : status);
         }
         if (child.active !== undefined && status !== "completed") {
-          yield* finishTurn(child, { status: "interrupted" });
+          yield* finishTurn(child, child.active, { status: "interrupted" });
         }
         child.providerThread = {
           ...child.providerThread,
@@ -1564,11 +1563,11 @@ export const make = Effect.fn("OpenCode2Adapter.make")(function* (instanceId: Pr
 
     const finishTurn = Effect.fnUntraced(function* (
       state: ThreadState,
+      turn: ActiveTurn,
       terminal: TurnTerminal,
       threadDisposition: "reusable" | "broken" = "reusable",
     ) {
-      const turn = state.active;
-      if (turn === undefined) return;
+      if (state.active !== turn) return;
       state.active = undefined;
       for (const inboxID of turn.steers) state.strandedSteers.add(inboxID);
       for (const entry of pending.values()) {
@@ -1715,9 +1714,10 @@ export const make = Effect.fn("OpenCode2Adapter.make")(function* (instanceId: Pr
       yield* Effect.logWarning("Could not answer an OpenCode request; ending its turn.", {
         reason,
       });
-      if (state.active === undefined) return;
+      const turn = state.active;
+      if (turn === undefined) return;
       markUnsettled(state);
-      yield* finishTurn(state, {
+      yield* finishTurn(state, turn, {
         status: "failed",
         failure: makeProviderFailure({
           message: "OpenCode is waiting on a request Supaterm couldn't answer.",
@@ -1984,7 +1984,8 @@ export const make = Effect.fn("OpenCode2Adapter.make")(function* (instanceId: Pr
       const asker = threads.get(form.sessionID) ?? state;
       if (!cancelled) return yield* abandonRequest(asker, "form cancel failed");
       if (asker.subagent === undefined) markUnsettled(asker);
-      yield* finishTurn(asker, {
+      if (asker.active === undefined) return;
+      yield* finishTurn(asker, asker.active, {
         status: "failed",
         failure: makeProviderFailure({
           message: `OpenCode asked for ${mapped.unsupported}, which Supaterm can't show. The question was declined.`,
@@ -2014,7 +2015,7 @@ export const make = Effect.fn("OpenCode2Adapter.make")(function* (instanceId: Pr
         if (asked.type === "permission") return yield* onPermissionAsked(asked.request);
         return yield* onFormCreated(asked.form);
       }
-      if (state.unsettled || state.active?.awaitingStart === true) {
+      if (state.unsettledRun !== "none" || state.active?.awaitingStart === true) {
         yield* stopStaleRequest(
           asking,
           asked.type === "permission"
@@ -2322,12 +2323,12 @@ export const make = Effect.fn("OpenCode2Adapter.make")(function* (instanceId: Pr
         turn.heldEnd = end;
         return;
       }
-      yield* finishTurn(state, end);
+      yield* finishTurn(state, turn, end);
     });
 
     const endIfSettled = (state: ThreadState, turn: ActiveTurn) =>
       turn.heldEnd !== undefined && turn.steers.size === 0
-        ? finishTurn(state, turn.heldEnd)
+        ? finishTurn(state, turn, turn.heldEnd)
         : Effect.void;
 
     const handleEvent = Effect.fnUntraced(function* (event: OpenCode2Client.OpenCode2StreamEvent) {
@@ -2350,13 +2351,11 @@ export const make = Effect.fn("OpenCode2Adapter.make")(function* (instanceId: Pr
           event.type === "unreadable.execution.started"
         ) {
           // A session runs one execution at a time, so a later `started` means the run
-          // `unsettled` waits on is over: its unseen end was lost with a dropped stream, and
+          // `unsettledRun` waits on is over: its unseen end was lost with a dropped stream, and
           // the next end is this execution's own.
           const state = threads.get(sessionId);
-          if (state?.unsettled === true) {
-            if (state.unsettledStarted) state.unsettled = false;
-            else state.unsettledStarted = true;
-          }
+          if (state?.unsettledRun === "started") state.unsettledRun = "none";
+          else if (state?.unsettledRun === "notStarted") state.unsettledRun = "started";
           busy.add(sessionId);
         } else if (event.type === "unreadable.execution.ended" || executionEnd(event.type)) {
           busy.delete(sessionId);
@@ -2400,8 +2399,8 @@ export const make = Effect.fn("OpenCode2Adapter.make")(function* (instanceId: Pr
         !held && (event.type === "unreadable.execution.ended" || executionEnd(event.type))
           ? threads.get(sessionId ?? "")
           : undefined;
-      if (ended?.unsettled === true) {
-        ended.unsettled = false;
+      if (ended !== undefined && ended.unsettledRun !== "none") {
+        ended.unsettledRun = "none";
         return;
       }
       if (event.type === "unreadable.execution.started") {
@@ -2520,8 +2519,9 @@ export const make = Effect.fn("OpenCode2Adapter.make")(function* (instanceId: Pr
       streamFailure = message;
       yield* Deferred.succeed(reconnected, undefined);
       for (const state of threads.values()) {
+        if (state.active === undefined) continue;
         const failure = makeProviderFailure({ message, class: "transport_error" });
-        yield* finishTurn(state, { status: "failed", failure }, "broken");
+        yield* finishTurn(state, state.active, { status: "failed", failure }, "broken");
       }
       for (const state of threads.values()) {
         for (const call of runningCalls(state)) yield* settleCall(call, "failed");
@@ -2634,7 +2634,7 @@ export const make = Effect.fn("OpenCode2Adapter.make")(function* (instanceId: Pr
       const background = [...threads.values()].filter(
         (state) => state.subagent === undefined && hasBackground(state),
       );
-      const marked = [...threads.values()].some((state) => state.unsettled);
+      const marked = [...threads.values()].some((state) => state.unsettledRun !== "none");
       if (
         running.length === 0 &&
         background.length === 0 &&
@@ -2647,16 +2647,19 @@ export const make = Effect.fn("OpenCode2Adapter.make")(function* (instanceId: Pr
       const active = yield* client.session.active();
       for (const sessionId of busy) if (!(sessionId in active)) busy.delete(sessionId);
       for (const state of threads.values()) {
-        if (state.unsettled && !(state.sessionId in active)) state.unsettledStarted = true;
+        if (state.unsettledRun === "notStarted" && !(state.sessionId in active)) {
+          state.unsettledRun = "started";
+        }
       }
       for (const childId of strays.keys()) if (!(childId in active)) strays.delete(childId);
       for (const [sessionId, state] of running) {
         const turn = state.active;
         if (turn === undefined) continue;
         const ended = yield* backfill(sessionId, state);
-        if (sessionId in active || state.active !== turn) continue;
+        if (sessionId in active) continue;
         yield* finishTurn(
           state,
+          turn,
           ended?.outcome === "succeeded"
             ? { status: turn.interrupted ? "interrupted" : "completed" }
             : ended?.outcome === "failed"
@@ -2951,7 +2954,7 @@ export const make = Effect.fn("OpenCode2Adapter.make")(function* (instanceId: Pr
           (verb === "roll back" && hasBackground(state)));
       const busyThere =
         !busyHere &&
-        (state === undefined || state.unsettled) &&
+        (state === undefined || state.unsettledRun !== "none") &&
         sessionId in (yield* client.session.active().pipe(Effect.timeout(ACTIVE_CHECK_TIMEOUT)));
       if (busyHere || busyThere) {
         return yield* new ProviderAdapter.ProviderAdapterProtocolError({
@@ -3325,26 +3328,25 @@ export const make = Effect.fn("OpenCode2Adapter.make")(function* (instanceId: Pr
       state: ThreadState,
       turnInput: ProviderAdapter.ProviderAdapterV2TurnInput,
     ) {
-      yield* beginTurn(state, turnInput, false);
+      const turn = yield* beginTurn(state, turnInput, false);
       yield* lock.withPermit(
         Effect.gen(function* () {
           const index = state.wakes.findIndex(
             (held) => held.messageId === turnInput.message.messageId,
           );
-          if (index < 0) return yield* finishTurn(state, { status: "completed" });
+          if (index < 0) return yield* finishTurn(state, turn, { status: "completed" });
           // Queued continuations can't be reordered (they carry a notification),
           // so an earlier wake here lost its continuation to a cancel or a failed
           // dispatch. Dropping it keeps that wake from pinning the session.
           discardWakes(state, state.wakes.splice(0, index));
           yield* Effect.forkIn(stopStrays(state), sessionScope);
           const wake = state.wakes.shift()!;
-          const turn = state.active;
-          if (turn !== undefined && wake.after !== undefined) turn.before = wake.after;
+          if (wake.after !== undefined) turn.before = wake.after;
           // Its first report is where its history begins, so fork and rollback cut there.
-          if (turn !== undefined && wake.first !== undefined) {
+          if (wake.first !== undefined) {
             turn.providerTurn = { ...turn.providerTurn, nativeTurnRef: ref(wake.first, "weak") };
           }
-          if (wake.running) state.unsettled = false;
+          if (wake.running) state.unsettledRun = "none";
           yield* replay(wake);
           for (const session of sessionsOf(state).toReversed()) yield* syncRoster(session);
           yield* syncRosterAncestors(state);
@@ -3678,9 +3680,9 @@ export const make = Effect.fn("OpenCode2Adapter.make")(function* (instanceId: Pr
                 });
               }
               if (isContinuation(turnInput)) return yield* runWake(state, turnInput);
-              const afterUnsettled = state.unsettled;
+              const afterUnsettled = state.unsettledRun !== "none";
               let stillStopping = false;
-              if (state.unsettled) {
+              if (afterUnsettled) {
                 const active = yield* client.session
                   .active()
                   .pipe(Effect.timeout(ACTIVE_CHECK_TIMEOUT));
@@ -3690,13 +3692,12 @@ export const make = Effect.fn("OpenCode2Adapter.make")(function* (instanceId: Pr
                     .interrupt({ sessionID: Session.ID.make(sessionId) })
                     .pipe(Effect.timeout(INTERRUPT_TIMEOUT), Effect.ignore({ log: true }));
                 } else {
-                  state.unsettled = false;
+                  state.unsettledRun = "none";
                 }
               }
               const begin = beginTurn(state, turnInput, afterUnsettled);
               if (stillStopping) {
-                yield* begin;
-                return yield* finishTurn(state, {
+                return yield* finishTurn(state, yield* begin, {
                   status: "failed",
                   failure: makeProviderFailure({
                     message: OPENCODE_2_STILL_STOPPING,
@@ -3706,8 +3707,7 @@ export const make = Effect.fn("OpenCode2Adapter.make")(function* (instanceId: Pr
               }
               const model = modelRef(turnInput.modelSelection);
               if (model === undefined) {
-                yield* begin;
-                return yield* finishTurn(state, {
+                return yield* finishTurn(state, yield* begin, {
                   status: "failed",
                   failure: makeProviderFailure({
                     message: malformedModel(turnInput.modelSelection.model),
@@ -3761,25 +3761,30 @@ export const make = Effect.fn("OpenCode2Adapter.make")(function* (instanceId: Pr
             // Deleted outside Supaterm: the thread is broken, and forgetting it makes
             // the next turn resume, fail, and recreate it with a handoff.
             Effect.catchTags({
-              SessionNotFoundError: () =>
-                finishTurn(
-                  state,
-                  {
-                    status: "failed",
-                    failure: makeProviderFailure({
-                      message:
-                        "The OpenCode session no longer exists. Send the message again to continue in a new session.",
-                      class: "provider_error",
-                    }),
-                  },
-                  "broken",
-                ).pipe(Effect.andThen(Effect.sync(() => threads.delete(sessionId)))),
+              SessionNotFoundError: Effect.fnUntraced(function* () {
+                if (state.active !== undefined) {
+                  yield* finishTurn(
+                    state,
+                    state.active,
+                    {
+                      status: "failed",
+                      failure: makeProviderFailure({
+                        message:
+                          "The OpenCode session no longer exists. Send the message again to continue in a new session.",
+                        class: "provider_error",
+                      }),
+                    },
+                    "broken",
+                  );
+                }
+                threads.delete(sessionId);
+              }),
             }),
             Effect.tapError((cause) =>
               state.active === turn
                 ? Effect.gen(function* () {
                     if (!CLEAR_PROMPT_REJECTIONS.has(cause._tag)) markUnsettled(state);
-                    yield* finishTurn(state, {
+                    yield* finishTurn(state, turn, {
                       status: "failed",
                       failure: makeProviderFailure({ cause, class: "provider_error" }),
                     });
@@ -3838,7 +3843,7 @@ export const make = Effect.fn("OpenCode2Adapter.make")(function* (instanceId: Pr
                 Effect.gen(function* () {
                   turn.steers.delete(inboxID);
                   state.strandedSteers.delete(inboxID);
-                  if (state.active === turn) yield* endIfSettled(state, turn);
+                  yield* endIfSettled(state, turn);
                 }),
               ),
             ),
@@ -3849,12 +3854,10 @@ export const make = Effect.fn("OpenCode2Adapter.make")(function* (instanceId: Pr
                 turn.steers.delete(inboxID);
 
                 state.strandedSteers.delete(inboxID);
-                if (state.active === turn) {
-                  if (turn.interrupted && turn.heldEnd !== undefined) {
-                    turn.heldEnd = { status: "interrupted" };
-                  }
-                  yield* endIfSettled(state, turn);
+                if (turn.interrupted && turn.heldEnd !== undefined) {
+                  turn.heldEnd = { status: "interrupted" };
                 }
+                yield* endIfSettled(state, turn);
               }),
             );
             return yield* new ProviderAdapter.ProviderAdapterProtocolError({
@@ -3876,7 +3879,7 @@ export const make = Effect.fn("OpenCode2Adapter.make")(function* (instanceId: Pr
                   Effect.gen(function* () {
                     turn.steers.delete(inboxID);
                     if (!CLEAR_PROMPT_REJECTIONS.has(cause._tag)) state.strandedSteers.add(inboxID);
-                    if (state.active === turn) yield* endIfSettled(state, turn);
+                    yield* endIfSettled(state, turn);
                   }),
                 ),
               ),
@@ -3921,27 +3924,27 @@ export const make = Effect.fn("OpenCode2Adapter.make")(function* (instanceId: Pr
                 }),
               ),
             );
+          if (state.active !== turn) return;
           if (reply._tag === "None") {
             markUnsettled(state);
-            return yield* lock.withPermit(finishTurn(state, { status: "interrupted" }));
+            return yield* lock.withPermit(finishTurn(state, turn, { status: "interrupted" }));
           }
+          if (reply.value.interrupted) return;
           // Between the executions a late steer spans nothing runs yet. The
           // steers are taken back, and a run they already started is skipped.
-          if (!reply.value.interrupted && state.active === turn && turn.heldEnd !== undefined) {
+          if (turn.heldEnd !== undefined) {
             markUnsettled(state);
-            yield* lock.withPermit(finishTurn(state, { status: "interrupted" }));
+            yield* lock.withPermit(finishTurn(state, turn, { status: "interrupted" }));
             return yield* cancelStrandedSteers(state);
           }
-          if (!reply.value.interrupted && state.active === turn && turn.unsent) {
-            return yield* lock.withPermit(finishTurn(state, { status: "interrupted" }));
+          if (turn.unsent) {
+            return yield* lock.withPermit(finishTurn(state, turn, { status: "interrupted" }));
           }
-          if (!reply.value.interrupted && state.active === turn) {
-            turn.interrupted = false;
-            return yield* new ProviderAdapter.ProviderAdapterProtocolError({
-              driver: OPENCODE_PROVIDER,
-              detail: `OpenCode session ${sessionId} had nothing running to stop`,
-            });
-          }
+          turn.interrupted = false;
+          return yield* new ProviderAdapter.ProviderAdapterProtocolError({
+            driver: OPENCODE_PROVIDER,
+            detail: `OpenCode session ${sessionId} had nothing running to stop`,
+          });
         },
         (effect, interruptInput) =>
           effect.pipe(

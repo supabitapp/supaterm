@@ -1,7 +1,8 @@
-import type {
-  OrchestrationV2Command,
-  OrchestrationV2DomainEvent,
-  OrchestrationV2ThreadProjection,
+import {
+  isOrchestrationV2RunUnsettled,
+  type OrchestrationV2Command,
+  type OrchestrationV2DomainEvent,
+  type OrchestrationV2ThreadProjection,
 } from "@supaterm/contracts";
 import type * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
@@ -66,9 +67,7 @@ export const planThreadDeletion = Effect.fn("ThreadDeletion.planThreadDeletion")
     },
   });
 
-  const activeRuns = projection.runs.filter((run) =>
-    ["preparing", "queued", "starting", "running", "waiting"].includes(run.status),
-  );
+  const activeRuns = projection.runs.filter((run) => isOrchestrationV2RunUnsettled(run.status));
   const activeRunById = new Map(activeRuns.map((run) => [run.id, run]));
   for (const run of activeRuns) {
     yield* emitEvent({

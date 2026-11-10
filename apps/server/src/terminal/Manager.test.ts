@@ -708,6 +708,51 @@ it.layer(
     }),
   );
 
+  it.effect("keeps delivery serial and runs a queued exit when clear lands mid-delivery", () =>
+    Effect.gen(function* () {
+      const { manager, ptyAdapter, getEvents } = yield* createManager();
+      yield* manager.open(openInput());
+      const process = ptyAdapter.processes[0]!;
+      const delivering = yield* Deferred.make<void>();
+      const release = yield* Deferred.make<void>();
+      const exited = yield* Deferred.make<void>();
+      yield* Effect.addFinalizer(() => Deferred.succeed(release, undefined));
+      const unsubscribe = yield* manager.subscribe((event) =>
+        event.type === "output" && event.data === "held"
+          ? Deferred.succeed(delivering, undefined).pipe(Effect.andThen(Deferred.await(release)))
+          : event.type === "exited"
+            ? Deferred.succeed(exited, undefined).pipe(Effect.asVoid)
+            : Effect.void,
+      );
+      yield* Effect.addFinalizer(() => Effect.sync(unsubscribe));
+      const clear = manager.clear({ threadId: "thread-1", terminalId: DEFAULT_TERMINAL_ID });
+      const eventTypes = Effect.map(getEvents, (events) => events.map((event) => event.type));
+
+      process.emitData("held");
+      yield* Deferred.await(delivering);
+      yield* clear;
+      process.emitData("dropped by the next clear");
+      expect(yield* eventTypes).toEqual(["started", "output", "cleared"]);
+
+      process.emitExit({ exitCode: 3, signal: null });
+      yield* clear;
+      yield* Deferred.succeed(release, undefined);
+      yield* Deferred.await(exited);
+
+      expect(yield* eventTypes).toEqual(["started", "output", "cleared", "cleared", "exited"]);
+      const attached: TerminalAttachStreamEvent[] = [];
+      const stopAttach = yield* manager.attachStream(openInput(), (event) =>
+        Effect.sync(() => {
+          attached.push(event);
+        }),
+      );
+      yield* Effect.addFinalizer(() => Effect.sync(stopAttach));
+      expect(attached.find((event) => event.type === "snapshot")).toMatchObject({
+        snapshot: { status: "exited", exitCode: 3 },
+      });
+    }),
+  );
+
   it.effect("supports multiple terminals per thread independently", () =>
     Effect.gen(function* () {
       const { manager, ptyAdapter } = yield* createManager();

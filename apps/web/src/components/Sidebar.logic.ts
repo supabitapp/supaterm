@@ -4,8 +4,16 @@ import { backgroundWorkHoldsCompletion } from "@supaterm/shared/orchestrationV2P
 import { threadPullRequestSearchTerms } from "@supaterm/shared/threadPullRequests";
 import * as React from "react";
 import { defaultAnimateLayoutChanges, type AnimateLayoutChanges } from "@dnd-kit/sortable";
-import { isListedThreadLineage, type ContextMenuItem } from "@supaterm/contracts";
+import {
+  isListedThreadLineage,
+  type ContextMenuItem,
+  isOrchestrationV2RunNotYetRunning,
+} from "@supaterm/contracts";
 import type { SidebarProjectSortOrder, SidebarThreadSortOrder } from "@supaterm/contracts/settings";
+import {
+  resolveThreadRowStatus,
+  type ThreadRowStatus,
+} from "@supaterm/client-runtime/state/thread-row-status";
 import {
   effectiveSnoozed,
   type ThreadSnoozeShell,
@@ -712,15 +720,7 @@ export function resolveAdjacentThreadId<T>(input: {
   return currentIndex < threadIds.length - 1 ? (threadIds[currentIndex + 1] ?? null) : null;
 }
 
-export type SidebarThreadStatus =
-  | "approval"
-  | "input"
-  | "preparing"
-  | "working"
-  | "waiting"
-  | "failed"
-  | "limited"
-  | "ready";
+export type SidebarThreadStatus = ThreadRowStatus | "preparing";
 
 export function shouldRecedeSidebarThread(input: {
   status: SidebarThreadStatus;
@@ -739,41 +739,12 @@ export function shouldRecedeSidebarThread(input: {
   return false;
 }
 
-type SidebarThreadStatusInput = Pick<
-  SidebarThreadSummary,
-  | "hasPendingApprovals"
-  | "hasPendingUserInput"
-  | "pendingSubagentRequest"
-  | "runtime"
-  | "blockedOnThreadWait"
->;
-
-export function resolveSidebarThreadStatus(thread: SidebarThreadStatusInput): SidebarThreadStatus {
-  if (thread.hasPendingApprovals || thread.pendingSubagentRequest === "approval") {
-    return "approval";
-  }
-  if (thread.hasPendingUserInput || thread.pendingSubagentRequest === "user_input") {
-    return "input";
-  }
-  if (thread.runtime?.status === "running" && thread.blockedOnThreadWait === true) {
-    return "waiting";
-  }
-  if (thread.runtime?.status === "preparing") {
-    return "preparing";
-  }
-  if (
-    thread.runtime !== null &&
-    ["queued", "starting", "running", "waiting"].includes(thread.runtime.status)
-  ) {
-    return "working";
-  }
-  if (thread.runtime?.status === "idle") {
-    return "waiting";
-  }
-  if (thread.runtime?.status === "failed") {
-    return thread.runtime.lastErrorClass === "usage_limit" ? "limited" : "failed";
-  }
-  return "ready";
+/** The shared row status, with worktree setup told apart from other work on web. */
+export function resolveSidebarThreadStatus(
+  thread: Parameters<typeof resolveThreadRowStatus>[0],
+): SidebarThreadStatus {
+  const status = resolveThreadRowStatus(thread);
+  return status === "working" && thread.runtime?.status === "preparing" ? "preparing" : status;
 }
 
 export type SidebarV2TopStatusKind =
@@ -894,11 +865,7 @@ export function resolveThreadStatusPill(input: {
     };
   }
 
-  if (
-    thread.runtime?.status === "preparing" ||
-    thread.runtime?.status === "starting" ||
-    thread.runtime?.status === "queued"
-  ) {
+  if (isOrchestrationV2RunNotYetRunning(thread.runtime?.status)) {
     return {
       label: "Connecting",
       colorClass: "text-sky-600 dark:text-sky-300/80",

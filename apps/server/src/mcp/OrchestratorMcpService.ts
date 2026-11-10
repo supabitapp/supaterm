@@ -67,12 +67,14 @@ import {
   ThreadId,
   isOrchestrationV2WorkActive,
   TurnItemId,
+  isOrchestrationV2RunInProgress,
+  isOrchestrationV2RunSettled,
   latestProviderTurnForAttempt,
   resolveProjectProviderInstanceEnabled,
   SECRET_REQUEST_UNSAVED_NOTE,
 } from "@supaterm/contracts";
 import { getProviderOptionCurrentValue, withLegacyUltracodeEffort } from "@supaterm/shared/model";
-import { runRanAfter } from "@supaterm/shared/orchestrationV2ThreadError";
+import { latestUnheldRun, runRanAfter } from "@supaterm/shared/orchestrationV2ThreadError";
 import { formatThreadLink } from "@supaterm/shared/threadLinks";
 import {
   normalizeThreadPullRequestKey,
@@ -505,7 +507,7 @@ function hasPendingChildRuns(
 ): boolean {
   return childProjection.runs.some(
     (run) =>
-      !ThreadManagementService.isTerminalRunStatus(run.status) &&
+      !isOrchestrationV2RunSettled(run.status) &&
       !(run.status === "queued" && run.queueHeld === true) &&
       (delegatedRun === undefined || run.ordinal > delegatedRun.ordinal),
   );
@@ -541,7 +543,7 @@ function pendingTaskApproval(
     child.runs
       .filter(
         (run) =>
-          !ThreadManagementService.isTerminalRunStatus(run.status) &&
+          !isOrchestrationV2RunSettled(run.status) &&
           (run.delegatedTaskId === taskId ||
             // Legacy tasks own only their original run, not later turns in the child thread.
             (run.delegatedTaskId === undefined && run.id === originalRun?.id)),
@@ -689,7 +691,7 @@ function latestTerminalResultRun(
   return projection.runs
     .filter(
       (run) =>
-        ThreadManagementService.isTerminalRunStatus(run.status) &&
+        isOrchestrationV2RunSettled(run.status) &&
         !monitorRunIds.has(run.id) &&
         run.status !== "rolled_back" &&
         (run.id === delegatedRun?.id || run.startedAt !== null),
@@ -939,7 +941,7 @@ function threadDetail(
   shell: OrchestrationV2ThreadShell,
   nowMs: number,
 ): OrchestratorMcpThreadDetail {
-  const latest = ThreadManagementService.latestRun(projection);
+  const latest = latestUnheldRun(projection.runs);
   const active = ThreadManagementService.latestActiveRun(projection);
   return {
     threadId: projection.thread.id,
@@ -2228,10 +2230,7 @@ const make = Effect.gen(function* () {
             return item.secretStatus;
           }
           const current = projection.runs.find((candidate) => candidate.id === runId);
-          if (
-            current === undefined ||
-            ThreadManagementService.isTerminalRunStatus(current.status)
-          ) {
+          if (current === undefined || isOrchestrationV2RunSettled(current.status)) {
             yield* record("cancelled");
             return "cancelled" as const;
           }
@@ -2359,7 +2358,7 @@ const make = Effect.gen(function* () {
     delegateTask: Effect.fn("OrchestratorMcpService.delegateTask")(function* (callerScope, input) {
       const { scope, parent } = yield* loadThreadCaller(callerScope, "delegate_task");
       const parentRun = parent.runs
-        .filter(ThreadManagementService.isActiveRun)
+        .filter((run) => isOrchestrationV2RunInProgress(run.status))
         .toSorted((left, right) => right.ordinal - left.ordinal)[0];
       if (
         parentRun === undefined ||

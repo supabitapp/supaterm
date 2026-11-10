@@ -23,7 +23,7 @@ import {
   UsersIcon,
 } from "@supaterm/icons";
 import * as Schema from "effect/Schema";
-import { useRef, useState, type ReactNode } from "react";
+import { useReducer, useRef, useState, type ReactNode } from "react";
 import { withOccurrenceKeys } from "@supaterm/shared/occurrenceKeys";
 
 import { pullRequestEnvironment } from "~/state/pullRequests";
@@ -94,6 +94,11 @@ import {
 import { PullRequestReactionBar } from "./PullRequestReactions";
 import { PullRequestConversationGhost } from "./PullRequestGhosts";
 import { sectionCollapseAnchorScrollTop } from "./pullRequestSummaryScroll.logic";
+import {
+  pullRequestEditorView,
+  stepPullRequestEdit,
+  type PullRequestEditorView,
+} from "./PullRequestSummaryTab.logic";
 
 function reviewerKey(login: string): string {
   return login.toLowerCase();
@@ -173,9 +178,9 @@ interface CommentEditing {
   readonly completionScope: PullRequestCompletionScope | null;
   readonly threadRef: ScopedThreadRef | null;
   readonly canEdit: (comment: PullRequestComment) => boolean;
-  readonly editingId: string | null;
-  readonly saving: boolean;
-  readonly onEdit: (comment: PullRequestComment | null) => void;
+  readonly view: (comment: PullRequestComment) => PullRequestEditorView;
+  readonly onEdit: (comment: PullRequestComment) => void;
+  readonly onCancel: (comment: PullRequestComment) => void;
   readonly onSave: (comment: PullRequestComment, body: string) => void;
 }
 
@@ -188,7 +193,8 @@ function CommentBody({
   editing: CommentEditing;
   className?: string | undefined;
 }) {
-  if (editing.editingId === comment.id) {
+  const view = editing.view(comment);
+  if (view === "editing" || view === "saving") {
     return (
       <PullRequestMarkdownEditor
         className={className}
@@ -198,9 +204,9 @@ function CommentBody({
         completionScope={editing.completionScope}
         threadRef={editing.threadRef}
         label="Edit comment"
-        saving={editing.saving}
+        saving={view === "saving"}
         onSave={(body) => editing.onSave(comment, body)}
-        onCancel={() => editing.onEdit(null)}
+        onCancel={() => editing.onCancel(comment)}
       />
     );
   }
@@ -215,7 +221,11 @@ function CommentBody({
         threadRef={editing.threadRef}
       />
       {editing.canEdit(comment) ? (
-        <PullRequestEditButton aria-label="Edit comment" onClick={() => editing.onEdit(comment)} />
+        <PullRequestEditButton
+          aria-label="Edit comment"
+          disabled={view === "blocked"}
+          onClick={() => editing.onEdit(comment)}
+        />
       ) : null}
     </div>
   );
@@ -555,13 +565,9 @@ export function PullRequestSummaryTab({
   const description = descriptionDraftKept?.body ?? detail.body;
   const descriptionSaving = (descriptionDraftKept?.saves ?? 0) > 0;
   const descriptionSavesRunning = useRef(0);
+  const [commentEdit, dispatchCommentEdit] = useReducer(stepPullRequestEdit, { kind: "viewing" });
   // Hosts can reuse comment ids across pull requests.
-  const [commentScope, setCommentScope] = useState<{
-    readonly pullRequest: string;
-    readonly commentId: string;
-  } | null>(null);
-  const [commentSaving, setCommentSaving] = useState(false);
-  const editingCommentId = commentScope?.pullRequest === detail.url ? commentScope.commentId : null;
+  const commentTarget = (comment: PullRequestComment) => `${detail.url}:${comment.id}`;
 
   // Checkbox ticks and the editor share one draft, so each starts from the other's latest body.
   const saveDescription = async (body: string) => {
@@ -592,23 +598,24 @@ export function PullRequestSummaryTab({
     completionScope,
     threadRef,
     canEdit: (comment) => canEditPullRequestComment(detail, comment),
-    editingId: editingCommentId,
-    saving: commentSaving,
-    onEdit: (comment) =>
-      setCommentScope(comment === null ? null : { pullRequest: detail.url, commentId: comment.id }),
+    view: (comment) => pullRequestEditorView(commentEdit, commentTarget(comment)),
+    onEdit: (comment) => dispatchCommentEdit({ kind: "open", target: commentTarget(comment) }),
+    onCancel: (comment) => dispatchCommentEdit({ kind: "cancel", target: commentTarget(comment) }),
     onSave: async (comment, body) => {
-      if (commentSaving || comment.kind === "review") return;
-      setCommentSaving(true);
+      const target = commentTarget(comment);
+      if (pullRequestEditorView(commentEdit, target) !== "editing" || comment.kind === "review")
+        return;
+      dispatchCommentEdit({ kind: "save", target });
       const result = await updateComment({
         environmentId,
         input: { ...reference, commentId: comment.id, kind: comment.kind, body },
       });
-      setCommentSaving(false);
       if (result._tag === "Failure") {
+        dispatchCommentEdit({ kind: "failed", target });
         toastManager.add({ type: "error", title: "Could not save the comment" });
         return;
       }
-      setCommentScope(null);
+      dispatchCommentEdit({ kind: "saved", target });
       onRefresh();
     },
   };

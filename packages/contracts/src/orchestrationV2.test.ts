@@ -4,12 +4,18 @@ import * as Schema from "effect/Schema";
 
 import { NodeId, ProviderInstanceId, RunAttemptId, TrimmedNonEmptyString } from "./index.ts";
 import {
+  isOrchestrationV2RunInProgress,
+  isOrchestrationV2RunNotYetRunning,
+  isOrchestrationV2RunSettled,
+  isOrchestrationV2RunUnsettled,
+  isOrchestrationV2RunInterruptible,
   latestForkableRun,
   latestProviderTurnForAttempt,
   OrchestrationV2ProviderCapabilities,
   OrchestrationV2ProviderThread,
   OrchestrationV2ProviderThreadJson,
   OrchestrationV2RpcSchemas,
+  OrchestrationV2RunStatus,
   OrchestrationV2Subagent,
   OrchestrationV2ThreadShellJson,
   OrchestrationV2SubagentJson,
@@ -760,6 +766,34 @@ describe("background work kinds from older or newer servers", () => {
       }),
     ).toThrow();
   });
+});
+
+describe("run status groups", () => {
+  const groups = {
+    interruptible: [isOrchestrationV2RunInterruptible, ["preparing", "starting", "running"]],
+    inProgress: [isOrchestrationV2RunInProgress, ["preparing", "starting", "running", "waiting"]],
+    unsettled: [
+      isOrchestrationV2RunUnsettled,
+      ["queued", "preparing", "starting", "running", "waiting"],
+    ],
+    settled: [
+      isOrchestrationV2RunSettled,
+      ["completed", "interrupted", "failed", "cancelled", "rolled_back"],
+    ],
+    notYetRunning: [isOrchestrationV2RunNotYetRunning, ["queued", "preparing", "starting"]],
+  } as const;
+
+  it.each(Object.entries(groups))(
+    "%s holds exactly its statuses",
+    (_name, [predicate, members]) => {
+      const inputs = [...OrchestrationV2RunStatus.literals, "idle", null, undefined] as const;
+      expect(inputs.filter((status) => predicate(status))).toEqual(
+        OrchestrationV2RunStatus.literals.filter((status) =>
+          (members as ReadonlyArray<string>).includes(status),
+        ),
+      );
+    },
+  );
 });
 
 describe("latestForkableRun", () => {

@@ -11,6 +11,7 @@ import {
   selectActiveRightPanelSurface,
   selectThreadPanelVisibility,
   selectThreadRightPanelState,
+  type ThreadRightPanelState,
   useRightPanelStore,
 } from "./rightPanelStore";
 
@@ -474,6 +475,54 @@ describe("rightPanelStore", () => {
     expect(selectThreadRightPanelState(byThreadKey, refA).maximized).toBe(true);
     expect(selectThreadRightPanelState(byThreadKey, refB).maximized).toBeUndefined();
     expect(store.getUserActionRevision(refA)).toBe(revision);
+  });
+
+  it.each([
+    { closedBy: "hiding it", close: () => useRightPanelStore.getState().close(refA) },
+    {
+      closedBy: "toggling its tab off",
+      close: () => useRightPanelStore.getState().toggle(refA, "diff"),
+    },
+    {
+      closedBy: "closing its last tab",
+      close: () => useRightPanelStore.getState().closeSurface(refA, "diff"),
+    },
+  ])("reopens at normal size after a maximized panel is closed by $closedBy", ({ close }) => {
+    const store = useRightPanelStore.getState();
+    const panel = () =>
+      selectThreadRightPanelState(useRightPanelStore.getState().byThreadKey, refA);
+    store.openProactive(refA, completedDiff, store.getUserActionRevision(refA));
+    store.setMaximized(refA, true);
+    expect(panel()).toMatchObject({ isOpen: true, maximized: true });
+
+    close();
+    expect(panel()).toMatchObject({ isOpen: false });
+    expect(panel()).not.toHaveProperty("maximized");
+
+    store.open(refA, "diff");
+    expect(panel()).toMatchObject({ isOpen: true });
+    expect(panel()).not.toHaveProperty("maximized");
+  });
+
+  it("loads a panel saved closed and maximized as closed at normal size", async () => {
+    const { storage, name, version } = useRightPanelStore.persist.getOptions();
+    const closed: ThreadRightPanelState = {
+      isOpen: false,
+      activeSurfaceId: "diff",
+      surfaces: [{ id: "diff", kind: "diff" }],
+    };
+    await storage!.setItem(name!, {
+      state: {
+        byThreadKey: { "env-1:thread-A": { ...closed, maximized: true } },
+        threadPanelVisibilityByThreadKey: {},
+      },
+      version: version!,
+    });
+    await useRightPanelStore.persist.rehydrate();
+
+    expect(selectThreadRightPanelState(useRightPanelStore.getState().byThreadKey, refA)).toEqual(
+      closed,
+    );
   });
 
   it("drops the pull-request list's shared panel so a restart opens the page fresh", () => {

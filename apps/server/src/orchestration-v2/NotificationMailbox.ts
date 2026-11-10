@@ -3,6 +3,7 @@ import {
   type MessageId,
   type OrchestrationV2ConversationMessage,
   type OrchestrationV2ThreadProjection,
+  isOrchestrationV2RunSettled,
 } from "@supaterm/contracts";
 
 export function isBufferedProviderNotification(
@@ -30,7 +31,7 @@ export function isUndeliveredMailboxSteer(
   return (
     run !== undefined &&
     run.userMessageId !== message.id &&
-    (["completed", "failed", "interrupted", "cancelled", "rolled_back"].includes(run.status) ||
+    (isOrchestrationV2RunSettled(run.status) ||
       latestProviderTurnForAttempt(projection.providerTurns, run.activeAttemptId)?.status ===
         "completed")
   );

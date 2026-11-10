@@ -190,6 +190,7 @@ import {
   findLocalComposerClipboardAttachment,
   flushComposerDrafts,
   getComposerDraftSnapshot,
+  mergeComposerDraftContent,
   mergeComposerDraftContentState,
   modelOptionMemoryAtom,
   releaseUnusedComposerAttachmentFiles,
@@ -2544,6 +2545,23 @@ describe("mobile composer drafts", () => {
     } finally {
       composerDraftFileMocks.setWriteError(null);
     }
+  });
+
+  it("retries a failed direct write on the next flush instead of resolving as saved", async () => {
+    const draftKey = "environment-1:thread-1";
+    const restored = { text: "restored after a failed send", attachments: [] };
+    composerDraftFileMocks.setWriteError(new Error("storage unavailable"));
+    await expect(mergeComposerDraftContent(draftKey, restored)).rejects.toBeInstanceOf(
+      ComposerDraftPersistenceError,
+    );
+    await expect(flushComposerDrafts()).rejects.toBeInstanceOf(ComposerDraftPersistenceError);
+
+    composerDraftFileMocks.setWriteError(null);
+    await flushComposerDrafts();
+
+    expect(JSON.parse(composerDraftFileMocks.getDocument()).drafts).toEqual({
+      [draftKey]: restored,
+    });
   });
 
   it("restores the pre-merge snapshot when the draft is untouched since the merge", () => {

@@ -1,4 +1,10 @@
-import type { OrchestrationV2Run, OrchestrationV2RunStatus, RunId } from "@supaterm/contracts";
+import {
+  isOrchestrationV2RunNotYetRunning,
+  isOrchestrationV2RunInProgress,
+  type OrchestrationV2Run,
+  type OrchestrationV2RunStatus,
+  type RunId,
+} from "@supaterm/contracts";
 import { latestExecutedRun } from "@supaterm/shared/orchestrationV2ThreadError";
 
 export type ThreadActivityStatus = "working" | "approval" | "input" | "idle";
@@ -32,19 +38,6 @@ export interface ThreadAnnouncementMemory {
   /** The run shown while idle belongs to the last turn, even if it is still settling. */
   readonly idleRunId: RunId | null;
 }
-
-const ACTIVE_RUN_STATUSES: ReadonlySet<OrchestrationV2RunStatus | null> = new Set([
-  "preparing",
-  "starting",
-  "running",
-  "waiting",
-]);
-
-const STARTING_RUN_STATUSES: ReadonlySet<OrchestrationV2RunStatus | null> = new Set([
-  "queued",
-  "preparing",
-  "starting",
-]);
 
 export function runOutcomeText(status: OrchestrationV2RunStatus | null): string | null {
   switch (status) {
@@ -104,10 +97,12 @@ export function nextThreadAnnouncement(
   // A run still starting up while the thread looks idle (a queued message,
   // a resume) is the next turn's, not a leftover from the last one.
   const idleRunId =
-    idle && !STARTING_RUN_STATUSES.has(next.runStatus) ? next.runId : (previous?.idleRunId ?? null);
+    idle && !isOrchestrationV2RunNotYetRunning(next.runStatus)
+      ? next.runId
+      : (previous?.idleRunId ?? null);
   // A run doing new work; the run left over from the last turn doesn't count.
   const newRunId =
-    !idle && ACTIVE_RUN_STATUSES.has(next.runStatus) && next.runId !== idleRunId
+    !idle && isOrchestrationV2RunInProgress(next.runStatus) && next.runId !== idleRunId
       ? next.runId
       : null;
 

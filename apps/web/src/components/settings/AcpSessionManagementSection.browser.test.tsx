@@ -234,6 +234,33 @@ it("rechecks task access after confirming deletion", async () => {
   expect(commands.delete).not.toHaveBeenCalled();
 });
 
+it.each([
+  { running: "import", blocked: "delete" },
+  { running: "delete", blocked: "import" },
+] as const)(
+  "does not $blocked a session while its $running is still running",
+  async ({ running, blocked }) => {
+    setup();
+    commands[running].mockReturnValueOnce(new Promise(() => {}));
+    await using screen = await renderSection();
+    await screen.click("List sessions");
+    const target = {
+      import: () => screen.button("Import"),
+      delete: () => screen.inlineConfirmButton("Delete"),
+    };
+    const press = {
+      import: () => screen.click("Import"),
+      delete: () => screen.confirmInline("Delete"),
+    };
+    await press[running]();
+    expect(commands[running]).toHaveBeenCalledOnce();
+
+    await press[blocked]();
+    expect(commands[blocked]).not.toHaveBeenCalled();
+    expect(target[blocked]().disabled).toBe(true);
+  },
+);
+
 it.each(["Save", "Disable"])("keeps other provider edits through a %s refetch", async (action) => {
   setup();
   const providers: AcpRegistryConfigurableProvider[] = ["google", "other"].map((providerId) => ({

@@ -227,11 +227,11 @@ describe("planNextReopen", () => {
     shellLive: true,
     panel: { isOpen: false, activeSurfaceId: null, surfaces: [] },
   };
-  const openDiff: ThreadRightPanelState = {
-    isOpen: true,
+  const diffTab = {
     activeSurfaceId: "diff",
     surfaces: [{ kind: "diff", id: "diff" }],
-  };
+  } satisfies Partial<ThreadRightPanelState>;
+  const openDiff: ThreadRightPanelState = { ...diffTab, isOpen: true };
 
   it.each([
     ["restores the newest entry", [known, known], [], "a"],
@@ -262,7 +262,7 @@ describe("planNextReopen", () => {
     ["drops a tab that is already open", [{ ...known, panel: openDiff }, known], ["a"], "b"],
     [
       "restores a tab whose panel is hidden",
-      [{ ...known, panel: { ...openDiff, isOpen: false } }],
+      [{ ...known, panel: { ...diffTab, isOpen: false } }],
       [],
       "a",
     ],

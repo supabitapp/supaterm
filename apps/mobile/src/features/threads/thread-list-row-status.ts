@@ -1,7 +1,7 @@
-import type { ThreadListV2Status } from "./threadListV2";
+import type { ThreadRowStatus } from "@supaterm/client-runtime/state/thread-row-status";
 
 const STATUS_LABEL_BY_STATUS: Partial<
-  Record<ThreadListV2Status, { label: string; className: string }>
+  Record<ThreadRowStatus, { label: string; className: string }>
 > = {
   approval: { label: "Approval", className: "text-warning-foreground" },
   input: { label: "Input", className: "text-adaptive-indigo-600-300" },
@@ -13,7 +13,7 @@ const STATUS_LABEL_BY_STATUS: Partial<
 /** Cached work status becomes live again only after its environment connects. */
 export function resolveThreadListV2RowStatusLabel(input: {
   readonly environmentConnected: boolean;
-  readonly status: ThreadListV2Status;
+  readonly status: ThreadRowStatus;
   readonly isUnread: boolean;
   readonly goalActive: boolean;
   readonly mutedClassName: string;

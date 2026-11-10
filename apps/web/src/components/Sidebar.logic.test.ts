@@ -9,8 +9,8 @@ import {
   resolveSidebarRowThreadId,
   pinOrderKeyBetween,
   resolveSidebarSweepKeys,
-  resolveSidebarThreadStatus,
   resolveSidebarV2DurationStartedAt,
+  resolveSidebarThreadStatus,
   resolveSidebarV2TopStatus,
   resolveThreadStatusPill,
   resolveThreadTotalWorkMs,
@@ -102,52 +102,8 @@ function makeLatestRun(overrides?: {
   };
 }
 
-describe("resolveSidebarThreadStatus", () => {
-  const runtime = {
-    status: "running" as const,
-    activeRunId: null,
-    providerInstanceId: ProviderInstanceId.make("codex"),
-    providerName: "Codex",
-    lastError: null,
-    updatedAt: "2026-03-09T10:00:00.000Z",
-  };
-
-  const idle = { hasPendingApprovals: false, hasPendingUserInput: false, runtime: null };
-
-  it("prioritizes awaiting input over a running runtime, below approval", () => {
-    expect(
-      resolveSidebarThreadStatus({
-        ...idle,
-        hasPendingUserInput: true,
-        runtime,
-        blockedOnThreadWait: true,
-      }),
-    ).toBe("input");
-    expect(
-      resolveSidebarThreadStatus({
-        ...idle,
-        hasPendingApprovals: true,
-        hasPendingUserInput: true,
-        blockedOnThreadWait: true,
-        runtime,
-      }),
-    ).toBe("approval");
-  });
-
-  it("keeps usage-limit stops Limited and visible until the thread recovers", () => {
-    const limited = {
-      ...runtime,
-      status: "failed" as const,
-      lastError: "Plan limit reached",
-      lastErrorClass: "usage_limit" as const,
-    };
-    expect(resolveSidebarThreadStatus({ ...idle, runtime: limited })).toBe("limited");
-    expect(
-      resolveSidebarThreadStatus({ ...idle, runtime: { ...limited, status: "running" } }),
-    ).toBe("working");
-    expect(
-      resolveSidebarThreadStatus({ ...idle, runtime: { ...limited, status: "completed" } }),
-    ).toBe("ready");
+describe("sidebar row status presentation", () => {
+  it("keeps usage-limit stops Limited and visible", () => {
     expect(
       resolveSidebarV2TopStatus({
         environmentConnected: true,
@@ -167,31 +123,14 @@ describe("resolveSidebarThreadStatus", () => {
     ).toBe(false);
   });
 
-  it("reports worktree setup as preparing, and failed only while the latest run failed", () => {
-    expect(
-      resolveSidebarThreadStatus({
-        ...idle,
-        runtime: { ...runtime, status: "preparing" as const },
-      }),
-    ).toBe("preparing");
-    expect(
-      resolveSidebarThreadStatus({
-        ...idle,
-        runtime: { ...runtime, status: "failed" as const, lastError: "boom" },
-      }),
-    ).toBe("failed");
-    expect(
-      resolveSidebarThreadStatus({
-        ...idle,
-        runtime: { ...runtime, status: "completed" as const, lastError: "persisted" },
-      }),
-    ).toBe("ready");
-    expect(
-      resolveSidebarThreadStatus({
-        ...idle,
-        runtime: { ...runtime, status: "idle" as const, lastError: "persisted" },
-      }),
-    ).toBe("waiting");
+  it("reports worktree setup as preparing", () => {
+    const thread = presentThreadShell(localEnvironmentId, {
+      ...makeThreadFixture().source,
+      latestRunId: RunId.make("run-worktree-setup"),
+      status: "preparing",
+    });
+
+    expect(resolveSidebarThreadStatus(thread)).toBe("preparing");
   });
 
   it("keeps a waiting runtime visible ahead of unread and woke presentation", () => {
@@ -396,14 +335,12 @@ describe("resolveThreadStatusPill", () => {
 
   it("shows an active thread wait without a pulse and resumes Working when it ends", () => {
     const blocked = { ...baseThread, blockedOnThreadWait: true };
-    expect(resolveSidebarThreadStatus(blocked)).toBe("waiting");
     expect(resolveThreadStatusPill({ thread: blocked })).toMatchObject({
       label: "Waiting",
       pulse: false,
     });
 
     const resumed = { ...blocked, blockedOnThreadWait: false };
-    expect(resolveSidebarThreadStatus(resumed)).toBe("working");
     expect(resolveThreadStatusPill({ thread: resumed })).toMatchObject({
       label: "Working",
       pulse: true,
@@ -885,7 +822,6 @@ describe("unseen completion with background work", () => {
     {
       roster: "dev server",
       task: { kind: "command" },
-      status: "ready",
       topStatus: "ready",
       receded: false,
       pill: "Completed",
@@ -893,7 +829,6 @@ describe("unseen completion with background work", () => {
     {
       roster: "dev server watchdog",
       task: { kind: "monitor" },
-      status: "ready",
       topStatus: "ready",
       receded: false,
       pill: "Completed",
@@ -901,7 +836,6 @@ describe("unseen completion with background work", () => {
     {
       roster: "awaited command",
       task: { kind: "command", awaited: true },
-      status: "waiting",
       topStatus: "waiting",
       receded: true,
       pill: "Waiting",
@@ -919,7 +853,6 @@ describe("unseen completion with background work", () => {
     const isUnread = hasUnseenCompletion(thread);
 
     expect(isUnread).toBe(true);
-    expect(status).toBe(expected.status);
     expect(
       resolveSidebarV2TopStatus({ environmentConnected: true, status, isUnread, isWoke: false }),
     ).toBe(expected.topStatus);

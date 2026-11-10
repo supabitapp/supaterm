@@ -113,9 +113,14 @@ function Harness(props: {
       pendingAction={null}
       isRunning={false}
       canInterrupt={false}
+      followUpBehavior="steer"
+      canSteer
+      canResume={false}
       isSendBusy={result.isSaving}
       sendDisabledReason={null}
       isEnvironmentUnavailable={false}
+      providerAvailability="ready"
+      isProjectSelectionRequired={false}
       isPreparingWorktree={false}
       hasSendableContent={sendState.hasSendableContent}
       isEditingQueuedMessage

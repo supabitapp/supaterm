@@ -10,12 +10,7 @@ interface Snapshot {
     readonly id: string;
     readonly workspaceRoot: string;
   }>;
-  readonly catalog: {
-    readonly isLoadingConnections: boolean;
-    readonly hasLoadedShellSnapshot: boolean;
-    readonly hasConnectingEnvironment: boolean;
-    readonly connectionError: string | null;
-  };
+  readonly catalog: { readonly awaitingProjects: boolean };
 }
 
 const harness = vi.hoisted(() => {
@@ -99,16 +94,12 @@ vi.mock("@react-navigation/native", () => ({
 import { NewTaskDraftRouteScreen } from "./NewTaskDraftRouteScreen";
 
 const project = { environmentId: "env-1", id: "project-1", workspaceRoot: "/repo" };
-const connected: Snapshot["catalog"] = {
-  isLoadingConnections: false,
-  hasLoadedShellSnapshot: true,
-  hasConnectingEnvironment: false,
-  connectionError: null,
-};
+const connected: Snapshot["catalog"] = { awaitingProjects: false };
+const reloading: Snapshot["catalog"] = { awaitingProjects: true };
 
 // The project can vanish while the catalog still loads, or while it reports ready.
 it.each([
-  ["while the catalog reloads", { ...connected, isLoadingConnections: true }],
+  ["while the catalog reloads", reloading],
   ["while the catalog stays ready", connected],
 ])(
   "checks the branch out once when a reconnect drops and restores the project %s",

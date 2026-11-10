@@ -6,7 +6,10 @@ import type {
   ThreadId,
   ThreadPullRequestLink,
 } from "@supaterm/contracts";
-import { isOrchestrationV2WorkActive } from "@supaterm/contracts";
+import {
+  isOrchestrationV2WorkActive,
+  isOrchestrationV2RunInterruptible,
+} from "@supaterm/contracts";
 import * as Predicate from "effect/Predicate";
 
 import { resolveSupatermMcpToolId } from "./supatermMcpToolPresentation.ts";
@@ -26,14 +29,6 @@ const EXECUTION_TURN_ITEM_TYPES = new Set<OrchestrationV2TurnItem["type"]>([
   "compaction",
 ]);
 
-const TERMINAL_RUN_STATUSES = new Set<OrchestrationV2Run["status"]>([
-  "cancelled",
-  "completed",
-  "failed",
-  "interrupted",
-  "rolled_back",
-]);
-
 // waiting is completed work awaiting checkpoints; exclude rolled_back entirely because provider threads are not run-tied.
 const SETTLED_FOR_BACKGROUND_WAIT_RUN_STATUSES = new Set<OrchestrationV2Run["status"]>([
   "cancelled",
@@ -42,8 +37,6 @@ const SETTLED_FOR_BACKGROUND_WAIT_RUN_STATUSES = new Set<OrchestrationV2Run["sta
   "interrupted",
   "waiting",
 ]);
-
-void TERMINAL_RUN_STATUSES;
 
 export type PendingBackgroundWorkTask = OrchestrationV2PendingBackgroundTask;
 
@@ -268,9 +261,7 @@ export function derivePendingBackgroundWork(input: {
 }): ReadonlyArray<PendingBackgroundWorkTask> {
   const hasActiveRun =
     input.hasActiveRun ??
-    input.runs?.some(
-      (run) => run.status === "preparing" || run.status === "starting" || run.status === "running",
-    ) ??
+    input.runs?.some((run) => isOrchestrationV2RunInterruptible(run.status)) ??
     false;
   if (hasActiveRun) {
     return [];

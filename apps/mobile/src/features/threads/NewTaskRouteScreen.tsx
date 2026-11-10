@@ -30,9 +30,9 @@ import { useProjects, useServerConfigs } from "../../state/entities";
 import { projectEnvironment } from "../../state/projects";
 import { useAtomCommand } from "../../state/use-atom-command";
 import { useRemoteConnectionStatus } from "../../state/use-remote-environment-registry";
-import type { WorkspaceState } from "../../state/workspaceModel";
 import { useWorkspaceState } from "../../state/workspace";
 
+import { resolveNewTaskProjectEmptyState } from "../home/workspace-empty-state";
 import { useIncomingShare } from "../sharing/IncomingShareProvider";
 import { useServedNewTaskFlow } from "./new-task-flow-provider";
 import {
@@ -50,65 +50,6 @@ type NewTaskRouteParams = {
   readonly provider?: string | string[];
   readonly model?: string | string[];
 };
-
-function deriveProjectEmptyState(catalogState: WorkspaceState): {
-  readonly title: string;
-  readonly detail: string;
-  readonly loading: boolean;
-} {
-  if (catalogState.isLoadingConnections) {
-    return {
-      title: "Loading environments",
-      detail: "Checking saved environments on this device.",
-      loading: true,
-    };
-  }
-
-  if (!catalogState.hasConnections) {
-    return {
-      title: "No environments connected",
-      detail: "Add an environment before creating a task.",
-      loading: false,
-    };
-  }
-
-  if (
-    (catalogState.connectionState === "available" ||
-      catalogState.connectionState === "offline" ||
-      catalogState.connectionState === "error" ||
-      catalogState.connectionState === "unsupported") &&
-    !catalogState.hasLoadedShellSnapshot
-  ) {
-    return {
-      title:
-        catalogState.connectionState === "unsupported"
-          ? "Client not supported"
-          : "Environment unavailable",
-      detail:
-        catalogState.connectionError ??
-        "The saved environment is offline. Check the URL or start the environment, then retry.",
-      loading: false,
-    };
-  }
-
-  if (
-    catalogState.hasConnectingEnvironment &&
-    !catalogState.hasLoadedShellSnapshot &&
-    catalogState.connectionError === null
-  ) {
-    return {
-      title: "Connecting to environment",
-      detail: "Loading projects from the saved environment.",
-      loading: true,
-    };
-  }
-
-  return {
-    title: "No projects found",
-    detail: "The connected environment did not report any projects.",
-    loading: false,
-  };
-}
 
 function NewTaskHeader(props: {
   readonly title: string;
@@ -172,7 +113,8 @@ export function NewTaskRouteScreen({ route }: StaticScreenProps<NewTaskRoutePara
         : `Choose a project for the ${incomingShare.attachments.length} ${incomingShare.attachments.every((attachment) => attachment.type === "image") ? "images" : "files"} you shared`
     : null;
   const screenTitle = incomingShare ? "Start a task" : "Choose project";
-  const projectEmptyState = deriveProjectEmptyState(catalogState);
+  const projectEmptyState = resolveNewTaskProjectEmptyState(catalogState.phase);
+  const hasReadyEnvironment = catalogState.phase.type === "connected";
   const serverConfigs = useServerConfigs();
   const listScopes = pickableProjectGroups(projectScopes).filter(
     (scope) =>
@@ -306,7 +248,7 @@ export function NewTaskRouteScreen({ route }: StaticScreenProps<NewTaskRoutePara
       <NewTaskHeader
         title={screenTitle}
         subtitle={incomingShareSubtitle}
-        canAddProject={catalogState.hasReadyEnvironment}
+        canAddProject={hasReadyEnvironment}
         searchText={searchText}
         onSearchTextChange={setSearchText}
       />
@@ -404,12 +346,10 @@ export function NewTaskRouteScreen({ route }: StaticScreenProps<NewTaskRoutePara
                 <>
                   <View>
                     <Button
-                      label={
-                        catalogState.hasReadyEnvironment ? "Add new project" : "Add environment"
-                      }
+                      label={hasReadyEnvironment ? "Add new project" : "Add environment"}
                       tone="primary"
                       onPress={() =>
-                        catalogState.hasReadyEnvironment
+                        hasReadyEnvironment
                           ? navigation.dispatch(StackActions.push("AddProject"))
                           : navigation.navigate("ConnectionsNew")
                       }
@@ -425,7 +365,7 @@ export function NewTaskRouteScreen({ route }: StaticScreenProps<NewTaskRoutePara
                     </View>
                   ) : null}
                 </>
-              ) : !catalogState.hasReadyEnvironment ? (
+              ) : !hasReadyEnvironment ? (
                 <View className="mt-1">
                   <Button
                     label="Add environment"

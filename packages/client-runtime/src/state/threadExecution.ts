@@ -22,6 +22,8 @@ import {
   orchestrationV2RunWorkStartedAt,
   type RunId,
   type ThreadId,
+  isOrchestrationV2RunInProgress,
+  isOrchestrationV2RunInterruptible,
 } from "@supaterm/contracts";
 import {
   backgroundWorkHoldsCompletion,
@@ -40,7 +42,7 @@ import { formatDuration } from "@supaterm/shared/orchestrationTiming";
 import * as DateTime from "effect/DateTime";
 
 import {
-  threadRuntimeIsActive,
+  threadRuntimeIsUnsettled,
   type ThreadRunSummary,
   type ThreadRuntimeSummary,
   type ThreadStructure,
@@ -49,9 +51,6 @@ import {
 } from "./models.ts";
 import { commandDisplayText } from "../work-log/commandLabel.ts";
 import { formatSubagentDisplayTitle } from "./subagentDisplay.ts";
-
-const ACTIVITY_RUN_STATUSES = new Set(["preparing", "starting", "running", "waiting"]);
-const INTERRUPTIBLE_RUN_STATUSES = new Set(["preparing", "starting", "running"]);
 
 const EMPTY_EXTENSION_STATUSES: NonNullable<OrchestrationV2ProviderSession["extensionStatuses"]> =
   [];
@@ -109,7 +108,7 @@ function summarizeThreadRun(
   projection: ThreadStructure,
   run: OrchestrationV2ThreadProjection["runs"][number],
 ): ThreadRunSummary {
-  const turnStatus = ACTIVITY_RUN_STATUSES.has(run.status)
+  const turnStatus = isOrchestrationV2RunInProgress(run.status)
     ? latestProviderTurnForAttempt(projection.providerTurns, run.activeAttemptId)?.status
     : undefined;
   return {
@@ -155,8 +154,9 @@ export function deriveLatestThreadRun(projection: ThreadStructure): ThreadRunSum
 
 export function deriveThreadActivityRun(projection: ThreadStructure): ThreadRunSummary | null {
   const run =
-    latestMatchingRun(projection, (candidate) => ACTIVITY_RUN_STATUSES.has(candidate.status)) ??
-    presentedLatestRun(projection);
+    latestMatchingRun(projection, (candidate) =>
+      isOrchestrationV2RunInProgress(candidate.status),
+    ) ?? presentedLatestRun(projection);
   return run === null ? null : summarizeThreadRun(projection, run);
 }
 
@@ -323,7 +323,7 @@ export function deriveThreadStructureRuntime(
   const latestRunProjection = presentedLatestRun(projection);
   const activityRun = deriveThreadActivityRun(projection);
   const liveActivityRun = latestMatchingRun(projection, (run) =>
-    ACTIVITY_RUN_STATUSES.has(run.status),
+    isOrchestrationV2RunInProgress(run.status),
   );
   const backgroundWorkHoldsRun = backgroundWorkHoldsCompletion(
     derivePendingBackgroundWork({
@@ -344,7 +344,8 @@ export function deriveThreadStructureRuntime(
     return null;
   }
   const activeRunId =
-    latestMatchingRun(projection, (run) => INTERRUPTIBLE_RUN_STATUSES.has(run.status))?.id ?? null;
+    latestMatchingRun(projection, (run) => isOrchestrationV2RunInterruptible(run.status))?.id ??
+    null;
   return {
     status: usageLimitedRun
       ? "failed"
@@ -463,7 +464,7 @@ export function threadRuntimeHasInterruptibleRun(
   runtime: ThreadStructureRuntime | null | undefined,
 ): boolean {
   return (
-    threadRuntimeIsActive(runtime) &&
+    threadRuntimeIsUnsettled(runtime) &&
     runtime?.activeRunId !== null &&
     runtime?.activeRunId !== undefined
   );
@@ -505,7 +506,7 @@ export function presentRunStop(
     if (candidate.status !== "queued" && candidate.ordinal > (latest?.ordinal ?? -1))
       latest = candidate;
     if (
-      INTERRUPTIBLE_RUN_STATUSES.has(candidate.status) &&
+      isOrchestrationV2RunInterruptible(candidate.status) &&
       candidate.ordinal > (active?.ordinal ?? -1)
     )
       active = candidate;

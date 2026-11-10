@@ -27,6 +27,7 @@ import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "../ui/select";
 import { toastManager } from "../ui/toast";
+import { canStartAcpOperation, type AcpOperation } from "./AcpSessionManagementSection.logic";
 import { SettingsRow } from "./settingsLayout";
 
 interface AcpSessionProject {
@@ -116,13 +117,8 @@ function InstanceSessionManagement(
   }, [projectId]);
   const [sessions, setSessions] = useState<ReadonlyArray<AcpRegistrySession>>([]);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [importingSessionId, setImportingSessionId] = useState<string | null>(null);
-  const [deletingSessionId, setDeletingSessionId] = useState<string | null>(null);
-  const [loggingOut, setLoggingOut] = useState(false);
+  const [operations, setOperations] = useState<ReadonlyArray<AcpOperation>>([]);
   const [providers, setProviders] = useState<ReadonlyArray<AcpRegistryConfigurableProvider>>([]);
-  const [loadingProviders, setLoadingProviders] = useState(false);
-  const [savingProviderId, setSavingProviderId] = useState<string | null>(null);
   const [providerDrafts, setProviderDrafts] = useState<
     Readonly<Record<string, { apiType: string; baseUrl: string; headers: string }>>
   >({});
@@ -131,12 +127,8 @@ function InstanceSessionManagement(
     setPreviousProjectId(projectId);
     setSessions([]);
     setNextCursor(null);
-    setLoading(false);
-    setImportingSessionId(null);
-    setDeletingSessionId(null);
+    setOperations((current) => current.filter((operation) => operation.type === "loggingOut"));
     setProviders([]);
-    setLoadingProviders(false);
-    setSavingProviderId(null);
     setProviderDrafts({});
   }
   const listSessions = useAtomCommand(serverEnvironment.listAcpRegistrySessions, {
@@ -166,29 +158,40 @@ function InstanceSessionManagement(
     props.provider.auth.canLogout === true && !props.provider.setup?.canAuthenticate;
   const canDelete = props.provider.nativeSessions?.canDelete === true;
   const canConfigureProviders = props.provider.configurableProviders === true;
-  const projectOperationPending =
-    loading ||
-    importingSessionId !== null ||
-    deletingSessionId !== null ||
-    loadingProviders ||
-    savingProviderId !== null;
+  const canStart = (operation: AcpOperation) => canStartAcpOperation(operations, operation);
+  const running = <Type extends AcpOperation["type"]>(type: Type) =>
+    operations.find(
+      (operation): operation is Extract<AcpOperation, { readonly type: Type }> =>
+        operation.type === type,
+    );
+  const savingProvider = running("savingProvider");
+  const projectOperationPending = operations.some((operation) => operation.type !== "loggingOut");
 
   if (!canList && !canLogout && !canConfigureProviders) return null;
 
+  const track = async <A,>(operation: AcpOperation, pending: Promise<A>) => {
+    setOperations((current) => [...current, operation]);
+    const result = await pending;
+    setOperations((current) => current.filter((candidate) => candidate !== operation));
+    return result;
+  };
+
   const loadSessions = async (cursor?: string) => {
     const generation = projectGeneration.current;
-    if (projectId === null || loading) return;
-    setLoading(true);
-    const result = await listSessions({
-      environmentId: props.environmentId,
-      input: {
-        instanceId: props.instanceId,
-        projectId,
-        ...(cursor === undefined ? {} : { cursor }),
-      },
-    });
+    const operation = { type: "listing" } as const;
+    if (projectId === null || !canStart(operation)) return;
+    const result = await track(
+      operation,
+      listSessions({
+        environmentId: props.environmentId,
+        input: {
+          instanceId: props.instanceId,
+          projectId,
+          ...(cursor === undefined ? {} : { cursor }),
+        },
+      }),
+    );
     if (generation !== projectGeneration.current) return;
-    setLoading(false);
     if (result._tag === "Success") {
       setSessions((current) =>
         cursor === undefined ? result.value.sessions : [...current, ...result.value.sessions],
@@ -201,25 +204,27 @@ function InstanceSessionManagement(
 
   const importNativeSession = async (session: AcpRegistrySession) => {
     const generation = projectGeneration.current;
+    const operation = { type: "importing", sessionId: session.sessionId } as const;
     if (
       !readEnvironmentScope(props.environmentId, AuthOrchestrationOperateScope) ||
       projectId === null ||
-      importingSessionId !== null
+      !canStart(operation)
     )
       return;
-    setImportingSessionId(session.sessionId);
-    const result = await importSession({
-      environmentId: props.environmentId,
-      input: {
-        instanceId: props.instanceId,
-        projectId,
-        sessionId: session.sessionId,
-        title: session.title,
-        updatedAt: session.updatedAt,
-      },
-    });
+    const result = await track(
+      operation,
+      importSession({
+        environmentId: props.environmentId,
+        input: {
+          instanceId: props.instanceId,
+          projectId,
+          sessionId: session.sessionId,
+          title: session.title,
+          updatedAt: session.updatedAt,
+        },
+      }),
+    );
     if (generation !== projectGeneration.current) return;
-    setImportingSessionId(null);
     if (result._tag === "Success") {
       setSessions((current) =>
         current.map((candidate) =>
@@ -239,16 +244,17 @@ function InstanceSessionManagement(
 
   const deleteNativeSession = async (session: AcpRegistrySession) => {
     const generation = projectGeneration.current;
-    if (projectId === null || deletingSessionId !== null || session.importedThreadId !== null)
-      return;
+    const operation = { type: "deleting", sessionId: session.sessionId } as const;
+    if (projectId === null || !canStart(operation) || session.importedThreadId !== null) return;
     if (!readEnvironmentScope(props.environmentId, AuthOrchestrationOperateScope)) return;
-    setDeletingSessionId(session.sessionId);
-    const result = await deleteSession({
-      environmentId: props.environmentId,
-      input: { instanceId: props.instanceId, projectId, sessionId: session.sessionId },
-    });
+    const result = await track(
+      operation,
+      deleteSession({
+        environmentId: props.environmentId,
+        input: { instanceId: props.instanceId, projectId, sessionId: session.sessionId },
+      }),
+    );
     if (generation !== projectGeneration.current) return;
-    setDeletingSessionId(null);
     if (result._tag === "Success") {
       setSessions((current) =>
         current.filter((candidate) => candidate.sessionId !== session.sessionId),
@@ -261,14 +267,16 @@ function InstanceSessionManagement(
 
   const loadProviders = async (resetProviderId?: string) => {
     const generation = projectGeneration.current;
-    if (projectId === null || loadingProviders) return;
-    setLoadingProviders(true);
-    const result = await listProviders({
-      environmentId: props.environmentId,
-      input: { instanceId: props.instanceId, projectId },
-    });
+    const operation = { type: "loadingProviders" } as const;
+    if (projectId === null || !canStart(operation)) return;
+    const result = await track(
+      operation,
+      listProviders({
+        environmentId: props.environmentId,
+        input: { instanceId: props.instanceId, projectId },
+      }),
+    );
     if (generation !== projectGeneration.current) return;
-    setLoadingProviders(false);
     if (result._tag === "Success") {
       setProviders(result.value.providers);
       setProviderDrafts((current) =>
@@ -292,11 +300,11 @@ function InstanceSessionManagement(
 
   const saveProvider = async (provider: AcpRegistryConfigurableProvider) => {
     const generation = projectGeneration.current;
+    const operation = { type: "savingProvider", providerId: provider.providerId } as const;
     if (
       !readEnvironmentScope(props.environmentId, AuthProvidersManageScope) ||
       projectId === null ||
-      savingProviderId !== null ||
-      loadingProviders
+      !canStart(operation)
     )
       return;
     const draft = providerDrafts[provider.providerId];
@@ -311,20 +319,21 @@ function InstanceSessionManagement(
       return;
     }
     const headers = parsedHeaders.headers;
-    setSavingProviderId(provider.providerId);
-    const result = await setProvider({
-      environmentId: props.environmentId,
-      input: {
-        instanceId: props.instanceId,
-        projectId,
-        providerId: provider.providerId,
-        apiType: draft.apiType,
-        baseUrl: draft.baseUrl,
-        ...(headers === undefined ? {} : { headers }),
-      },
-    });
+    const result = await track(
+      operation,
+      setProvider({
+        environmentId: props.environmentId,
+        input: {
+          instanceId: props.instanceId,
+          projectId,
+          providerId: provider.providerId,
+          apiType: draft.apiType,
+          baseUrl: draft.baseUrl,
+          ...(headers === undefined ? {} : { headers }),
+        },
+      }),
+    );
     if (generation !== projectGeneration.current) return;
-    setSavingProviderId(null);
     if (result._tag === "Success") {
       toastManager.add({ type: "success", title: "ACP provider configured" });
       await loadProviders(provider.providerId);
@@ -335,16 +344,17 @@ function InstanceSessionManagement(
 
   const disableConfiguredProvider = async (provider: AcpRegistryConfigurableProvider) => {
     const generation = projectGeneration.current;
-    if (projectId === null || savingProviderId !== null || loadingProviders || provider.required)
-      return;
+    const operation = { type: "savingProvider", providerId: provider.providerId } as const;
+    if (projectId === null || !canStart(operation) || provider.required) return;
     if (!readEnvironmentScope(props.environmentId, AuthProvidersManageScope)) return;
-    setSavingProviderId(provider.providerId);
-    const result = await disableProvider({
-      environmentId: props.environmentId,
-      input: { instanceId: props.instanceId, projectId, providerId: provider.providerId },
-    });
+    const result = await track(
+      operation,
+      disableProvider({
+        environmentId: props.environmentId,
+        input: { instanceId: props.instanceId, projectId, providerId: provider.providerId },
+      }),
+    );
     if (generation !== projectGeneration.current) return;
-    setSavingProviderId(null);
     if (result._tag === "Success") {
       toastManager.add({ type: "success", title: "ACP provider disabled" });
       await loadProviders(provider.providerId);
@@ -354,17 +364,23 @@ function InstanceSessionManagement(
   };
 
   const logoutProvider = async () => {
-    if (loggingOut || !readEnvironmentScope(props.environmentId, AuthProvidersManageScope)) return;
+    const operation = { type: "loggingOut" } as const;
+    if (
+      !canStart(operation) ||
+      !readEnvironmentScope(props.environmentId, AuthProvidersManageScope)
+    )
+      return;
     const confirmed = await ensureLocalApi().dialogs.confirm(
       `Log out of ${props.provider.displayName ?? "this agent"}? This stops running threads that share this sign-in, including other instances of the same agent. Thread history is kept.`,
     );
     if (!confirmed || !readEnvironmentScope(props.environmentId, AuthProvidersManageScope)) return;
-    setLoggingOut(true);
-    const result = await logout({
-      environmentId: props.environmentId,
-      input: { instanceId: props.instanceId },
-    });
-    setLoggingOut(false);
+    const result = await track(
+      operation,
+      logout({
+        environmentId: props.environmentId,
+        input: { instanceId: props.instanceId },
+      }),
+    );
     if (result._tag === "Success") {
       setSessions([]);
       setNextCursor(null);
@@ -391,10 +407,10 @@ function InstanceSessionManagement(
                 type="button"
                 size="sm"
                 variant="outline"
-                disabled={props.readOnly || loggingOut}
+                disabled={props.readOnly || !canStart({ type: "loggingOut" })}
                 onClick={() => void logoutProvider()}
               >
-                {loggingOut ? "Logging out" : "Log out"}
+                {running("loggingOut") ? "Logging out" : "Log out"}
               </Button>
             ) : null}
             {canList && props.projects.length > 0 ? (
@@ -424,10 +440,14 @@ function InstanceSessionManagement(
                   type="button"
                   size="sm"
                   variant="outline"
-                  disabled={!canRead || loading || projectId === null}
+                  disabled={!canRead || !canStart({ type: "listing" }) || projectId === null}
                   onClick={() => void loadSessions()}
                 >
-                  {loading ? "Loading" : sessions.length === 0 ? "List sessions" : "Refresh"}
+                  {running("listing")
+                    ? "Loading"
+                    : sessions.length === 0
+                      ? "List sessions"
+                      : "Refresh"}
                 </Button>
               </>
             ) : null}
@@ -460,13 +480,13 @@ function InstanceSessionManagement(
                           !canOperate ||
                           !canImport ||
                           session.importedThreadId !== null ||
-                          importingSessionId !== null
+                          !canStart({ type: "importing", sessionId: session.sessionId })
                         }
                         onClick={() => void importNativeSession(session)}
                       >
                         {session.importedThreadId !== null
                           ? "Imported"
-                          : importingSessionId === session.sessionId
+                          : running("importing")?.sessionId === session.sessionId
                             ? "Importing"
                             : "Import"}
                       </Button>
@@ -477,9 +497,13 @@ function InstanceSessionManagement(
                           disabled={
                             !canOperate ||
                             session.importedThreadId !== null ||
-                            deletingSessionId !== null
+                            !canStart({ type: "deleting", sessionId: session.sessionId })
                           }
-                          label={deletingSessionId === session.sessionId ? "Deleting" : "Delete"}
+                          label={
+                            running("deleting")?.sessionId === session.sessionId
+                              ? "Deleting"
+                              : "Delete"
+                          }
                           confirmLabel="Confirm delete"
                           tooltip="Delete this session from the agent"
                           confirmTooltip="Click again to permanently delete this session. The agent can't restore it."
@@ -498,10 +522,10 @@ function InstanceSessionManagement(
                 size="xs"
                 variant="ghost-muted"
                 className="w-fit"
-                disabled={!canRead || loading}
+                disabled={!canRead || !canStart({ type: "listing" })}
                 onClick={() => void loadSessions(nextCursor)}
               >
-                {loading ? "Loading" : "Load more"}
+                {running("listing") ? "Loading" : "Load more"}
               </Button>
             ) : null}
           </>
@@ -521,12 +545,14 @@ function InstanceSessionManagement(
               type="button"
               size="xs"
               variant="outline"
-              disabled={
-                !canRead || loadingProviders || savingProviderId !== null || projectId === null
-              }
+              disabled={!canRead || !canStart({ type: "loadingProviders" }) || projectId === null}
               onClick={() => void loadProviders()}
             >
-              {loadingProviders ? "Loading" : providers.length === 0 ? "List providers" : "Refresh"}
+              {running("loadingProviders")
+                ? "Loading"
+                : providers.length === 0
+                  ? "List providers"
+                  : "Refresh"}
             </Button>
           </div>
 
@@ -567,6 +593,10 @@ function InstanceSessionManagement(
                     ...current,
                     [provider.providerId]: { ...draft, ...update },
                   }));
+                const canSave = canStart({
+                  type: "savingProvider",
+                  providerId: provider.providerId,
+                });
                 return (
                   <div key={provider.providerId} className="grid gap-2 py-3">
                     <div className="flex items-center justify-between gap-2">
@@ -586,22 +616,19 @@ function InstanceSessionManagement(
                           variant="outline"
                           disabled={
                             props.readOnly ||
-                            savingProviderId !== null ||
-                            loadingProviders ||
+                            !canSave ||
                             draft.apiType.length === 0 ||
                             draft.baseUrl.length === 0
                           }
                           onClick={() => void saveProvider(provider)}
                         >
-                          {savingProviderId === provider.providerId ? "Saving" : "Save"}
+                          {savingProvider?.providerId === provider.providerId ? "Saving" : "Save"}
                         </Button>
                         {!provider.required && provider.current !== null ? (
                           <InlineConfirmButton
                             size="xs"
                             variant="ghost-muted"
-                            disabled={
-                              props.readOnly || savingProviderId !== null || loadingProviders
-                            }
+                            disabled={props.readOnly || !canSave}
                             label="Disable"
                             confirmLabel="Confirm disable"
                             tooltip={`Disable ${provider.providerId}`}
@@ -614,7 +641,7 @@ function InstanceSessionManagement(
                     <div className="grid gap-2 sm:grid-cols-[9rem_minmax(0,1fr)]">
                       <Select
                         value={draft.apiType}
-                        disabled={props.readOnly || savingProviderId !== null}
+                        disabled={props.readOnly || savingProvider !== undefined}
                         onValueChange={(value) => {
                           if (value !== null) updateDraft({ apiType: value });
                         }}
@@ -636,7 +663,7 @@ function InstanceSessionManagement(
                         aria-label={`${provider.providerId} base URL`}
                         placeholder="https://api.example.com"
                         value={draft.baseUrl}
-                        disabled={props.readOnly || savingProviderId !== null}
+                        disabled={props.readOnly || savingProvider !== undefined}
                         onValueChange={(value) => updateDraft({ baseUrl: value })}
                       />
                     </div>
@@ -646,7 +673,7 @@ function InstanceSessionManagement(
                       aria-label={`${provider.providerId} write-only headers JSON`}
                       placeholder='Write-only headers JSON, e.g. {"Authorization":"Bearer …"}'
                       value={draft.headers}
-                      disabled={props.readOnly || savingProviderId !== null}
+                      disabled={props.readOnly || savingProvider !== undefined}
                       onValueChange={(value) => updateDraft({ headers: value })}
                     />
                   </div>

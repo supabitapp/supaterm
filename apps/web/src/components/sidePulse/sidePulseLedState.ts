@@ -6,7 +6,7 @@ import {
 } from "@supaterm/contracts";
 import { scopedThreadKey } from "@supaterm/client-runtime/environment";
 import {
-  threadRuntimeIsActive,
+  threadRuntimeIsUnsettled,
   type EnvironmentThreadShell,
 } from "@supaterm/client-runtime/state/models";
 import { effectiveSnoozed } from "@supaterm/client-runtime/state/thread-snooze";
@@ -22,7 +22,7 @@ function threadLedState(thread: EnvironmentThreadShell, seen: boolean): SidePuls
   const status = resolveSidebarThreadStatus(thread);
   if (status === "approval" || status === "input") return "attention";
   if (
-    threadRuntimeIsActive(thread.runtime) ||
+    threadRuntimeIsUnsettled(thread.runtime) ||
     backgroundWorkHoldsCompletion(thread.pendingBackgroundTasks)
   ) {
     return "working";

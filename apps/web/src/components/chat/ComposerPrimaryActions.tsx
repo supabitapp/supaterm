@@ -1,4 +1,10 @@
-import { memo, type ComponentProps, type MouseEventHandler, type PointerEventHandler } from "react";
+import {
+  memo,
+  type ComponentProps,
+  type MouseEventHandler,
+  type PointerEventHandler,
+  type ReactNode,
+} from "react";
 import { CheckIcon, CornerUpRightIcon, ListPlusIcon, PlayIcon } from "@supaterm/icons";
 import type { ResolvedKeybindingsConfig } from "@supaterm/contracts";
 import type { ClientSettings } from "@supaterm/contracts/settings";
@@ -12,38 +18,24 @@ import { Tooltip, TooltipPopup, TooltipShortcutLabel, TooltipTrigger } from "../
 import {
   type ActiveTurnComposerAction,
   alternateComposerDispatchAction,
-  resolveComposerDispatchMode,
 } from "@supaterm/client-runtime/state/composer-dispatch";
+import {
+  resolveComposerPrimaryAction,
+  type ComposerPrimaryAction,
+  type ComposerPrimaryActionBlock,
+  type ComposerPrimaryActionInput,
+} from "./composerPrimaryAction.logic";
 
-interface PendingActionState {
-  questionIndex: number;
-  isLastQuestion: boolean;
-  canAdvance: boolean;
-  isResponding: boolean;
-  isComplete: boolean;
-}
-
-interface ComposerPrimaryActionsProps {
+interface ComposerPrimaryActionsProps extends Omit<
+  ComposerPrimaryActionInput,
+  "alternateModifier"
+> {
   compact: boolean;
   keybindings: ResolvedKeybindingsConfig;
-  canOperateThread: boolean;
-  canQueueMessage: boolean;
-  pendingAction: PendingActionState | null;
-  isRunning: boolean;
-  canInterrupt: boolean;
-  followUpBehavior?: "queue" | "steer";
-  canSteer?: boolean;
-  isSendBusy: boolean;
-  sendDisabledReason: string | null;
-  isEnvironmentUnavailable: boolean;
-  isPreparingWorktree: boolean;
-  hasSendableContent: boolean;
   sendShortcut?: ClientSettings["sendShortcut"] | undefined;
   isDraftThread?: boolean | undefined;
   hasMultilinePrompt?: boolean | undefined;
-  canResume?: boolean;
   preserveComposerFocusOnPointerDown?: boolean;
-  isEditingQueuedMessage?: boolean;
   onSubmitMessage?: MouseEventHandler<HTMLButtonElement>;
   onResume?: () => void;
   onInterrupt: () => void;
@@ -98,6 +90,47 @@ export function ComposerSendArrowIcon() {
 const preventPointerFocus: PointerEventHandler<HTMLElement> = (event) => {
   event.preventDefault();
 };
+
+const SUBMIT_ACTIONS: Record<
+  Exclude<ComposerPrimaryAction["kind"], "answer" | "stop">,
+  { label: string; icon: ReactNode }
+> = {
+  resume: {
+    label: "Resume thread",
+    icon: <PlayIcon weight="fill" className="size-4" aria-hidden="true" />,
+  },
+  "update-queued": {
+    label: "Update queued message",
+    icon: <CheckIcon className="size-4" aria-hidden="true" />,
+  },
+  queue: { label: "Queue message", icon: <ListPlusIcon className="size-4" aria-hidden="true" /> },
+  steer: {
+    label: "Steer message",
+    icon: <CornerUpRightIcon className="size-4" aria-hidden="true" />,
+  },
+  send: { label: "Submit message", icon: <ComposerSendArrowIcon /> },
+};
+
+// A reason without copy here leaves the control disabled under its usual label.
+function blockedStatusLabel(blocked: ComposerPrimaryActionBlock | null): string | null {
+  if (blocked === null) return null;
+  switch (blocked.reason) {
+    case "environment-disconnected":
+      return "Environment disconnected";
+    case "project-required":
+      return "Choose a project above to start a thread";
+    case "provider-unavailable":
+      return "Enable a provider in Settings to send a message";
+    case "send-disabled":
+      return blocked.message;
+    case "provider-pending":
+    case "question-not-answerable":
+    case "not-permitted":
+    case "answer-incomplete":
+    case "nothing-to-send":
+      return null;
+  }
+}
 
 const FOLLOW_UP_ACTION_LABELS: Record<ActiveTurnComposerAction, string> = {
   queue: "Queue message",
@@ -162,40 +195,25 @@ function SendActionsTooltip(props: {
 export const ComposerPrimaryActions = memo(function ComposerPrimaryActions({
   compact,
   keybindings,
-  canOperateThread,
-  canQueueMessage,
-  pendingAction,
-  isRunning,
-  canInterrupt,
-  followUpBehavior = "steer",
-  canSteer = true,
-  isSendBusy,
-  sendDisabledReason,
-  isEnvironmentUnavailable,
-  isPreparingWorktree,
-  hasSendableContent,
   sendShortcut = "enter",
   isDraftThread = false,
   hasMultilinePrompt = false,
-  canResume = false,
   preserveComposerFocusOnPointerDown = false,
-  isEditingQueuedMessage = false,
   onSubmitMessage,
   onResume,
   onInterrupt,
+  ...facts
 }: ComposerPrimaryActionsProps) {
+  const { canOperateThread, canInterrupt, isRunning, followUpBehavior, canSteer } = facts;
   const pointerFocusProps = preserveComposerFocusOnPointerDown
     ? { onPointerDown: preventPointerFocus }
     : undefined;
   const shortcutModifiers = useShortcutModifierState();
-  const isQueuing =
-    !isEditingQueuedMessage &&
-    resolveComposerDispatchMode({
-      running: isRunning,
-      activeTurnDefault: followUpBehavior,
-      canSteer,
-      alternateModifier: shortcutModifiers.metaKey || shortcutModifiers.ctrlKey,
-    }) === "queue";
+  const action = resolveComposerPrimaryAction({
+    ...facts,
+    alternateModifier: shortcutModifiers.metaKey || shortcutModifiers.ctrlKey,
+  });
+  const disabled = action.busy || action.blocked !== null;
 
   const renderStopGenerationButton = (insidePendingAction: boolean) => (
     <Tooltip key="interrupt">
@@ -226,7 +244,7 @@ export const ComposerPrimaryActions = memo(function ComposerPrimaryActions({
     </Tooltip>
   );
 
-  if (pendingAction) {
+  if (action.kind === "answer") {
     return (
       <div className={cn("flex items-center justify-end", compact ? "gap-1.5" : "gap-2")}>
         {canInterrupt ? renderStopGenerationButton(true) : null}
@@ -234,79 +252,44 @@ export const ComposerPrimaryActions = memo(function ComposerPrimaryActions({
           type="submit"
           className={cn(messageActionPillClassName, "h-8 sm:h-7", compact ? "px-3" : "px-4")}
           {...pointerFocusProps}
-          disabled={
-            !canOperateThread ||
-            isEnvironmentUnavailable ||
-            pendingAction.isResponding ||
-            (pendingAction.isLastQuestion ? !pendingAction.isComplete : !pendingAction.canAdvance)
-          }
+          disabled={disabled}
         >
           {formatPendingPrimaryActionLabel({
             compact,
-            isLastQuestion: pendingAction.isLastQuestion,
-            isResponding: pendingAction.isResponding,
-            questionIndex: pendingAction.questionIndex,
+            isLastQuestion: action.isLastQuestion,
+            isResponding: action.busy,
+            questionIndex: action.questionIndex,
           })}
         </button>
       </div>
     );
   }
 
-  if (canInterrupt && !hasSendableContent && !isEditingQueuedMessage) {
+  if (action.kind === "stop") {
     return renderStopGenerationButton(false);
   }
 
-  const showResume = canResume && !hasSendableContent && !isEditingQueuedMessage;
-
-  const submitLabel = showResume
-    ? "Resume thread"
-    : isEditingQueuedMessage
-      ? "Update queued message"
-      : isQueuing
-        ? "Queue message"
-        : isRunning
-          ? "Steer message"
-          : "Submit message";
-  const submitStatus = isEnvironmentUnavailable
-    ? "Environment disconnected"
-    : (sendDisabledReason ??
-      (isPreparingWorktree
-        ? "Preparing worktree"
-        : isSendBusy
-          ? isEditingQueuedMessage
-            ? "Updating queued message"
-            : "Submitting message"
-          : null));
+  const showResume = action.kind === "resume";
+  const { label: submitLabel, icon: submitIcon } = SUBMIT_ACTIONS[action.kind];
+  const submitStatus =
+    blockedStatusLabel(action.blocked) ??
+    (action.preparingWorktree
+      ? "Preparing worktree"
+      : action.busy
+        ? action.kind === "update-queued"
+          ? "Updating queued message"
+          : "Submitting message"
+        : null);
 
   const sendButton = (
     <ComposerSendButton
       type={showResume ? "button" : "submit"}
       {...pointerFocusProps}
       onClick={showResume ? onResume : onSubmitMessage}
-      disabled={
-        isSendBusy ||
-        !(showResume ? canOperateThread : canQueueMessage) ||
-        sendDisabledReason !== null ||
-        isEnvironmentUnavailable ||
-        (!hasSendableContent && !showResume)
-      }
+      disabled={disabled}
       aria-label={submitStatus ?? submitLabel}
     >
-      {isSendBusy ? (
-        <Spinner size="sm" aria-hidden="true" />
-      ) : showResume ? (
-        <PlayIcon weight="fill" className="size-4" aria-hidden="true" />
-      ) : isEditingQueuedMessage ? (
-        <CheckIcon className="size-4" aria-hidden="true" />
-      ) : isRunning ? (
-        isQueuing ? (
-          <ListPlusIcon className="size-4" aria-hidden="true" />
-        ) : (
-          <CornerUpRightIcon className="size-4" aria-hidden="true" />
-        )
-      ) : (
-        <ComposerSendArrowIcon />
-      )}
+      {action.busy ? <Spinner size="sm" aria-hidden="true" /> : submitIcon}
     </ComposerSendButton>
   );
 
@@ -316,7 +299,7 @@ export const ComposerPrimaryActions = memo(function ComposerPrimaryActions({
       <Tooltip key="submit">
         <TooltipTrigger render={<span className="inline-flex" />}>{sendButton}</TooltipTrigger>
         <TooltipPopup side="top">
-          {submitStatus || showResume || isEditingQueuedMessage ? (
+          {submitStatus || showResume || action.kind === "update-queued" ? (
             (submitStatus ?? submitLabel)
           ) : (
             <SendActionsTooltip

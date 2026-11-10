@@ -1,17 +1,18 @@
-import type {
-  OrchestrationV2Command,
-  OrchestrationV2DomainEvent,
-  OrchestrationV2RuntimeRequest,
-  OrchestrationV2Run,
-  OrchestrationV2ThreadShellSnapshot,
-  OrchestrationV2StoredEvent,
-  OrchestrationV2ThreadProjection,
-  OrchestrationV2TurnItem,
-  ProviderApprovalDecision,
-  ProviderUserInputAnswers,
-  CommandId,
-  ThreadId,
-  TurnItemId,
+import {
+  type OrchestrationV2Command,
+  type OrchestrationV2DomainEvent,
+  type OrchestrationV2RuntimeRequest,
+  type OrchestrationV2Run,
+  type OrchestrationV2ThreadShellSnapshot,
+  type OrchestrationV2StoredEvent,
+  type OrchestrationV2ThreadProjection,
+  type OrchestrationV2TurnItem,
+  type ProviderApprovalDecision,
+  type ProviderUserInputAnswers,
+  type CommandId,
+  type ThreadId,
+  type TurnItemId,
+  isOrchestrationV2RunUnsettled,
 } from "@supaterm/contracts";
 import * as Clock from "effect/Clock";
 import * as Duration from "effect/Duration";
@@ -219,10 +220,8 @@ function scenarioCommands(scenario: OrchestratorV2Scenario): ReadonlyArray<Orche
 const findPendingRuntimeRequest = (projection: OrchestrationV2ThreadProjection) =>
   projection.runtimeRequests.find((request) => request.status === "pending");
 
-const hasActiveRun = (projection: OrchestrationV2ThreadProjection) =>
-  projection.runs.some((run) =>
-    ["preparing", "queued", "starting", "running", "waiting"].includes(run.status),
-  );
+const hasUnsettledRun = (projection: OrchestrationV2ThreadProjection) =>
+  projection.runs.some((run) => isOrchestrationV2RunUnsettled(run.status));
 
 const SCENARIO_WAIT_ATTEMPTS = 10_000;
 // Iteration budgets burn through idle event-loop turns during async I/O; exhaust both iterations and wall-clock deadline.
@@ -335,14 +334,12 @@ export function runOrchestratorV2Scenario(
       > =>
         Effect.gen(function* () {
           const projection = yield* orchestrator.getThreadProjection(threadId);
-          if (!hasActiveRun(projection)) {
+          if (!hasUnsettledRun(projection)) {
             return;
           }
           if (scenarioWaitExhausted(attemptsRemaining, deadlineAt)) {
             const activeRuns = projection.runs
-              .filter((run) =>
-                ["preparing", "queued", "starting", "running", "waiting"].includes(run.status),
-              )
+              .filter((run) => isOrchestrationV2RunUnsettled(run.status))
               .map((run) => `${run.id}:${run.status}`)
               .join(",");
             const pendingRequests = projection.runtimeRequests

@@ -10,6 +10,7 @@ import {
   type ThreadId,
   type OrchestrationV2DomainEvent,
   type OrchestrationV2ThreadShell,
+  isOrchestrationV2RunSettled,
 } from "@supaterm/contracts";
 import { makeDrainableWorker } from "@supaterm/shared/DrainableWorker";
 import * as Cause from "effect/Cause";
@@ -723,9 +724,7 @@ export const make = Effect.gen(function* () {
           ? enqueueThread(event.threadId)
           : Effect.void;
       case "run.updated":
-        return ["completed", "interrupted", "failed", "cancelled", "rolled_back"].includes(
-          event.payload.status,
-        )
+        return isOrchestrationV2RunSettled(event.payload.status)
           ? enqueueThread(event.threadId)
           : Effect.void;
       default:

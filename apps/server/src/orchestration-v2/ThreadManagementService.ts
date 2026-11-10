@@ -40,7 +40,11 @@ import {
   type ScheduledTaskId,
   ThreadId,
   type TurnItemId,
+  isOrchestrationV2RunInProgress,
+  isOrchestrationV2RunSettled,
+  type OrchestrationV2SettledRunStatus,
 } from "@supaterm/contracts";
+import { latestUnheldRun } from "@supaterm/shared/orchestrationV2ThreadError";
 import { threadTranscriptHeader } from "@supaterm/shared/threadTranscript";
 import { AgentScope } from "@supaterm/shared/AgentScope";
 import * as Clock from "effect/Clock";
@@ -87,11 +91,6 @@ export function withCreationProvenance(
       return command;
   }
 }
-
-export type ThreadManagementTerminalRunStatus = Extract<
-  OrchestrationV2Run["status"],
-  "completed" | "failed" | "cancelled" | "interrupted" | "rolled_back"
->;
 
 export interface ThreadManagementSendInput {
   readonly projectId: ProjectId;
@@ -152,7 +151,7 @@ export type ThreadManagementInterruptResult =
   | { readonly type: "no_active_run" }
   | {
       readonly type: "already_terminal";
-      readonly run: OrchestrationV2Run & { readonly status: ThreadManagementTerminalRunStatus };
+      readonly run: OrchestrationV2Run & { readonly status: OrchestrationV2SettledRunStatus };
     };
 
 export class ThreadManagementThreadNotFoundError extends Schema.TaggedError<ThreadManagementThreadNotFoundError>()(
@@ -456,28 +455,7 @@ export class ThreadManagementService extends Context.Service<
   ThreadManagementServiceShape
 >()("supaterm/orchestration-v2/ThreadManagementService") {}
 
-export function isActiveRun(run: OrchestrationV2Run): boolean {
-  return (
-    run.status === "preparing" ||
-    run.status === "starting" ||
-    run.status === "running" ||
-    run.status === "waiting"
-  );
-}
-
-export function isTerminalRunStatus(
-  status: OrchestrationV2Run["status"],
-): status is ThreadManagementTerminalRunStatus {
-  return (
-    status === "completed" ||
-    status === "failed" ||
-    status === "cancelled" ||
-    status === "interrupted" ||
-    status === "rolled_back"
-  );
-}
-
-export function latestRun(
+function latestRun(
   projection: Pick<OrchestrationV2ThreadProjection, "runs">,
 ): OrchestrationV2Run | undefined {
   return projection.runs.toSorted((left, right) => right.ordinal - left.ordinal)[0];
@@ -500,7 +478,7 @@ export function latestActiveRun(
   projection: Pick<OrchestrationV2ThreadProjection, "runs">,
 ): OrchestrationV2Run | undefined {
   return projection.runs
-    .filter(isActiveRun)
+    .filter((run) => isOrchestrationV2RunInProgress(run.status))
     .toSorted((left, right) => right.ordinal - left.ordinal)[0];
 }
 
@@ -805,7 +783,7 @@ const make = Effect.gen(function* () {
     const target = yield* getProjectThreadRecords(input, ["runs"]);
     const selectedRun =
       input.runId === undefined
-        ? latestRun(target)
+        ? (latestUnheldRun(target.runs) ?? undefined)
         : target.runs.find((candidate) => candidate.id === input.runId);
     if (input.runId !== undefined && selectedRun === undefined) {
       return yield* new ThreadManagementRunNotFoundError({
@@ -829,8 +807,9 @@ const make = Effect.gen(function* () {
       }
       const run = latestRestartContinuation(runs, current);
       const pending =
-        isTerminalRunStatus(run.status) && (yield* orchestrator.restartContinuationPending(run));
-      return { run, pending, settled: isTerminalRunStatus(run.status) && !pending };
+        isOrchestrationV2RunSettled(run.status) &&
+        (yield* orchestrator.restartContinuationPending(run));
+      return { run, pending, settled: isOrchestrationV2RunSettled(run.status) && !pending };
     });
     const initial = yield* outcome(target.runs);
     if (initial.settled) {
@@ -914,11 +893,7 @@ const make = Effect.gen(function* () {
         ) {
           return true;
         }
-        if (
-          following.some(
-            (candidate) => candidate.status !== "queued" && !isTerminalRunStatus(candidate.status),
-          )
-        )
+        if (following.some((candidate) => isOrchestrationV2RunInProgress(candidate.status)))
           return false;
         if (
           following.some(
@@ -993,11 +968,11 @@ const make = Effect.gen(function* () {
         runId: input.runId,
       });
     }
-    if (explicitRun !== undefined && isTerminalRunStatus(explicitRun.status)) {
+    if (explicitRun !== undefined && isOrchestrationV2RunSettled(explicitRun.status)) {
       return {
         type: "already_terminal",
         run: explicitRun as OrchestrationV2Run & {
-          readonly status: ThreadManagementTerminalRunStatus;
+          readonly status: OrchestrationV2SettledRunStatus;
         },
       } as const;
     }
@@ -1073,7 +1048,7 @@ const make = Effect.gen(function* () {
       // A run that already ended may still hold background work; settling it is a no-op otherwise.
       const run = target;
       if (run !== undefined) {
-        const active = isActiveRun(run);
+        const active = isOrchestrationV2RunInProgress(run.status);
         const providerTurn = records.providerTurns.findLast(
           (turn) =>
             turn.runAttemptId === run.activeAttemptId && (!active || turn.status === "running"),

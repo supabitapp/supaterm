@@ -1,43 +1,53 @@
-import type { WorkspaceState } from "../../state/workspaceModel";
+import type {
+  WorkspacePhase,
+  WorkspaceShellStatus,
+  WorkspaceState,
+} from "../../state/workspaceModel";
 
 export interface WorkspaceConnectionStatusPresentation {
   readonly label: string;
 }
 
-function shouldShowWorkspaceConnectionStatus(state: WorkspaceState): boolean {
-  if (state.networkStatus === "offline") return true;
-  if (state.hasReadyEnvironment) return state.hasSyncingConnectedEnvironment;
-  return (
-    state.connectionError !== null ||
-    state.hasConnectingEnvironment ||
-    state.hasPendingShellSnapshot ||
-    (state.hasLoadedShellSnapshot && !state.hasReadyEnvironment)
-  );
+const OFFLINE_LABEL = "You are offline";
+
+function shellSyncLabel(shell: WorkspaceShellStatus): string | null {
+  switch (shell) {
+    case "loading":
+      return "Loading threads...";
+    case "syncing":
+      return "Syncing threads...";
+    case "none":
+    case "loaded":
+      return null;
+  }
 }
 
-function workspaceConnectionStatusLabel(state: WorkspaceState): string {
-  if (state.networkStatus === "offline") return "You are offline";
-  if (state.hasReadyEnvironment && state.hasSyncingConnectedEnvironment) {
-    return state.hasLoadedShellSnapshot ? "Syncing threads..." : "Loading threads...";
+function workspaceConnectionStatusLabel(phase: WorkspacePhase): string | null {
+  switch (phase.type) {
+    case "loading-catalog":
+    case "no-environments":
+      return phase.offline ? OFFLINE_LABEL : null;
+    case "unavailable":
+      if (phase.reason === "offline") return OFFLINE_LABEL;
+      return (
+        phase.error ??
+        shellSyncLabel(phase.shell) ??
+        (phase.shell === "loaded" ? "Not connected" : null)
+      );
+    case "connecting": {
+      const [environment, ...others] = phase.environments;
+      return others.length === 0
+        ? `Reconnecting to ${environment.environmentLabel}`
+        : `Reconnecting ${phase.environments.length} environments`;
+    }
+    case "connected":
+      return shellSyncLabel(phase.shell);
   }
-  if (state.connectingEnvironments.length === 1) {
-    return `Reconnecting to ${state.connectingEnvironments[0]!.environmentLabel}`;
-  }
-  if (state.connectingEnvironments.length > 1) {
-    return `Reconnecting ${state.connectingEnvironments.length} environments`;
-  }
-  if (state.connectionError !== null) return state.connectionError;
-  if (state.hasPendingShellSnapshot) {
-    return state.hasLoadedShellSnapshot ? "Syncing threads..." : "Loading threads...";
-  }
-  return "Not connected";
 }
 
 export function workspaceConnectionStatusPresentation(
   state: WorkspaceState,
 ): WorkspaceConnectionStatusPresentation | null {
-  if (!shouldShowWorkspaceConnectionStatus(state)) return null;
-  return {
-    label: workspaceConnectionStatusLabel(state),
-  };
+  const label = workspaceConnectionStatusLabel(state.phase);
+  return label === null ? null : { label };
 }

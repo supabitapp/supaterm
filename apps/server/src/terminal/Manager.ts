@@ -510,6 +510,15 @@ function enqueueProcessEvent(
   return true;
 }
 
+function survivesClear(event: PendingProcessEvent): boolean {
+  switch (event.type) {
+    case "output":
+      return false;
+    case "exit":
+      return true;
+  }
+}
+
 function defaultShellResolver(platform: NodeJS.Platform, env: NodeJS.ProcessEnv): string {
   if (platform === "win32") {
     return "pwsh.exe";
@@ -3373,9 +3382,10 @@ export const makeWithOptions = Effect.fn("TerminalManager.makeWithOptions")(func
         const session = yield* requireSession(input.threadId, terminalId);
         session.history.clear();
         session.pendingHistoryControlSequence = "";
-        session.pendingProcessEvents = [];
+        session.pendingProcessEvents = session.pendingProcessEvents.filter(
+          (event) => event !== undefined && survivesClear(event),
+        );
         session.pendingProcessEventIndex = 0;
-        session.processEventDrainRunning = false;
         const eventStamp = advanceEventSequence(session);
         yield* persistHistory(input.threadId, terminalId, session.history);
         yield* publishEvent({

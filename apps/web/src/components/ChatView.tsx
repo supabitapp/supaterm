@@ -90,6 +90,7 @@ import {
   type ThreadPinnedMessage,
   ProviderInteractionMode,
   RuntimeMode,
+  isOrchestrationV2RunUnsettled,
 } from "@supaterm/contracts";
 import { SPEED_TOGGLE_LABELS } from "@supaterm/client-runtime/provider-speed-toggle";
 import {
@@ -1047,13 +1048,7 @@ export default function ChatView(props: ChatViewProps) {
       (run) => run.userMessageId === timelineAnchorMessageId,
     );
     if (anchorRun === undefined) return false;
-    return (
-      anchorRun.status !== "preparing" &&
-      anchorRun.status !== "queued" &&
-      anchorRun.status !== "starting" &&
-      anchorRun.status !== "running" &&
-      anchorRun.status !== "waiting"
-    );
+    return !isOrchestrationV2RunUnsettled(anchorRun.status);
   })();
   if (anchorRunSettled) {
     setTimelineAnchor({ threadKey: activeThreadKey, messageId: null });
@@ -3836,7 +3831,6 @@ export default function ChatView(props: ChatViewProps) {
                                   activeTaskSteps={activeComposerTaskSteps}
                                   compactThreadUnavailable={compactThreadUnavailable}
                                   compactDisabled={compactDisabled}
-                                  compactDisabledReason={compactDisabledReason}
                                   resolvedTheme={resolvedTheme}
                                   settings={settings}
                                   keybindings={keybindings}

@@ -534,13 +534,22 @@ export const modelOptionMemoryAtom = Atom.make<ModelOptionMemoryState>({}).pipe(
 
 let loadPromise: Promise<void> | null = null;
 let persistTimer: ReturnType<typeof setTimeout> | null = null;
-let persistRetryNeeded = false;
+// Memory is ahead of disk exactly while these differ.
+let dirtyGeneration = 0;
+let persistedGeneration = 0;
 const persistenceQueue = new SerializedAsyncQueue();
+
+function cancelPersistDebounce(): void {
+  if (persistTimer === null) return;
+  clearTimeout(persistTimer);
+  persistTimer = null;
+}
 
 export function resetComposerDraftsLoadState(): void {
   loadPromise = null;
   appAtomRegistry.set(composerDraftsLoadedAtom, false);
-  persistRetryNeeded = false;
+  cancelPersistDebounce();
+  persistedGeneration = dirtyGeneration;
 }
 
 function attachmentContextRecord(
@@ -768,6 +777,25 @@ async function writePersistedComposerState(
   }
 }
 
+function persistDirtyComposerState(): Promise<void> {
+  cancelPersistDebounce();
+  return persistenceQueue.run(async () => {
+    await waitForComposerDraftsLoaded();
+    const generation = dirtyGeneration;
+    if (generation === persistedGeneration) return;
+    await writePersistedComposerState(
+      appAtomRegistry.get(composerDraftsAtom),
+      appAtomRegistry.get(stickyComposerModelSelectionAtom),
+    );
+    persistedGeneration = generation;
+  });
+}
+
+function persistComposerStateNow(): Promise<void> {
+  dirtyGeneration += 1;
+  return persistDirtyComposerState();
+}
+
 /**
  * A write failure propagates so the caller can decide whether the restart may
  * proceed.
@@ -779,29 +807,11 @@ export async function flushComposerDrafts(): Promise<void> {
   if (loadPromise !== null) {
     await loadPromise;
   }
-  // An edit during an awaited write schedules another debounced write, so
-  // keep landing snapshots until no debounce is pending after a queue drain.
-  do {
-    while (persistTimer !== null || persistRetryNeeded) {
-      if (persistTimer !== null) clearTimeout(persistTimer);
-      persistTimer = null;
-      persistRetryNeeded = false;
-      try {
-        await persistenceQueue.run(() =>
-          writePersistedComposerState(
-            appAtomRegistry.get(composerDraftsAtom),
-            appAtomRegistry.get(stickyComposerModelSelectionAtom),
-          ),
-        );
-      } catch (error) {
-        persistRetryNeeded = true;
-        throw error;
-      }
-    }
-    // Draining also waits for an already-fired debounce whose write is still
-    // gated behind its own hydration await inside the queue.
-    await persistenceQueue.run(() => Promise.resolve());
-  } while (persistTimer !== null || persistRetryNeeded);
+  // An edit during an awaited write moves memory ahead again, so keep landing
+  // snapshots until disk has caught up.
+  while (dirtyGeneration !== persistedGeneration) {
+    await persistDirtyComposerState();
+  }
 }
 
 export function findLocalComposerClipboardAttachment(
@@ -986,27 +996,11 @@ registerComposerAttachmentUnusedHandler((attachment) => {
 });
 
 export function schedulePersistComposerState(): void {
-  if (persistTimer !== null) {
-    clearTimeout(persistTimer);
-  }
+  dirtyGeneration += 1;
+  cancelPersistDebounce();
   persistTimer = setTimeout(() => {
-    persistTimer = null;
-    // The write enters the serialization queue before waiting on hydration,
-    // so flushComposerDrafts' queue drain cannot resolve ahead of it.
-    void persistenceQueue.run(async () => {
-      try {
-        await waitForComposerDraftsLoaded();
-        await writePersistedComposerState(
-          appAtomRegistry.get(composerDraftsAtom),
-          appAtomRegistry.get(stickyComposerModelSelectionAtom),
-        );
-        persistRetryNeeded = false;
-      } catch (error) {
-        // A failed debounce has no timer left. A later final flush must retry
-        // these edits after persisted ownership can be read safely.
-        persistRetryNeeded = true;
-        console.warn("[composer-drafts] failed to persist drafts", error);
-      }
+    void persistDirtyComposerState().catch((error: unknown) => {
+      console.warn("[composer-drafts] failed to persist drafts", error);
     });
   }, PERSIST_DEBOUNCE_MS);
 }
@@ -1545,10 +1539,6 @@ export async function mergeComposerDraftContent(
   if (loadPromise !== null) {
     await loadPromise;
   }
-  if (persistTimer !== null) {
-    clearTimeout(persistTimer);
-    persistTimer = null;
-  }
   const current = appAtomRegistry.get(composerDraftsAtom);
   const next = mergeComposerDraftContentState(current, draftKey, content);
   const currentAttachmentIds = new Set(
@@ -1567,9 +1557,7 @@ export async function mergeComposerDraftContent(
   if (next !== current) {
     appAtomRegistry.set(composerDraftsAtom, next);
   }
-  await persistenceQueue.run(() =>
-    writePersistedComposerState(next, appAtomRegistry.get(stickyComposerModelSelectionAtom)),
-  );
+  await persistComposerStateNow();
   return { skippedAttachmentCount };
 }
 
@@ -1651,10 +1639,6 @@ export async function undoComposerDraftMerge(
   if (loadPromise !== null) {
     await loadPromise;
   }
-  if (persistTimer !== null) {
-    clearTimeout(persistTimer);
-    persistTimer = null;
-  }
   const next = undoComposerDraftMergeState(
     appAtomRegistry.get(composerDraftsAtom),
     draftKey,
@@ -1662,9 +1646,7 @@ export async function undoComposerDraftMerge(
     merged,
   );
   appAtomRegistry.set(composerDraftsAtom, next);
-  await persistenceQueue.run(() =>
-    writePersistedComposerState(next, appAtomRegistry.get(stickyComposerModelSelectionAtom)),
-  );
+  await persistComposerStateNow();
 }
 
 export function clearComposerDraftContent(
@@ -1813,14 +1795,8 @@ export async function clearComposerDraftsEnvironment(environmentId: EnvironmentI
       (current[draftKey] !== undefined && next[draftKey] === undefined),
   );
 
-  if (persistTimer !== null) {
-    clearTimeout(persistTimer);
-    persistTimer = null;
-  }
   appAtomRegistry.set(composerDraftsAtom, next);
-  await persistenceQueue.run(() =>
-    writePersistedComposerState(next, appAtomRegistry.get(stickyComposerModelSelectionAtom)),
-  );
+  await persistComposerStateNow();
   await releaseUnusedComposerAttachmentFiles(removedAttachments);
 }
 

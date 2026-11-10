@@ -67,19 +67,9 @@ type LinkedDraftRequest = {
 
 // A cold launch from a link has no projects or threads yet. Matching then would offer to clone a
 // repository the user already has.
-const shellsSettledAtom = Atom.make((get) => {
-  const workspace = get(workspaceStateAtom);
-  return !(
-    workspace.isLoadingConnections ||
-    workspace.hasPendingShellSnapshot ||
-    // A machine still connecting may hold the repository or thread. One that keeps failing to
-    // reconnect has settled offline, and must not hold every link.
-    workspace.connectingEnvironments.some(
-      (environment) =>
-        environment.connectionState === "connecting" || environment.connectionError === null,
-    )
-  );
-}).pipe(Atom.withLabel("mobile:prompt-link-shells-settled"));
+const shellsSettledAtom = Atom.make((get) => get(workspaceStateAtom).shellsSettled).pipe(
+  Atom.withLabel("mobile:prompt-link-shells-settled"),
+);
 
 let pendingLink: string | null = null;
 let stopWaitingForShells: (() => void) | null = null;

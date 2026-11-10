@@ -12,6 +12,7 @@ import {
   ProviderSessionId,
   ThreadId,
   type ProviderThreadId,
+  isOrchestrationV2RunInProgress,
 } from "@supaterm/contracts";
 import * as Cause from "effect/Cause";
 import * as Clock from "effect/Clock";
@@ -58,12 +59,6 @@ const busyTurnPrefix = (providerThreadId: ProviderThreadId) => `${providerThread
 const busyTurnKey = (providerThreadId: ProviderThreadId, runOrdinal: number) =>
   `${busyTurnPrefix(providerThreadId)}${runOrdinal}`;
 const UNLOAD_THREAD_TIMEOUT_MS = 10 * 1000;
-const WORKING_RUN_STATUSES: ReadonlySet<string> = new Set([
-  "preparing",
-  "starting",
-  "running",
-  "waiting",
-]);
 
 export const ProviderSessionReleaseReason = Schema.Literals([
   "idle_timeout",
@@ -2505,7 +2500,7 @@ export const layerWithOptions = (
                   projectionStore.getThreadRecords(threadId, ["runs"]),
                   projectionStore.getThreadShell(threadId),
                   ({ runs }, shell) =>
-                    runs.some((run) => WORKING_RUN_STATUSES.has(run.status)) ||
+                    runs.some((run) => isOrchestrationV2RunInProgress(run.status)) ||
                     (shell?.pendingBackgroundTasks?.length ?? 0) > 0,
                 ).pipe(
                   // An unreadable thread may still be working; never kill it unseen.

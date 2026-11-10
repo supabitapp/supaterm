@@ -3747,6 +3747,14 @@ describe("OrchestratorMcpService thread stop", () => {
             after.runs.filter((run) => run.status === "queued").map((run) => run.queueHeld),
             queued ? [true] : [],
           );
+          const read = yield* service.readThread(client, { threadId });
+          const listed = yield* service.listThreads(client, { allProjects: true });
+          const presented = { status: "running", latestRunId: runningRun.id } as const;
+          assert.deepInclude(read.thread, presented);
+          assert.deepInclude(
+            listed.threads.find((thread) => thread.threadId === threadId),
+            presented,
+          );
         }).pipe(Effect.provide(layerTest));
       }),
     ),
