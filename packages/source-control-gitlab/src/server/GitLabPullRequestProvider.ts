@@ -71,10 +71,9 @@ export function gitLabViewerPermissions(input: {
   readonly viewerCanEditLabels?: boolean | undefined;
 }): PullRequestViewerPermissions {
   return {
-    actions: CAPABILITIES.actions.filter((action) =>
-      action === "delete-branch"
-        ? input.viewerCanDeleteBranch === true
-        : !MERGE_ACTIONS.has(action) || input.viewerCanMerge,
+    ...(input.viewerCanDeleteBranch === true ? { deleteBranch: true } : {}),
+    actions: CAPABILITIES.actions.filter(
+      (action) => !MERGE_ACTIONS.has(action) || input.viewerCanMerge,
     ),
     comment: true,
     resolve: true,

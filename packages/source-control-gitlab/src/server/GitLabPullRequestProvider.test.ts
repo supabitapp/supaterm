@@ -130,6 +130,7 @@ describe("gitLabViewerPermissions", () => {
         viewerCanEditLabels: true,
       }),
     ).toEqual({
+      deleteBranch: true,
       actions: [
         "merge",
         "ready",
@@ -139,7 +140,6 @@ describe("gitLabViewerPermissions", () => {
         "update-branch",
         "enable-auto-merge",
         "disable-auto-merge",
-        "delete-branch",
       ],
       comment: true,
       resolve: true,
