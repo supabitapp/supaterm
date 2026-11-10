@@ -101,10 +101,9 @@ describe("server browser element refs", () => {
   it("tells a click target that matches nothing from one that never becomes clickable", async () => {
     await page.setContent(`<button hidden>hidden</button>`);
     const failure = (selector: string) =>
-      ServerBrowserPage.click(page, { selector, timeoutMs: 500 }).then(
-        () => expect.unreachable(),
-        ServerBrowserPage.toOperationError,
-      );
+      ServerBrowserPage.click(page, { selector, timeoutMs: 500 }).then(() => {
+        throw new Error(`Clicking ${selector} unexpectedly succeeded`);
+      }, ServerBrowserPage.toOperationError);
 
     const absent = await failure(".definitely-no-such-supaterm-target");
     expect(absent.tag).toBe("PreviewAutomationTimeoutError");
