@@ -125,11 +125,9 @@ export function mergeShellSnapshotProjects(
   return { ...next, projects: unchanged ? previous.projects : projects };
 }
 
-export type ShellStreamEvent = Exclude<
+export type ShellStreamEvent = Extract<
   OrchestrationV2ShellStreamItem,
-  | { readonly kind: "snapshot" }
-  | { readonly kind: "synchronized" }
-  | { readonly kind: "unknown-item" }
+  { readonly sequence: number }
 >;
 
 export function applyShellStreamEvent(

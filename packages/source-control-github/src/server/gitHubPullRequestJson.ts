@@ -129,6 +129,7 @@ interface ReviewRequestFields {
 /** One reviewer's most recent review: the state is all the verdict needs. */
 interface LatestReviewFields {
   readonly state?: string | null | undefined;
+  readonly isMinimized?: boolean | undefined;
 }
 
 /**
@@ -553,14 +554,21 @@ export function toPullRequestActionSummary(
   };
 }
 
-/** Prefer GitHub's reviewDecision; only use latest reviews when it is absent (e.g. bot approvals). */
+/**
+ * Prefer GitHub's reviewDecision; only use latest reviews when it is absent (e.g. bot approvals).
+ * A review a maintainer hid casts no verdict.
+ */
 function toReviewDecisionWithReviews(
   value: string | null | undefined,
   reviews: ReadonlyArray<LatestReviewFields> | undefined,
 ): PullRequestReviewDecision | null {
   const summarized = toReviewDecision(value);
   if (summarized === "approved" || summarized === "changes-requested") return summarized;
-  const states = new Set((reviews ?? []).map((review) => review.state?.trim().toUpperCase() ?? ""));
+  const states = new Set(
+    (reviews ?? [])
+      .filter((review) => !review.isMinimized)
+      .map((review) => review.state?.trim().toUpperCase() ?? ""),
+  );
   if (states.has("CHANGES_REQUESTED")) return "changes-requested";
   if (summarized === null && states.has("APPROVED")) return "approved";
   return summarized;
@@ -716,25 +724,30 @@ interface RemarkFields {
   readonly author: ActorFields | null;
   readonly body: string;
   readonly url: string | null;
+  readonly isMinimized: boolean;
 }
 
+// Hidden (minimized) remarks are left out, as github.com collapses them: a maintainer marked them
+// spam, off-topic, or outdated, and they should not reach readers or agents.
 function toComments(raw: {
   readonly comments: ReadonlyArray<RemarkFields & { readonly createdAt: string }>;
   readonly reviews: ReadonlyArray<
     RemarkFields & { readonly state: string; readonly submittedAt: string | null }
   >;
 }): ReadonlyArray<PullRequestComment> {
-  const issueComments = raw.comments.map((comment): PullRequestComment => ({
-    id: comment.id,
-    kind: "issue-comment",
-    author: toActor(comment.author),
-    body: comment.body ?? "",
-    createdAt: comment.createdAt,
-    editedAt: comment.lastEditedAt ?? null,
-    url: trimmed(comment.url),
-    path: null,
-    reviewState: null,
-  }));
+  const issueComments = raw.comments
+    .filter((comment) => !comment.isMinimized)
+    .map((comment): PullRequestComment => ({
+      id: comment.id,
+      kind: "issue-comment",
+      author: toActor(comment.author),
+      body: comment.body ?? "",
+      createdAt: comment.createdAt,
+      editedAt: comment.lastEditedAt ?? null,
+      url: trimmed(comment.url),
+      path: null,
+      reviewState: null,
+    }));
   // A review with no body is kept only when its state is the event itself — an approval, a
   // request for changes, a dismissal. GitHub also opens a bodiless `COMMENTED` review as the
   // container for line comments, and those comments are read from the review threads, so
@@ -743,6 +756,7 @@ function toComments(raw: {
     const submittedAt = trimmed(review.submittedAt);
     const reviewState = trimmed(review.state);
     if (
+      review.isMinimized ||
       submittedAt === null ||
       ((review.body ?? "").trim().length === 0 && !isReviewVerdict(reviewState))
     ) {
@@ -1408,7 +1422,9 @@ function toReviewThreadEntries(threads: ReviewThreadPage, viewer: string | null)
   const entries = threadNodes.flatMap((thread): ReadonlyArray<GitHubReviewThreadEntry> => {
     const path = trimmed(thread.path);
     const id = trimmed(thread.id);
-    const comments = nodesOf(thread.comments);
+    const loaded = nodesOf(thread.comments);
+    // Hidden comments are left out, as in `toComments`; a thread with none left is dropped.
+    const comments = loaded.filter((comment) => !comment.isMinimized);
     if (path === null || id === null || comments.length === 0) return [];
     return [
       {
@@ -1423,7 +1439,7 @@ function toReviewThreadEntries(threads: ReviewThreadPage, viewer: string | null)
           isOutdated: thread.isOutdated,
           comments: comments.map((comment) => toThreadComment(comment, viewer)),
         },
-        commentCount: thread.comments.totalCount,
+        commentCount: thread.comments.totalCount - (loaded.length - comments.length),
         nextCommentCursor: nextCursorOf(thread.comments.pageInfo),
       },
     ];
@@ -1470,7 +1486,8 @@ export function toReviewThreadPage(result: ReviewThreads.Result): GitHubReviewTh
   const requestedReviewers = nodesOf(pullRequest.reviewRequests).map(
     (node): ActorFields | null => node.requestedReviewer,
   );
-  const latestReviews = nodesOf(pullRequest.latestReviews);
+  // Someone whose review was hidden is not listed as a reviewer.
+  const latestReviews = nodesOf(pullRequest.latestReviews).filter((node) => !node.isMinimized);
   const comments = nodesOf(pullRequest.comments);
   const reviews = nodesOf(pullRequest.reviews);
   const { avatarsByLogin, botLogins } = collectActors([
@@ -1529,14 +1546,18 @@ export function toReviewThreadPage(result: ReviewThreads.Result): GitHubReviewTh
 export function toReviewThreadCommentsPage(result: ReviewThreadComments.Result): {
   readonly belongsToPullRequest: boolean;
   readonly comments: ReadonlyArray<PullRequestThreadComment>;
+  readonly hiddenCount: number;
   readonly nextCursor: string | null;
 } {
   const viewer = trimmed(result.viewer.login);
   const thread = result.node?.__typename === "PullRequestReviewThread" ? result.node : null;
   const pullRequestId = result.repository?.pullRequest?.id;
+  const loaded = nodesOf(thread?.comments);
+  const comments = loaded.filter((comment) => !comment.isMinimized);
   return {
     belongsToPullRequest: pullRequestId !== undefined && pullRequestId === thread?.pullRequest.id,
-    comments: nodesOf(thread?.comments).map((comment) => toThreadComment(comment, viewer)),
+    comments: comments.map((comment) => toThreadComment(comment, viewer)),
+    hiddenCount: loaded.length - comments.length,
     nextCursor: nextCursorOf(thread?.comments.pageInfo),
   };
 }

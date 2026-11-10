@@ -26,6 +26,7 @@ import {
   sendsTokenInClear,
   usableRoutes,
 } from "./routes.ts";
+import * as RemoteEnvironmentAuthorization from "../authorization/service.ts";
 import * as RpcSession from "../rpc/session.ts";
 import { fetchRemoteEnvironmentDescriptor } from "../environment/descriptor.ts";
 import { leaseRelayOrigin } from "../relay/gateway.ts";
@@ -299,6 +300,9 @@ export const make = Effect.gen(function* () {
   const resolver = yield* ConnectionResolver.ConnectionResolver;
   const sessions = yield* RpcSession.RpcSessionFactory;
   const httpClient = yield* HttpClient.HttpClient;
+  const remote = yield* Effect.serviceOption(
+    RemoteEnvironmentAuthorization.RemoteEnvironmentAuthorization,
+  );
 
   // The descriptor is public, so this sends no credential to whatever
   // answers at a saved LAN address on a different network.
@@ -309,10 +313,21 @@ export const make = Effect.gen(function* () {
   ) =>
     httpBaseUrl.pipe(
       Effect.flatMap((resolved) =>
-        fetchRemoteEnvironmentDescriptor({ httpBaseUrl: resolved, timeoutMs }),
+        fetchRemoteEnvironmentDescriptor({ httpBaseUrl: resolved, timeoutMs }).pipe(
+          Effect.option,
+          // The connect this check leads to skips its own read. Every answer, even a
+          // failure, replaces what an older check remembered.
+          Effect.tap((descriptor) =>
+            Option.isSome(remote)
+              ? remote.value.rememberCheckedDescriptor(resolved, descriptor)
+              : Effect.void,
+          ),
+        ),
       ),
       Effect.map((descriptor): RouteCheck =>
-        descriptor.environmentId === environmentId ? "answered" : "silent",
+        Option.exists(descriptor, (value) => value.environmentId === environmentId)
+          ? "answered"
+          : "silent",
       ),
       Effect.timeoutOrElse({
         duration: timeoutMs,

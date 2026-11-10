@@ -1,7 +1,7 @@
 import type { ProviderOptionDescriptor } from "@supaterm/contracts";
 import { getProviderOptionCurrentValue } from "@supaterm/shared/model";
 
-const CODEX_STANDARD_SERVICE_TIER = "default";
+const STANDARD_SERVICE_TIER = "default";
 
 export type SpeedToggleLevel = "off" | "fast" | "ultrafast";
 
@@ -21,7 +21,6 @@ export const SPEED_TOGGLE_LABELS: Readonly<Record<SpeedToggleLevel, string>> = {
 };
 
 export function getSpeedToggle(
-  provider: string | null | undefined,
   descriptors: ReadonlyArray<ProviderOptionDescriptor>,
 ): SpeedToggle | null {
   for (const descriptor of descriptors) {
@@ -34,7 +33,7 @@ export function getSpeedToggle(
         coversDescriptor: true,
       };
     }
-    if (provider !== "codex" || descriptor.type !== "select" || descriptor.id !== "serviceTier") {
+    if (descriptor.type !== "select" || descriptor.id !== "serviceTier") {
       continue;
     }
     const fastTier = descriptor.options.find(({ label }) => label === "Fast");
@@ -51,10 +50,10 @@ export function getSpeedToggle(
       descriptorId: descriptor.id,
       level,
       onValue: onTier.id,
-      offValue: CODEX_STANDARD_SERVICE_TIER,
+      offValue: STANDARD_SERVICE_TIER,
       ultrafastValue: ultrafastTier?.id,
       coversDescriptor: descriptor.options.every(
-        ({ id }) => id === CODEX_STANDARD_SERVICE_TIER || id === onTier.id,
+        ({ id }) => id === STANDARD_SERVICE_TIER || id === onTier.id,
       ),
     };
   }
