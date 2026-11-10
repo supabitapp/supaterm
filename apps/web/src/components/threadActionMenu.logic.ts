@@ -100,6 +100,7 @@ export function threadActionRequiresOperate(action: ThreadActionMenuId): boolean
     "find",
     "open-beside",
     "new-thread-on-branch",
+    "filter-by-project",
     "project-settings",
     "mark-unread",
     "copy",
