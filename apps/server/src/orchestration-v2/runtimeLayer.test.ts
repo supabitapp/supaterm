@@ -7001,7 +7001,7 @@ it.layer(layerScratchPromotionTest)("turning a No project thread into a project"
 });
 
 it.layer(layerSharedApplicationDataPlaneTest)("snooze projection", (it) => {
-  it.effect("carries snooze, settle and title state through the V2 shell projection", () =>
+  it.effect("carries snooze, done and title state through the V2 shell projection", () =>
     Effect.gen(function* () {
       const projects = yield* ProjectService.ProjectService;
       const orchestrator = yield* Orchestrator.OrchestratorV2;
@@ -7070,8 +7070,8 @@ it.layer(layerSharedApplicationDataPlaneTest)("snooze projection", (it) => {
       const [candidate] = yield* projections.getAutoMarkDoneCandidates(threadId);
       assert.deepEqual(candidate?.lastSnoozeWakeAt, yield* DateTime.now);
       yield* orchestrator.dispatch({
-        type: "thread.settle",
-        commandId: CommandId.make("runtime-layer-snoozed-thread-settle"),
+        type: "thread.mark-done",
+        commandId: CommandId.make("runtime-layer-snoozed-thread-mark-done"),
         threadId,
       });
       yield* orchestrator.dispatch({
