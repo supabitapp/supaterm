@@ -1610,12 +1610,12 @@ export function ThreadsSettingsPanel() {
           serverScoped
           settingKeys={["nextPromptSuggestionsEnabled"]}
           {...searchableSetting("next-prompt-suggestions")}
-          description="After Claude replies, suggests what you might send next. Press Tab to use it. Threads on other providers get no suggestions."
+          description="After Claude or Codex replies, suggests what you might send next. Press Tab to use it. Threads on other providers get no suggestions."
           resetAction={
             settings.nextPromptSuggestionsEnabled !==
             DEFAULT_UNIFIED_SETTINGS.nextPromptSuggestionsEnabled ? (
               <SettingResetButton
-                label="Claude prompt suggestions"
+                label="Next prompt suggestions"
                 onClick={() =>
                   updateSettings({
                     nextPromptSuggestionsEnabled:
@@ -1632,7 +1632,7 @@ export function ThreadsSettingsPanel() {
               onCheckedChange={(checked) =>
                 updateSettings({ nextPromptSuggestionsEnabled: Boolean(checked) })
               }
-              aria-label="Claude prompt suggestions"
+              aria-label="Next prompt suggestions"
             />
           }
         />

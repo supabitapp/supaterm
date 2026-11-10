@@ -170,18 +170,18 @@ into a normal draft.
 
 ## Suggested next prompt
 
-After Claude replies, the empty composer can show the message you are likely to send next, such
-as an answer to the question Claude just asked. Press `Tab` or `ArrowRight` to put it in the
+After Claude or Codex replies, the empty composer can show the message you are likely to send next,
+such as an answer to the question the agent just asked. Press `Tab` or `ArrowRight` to put it in the
 composer, or `Escape` to hide it. On iPhone and Android, tap the suggestion button beside the
 composer. A suggestion is never sent for you: it only fills the draft, and typing replaces it.
 
-Only Claude threads get suggestions. They are Claude's own prediction, which reuses the turn's prompt
-cache, so each costs almost nothing. Claude suggests nothing at the start of a thread, in plan mode,
-after an error, or when the next step is not obvious, and only replies from the last few hours get
-one. Threads on other providers never show a suggestion.
+Only Claude and Codex threads get suggestions. Each is the provider's own prediction, which reuses
+the turn's prompt cache, so it costs little. Codex makes one small extra request on your account
+after each completed reply. No suggestion appears after an error, when the next step is not
+obvious, or for replies older than a few hours. Claude also skips the start of a thread and plan
+mode. Threads on other providers never show a suggestion.
 
-They are on by default. Turn them off with **Claude prompt suggestions** in **Settings > Threads**,
-or **Next prompt suggestions** in **Settings > Threads** on mobile.
+They are on by default. Turn them off with **Next prompt suggestions** in **Settings > Threads**.
 
 ## Edit an earlier prompt
 

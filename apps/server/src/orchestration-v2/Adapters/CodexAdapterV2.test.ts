@@ -1251,6 +1251,7 @@ describe("CodexAdapterV2 post-settle continuation", () => {
       Effect.void,
     onRequest: (method: string, params: unknown) => Effect.Effect<void> = () => Effect.void,
     readChildMetadata?: Parameters<typeof withCodexReplayChildMetadata>[2],
+    options: Pick<CodexAdapterV2.CodexAdapterV2Options, "promptSuggestionsEnabled"> = {},
   ) =>
     Effect.gen(function* () {
       const fileSystem = yield* FileSystem.FileSystem;
@@ -1314,6 +1315,7 @@ describe("CodexAdapterV2 post-settle continuation", () => {
               continuationRequests.push(request);
             }).pipe(Effect.andThen(changes.notify)),
         },
+        ...options,
       });
       const threadId = ThreadId.make(`thread-${transcript.scenario}`);
       const runtime = yield* adapter.openSession({
@@ -1925,6 +1927,94 @@ describe("CodexAdapterV2 post-settle continuation", () => {
         }).pipe(Effect.provide(CodexReplay.layerReplayWithDriver(driver)));
       }
     }).pipe(Effect.scoped),
+  );
+
+  it.effect.each([true, false])(
+    "samples a next prompt after a completed turn (suggestions enabled: %s)",
+    (enabled) =>
+      Effect.gen(function* () {
+        const nativeThreadId = `next-prompt-thread-${enabled}`;
+        const nativeTurnId = `next-prompt-turn-${enabled}`;
+        const transcript = makeCodexReplayTranscript({
+          scenario: `next-prompt-${enabled}`,
+          entries: [
+            ...codexReplayPreamble({ nativeThreadId, nativeTurnId, prompt: "Write isPrime." }),
+            {
+              type: "emit_inbound",
+              label: "turn/completed",
+              frame: {
+                method: "turn/completed",
+                params: {
+                  threadId: nativeThreadId,
+                  turn: makeCodexReplayTurn({ id: nativeTurnId, status: "completed" }),
+                },
+              },
+            },
+            ...(enabled
+              ? ([
+                  {
+                    type: "expect_outbound",
+                    label: "thread/sample",
+                    frame: {
+                      id: 4,
+                      method: "thread/sample",
+                      params: {
+                        threadId: nativeThreadId,
+                        expectedTurnId: nativeTurnId,
+                        prompt: CodexAdapterV2.CODEX_NEXT_PROMPT_REQUEST,
+                      },
+                    },
+                  },
+                  {
+                    type: "emit_inbound",
+                    label: "thread/sample",
+                    frame: {
+                      id: 4,
+                      result: {
+                        sourceTurnId: nativeTurnId,
+                        responseId: "resp-next-prompt",
+                        text: "Add tests for it.",
+                      },
+                    },
+                  },
+                ] as const)
+              : []),
+          ],
+        });
+        const harness = yield* makeCodexReplayHarness(transcript, undefined, undefined, undefined, {
+          promptSuggestionsEnabled: Effect.succeed(enabled),
+        });
+        yield* harness.runtime.startTurn(
+          makeCodexTestTurnInput({
+            threadId: harness.threadId,
+            providerThread: harness.providerThread,
+            now: yield* DateTime.now,
+            attemptId: RunAttemptId.make(`next-prompt-attempt-${enabled}`),
+            text: "Write isPrime.",
+          }),
+        );
+        yield* harness.firstTerminal;
+        const suggestionEvents = () =>
+          harness.events.flatMap((event) =>
+            event.type === "prompt_suggestion.expected" ||
+            event.type === "prompt_suggestion.ready" ||
+            event.type === "turn.terminal"
+              ? [event.type === "prompt_suggestion.ready" ? event.suggestion : event.type]
+              : [],
+          );
+        if (enabled) yield* harness.until(() => suggestionEvents().length === 3);
+        assert.deepEqual(
+          suggestionEvents(),
+          enabled
+            ? ["prompt_suggestion.expected", "turn.terminal", "Add tests for it."]
+            : ["turn.terminal"],
+        );
+      }).pipe(
+        Effect.scoped,
+        Effect.provide(
+          Layer.mergeAll(IdAllocator.layer, McpProviderSessions.layer, NodeServices.layer),
+        ),
+      ),
   );
 
   it.effect("waits for native start before interrupting an acknowledged queued turn", () =>
@@ -8129,9 +8219,21 @@ describe("CodexAdapterV2 post-settle continuation", () => {
               { threadId: nativeThreadId, status: "paused" },
               { goal: codexGoal("paused", 11) },
             ),
+            ...request(
+              5,
+              "thread/sample",
+              {
+                threadId: nativeThreadId,
+                expectedTurnId: "goal-turn",
+                prompt: CodexAdapterV2.CODEX_NEXT_PROMPT_REQUEST,
+              },
+              { sourceTurnId: "goal-turn", responseId: "resp-goal", text: "Resume the goal." },
+            ),
           ],
         });
-        const harness = yield* makeCodexReplayHarness(transcript);
+        const harness = yield* makeCodexReplayHarness(transcript, undefined, undefined, undefined, {
+          promptSuggestionsEnabled: Effect.succeed(true),
+        });
         yield* harness.runtime.startTurn(
           makeCodexTestTurnInput({
             threadId: harness.threadId,
@@ -8156,6 +8258,12 @@ describe("CodexAdapterV2 post-settle continuation", () => {
         assert.deepEqual(
           harness.terminalEvents().map((event) => event.status),
           ["completed"],
+        );
+        yield* harness.until(() =>
+          harness.events.some(
+            (event) =>
+              event.type === "prompt_suggestion.ready" && event.suggestion === "Resume the goal.",
+          ),
         );
       }).pipe(
         Effect.scoped,
