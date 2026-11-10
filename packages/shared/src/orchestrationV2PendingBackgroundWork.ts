@@ -6,7 +6,10 @@ import type {
   ThreadId,
   ThreadPullRequestLink,
 } from "@supaterm/contracts";
-import { isOrchestrationV2WorkActive, isOrchestrationV2RunWorking } from "@supaterm/contracts";
+import {
+  isOrchestrationV2WorkActive,
+  isOrchestrationV2RunInterruptible,
+} from "@supaterm/contracts";
 import * as Predicate from "effect/Predicate";
 
 import { resolveSupatermMcpToolId } from "./supatermMcpToolPresentation.ts";
@@ -258,7 +261,7 @@ export function derivePendingBackgroundWork(input: {
 }): ReadonlyArray<PendingBackgroundWorkTask> {
   const hasActiveRun =
     input.hasActiveRun ??
-    input.runs?.some((run) => isOrchestrationV2RunWorking(run.status)) ??
+    input.runs?.some((run) => isOrchestrationV2RunInterruptible(run.status)) ??
     false;
   if (hasActiveRun) {
     return [];

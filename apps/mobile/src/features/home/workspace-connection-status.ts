@@ -1,4 +1,8 @@
-import type { WorkspacePhase, WorkspaceShell, WorkspaceState } from "../../state/workspaceModel";
+import type {
+  WorkspacePhase,
+  WorkspaceShellStatus,
+  WorkspaceState,
+} from "../../state/workspaceModel";
 
 export interface WorkspaceConnectionStatusPresentation {
   readonly label: string;
@@ -6,7 +10,7 @@ export interface WorkspaceConnectionStatusPresentation {
 
 const OFFLINE_LABEL = "You are offline";
 
-function shellSyncLabel(shell: WorkspaceShell): string | null {
+function shellSyncLabel(shell: WorkspaceShellStatus): string | null {
   switch (shell) {
     case "loading":
       return "Loading threads...";

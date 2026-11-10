@@ -23,7 +23,7 @@ const idle: ComposerPrimaryActionInput = {
   isPreparingWorktree: false,
   sendDisabledReason: null,
   isEnvironmentUnavailable: false,
-  providerQueue: "ready",
+  providerAvailability: "ready",
   isProjectSelectionRequired: false,
 };
 const running = { isRunning: true, canInterrupt: true };
@@ -103,12 +103,12 @@ describe("resolveComposerPrimaryAction", () => {
     ],
     [
       "names a missing provider on a connected environment",
-      { providerQueue: "unavailable" },
+      { providerAvailability: "unavailable" },
       { kind: "send", blocked: "provider-unavailable" },
     ],
     [
       "names a provider catalog that is still loading on a connected environment",
-      { providerQueue: "pending" },
+      { providerAvailability: "pending" },
       { kind: "send", blocked: "provider-pending" },
     ],
     [
@@ -133,7 +133,7 @@ describe("resolveComposerPrimaryAction", () => {
     ],
     [
       "blames the disconnect when it also hides the providers",
-      { isEnvironmentUnavailable: true, providerQueue: "unavailable" },
+      { isEnvironmentUnavailable: true, providerAvailability: "unavailable" },
       { kind: "send", blocked: "environment-disconnected" },
     ],
     [

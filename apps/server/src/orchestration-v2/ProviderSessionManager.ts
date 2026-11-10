@@ -12,7 +12,7 @@ import {
   ProviderSessionId,
   ThreadId,
   type ProviderThreadId,
-  isOrchestrationV2RunActive,
+  isOrchestrationV2RunInProgress,
 } from "@supaterm/contracts";
 import * as Cause from "effect/Cause";
 import * as Clock from "effect/Clock";
@@ -2465,7 +2465,7 @@ export const layerWithOptions = (
                   projectionStore.getThreadRecords(threadId, ["runs"]),
                   projectionStore.getThreadShell(threadId),
                   ({ runs }, shell) =>
-                    runs.some((run) => isOrchestrationV2RunActive(run.status)) ||
+                    runs.some((run) => isOrchestrationV2RunInProgress(run.status)) ||
                     (shell?.pendingBackgroundTasks?.length ?? 0) > 0,
                 ).pipe(
                   // An unreadable thread may still be working; never kill it unseen.

@@ -25,7 +25,7 @@ export interface ComposerPrimaryActionInput {
   readonly sendDisabledReason: string | null;
   readonly isEnvironmentUnavailable: boolean;
   /** Whether a provider can take a message: `pending` until the provider catalog is known. */
-  readonly providerQueue: "ready" | "pending" | "unavailable";
+  readonly providerAvailability: "ready" | "pending" | "unavailable";
   readonly isProjectSelectionRequired: boolean;
 }
 
@@ -59,7 +59,7 @@ function availabilityBlock(
   input: ComposerPrimaryActionInput,
   needsEnvironment: boolean,
 ): ComposerPrimaryActionBlock | null {
-  const providerBlocked = input.providerQueue !== "ready";
+  const providerBlocked = input.providerAvailability !== "ready";
   if (
     input.isEnvironmentUnavailable &&
     (needsEnvironment || providerBlocked || input.isProjectSelectionRequired)
@@ -69,7 +69,7 @@ function availabilityBlock(
   if (input.isProjectSelectionRequired) return { reason: "project-required" };
   if (!providerBlocked) return null;
   return {
-    reason: input.providerQueue === "pending" ? "provider-pending" : "provider-unavailable",
+    reason: input.providerAvailability === "pending" ? "provider-pending" : "provider-unavailable",
   };
 }
 

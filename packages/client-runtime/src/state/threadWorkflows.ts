@@ -3,8 +3,8 @@ import {
   isCompactionCommandMessage,
   type OrchestrationV2ProjectedTurnItem,
   type OrchestrationV2ProviderCapabilities,
-  isOrchestrationV2RunActive,
-  isOrchestrationV2RunWorking,
+  isOrchestrationV2RunInProgress,
+  isOrchestrationV2RunInterruptible,
 } from "@supaterm/contracts";
 import { latestForkableRun } from "@supaterm/contracts";
 import { copySorted } from "@supaterm/shared/Array";
@@ -43,7 +43,7 @@ export interface ThreadQueueWorkflowState {
 }
 
 export function resolveActiveThreadRun(projection: Pick<Projection, "runs">): Run | null {
-  return projection.runs.findLast((run) => isOrchestrationV2RunActive(run.status)) ?? null;
+  return projection.runs.findLast((run) => isOrchestrationV2RunInProgress(run.status)) ?? null;
 }
 
 /** Newer work does not prevent forking the last provider-finished conversation. */
@@ -80,7 +80,8 @@ export function resolveLatestMergeBackRun(projection: Projection): Run | null {
 
   const hasNewerActiveRun = projection.runs.some(
     (run) =>
-      run.ordinal > latestProviderFinishedRun.ordinal && isOrchestrationV2RunWorking(run.status),
+      run.ordinal > latestProviderFinishedRun.ordinal &&
+      isOrchestrationV2RunInterruptible(run.status),
   );
   return hasNewerActiveRun ? null : latestProviderFinishedRun;
 }

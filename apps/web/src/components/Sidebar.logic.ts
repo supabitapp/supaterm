@@ -7,7 +7,7 @@ import { defaultAnimateLayoutChanges, type AnimateLayoutChanges } from "@dnd-kit
 import {
   isListedThreadLineage,
   type ContextMenuItem,
-  isOrchestrationV2RunAwaitingTurn,
+  isOrchestrationV2RunNotYetRunning,
 } from "@supaterm/contracts";
 import type { SidebarProjectSortOrder, SidebarThreadSortOrder } from "@supaterm/contracts/settings";
 import type { ThreadRowStatus } from "@supaterm/client-runtime/state/thread-row-status";
@@ -882,7 +882,7 @@ export function resolveThreadStatusPill(input: {
     };
   }
 
-  if (isOrchestrationV2RunAwaitingTurn(thread.runtime?.status)) {
+  if (isOrchestrationV2RunNotYetRunning(thread.runtime?.status)) {
     return {
       label: "Connecting",
       colorClass: "text-sky-600 dark:text-sky-300/80",

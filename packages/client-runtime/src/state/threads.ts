@@ -7,7 +7,7 @@ import {
   type OrchestrationV2ThreadStreamItem,
   type OrchestrationV2TurnItem,
   type ThreadId as ThreadIdType,
-  isOrchestrationV2RunWorking,
+  isOrchestrationV2RunInterruptible,
 } from "@supaterm/contracts";
 import { boundedSnapshotProjection } from "@supaterm/shared/orchestrationV2BoundedSnapshot";
 import { pendingBackgroundTurnItems } from "@supaterm/shared/orchestrationV2PendingBackgroundWork";
@@ -118,7 +118,7 @@ function shouldPersistThread(
   if (history.expanded) {
     return false;
   }
-  return !thread.runs.some((run) => isOrchestrationV2RunWorking(run.status));
+  return !thread.runs.some((run) => isOrchestrationV2RunInterruptible(run.status));
 }
 
 // Only still-active local copies take the server's item: events applied meanwhile win,

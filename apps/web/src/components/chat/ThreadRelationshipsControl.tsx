@@ -34,7 +34,7 @@ import {
   type OrchestrationV2Subagent,
   type OrchestrationV2ThreadShell,
   type ThreadId,
-  isOrchestrationV2RunAwaitingTurn,
+  isOrchestrationV2RunNotYetRunning,
 } from "@supaterm/contracts";
 import { groupBy } from "effect/Array";
 import * as DateTime from "effect/DateTime";
@@ -196,7 +196,7 @@ function currentSubagent<Agent extends RuntimeSubagent>(
   const completedAt = liveStatus ? null : childThread.latestRunCompletedAt;
   return {
     ...agent,
-    status: isOrchestrationV2RunAwaitingTurn(status)
+    status: isOrchestrationV2RunNotYetRunning(status)
       ? "pending"
       : status === "rolled_back"
         ? "interrupted"

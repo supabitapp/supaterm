@@ -732,7 +732,7 @@ async function writePersistedComposerState(
   }
 }
 
-function landComposerState(): Promise<void> {
+function persistDirtyComposerState(): Promise<void> {
   cancelPersistDebounce();
   return persistenceQueue.run(async () => {
     await waitForComposerDraftsLoaded();
@@ -748,7 +748,7 @@ function landComposerState(): Promise<void> {
 
 function persistComposerStateNow(): Promise<void> {
   dirtyGeneration += 1;
-  return landComposerState();
+  return persistDirtyComposerState();
 }
 
 /**
@@ -765,7 +765,7 @@ export async function flushComposerDrafts(): Promise<void> {
   // An edit during an awaited write moves memory ahead again, so keep landing
   // snapshots until disk has caught up.
   while (dirtyGeneration !== persistedGeneration) {
-    await landComposerState();
+    await persistDirtyComposerState();
   }
 }
 
@@ -950,7 +950,7 @@ export function schedulePersistComposerState(): void {
   dirtyGeneration += 1;
   cancelPersistDebounce();
   persistTimer = setTimeout(() => {
-    void landComposerState().catch((error: unknown) => {
+    void persistDirtyComposerState().catch((error: unknown) => {
       console.warn("[composer-drafts] failed to persist drafts", error);
     });
   }, PERSIST_DEBOUNCE_MS);

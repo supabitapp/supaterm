@@ -278,7 +278,7 @@ interface OpenBlock {
  * A prompt whose request failed may start its run late; that start is the
  * run's own, and only a start after it means its end was lost.
  */
-type UnsettledRun = "none" | "awaitingStart" | "started";
+type UnsettledRun = "none" | "notStarted" | "started";
 
 interface ThreadState {
   readonly sessionId: string;
@@ -761,7 +761,7 @@ export const make = Effect.fn("OpenCode2Adapter.make")(function* (instanceId: Pr
       Queue.offer(events, event).pipe(Effect.asVoid);
     const ownerOf = (sessionId: string) => childOwners.get(sessionId) ?? threads.get(sessionId);
     const markUnsettled = (state: ThreadState) => {
-      state.unsettledRun = busy.has(state.sessionId) ? "started" : "awaitingStart";
+      state.unsettledRun = busy.has(state.sessionId) ? "started" : "notStarted";
     };
 
     const newThreadState = (
@@ -2335,7 +2335,7 @@ export const make = Effect.fn("OpenCode2Adapter.make")(function* (instanceId: Pr
           // the next end is this execution's own.
           const state = threads.get(sessionId);
           if (state?.unsettledRun === "started") state.unsettledRun = "none";
-          else if (state?.unsettledRun === "awaitingStart") state.unsettledRun = "started";
+          else if (state?.unsettledRun === "notStarted") state.unsettledRun = "started";
           busy.add(sessionId);
         } else if (event.type === "unreadable.execution.ended" || executionEnd(event.type)) {
           busy.delete(sessionId);
@@ -2628,7 +2628,7 @@ export const make = Effect.fn("OpenCode2Adapter.make")(function* (instanceId: Pr
       const active = yield* client.session.active();
       for (const sessionId of busy) if (!(sessionId in active)) busy.delete(sessionId);
       for (const state of threads.values()) {
-        if (state.unsettledRun === "awaitingStart" && !(state.sessionId in active)) {
+        if (state.unsettledRun === "notStarted" && !(state.sessionId in active)) {
           state.unsettledRun = "started";
         }
       }

@@ -66,7 +66,7 @@ import {
   ThreadId,
   isOrchestrationV2WorkActive,
   TurnItemId,
-  isOrchestrationV2RunActive,
+  isOrchestrationV2RunInProgress,
   isOrchestrationV2RunSettled,
 } from "@supaterm/contracts";
 import { getProviderOptionCurrentValue } from "@supaterm/shared/model";
@@ -2251,7 +2251,7 @@ const make = Effect.gen(function* () {
     delegateTask: Effect.fn("OrchestratorMcpService.delegateTask")(function* (callerScope, input) {
       const { scope, parent } = yield* loadThreadCaller(callerScope, "delegate_task");
       const parentRun = parent.runs
-        .filter((run) => isOrchestrationV2RunActive(run.status))
+        .filter((run) => isOrchestrationV2RunInProgress(run.status))
         .toSorted((left, right) => right.ordinal - left.ordinal)[0];
       if (
         parentRun === undefined ||

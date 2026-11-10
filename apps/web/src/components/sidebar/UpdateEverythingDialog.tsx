@@ -1,5 +1,5 @@
 import { useAtomValue } from "@effect/atom-react";
-import { EnvironmentId, isOrchestrationV2RunWorking } from "@supaterm/contracts";
+import { EnvironmentId, isOrchestrationV2RunInterruptible } from "@supaterm/contracts";
 import { Atom } from "effect/reactivity";
 import { ChevronRightIcon } from "@supaterm/icons";
 import { Fragment, type RefObject, useRef } from "react";
@@ -29,7 +29,7 @@ const runningThreadCountAtom = Atom.family((environmentIds: string) =>
         (count, id) =>
           count +
           get(environmentThreadShells.environmentThreadsAtom(EnvironmentId.make(id))).filter(
-            (thread) => isOrchestrationV2RunWorking(thread.status),
+            (thread) => isOrchestrationV2RunInterruptible(thread.status),
           ).length,
         0,
       ),

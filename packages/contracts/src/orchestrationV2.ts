@@ -587,20 +587,23 @@ const runStatusIn =
     status !== "idle" &&
     (stages as ReadonlyArray<RunStage>).includes(RUN_STAGE[status]);
 
-/** The agent turn is in progress: the run can still produce output and be interrupted. */
-export const isOrchestrationV2RunWorking = runStatusIn("setup", "running");
+/** Stop can still interrupt it: preparing, starting, or running. `activeRunId` names this run. */
+export const isOrchestrationV2RunInterruptible = runStatusIn("setup", "running");
 
-/** Working, or draining follow-up work such as checkpoints after the agent turn ended. */
-export const isOrchestrationV2RunActive = runStatusIn("setup", "running", "draining");
+/** Interruptible, or draining follow-up work such as checkpoints after its turn ended. */
+export const isOrchestrationV2RunInProgress = runStatusIn("setup", "running", "draining");
 
-/** Accepted and not final yet: queued or active. */
+/** Accepted and not final yet: queued or in progress. */
 export const isOrchestrationV2RunUnsettled = runStatusIn("queued", "setup", "running", "draining");
 
 /** Reached a final status. A thread with no run is idle, not settled. */
 export const isOrchestrationV2RunSettled = runStatusIn("settled");
 
-/** Accepted, but the agent has not begun producing output: queued, preparing, or starting. */
-export const isOrchestrationV2RunAwaitingTurn = runStatusIn("queued", "setup");
+/** Accepted and not running yet: queued, preparing, or starting. */
+export const isOrchestrationV2RunNotYetRunning = runStatusIn("queued", "setup");
+
+export type OrchestrationV2InProgressRunStatus = RunStatusIn<"setup" | "running" | "draining">;
+export type OrchestrationV2SettledRunStatus = RunStatusIn<"settled">;
 
 export const OrchestrationV2DelegatedCompletionTaskDeliveryState = Schema.Literals([
   "pending",

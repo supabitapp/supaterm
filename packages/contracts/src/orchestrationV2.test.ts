@@ -4,11 +4,11 @@ import * as Schema from "effect/Schema";
 
 import { NodeId, ProviderInstanceId, RunAttemptId, TrimmedNonEmptyString } from "./index.ts";
 import {
-  isOrchestrationV2RunActive,
-  isOrchestrationV2RunAwaitingTurn,
+  isOrchestrationV2RunInProgress,
+  isOrchestrationV2RunNotYetRunning,
   isOrchestrationV2RunSettled,
   isOrchestrationV2RunUnsettled,
-  isOrchestrationV2RunWorking,
+  isOrchestrationV2RunInterruptible,
   latestForkableRun,
   latestProviderTurnForAttempt,
   OrchestrationV2ProviderCapabilities,
@@ -770,8 +770,8 @@ describe("background work kinds from older or newer servers", () => {
 
 describe("run status groups", () => {
   const groups = {
-    working: [isOrchestrationV2RunWorking, ["preparing", "starting", "running"]],
-    active: [isOrchestrationV2RunActive, ["preparing", "starting", "running", "waiting"]],
+    interruptible: [isOrchestrationV2RunInterruptible, ["preparing", "starting", "running"]],
+    inProgress: [isOrchestrationV2RunInProgress, ["preparing", "starting", "running", "waiting"]],
     unsettled: [
       isOrchestrationV2RunUnsettled,
       ["queued", "preparing", "starting", "running", "waiting"],
@@ -780,7 +780,7 @@ describe("run status groups", () => {
       isOrchestrationV2RunSettled,
       ["completed", "interrupted", "failed", "cancelled", "rolled_back"],
     ],
-    awaitingTurn: [isOrchestrationV2RunAwaitingTurn, ["queued", "preparing", "starting"]],
+    notYetRunning: [isOrchestrationV2RunNotYetRunning, ["queued", "preparing", "starting"]],
   } as const;
 
   it.each(Object.entries(groups))(

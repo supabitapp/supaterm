@@ -1,5 +1,5 @@
 // @effect-diagnostics globalDate:off -- UI snooze presets use local calendar boundaries and Intl labels.
-import { isOrchestrationV2RunAwaitingTurn } from "@supaterm/contracts";
+import { isOrchestrationV2RunNotYetRunning } from "@supaterm/contracts";
 import * as DateTime from "effect/DateTime";
 import { DEFAULT_SNOOZE_PRESETS, type SnoozePresetSetting } from "@supaterm/contracts/settings";
 
@@ -35,7 +35,7 @@ interface QueuedThreadShell {
   readonly latestRun?: SnoozeRunLike | null;
   readonly session?: SnoozeRuntimeLike | null;
   readonly runtime?:
-    | (Omit<SnoozeRuntimeLike, "status"> & Pick<ThreadRuntimeSummary, "status">)
+    | (Pick<ThreadRuntimeSummary, "status"> & { readonly updatedAt?: string })
     | null;
 }
 
@@ -51,7 +51,7 @@ export function hasQueuedTurnStart(
   shell: QueuedThreadShell,
   options: { readonly now: string },
 ): boolean {
-  if (isOrchestrationV2RunAwaitingTurn(shell.runtime?.status)) return true;
+  if (isOrchestrationV2RunNotYetRunning(shell.runtime?.status)) return true;
   if (shell.latestUserMessageAt == null) return false;
   if (shell.session?.status === "error") return false;
   const messageAt = Date.parse(shell.latestUserMessageAt);

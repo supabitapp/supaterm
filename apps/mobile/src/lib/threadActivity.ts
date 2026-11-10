@@ -56,7 +56,7 @@ import {
   isCompactionCommandMessage,
   RunId,
   ThreadId,
-  isOrchestrationV2RunActive,
+  isOrchestrationV2RunInProgress,
 } from "@supaterm/contracts";
 import {
   classifyToolActivity,
@@ -969,7 +969,7 @@ function maxIsoTimestamp(left: string | null, right: string | null): string | nu
   return Date.parse(right) > Date.parse(left) ? right : left;
 }
 
-function unsettledRunId(latestRun: ThreadFeedLatestRun | null): RunId | null {
+function inProgressRunId(latestRun: ThreadFeedLatestRun | null): RunId | null {
   return threadFeedRunIsInProgress(latestRun) ? latestRun.runId : null;
 }
 
@@ -977,7 +977,7 @@ export function threadFeedRunIsInProgress(
   run: ThreadFeedLatestRun | null,
 ): run is ThreadFeedLatestRun {
   if (run === null || run.status === "queued") return false;
-  return run.completedAt === null || isOrchestrationV2RunActive(run.status);
+  return run.completedAt === null || isOrchestrationV2RunInProgress(run.status);
 }
 
 export function threadFeedActivityIsVisible(
@@ -1122,7 +1122,7 @@ function deriveThreadFeedRunFolds(
     }
   }
 
-  const activeRunId = unsettledRunId(latestRun);
+  const activeRunId = inProgressRunId(latestRun);
   const foldsByAnchorId = new Map<string, ThreadFeedRunFold>();
   for (const [runId, group] of groupsByRunId) {
     if (
@@ -1380,7 +1380,7 @@ export function deriveThreadFeedPresentation(
   );
   const failedRunIds = failedFeedRunIds(sourceFeed, latestRun);
   const activeTailGroup = sourceFeed.at(-1);
-  const activeRunId = unsettledRunId(latestRun);
+  const activeRunId = inProgressRunId(latestRun);
   // A bare `/compact` turn is the compaction itself: its compaction row stands in for the prompt
   // and the live activity row. An answered "compact before continuing?" question folds into the
   // compaction it asked for.

@@ -1311,7 +1311,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     isSendBusy,
     sendDisabledReason,
     isEnvironmentUnavailable: environmentUnavailable !== null,
-    providerQueue: canQueueSelectedProvider
+    providerAvailability: canQueueSelectedProvider
       ? "ready"
       : showProviderUnavailable
         ? "unavailable"
@@ -1322,9 +1322,10 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     canResume: showResumeAction,
     isEditingQueuedMessage,
   } satisfies Omit<ComposerPrimaryActionInput, "alternateModifier">;
-  // The collapsed row has no Stop control and stays inert during a run.
+  // Collapsed only with no pending question; it has no Stop control and is inert during a run.
   const collapsedComposerPrimaryAction = resolveComposerPrimaryAction({
     ...composerPrimaryActionFacts,
+    pendingAction: null,
     canInterrupt: false,
     alternateModifier: false,
   });

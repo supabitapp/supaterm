@@ -4,15 +4,13 @@ import { createRoot } from "react-dom/client";
 import { AsyncResult } from "effect/reactivity";
 import { expect, it, vi } from "vite-plus/test";
 
-import type { WorkspacePhase } from "../../state/workspaceModel";
-
 interface Snapshot {
   readonly projects: ReadonlyArray<{
     readonly environmentId: string;
     readonly id: string;
     readonly workspaceRoot: string;
   }>;
-  readonly catalog: { readonly phase: WorkspacePhase; readonly environmentsPending: boolean };
+  readonly catalog: { readonly awaitingProjects: boolean };
 }
 
 const harness = vi.hoisted(() => {
@@ -93,14 +91,8 @@ vi.mock("@react-navigation/native", () => ({
 import { NewTaskDraftRouteScreen } from "./NewTaskDraftRouteScreen";
 
 const project = { environmentId: "env-1", id: "project-1", workspaceRoot: "/repo" };
-const connected: Snapshot["catalog"] = {
-  phase: { type: "connected", shell: "loaded" },
-  environmentsPending: false,
-};
-const reloading: Snapshot["catalog"] = {
-  phase: { type: "loading-catalog", offline: false },
-  environmentsPending: false,
-};
+const connected: Snapshot["catalog"] = { awaitingProjects: false };
+const reloading: Snapshot["catalog"] = { awaitingProjects: true };
 
 // The project can vanish while the catalog still loads, or while it reports ready.
 it.each([

@@ -1737,7 +1737,7 @@ function renderFeedEntry(
     readonly workRowSizing: ReturnType<typeof deriveThreadWorkLogSizing>;
     readonly workGroupScrollPositions: Map<string, ThreadWorkGroupScrollPosition>;
     readonly terminalAssistantMessageIds: ReadonlySet<string>;
-    readonly unsettledTurnId: RunId | null;
+    readonly inProgressTurnId: RunId | null;
     readonly compactionTitlesByEntryId: ReadonlyMap<string, string>;
     readonly failedRunIds: ReadonlySet<RunId>;
     readonly onCopyWorkRow: (rowId: string, value: string) => void;
@@ -1879,8 +1879,8 @@ function renderFeedEntry(
     const label = entry.activities[0]!.summary;
     const item = entry.activities[0]!.projectedItem.item;
     const active =
-      props.unsettledTurnId !== null &&
-      entry.runId === props.unsettledTurnId &&
+      props.inProgressTurnId !== null &&
+      entry.runId === props.inProgressTurnId &&
       item.status === "running";
     const failure =
       item.type === "compaction" && item.status === "failed" ? item.summary?.trim() : undefined;
@@ -1918,8 +1918,8 @@ function renderFeedEntry(
     const hasWideBlock = hasWideMarkdownBlock(renderedText, WIDE_MARKDOWN_BLOCK_OPTIONS);
     const assistantTurnStillInProgress =
       message.role === "assistant" &&
-      props.unsettledTurnId !== null &&
-      message.runId === props.unsettledTurnId;
+      props.inProgressTurnId !== null &&
+      message.runId === props.inProgressTurnId;
     const showAssistantMeta =
       message.role === "assistant" &&
       props.terminalAssistantMessageIds.has(message.id) &&
@@ -1937,7 +1937,7 @@ function renderFeedEntry(
     }
     if (isCompactionCommandFeedEntry(entry)) {
       // Stands in for the compaction item until the provider reports it.
-      const active = props.unsettledTurnId !== null && message.runId === props.unsettledTurnId;
+      const active = props.inProgressTurnId !== null && message.runId === props.inProgressTurnId;
       return (
         <ThreadContextDivider
           label={active ? "Compacting context" : "Context compaction"}
@@ -3217,7 +3217,9 @@ export const ThreadFeed = memo(function ThreadFeed({
     />
   );
   const reviewCommentColors = useReviewCommentColors();
-  const unsettledTurnId = threadFeedRunIsInProgress(props.latestRun) ? props.latestRun.runId : null;
+  const inProgressTurnId = threadFeedRunIsInProgress(props.latestRun)
+    ? props.latestRun.runId
+    : null;
   const worktreeSetup = useExitingWorktreeSetup(props.worktreeSetup ?? null);
   const worktreeSetupCard = worktreeSetup ? (
     <WorktreeSetupCard
@@ -3232,7 +3234,7 @@ export const ThreadFeed = memo(function ThreadFeed({
   const listAppearanceData = {
     worktreeSetup,
     dispatchingMessageId: props.dispatchingMessageId,
-    unsettledTurnId,
+    inProgressTurnId,
     copiedRowId,
     expandedWorkGroups,
     expandedWorkRows,
@@ -3770,7 +3772,7 @@ export const ThreadFeed = memo(function ThreadFeed({
             workRowSizing,
             workGroupScrollPositions,
             terminalAssistantMessageIds,
-            unsettledTurnId,
+            inProgressTurnId,
             compactionTitlesByEntryId,
             failedRunIds,
             onCopyWorkRow,

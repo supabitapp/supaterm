@@ -21,7 +21,7 @@ import type {
 import { runRanAfter } from "@supaterm/shared/orchestrationV2ThreadError";
 import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
-import { isOrchestrationV2WorkActive } from "@supaterm/contracts";
+import { isOrchestrationV2WorkActive, isOrchestrationV2RunSettled } from "@supaterm/contracts";
 
 function trimmed(value: string | null | undefined): string | undefined {
   const result = value?.trim();
@@ -235,8 +235,6 @@ export function delegatedTaskProgress(projection: {
     Pick<OrchestrationV2ThreadProjection["providerThreads"][number], "pendingBackgroundTasks">
   >;
 }) {
-  const terminal = (status: string) =>
-    ["completed", "failed", "cancelled", "interrupted", "rolled_back"].includes(status);
   const monitorRuns = new Set(
     projection.messages
       .filter((message) => message.notification?.source.kind === "monitor")
@@ -247,7 +245,9 @@ export function delegatedTaskProgress(projection: {
   );
 
   const active = workRuns.some(
-    (run) => !terminal(run.status) && !(run.status === "queued" && run.queueHeld === true),
+    (run) =>
+      !isOrchestrationV2RunSettled(run.status) &&
+      !(run.status === "queued" && run.queueHeld === true),
   );
   const children =
     projection.subagents.some(
@@ -261,7 +261,10 @@ export function delegatedTaskProgress(projection: {
     ) ||
     projection.providerThreads.some((thread) => (thread.pendingBackgroundTasks?.length ?? 0) > 0);
   const resultRun = workRuns
-    .filter((run) => terminal(run.status) && (run.startedAt !== null || run.ordinal === 1))
+    .filter(
+      (run) =>
+        isOrchestrationV2RunSettled(run.status) && (run.startedAt !== null || run.ordinal === 1),
+    )
     .toSorted((a, b) => (runRanAfter(a, b) ? -1 : runRanAfter(b, a) ? 1 : 0))[0];
   return {
     state:

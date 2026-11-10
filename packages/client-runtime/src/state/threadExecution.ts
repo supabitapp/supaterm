@@ -19,8 +19,8 @@ import {
   orchestrationV2RunWorkStartedAt,
   type RunId,
   type ThreadId,
-  isOrchestrationV2RunActive,
-  isOrchestrationV2RunWorking,
+  isOrchestrationV2RunInProgress,
+  isOrchestrationV2RunInterruptible,
 } from "@supaterm/contracts";
 import {
   backgroundWorkHoldsCompletion,
@@ -62,7 +62,7 @@ function summarizeThreadRun(
   projection: ThreadStructure,
   run: OrchestrationV2ThreadProjection["runs"][number],
 ): ThreadRunSummary {
-  const turnStatus = isOrchestrationV2RunActive(run.status)
+  const turnStatus = isOrchestrationV2RunInProgress(run.status)
     ? latestProviderTurnForAttempt(projection.providerTurns, run.activeAttemptId)?.status
     : undefined;
   return {
@@ -108,8 +108,9 @@ export function deriveLatestThreadRun(projection: ThreadStructure): ThreadRunSum
 
 export function deriveThreadActivityRun(projection: ThreadStructure): ThreadRunSummary | null {
   const run =
-    latestMatchingRun(projection, (candidate) => isOrchestrationV2RunActive(candidate.status)) ??
-    presentedLatestRun(projection);
+    latestMatchingRun(projection, (candidate) =>
+      isOrchestrationV2RunInProgress(candidate.status),
+    ) ?? presentedLatestRun(projection);
   return run === null ? null : summarizeThreadRun(projection, run);
 }
 
@@ -252,7 +253,7 @@ export function deriveThreadStructureRuntime(
   const latestRunProjection = presentedLatestRun(projection);
   const activityRun = deriveThreadActivityRun(projection);
   const liveActivityRun = latestMatchingRun(projection, (run) =>
-    isOrchestrationV2RunActive(run.status),
+    isOrchestrationV2RunInProgress(run.status),
   );
   const backgroundWorkHoldsRun = backgroundWorkHoldsCompletion(
     derivePendingBackgroundWork({
@@ -273,7 +274,8 @@ export function deriveThreadStructureRuntime(
     return null;
   }
   const activeRunId =
-    latestMatchingRun(projection, (run) => isOrchestrationV2RunWorking(run.status))?.id ?? null;
+    latestMatchingRun(projection, (run) => isOrchestrationV2RunInterruptible(run.status))?.id ??
+    null;
   return {
     status: usageLimitedRun
       ? "failed"
@@ -340,7 +342,7 @@ export function presentRunStop(
     if (candidate.status !== "queued" && candidate.ordinal > (latest?.ordinal ?? -1))
       latest = candidate;
     if (
-      isOrchestrationV2RunWorking(candidate.status) &&
+      isOrchestrationV2RunInterruptible(candidate.status) &&
       candidate.ordinal > (active?.ordinal ?? -1)
     )
       active = candidate;

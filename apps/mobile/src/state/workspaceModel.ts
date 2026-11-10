@@ -17,7 +17,7 @@ export interface WorkspaceConnectionState {
   readonly connectionError: string | null;
 }
 
-export type WorkspaceShell = "none" | "loading" | "loaded" | "syncing";
+export type WorkspaceShellStatus = "none" | "loading" | "loaded" | "syncing";
 
 export type WorkspacePhase =
   | { readonly type: "loading-catalog"; readonly offline: boolean }
@@ -26,23 +26,24 @@ export type WorkspacePhase =
       readonly type: "unavailable";
       readonly reason: "offline" | "unsupported" | "disconnected";
       readonly error: string | null;
-      readonly shell: WorkspaceShell;
+      readonly shell: WorkspaceShellStatus;
     }
   | {
       readonly type: "connecting";
       readonly environments: readonly [WorkspaceEnvironment, ...WorkspaceEnvironment[]];
-      readonly error: string | null;
-      readonly shell: WorkspaceShell;
+      readonly shell: WorkspaceShellStatus;
     }
-  | { readonly type: "connected"; readonly shell: WorkspaceShell };
+  | { readonly type: "connected"; readonly shell: WorkspaceShellStatus };
 
 export interface WorkspaceState extends Pick<
   WorkspaceConnectionState,
   "hasConnections" | "connectionState"
 > {
   readonly phase: WorkspacePhase;
-  /** An enabled environment is still trying to connect and none has failed, whatever the phase. */
-  readonly environmentsPending: boolean;
+  /** Projects may still arrive: the catalog, a first snapshot, or an unfailed connection is pending. */
+  readonly awaitingProjects: boolean;
+  /** No snapshot is on its way. An environment that keeps failing to reconnect counts as settled. */
+  readonly shellsSettled: boolean;
 }
 
 interface WorkspaceConnectionInput {
@@ -103,7 +104,7 @@ export function projectWorkspaceConnectionState(
   };
 }
 
-function workspaceShell(hasSnapshot: boolean, synchronizing: boolean): WorkspaceShell {
+function workspaceShell(hasSnapshot: boolean, synchronizing: boolean): WorkspaceShellStatus {
   if (hasSnapshot) {
     return synchronizing ? "syncing" : "loaded";
   }
@@ -113,6 +114,7 @@ function workspaceShell(hasSnapshot: boolean, synchronizing: boolean): Workspace
 function resolveWorkspacePhase(
   input: WorkspaceInput,
   connection: WorkspaceConnectionState,
+  [connecting, ...alsoConnecting]: ReadonlyArray<WorkspaceEnvironment>,
 ): WorkspacePhase {
   const offline = input.networkStatus === "offline";
   if (!input.isReady) {
@@ -131,15 +133,8 @@ function resolveWorkspacePhase(
   }
 
   const shell = workspaceShell(hasSnapshot, hasSynchronizingShell);
-  const error = connection.connectionError;
-  const [connecting, ...alsoConnecting] = input.environments.filter(
-    (environment) =>
-      environment.isEnabled &&
-      (environment.connectionState === "connecting" ||
-        environment.connectionState === "reconnecting"),
-  );
   if (!offline && connecting !== undefined) {
-    return { type: "connecting", environments: [connecting, ...alsoConnecting], error, shell };
+    return { type: "connecting", environments: [connecting, ...alsoConnecting], shell };
   }
 
   return {
@@ -149,24 +144,35 @@ function resolveWorkspacePhase(
       : connection.connectionState === "unsupported"
         ? "unsupported"
         : "disconnected",
-    error,
+    error: connection.connectionError,
     shell,
   };
 }
 
 export function projectWorkspaceState(input: WorkspaceInput): WorkspaceState {
   const connection = projectWorkspaceConnectionState(input);
+  const connecting = input.environments.filter(
+    (environment) =>
+      environment.isEnabled &&
+      (environment.connectionState === "connecting" ||
+        environment.connectionState === "reconnecting"),
+  );
+  const phase = resolveWorkspacePhase(input, connection, connecting);
   return {
     hasConnections: connection.hasConnections,
     connectionState: connection.connectionState,
-    phase: resolveWorkspacePhase(input, connection),
-    environmentsPending:
-      connection.connectionError === null &&
-      input.environments.some(
+    phase,
+    awaitingProjects:
+      !input.isReady ||
+      (!input.shellSummary.hasSnapshot &&
+        ((connecting.length > 0 && connection.connectionError === null) ||
+          (phase.type === "connected" && phase.shell === "loading"))),
+    shellsSettled:
+      input.isReady &&
+      !input.shellSummary.hasSynchronizingShell &&
+      !connecting.some(
         (environment) =>
-          environment.isEnabled &&
-          (environment.connectionState === "connecting" ||
-            environment.connectionState === "reconnecting"),
+          environment.connectionState === "connecting" || environment.connectionError === null,
       ),
   };
 }
@@ -181,13 +187,6 @@ export function workspaceHasShellSnapshot(phase: WorkspacePhase): boolean {
     case "connected":
       return phase.shell === "loaded" || phase.shell === "syncing";
   }
-}
-
-export function isAwaitingWorkspaceProjects(state: WorkspaceState): boolean {
-  const { phase } = state;
-  if (phase.type === "loading-catalog") return true;
-  if (workspaceHasShellSnapshot(phase)) return false;
-  return state.environmentsPending || (phase.type === "connected" && phase.shell === "loading");
 }
 
 export type ServerConfigByEnvironmentId = ReadonlyMap<EnvironmentId, ServerConfig>;

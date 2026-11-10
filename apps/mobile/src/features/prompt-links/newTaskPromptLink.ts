@@ -34,7 +34,6 @@ import { appAtomRegistry } from "../../state/atom-registry";
 import { environmentProjects, projectEnvironment } from "../../state/projects";
 import { composerPullRequests } from "../../state/pull-requests";
 import { environmentServerConfigsAtom } from "../../state/server";
-import { environmentShellSummaryAtom } from "../../state/shell";
 import { environmentThreadShells } from "../../state/threads";
 import {
   createNewTaskDraft,
@@ -68,19 +67,9 @@ type LinkedDraftRequest = {
 
 // A cold launch from a link has no projects or threads yet. Matching then would offer to clone a
 // repository the user already has.
-const shellsSettledAtom = Atom.make(
-  (get) =>
-    get(workspaceStateAtom).phase.type !== "loading-catalog" &&
-    !get(environmentShellSummaryAtom).hasSynchronizingShell &&
-    // A machine still connecting may hold the repository or thread. One that keeps failing to
-    // reconnect has settled offline, and must not hold every link.
-    !get(workspaceConnections.environmentsAtom).some(
-      (environment) =>
-        environment.isEnabled &&
-        (environment.connectionState === "connecting" ||
-          (environment.connectionState === "reconnecting" && environment.connectionError === null)),
-    ),
-).pipe(Atom.withLabel("mobile:prompt-link-shells-settled"));
+const shellsSettledAtom = Atom.make((get) => get(workspaceStateAtom).shellsSettled).pipe(
+  Atom.withLabel("mobile:prompt-link-shells-settled"),
+);
 
 let pendingLink: string | null = null;
 let stopWaitingForShells: (() => void) | null = null;

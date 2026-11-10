@@ -1,6 +1,7 @@
 import { presentThreadShell } from "@supaterm/client-runtime/state/models";
 import { isThreadWorking as isSidebarThreadWorking } from "@supaterm/client-runtime/state/thread-inbox";
 import * as DateTime from "effect/DateTime";
+import { resolveThreadRowStatus } from "@supaterm/client-runtime/state/thread-row-status";
 import { describe, expect, it, vi } from "vite-plus/test";
 import {
   archiveSelectedThreadEntries,
@@ -843,7 +844,6 @@ describe("unseen completion with background work", () => {
     {
       roster: "dev server",
       task: { kind: "command" },
-      status: "ready",
       topStatus: "ready",
       receded: false,
       pill: "Completed",
@@ -851,7 +851,6 @@ describe("unseen completion with background work", () => {
     {
       roster: "dev server watchdog",
       task: { kind: "monitor" },
-      status: "ready",
       topStatus: "ready",
       receded: false,
       pill: "Completed",
@@ -859,7 +858,6 @@ describe("unseen completion with background work", () => {
     {
       roster: "awaited command",
       task: { kind: "command", awaited: true },
-      status: "waiting",
       topStatus: "waiting",
       receded: true,
       pill: "Waiting",
@@ -873,7 +871,7 @@ describe("unseen completion with background work", () => {
       lastVisitedAt: DateTime.makeUnsafe("2026-06-20T00:59:00.000Z"),
       pendingBackgroundTasks: [{ taskId: "background-work", ...expected.task }],
     });
-    const { status } = expected;
+    const status = resolveThreadRowStatus(thread);
     const isUnread = hasUnseenCompletion(thread);
 
     expect(isUnread).toBe(true);

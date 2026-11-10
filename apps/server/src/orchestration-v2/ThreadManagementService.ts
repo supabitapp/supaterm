@@ -40,8 +40,9 @@ import {
   type ScheduledTaskId,
   ThreadId,
   type TurnItemId,
-  isOrchestrationV2RunActive,
+  isOrchestrationV2RunInProgress,
   isOrchestrationV2RunSettled,
+  type OrchestrationV2SettledRunStatus,
 } from "@supaterm/contracts";
 import { latestUnheldRun } from "@supaterm/shared/orchestrationV2ThreadError";
 import { threadTranscriptHeader } from "@supaterm/shared/threadTranscript";
@@ -90,11 +91,6 @@ export function withCreationProvenance(
       return command;
   }
 }
-
-export type ThreadManagementTerminalRunStatus = Extract<
-  OrchestrationV2Run["status"],
-  "completed" | "failed" | "cancelled" | "interrupted" | "rolled_back"
->;
 
 export interface ThreadManagementSendInput {
   readonly projectId: ProjectId;
@@ -153,7 +149,7 @@ export type ThreadManagementInterruptResult =
   | { readonly type: "no_active_run" }
   | {
       readonly type: "already_terminal";
-      readonly run: OrchestrationV2Run & { readonly status: ThreadManagementTerminalRunStatus };
+      readonly run: OrchestrationV2Run & { readonly status: OrchestrationV2SettledRunStatus };
     };
 
 export class ThreadManagementThreadNotFoundError extends Schema.TaggedError<ThreadManagementThreadNotFoundError>()(
@@ -471,7 +467,7 @@ export function latestActiveRun(
   projection: Pick<OrchestrationV2ThreadProjection, "runs">,
 ): OrchestrationV2Run | undefined {
   return projection.runs
-    .filter((run) => isOrchestrationV2RunActive(run.status))
+    .filter((run) => isOrchestrationV2RunInProgress(run.status))
     .toSorted((left, right) => right.ordinal - left.ordinal)[0];
 }
 
@@ -900,7 +896,7 @@ const make = Effect.gen(function* () {
       return {
         type: "already_terminal",
         run: explicitRun as OrchestrationV2Run & {
-          readonly status: ThreadManagementTerminalRunStatus;
+          readonly status: OrchestrationV2SettledRunStatus;
         },
       } as const;
     }
@@ -976,7 +972,7 @@ const make = Effect.gen(function* () {
       // A run that already ended may still hold background work; settling it is a no-op otherwise.
       const run = target;
       if (run !== undefined) {
-        const active = isOrchestrationV2RunActive(run.status);
+        const active = isOrchestrationV2RunInProgress(run.status);
         const providerTurn = records.providerTurns.findLast(
           (turn) =>
             turn.runAttemptId === run.activeAttemptId && (!active || turn.status === "running"),

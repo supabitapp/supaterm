@@ -70,8 +70,9 @@ import {
   ProviderInstanceId,
   RuntimeRequestId,
   userInputAutoDismissAt,
-  isOrchestrationV2RunWorking,
-  isOrchestrationV2RunActive,
+  isOrchestrationV2RunInterruptible,
+  isOrchestrationV2RunInProgress,
+  type OrchestrationV2InProgressRunStatus,
 } from "@supaterm/contracts";
 import {
   createOrchestrationV2TurnItemVisibility,
@@ -1613,17 +1614,15 @@ function activeProviderGoalForShell(
 }
 
 function isInterruptibleRunForShell(run: OrchestrationV2ThreadProjection["runs"][number]): boolean {
-  return isOrchestrationV2RunWorking(run.status);
+  return isOrchestrationV2RunInterruptible(run.status);
 }
-
-type ShellActivityRunStatus = "preparing" | "running" | "starting" | "waiting";
 
 function isActivityRunForShell(
   run: OrchestrationV2ThreadProjection["runs"][number],
 ): run is OrchestrationV2ThreadProjection["runs"][number] & {
-  readonly status: ShellActivityRunStatus;
+  readonly status: OrchestrationV2InProgressRunStatus;
 } {
-  return isOrchestrationV2RunActive(run.status);
+  return isOrchestrationV2RunInProgress(run.status);
 }
 
 type ShellWorkSession = { readonly workStartedAt: number; readonly completedAt: number };
@@ -1664,7 +1663,7 @@ type ShellThreadState = {
   readonly latestRunStopRequested: boolean;
   readonly activeRunId: RunId | null;
   readonly blockedOnThreadWait: boolean;
-  readonly activityRunStatus: ShellActivityRunStatus | null;
+  readonly activityRunStatus: OrchestrationV2InProgressRunStatus | null;
   readonly activityRunStartedAt: DateTime.Utc | null;
   readonly completedWorkMs: number;
   readonly lastError: string | null;

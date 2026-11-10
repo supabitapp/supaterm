@@ -103,9 +103,9 @@ export type ThreadRightPanelState = StoredPanelState &
 const resolvePanelState = ({
   isOpen,
   maximized,
-  ...tabs
+  ...rest
 }: StoredPanelState): ThreadRightPanelState =>
-  isOpen && maximized ? { ...tabs, isOpen, maximized } : { ...tabs, isOpen };
+  isOpen && maximized ? { ...rest, isOpen, maximized } : { ...rest, isOpen };
 
 export interface ThreadPanelVisibility {
   inlineOpen: boolean;

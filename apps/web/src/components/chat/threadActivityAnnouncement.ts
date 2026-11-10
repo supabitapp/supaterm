@@ -1,6 +1,6 @@
 import {
-  isOrchestrationV2RunAwaitingTurn,
-  isOrchestrationV2RunActive,
+  isOrchestrationV2RunNotYetRunning,
+  isOrchestrationV2RunInProgress,
   type OrchestrationV2Run,
   type OrchestrationV2RunStatus,
   type RunId,
@@ -97,12 +97,12 @@ export function nextThreadAnnouncement(
   // A run still starting up while the thread looks idle (a queued message,
   // a resume) is the next turn's, not a leftover from the last one.
   const idleRunId =
-    idle && !isOrchestrationV2RunAwaitingTurn(next.runStatus)
+    idle && !isOrchestrationV2RunNotYetRunning(next.runStatus)
       ? next.runId
       : (previous?.idleRunId ?? null);
   // A run doing new work; the run left over from the last turn doesn't count.
   const newRunId =
-    !idle && isOrchestrationV2RunActive(next.runStatus) && next.runId !== idleRunId
+    !idle && isOrchestrationV2RunInProgress(next.runStatus) && next.runId !== idleRunId
       ? next.runId
       : null;
 

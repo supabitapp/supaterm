@@ -25,7 +25,7 @@ import {
   type ThreadEnvMode,
   type TurnItemId,
   type UploadChatAttachment,
-  isOrchestrationV2RunActive,
+  isOrchestrationV2RunInProgress,
 } from "@supaterm/contracts";
 import { derivePendingBackgroundWork } from "@supaterm/shared/orchestrationV2PendingBackgroundWork";
 import { visibleThreadPullRequests } from "@supaterm/shared/threadPullRequests";
@@ -805,7 +805,7 @@ export const interruptThreadTurn = Effect.fn("EnvironmentCommands.interruptThrea
   }
   if (runId === undefined) {
     const projection = yield* getProjection(threadId);
-    runId = projection.runs.findLast((run) => isOrchestrationV2RunActive(run.status))?.id;
+    runId = projection.runs.findLast((run) => isOrchestrationV2RunInProgress(run.status))?.id;
     if (runId === undefined) {
       const latestRun = projection.runs.at(-1);
       if (

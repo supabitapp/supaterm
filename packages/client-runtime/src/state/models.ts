@@ -1,7 +1,7 @@
 import { backgroundWorkHoldsCompletion } from "@supaterm/shared/orchestrationV2PendingBackgroundWork";
 import { threadPullRequestsOf } from "../threadPullRequests.ts";
 import {
-  isOrchestrationV2RunWorking,
+  isOrchestrationV2RunInterruptible,
   isOrchestrationV2RunUnsettled,
   type ThreadLinkedPullRequest,
   type EnvironmentId,
@@ -117,7 +117,7 @@ export function threadRuntimeIsUnsettled(
 
 export function threadRuntimeCanArchive(runtime: ThreadRuntimeSummary | null | undefined): boolean {
   if (runtime?.status === "queued") return runtime.activeRunId === null;
-  return !isOrchestrationV2RunWorking(runtime?.status);
+  return !isOrchestrationV2RunInterruptible(runtime?.status);
 }
 
 export interface EnvironmentThreadShell {

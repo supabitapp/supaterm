@@ -7,7 +7,7 @@ import { EnvironmentId } from "@supaterm/contracts";
 import { describe, expect, it } from "@effect/vitest";
 import * as Option from "effect/Option";
 
-import { isAwaitingWorkspaceProjects, projectWorkspaceState } from "./workspaceModel";
+import { projectWorkspaceState } from "./workspaceModel";
 import { projectEnvironmentConnectionSummary as projectWorkspaceEnvironment } from "@supaterm/client-runtime/state/presentation";
 import type { EnvironmentPresentation } from "./environments";
 
@@ -83,6 +83,7 @@ describe("mobile workspace projection", () => {
       phase: { type: "loading-catalog", offline: false },
       connectionState: "available",
       awaitingProjects: true,
+      shellsSettled: false,
     },
     {
       name: "reports a device without environments, online or not",
@@ -90,6 +91,7 @@ describe("mobile workspace projection", () => {
       phase: { type: "no-environments", offline: true },
       connectionState: "available",
       awaitingProjects: false,
+      shellsSettled: true,
     },
     {
       name: "reports offline before stale connected presentations",
@@ -97,6 +99,7 @@ describe("mobile workspace projection", () => {
       phase: { type: "unavailable", reason: "offline", error: null, shell: "none" },
       connectionState: "offline",
       awaitingProjects: false,
+      shellsSettled: true,
     },
     {
       name: "still awaits projects offline while an environment is trying unfailed",
@@ -104,6 +107,7 @@ describe("mobile workspace projection", () => {
       phase: { type: "unavailable", reason: "offline", error: null, shell: "none" },
       connectionState: "offline",
       awaitingProjects: true,
+      shellsSettled: false,
     },
     {
       name: "carries the failure of an environment that cannot be used",
@@ -116,13 +120,15 @@ describe("mobile workspace projection", () => {
       },
       connectionState: "unsupported",
       awaitingProjects: false,
+      shellsSettled: true,
     },
     {
       name: "keeps retained snapshots visible while reconnecting without claiming readiness",
       input: { ...READY, environments: [reconnecting], shellSummary: CACHED_SHELL_SUMMARY },
-      phase: { type: "connecting", environments: [reconnecting], error: null, shell: "syncing" },
+      phase: { type: "connecting", environments: [reconnecting], shell: "syncing" },
       connectionState: "reconnecting",
       awaitingProjects: false,
+      shellsSettled: false,
     },
     {
       name: "keeps connecting while an environment without a snapshot retries after a failure",
@@ -130,18 +136,19 @@ describe("mobile workspace projection", () => {
       phase: {
         type: "connecting",
         environments: [failing],
-        error: "Could not reach the environment.",
         shell: "none",
       },
       connectionState: "reconnecting",
       awaitingProjects: false,
+      shellsSettled: true,
     },
     {
       name: "awaits projects while an environment without a snapshot connects unfailed",
       input: { ...READY, environments: [reconnecting], shellSummary: LOADING_SHELL_SUMMARY },
-      phase: { type: "connecting", environments: [reconnecting], error: null, shell: "loading" },
+      phase: { type: "connecting", environments: [reconnecting], shell: "loading" },
       connectionState: "reconnecting",
       awaitingProjects: true,
+      shellsSettled: false,
     },
     {
       name: "loads the first shell snapshot of a connected environment",
@@ -154,6 +161,7 @@ describe("mobile workspace projection", () => {
       phase: { type: "connected", shell: "loading" },
       connectionState: "connected",
       awaitingProjects: true,
+      shellsSettled: false,
     },
     {
       name: "awaits projects of an environment still connecting beside a connected one",
@@ -161,6 +169,7 @@ describe("mobile workspace projection", () => {
       phase: { type: "connected", shell: "none" },
       connectionState: "connected",
       awaitingProjects: true,
+      shellsSettled: false,
     },
     {
       name: "ignores another environment's shell sync once one is connected",
@@ -172,12 +181,14 @@ describe("mobile workspace projection", () => {
       phase: { type: "connected", shell: "loaded" },
       connectionState: "connected",
       awaitingProjects: false,
+      shellsSettled: false,
     },
-  ] as const)("$name", ({ input, phase, connectionState, awaitingProjects }) => {
+  ] as const)("$name", ({ input, phase, connectionState, awaitingProjects, shellsSettled }) => {
     const state = projectWorkspaceState(input);
 
     expect(state.phase).toEqual(phase);
     expect(state.connectionState).toBe(connectionState);
-    expect(isAwaitingWorkspaceProjects(state)).toBe(awaitingProjects);
+    expect(state.awaitingProjects).toBe(awaitingProjects);
+    expect(state.shellsSettled).toBe(shellsSettled);
   });
 });

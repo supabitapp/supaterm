@@ -119,7 +119,7 @@ function Harness(props: {
       isSendBusy={result.isSaving}
       sendDisabledReason={null}
       isEnvironmentUnavailable={false}
-      providerQueue="ready"
+      providerAvailability="ready"
       isProjectSelectionRequired={false}
       isPreparingWorktree={false}
       hasSendableContent={sendState.hasSendableContent}

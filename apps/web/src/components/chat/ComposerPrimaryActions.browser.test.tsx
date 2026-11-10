@@ -23,7 +23,7 @@ const baseProps = {
   isSendBusy: false,
   sendDisabledReason: null,
   isEnvironmentUnavailable: false,
-  providerQueue: "ready",
+  providerAvailability: "ready",
   isProjectSelectionRequired: false,
   isPreparingWorktree: false,
   hasSendableContent: true,

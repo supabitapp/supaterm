@@ -3,7 +3,7 @@ export type PullRequestEditState =
   | { readonly kind: "editing"; readonly target: string }
   | { readonly kind: "saving"; readonly target: string };
 
-export interface PullRequestEditEvent {
+interface PullRequestEditEvent {
   readonly kind: "open" | "cancel" | "save" | "saved" | "failed";
   readonly target: string;
 }

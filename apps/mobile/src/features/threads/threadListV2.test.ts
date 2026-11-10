@@ -1,4 +1,6 @@
 import { createInboxReturnTracker } from "@supaterm/client-runtime/state/thread-inbox";
+import { presentThreadShell } from "@supaterm/client-runtime/state/models";
+import * as DateTime from "effect/DateTime";
 import { planPinnedReorder } from "@supaterm/client-runtime/state/thread-sort";
 import {
   createPendingThreadOrder,
@@ -23,7 +25,7 @@ import {
 import { describe, expect, it, vi } from "vite-plus/test";
 
 import type { PendingNewTask } from "../../state/use-pending-new-tasks";
-import { makeThreadShellFixture } from "../../test-fixtures";
+import { makeRawThreadShell, makeThreadShellFixture } from "../../test-fixtures";
 import { threadJumpTarget } from "../keyboard/threadKeyboardShortcuts";
 import {
   buildThreadListV2Items,
@@ -32,6 +34,7 @@ import {
   resolveThreadListV2SnoozeMenuSelection,
   resolveThreadListV2WokeAt,
   resolveThreadListV2SwipeActions,
+  threadHasUnseenCompletion,
   threadListV2ListItemsAreEqual,
   type ThreadListV2ListItem,
 } from "./threadListV2";
@@ -98,6 +101,25 @@ describe("resolveThreadListV2SnoozeMenuSelection", () => {
         snoozedUntil: new Date(selectedAt.getTime() + 45 * 60 * 1_000).toISOString(),
       }),
     });
+  });
+});
+
+describe("threadHasUnseenCompletion", () => {
+  it.each([
+    { visit: "before", lastVisitedAt: "2026-06-01T23:59:00.000Z", unseen: true },
+    { visit: "after", lastVisitedAt: "2026-06-02T00:01:00.000Z", unseen: false },
+  ])("is $unseen when the last visit was $visit the run completed", ({ lastVisitedAt, unseen }) => {
+    const thread = presentThreadShell(
+      environmentId,
+      makeRawThreadShell({
+        latestRunId: RunId.make("run-completed"),
+        status: "completed",
+        latestRunCompletedAt: DateTime.makeUnsafe(NOW),
+        lastVisitedAt: DateTime.makeUnsafe(lastVisitedAt),
+      }),
+    );
+
+    expect(threadHasUnseenCompletion(thread)).toBe(unseen);
   });
 });
 

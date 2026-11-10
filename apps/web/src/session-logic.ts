@@ -16,7 +16,7 @@ import {
   type ThreadId,
   type TurnItemId,
   isOrchestrationV2RunUnsettled,
-  isOrchestrationV2RunAwaitingTurn,
+  isOrchestrationV2RunNotYetRunning,
 } from "@supaterm/contracts";
 import { extractToolActivityPresentation } from "@supaterm/client-runtime/work-log/tool-presentation";
 import {
@@ -1125,7 +1125,7 @@ export function findRevertCheckpoint(
 
 export function derivePhase(runtime: ThreadStructureRuntime | null): SessionPhase {
   if (runtime === null) return "disconnected";
-  if (isOrchestrationV2RunAwaitingTurn(runtime.status)) return "connecting";
+  if (isOrchestrationV2RunNotYetRunning(runtime.status)) return "connecting";
   if (runtime.status === "running" || runtime.status === "waiting") return "running";
   return "ready";
 }
