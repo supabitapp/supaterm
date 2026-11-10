@@ -537,6 +537,37 @@ describe("formatModelSelectionEffort", () => {
       "Off",
     );
   });
+
+  it("labels an old Ultracode effort by the effort it runs at", () => {
+    const models = [
+      {
+        slug: "claude-opus-5-5",
+        name: "Claude Opus 5.5",
+        isCustom: false,
+        capabilities: createModelCapabilities({
+          optionDescriptors: [
+            {
+              id: "effort",
+              label: "Reasoning",
+              type: "select",
+              options: [
+                { id: "high", label: "High", isDefault: true },
+                { id: "xhigh", label: "Extra High" },
+              ],
+            },
+            { id: "ultracode", label: "Ultracode", type: "boolean" },
+          ],
+        }),
+      },
+    ];
+    const selection = createModelSelection(
+      ProviderInstanceId.make("claudeAgent"),
+      "claude-opus-5-5",
+      [{ id: "effort", value: "ultracode" }],
+    );
+
+    expect(formatModelSelectionEffort(selection, models)).toBe("Extra High");
+  });
 });
 
 describe("provider-reported model selection", () => {
@@ -582,39 +613,6 @@ describe("provider-reported model selection", () => {
         ],
       }),
     ).toBeNull();
-  });
-});
-
-describe("formatModelSelectionEffort", () => {
-  it("labels an old Ultracode effort by the effort it runs at", () => {
-    const models = [
-      {
-        slug: "claude-opus-5-5",
-        name: "Claude Opus 5.5",
-        isCustom: false,
-        capabilities: createModelCapabilities({
-          optionDescriptors: [
-            {
-              id: "effort",
-              label: "Reasoning",
-              type: "select",
-              options: [
-                { id: "high", label: "High", isDefault: true },
-                { id: "xhigh", label: "Extra High" },
-              ],
-            },
-            { id: "ultracode", label: "Ultracode", type: "boolean" },
-          ],
-        }),
-      },
-    ];
-    const selection = createModelSelection(
-      ProviderInstanceId.make("claudeAgent"),
-      "claude-opus-5-5",
-      [{ id: "effort", value: "ultracode" }],
-    );
-
-    expect(formatModelSelectionEffort(selection, models)).toBe("Extra High");
   });
 });
 
