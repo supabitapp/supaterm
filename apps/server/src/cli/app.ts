@@ -20,7 +20,7 @@ import { resolveDesktopAppControlAddress } from "@supaterm/shared/desktopAppCont
 import * as HostProcess from "@supaterm/shared/HostProcess";
 import * as Config from "effect/Config";
 import * as Console from "effect/Console";
-import * as Crypto from "effect/Crypto";
+import * as SecureRandom from "effect/crypto/SecureRandom";
 import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
 import * as Path from "effect/Path";
@@ -296,8 +296,8 @@ const resolveDesktopApp = Effect.fn("cli.app.resolveDesktopApp")(function* (
       userId,
       joinPath: path.join,
     }).address;
-  const crypto = yield* Crypto.Crypto;
-  const requestId = yield* crypto.randomUUIDv4().pipe(Effect.orDie);
+  const random = yield* SecureRandom.SecureRandom;
+  const requestId = yield* random.uuidV4();
   const address = resolveAddress("userdata");
   const fallbackAddress = allowDevFallback ? resolveAddress("dev") : undefined;
   return {

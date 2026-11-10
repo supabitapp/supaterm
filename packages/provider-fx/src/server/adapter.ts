@@ -2,7 +2,7 @@ import * as HostProcess from "@supaterm/shared/HostProcess";
 import { resolveSelfInvocation, type SelfInvocation } from "@supaterm/shared/nodeRuntime";
 import { type OrchestrationV2ProviderCapabilities } from "@supaterm/contracts";
 import { FxSettings } from "../settings.ts";
-import type * as Crypto from "effect/Crypto";
+import type * as SecureRandom from "effect/crypto/SecureRandom";
 import * as Effect from "effect/Effect";
 import type * as FileSystem from "effect/FileSystem";
 import * as Option from "effect/Option";
@@ -159,7 +159,7 @@ export interface FxAdapterV2Options {
   ) => Effect.Effect<
     AcpSessionRuntime.AcpSessionRuntime["Service"],
     EffectAcpErrors.AcpError,
-    ChildProcessSpawner.ChildProcessSpawner | Crypto.Crypto | Scope.Scope
+    ChildProcessSpawner.ChildProcessSpawner | SecureRandom.SecureRandom | Scope.Scope
   >;
   readonly assertComplete?: Effect.Effect<void, EffectAcpErrors.AcpError>;
 }
@@ -203,7 +203,7 @@ export const makeFxAdapterV2 = Effect.fn("makeFxAdapterV2")(function* (
 
 export type FxAdapterV2DriverEnv =
   | ChildProcessSpawner.ChildProcessSpawner
-  | Crypto.Crypto
+  | SecureRandom.SecureRandom
   | FileSystem.FileSystem
   | IdAllocator.IdAllocatorV2
   | Path.Path

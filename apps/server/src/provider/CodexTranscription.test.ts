@@ -1,9 +1,11 @@
 import * as NodeServices from "@effect/platform-node/NodeServices";
+import * as NodeCrypto from "@effect/platform-node/NodeCrypto";
 import { TranscriptionError } from "@supaterm/contracts";
 import { parseWav } from "@supaterm/provider-core/server/transcription";
 import { describe, expect, it } from "@effect/vitest";
 import * as Deferred from "effect/Deferred";
 import * as Effect from "effect/Effect";
+import * as Layer from "effect/Layer";
 import * as Fiber from "effect/Fiber";
 import * as FileSystem from "effect/FileSystem";
 import * as Path from "effect/Path";
@@ -145,7 +147,7 @@ describe("makeCodexTranscription", () => {
         "content-length": String(desktopUpload(boundary, "en").byteLength),
       });
       expect(request?.body).toEqual(desktopUpload(boundary, "en"));
-    }).pipe(Effect.scoped, Effect.provide(NodeServices.layer)),
+    }).pipe(Effect.scoped, Effect.provide(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer))),
   );
 
   it.effect("leaves the language out so the endpoint detects it", () =>
@@ -157,7 +159,7 @@ describe("makeCodexTranscription", () => {
       yield* backend.transcribe({ audio: AUDIO, language: undefined, keyterms: [] });
       const [request] = yield* Ref.get(sent);
       expect(request?.body).toEqual(desktopUpload(boundaryOf(request)));
-    }).pipe(Effect.scoped, Effect.provide(NodeServices.layer)),
+    }).pipe(Effect.scoped, Effect.provide(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer))),
   );
 
   it.effect("refreshes an expired token before sending", () =>
@@ -170,7 +172,7 @@ describe("makeCodexTranscription", () => {
       yield* backend.transcribe({ audio: AUDIO, language: undefined, keyterms: [] });
       expect(yield* Ref.get(refreshes)).toBe(1);
       expect((yield* Ref.get(sent))[0]?.headers.authorization).toBe(`Bearer ${ROTATED}`);
-    }).pipe(Effect.scoped, Effect.provide(NodeServices.layer)),
+    }).pipe(Effect.scoped, Effect.provide(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer))),
   );
 
   it.effect("refreshes once on a 401 and retries with the new token", () =>
@@ -188,7 +190,7 @@ describe("makeCodexTranscription", () => {
         `Bearer ${FRESH}`,
         `Bearer ${ROTATED}`,
       ]);
-    }).pipe(Effect.scoped, Effect.provide(NodeServices.layer)),
+    }).pipe(Effect.scoped, Effect.provide(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer))),
   );
 
   it.effect("reports a second 401 as signed out instead of refreshing again", () =>
@@ -202,7 +204,7 @@ describe("makeCodexTranscription", () => {
         yield* reason(backend.transcribe({ audio: AUDIO, language: undefined, keyterms: [] })),
       ).toBe("signedOut");
       expect(yield* Ref.get(refreshes)).toBe(1);
-    }).pipe(Effect.scoped, Effect.provide(NodeServices.layer)),
+    }).pipe(Effect.scoped, Effect.provide(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer))),
   );
 
   it.effect("refreshes once when two instances share a login and both get a 401", () =>
@@ -255,7 +257,7 @@ describe("makeCodexTranscription", () => {
       expect(yield* Fiber.join(first)).toEqual({ text: "ok" });
       expect(yield* Fiber.join(second)).toEqual({ text: "ok" });
       expect(yield* Ref.get(refreshes)).toBe(1);
-    }).pipe(Effect.scoped, Effect.provide(NodeServices.layer)),
+    }).pipe(Effect.scoped, Effect.provide(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer))),
   );
 
   it.effect("maps the endpoint's refusals to transcription reasons", () =>
@@ -287,7 +289,7 @@ describe("makeCodexTranscription", () => {
         backend.transcribe({ audio: AUDIO, language: undefined, keyterms: [] }),
       );
       expect(limited.retryAfterMs).toBe(7_000);
-    }).pipe(Effect.scoped, Effect.provide(NodeServices.layer)),
+    }).pipe(Effect.scoped, Effect.provide(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer))),
   );
 
   it.effect("treats a missing auth.json as a login it can't use", () =>
@@ -297,7 +299,7 @@ describe("makeCodexTranscription", () => {
         yield* reason(backend.transcribe({ audio: AUDIO, language: undefined, keyterms: [] })),
       ).toBe("unsupportedLogin");
       expect(yield* Ref.get(sent)).toHaveLength(0);
-    }).pipe(Effect.scoped, Effect.provide(NodeServices.layer)),
+    }).pipe(Effect.scoped, Effect.provide(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer))),
   );
 });
 

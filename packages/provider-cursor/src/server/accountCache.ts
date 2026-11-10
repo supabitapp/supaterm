@@ -1,7 +1,10 @@
 import { cursorRateModel } from "./accountUsage.ts";
 import type { UsageRecord } from "@supaterm/provider-core/server/usage";
 
-export type CursorCredentialSource = string | { readonly kind: "keychain" };
+export type CursorCredentialSource =
+  | string
+  | { readonly kind: "keychain" }
+  | { readonly kind: "apiKey"; readonly apiKey: string };
 
 export const CURSOR_ACCOUNT_TTL_MS = 60 * 1000;
 

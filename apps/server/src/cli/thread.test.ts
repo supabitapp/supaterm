@@ -4,6 +4,7 @@ import * as NodeOS from "node:os";
 import * as NodePath from "node:path";
 
 import * as NodeServices from "@effect/platform-node/NodeServices";
+import * as NodeCrypto from "@effect/platform-node/NodeCrypto";
 import { assert, it } from "@effect/vitest";
 import { RunId, ThreadId } from "@supaterm/contracts";
 import * as HostProcess from "@supaterm/shared/HostProcess";
@@ -140,7 +141,11 @@ it.effect("a linked worktree only looks for a server in its own home", () =>
     assert.isFalse(
       NodeFS.existsSync(NodePath.join(worktree, ".supaterm", "userdata", "statev2.sqlite")),
     );
-  }).pipe(Effect.provide(Layer.mergeAll(NodeServices.layer, NetService.layer, TestConsole.layer))),
+  }).pipe(
+    Effect.provide(
+      Layer.mergeAll(NodeServices.layer, NodeCrypto.layer, NetService.layer, TestConsole.layer),
+    ),
+  ),
 );
 
 it.effect("an installed CLI in a project's linked worktree uses the normal home", () =>
@@ -171,7 +176,11 @@ it.effect("an installed CLI in a project's linked worktree uses the normal home"
       { baseDir: error.baseDir, inLinkedWorktree: error.inLinkedWorktree },
       { baseDir: sharedHome, inLinkedWorktree: false },
     );
-  }).pipe(Effect.provide(Layer.mergeAll(NodeServices.layer, NetService.layer, TestConsole.layer))),
+  }).pipe(
+    Effect.provide(
+      Layer.mergeAll(NodeServices.layer, NodeCrypto.layer, NetService.layer, TestConsole.layer),
+    ),
+  ),
 );
 
 // A CLI from another build would open the server's database with its own
@@ -198,7 +207,11 @@ it.effect("refuses a server from another build before opening its database", () 
     assert.instanceOf(error, CliServerVersionMismatchError);
     assert.strictEqual(error.serverVersion, "0.0.1-older");
     assert.isFalse(NodeFS.existsSync(NodePath.join(home, "userdata", "statev2.sqlite")));
-  }).pipe(Effect.provide(Layer.mergeAll(NodeServices.layer, NetService.layer, TestConsole.layer))),
+  }).pipe(
+    Effect.provide(
+      Layer.mergeAll(NodeServices.layer, NodeCrypto.layer, NetService.layer, TestConsole.layer),
+    ),
+  ),
 );
 
 /** Serves supaterm_thread_read pages the way the server does: positions count every item. */

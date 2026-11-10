@@ -1,7 +1,7 @@
 import * as NodeModule from "node:module";
 
 import * as HostProcess from "@supaterm/shared/HostProcess";
-import * as Crypto from "effect/Crypto";
+import * as Digest from "effect/crypto/Digest";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
 import * as Path from "effect/Path";
@@ -152,7 +152,7 @@ export const renderStudioIcons = Effect.fn("renderStudioIcons")(function* (repos
 export const iconInputsDigest = Effect.fn("iconInputsDigest")(function* (repositoryRoot: string) {
   const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
-  const crypto = yield* Crypto.Crypto;
+  const digester = yield* Digest.Digest;
   const { metafile } = yield* attempt(() =>
     build({
       absWorkingDir: repositoryRoot,
@@ -172,6 +172,6 @@ export const iconInputsDigest = Effect.fn("iconInputsDigest")(function* (reposit
     parts.push(new TextEncoder().encode(`${file}\n`));
     parts.push(yield* fs.readFile(path.join(repositoryRoot, file)));
   }
-  const digest = yield* crypto.digest("SHA-256", Buffer.concat(parts));
+  const digest = yield* digester.digest(Digest.sha256, Buffer.concat(parts));
   return `${Buffer.from(digest).toString("hex")}\n`;
 });

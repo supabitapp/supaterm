@@ -4,6 +4,7 @@ import * as NodeHttp from "node:http";
 import * as NodeNet from "node:net";
 import * as NodeHttpServer from "@effect/platform-node/NodeHttpServer";
 import * as NodeServices from "@effect/platform-node/NodeServices";
+import * as NodePlatformCrypto from "@effect/platform-node/NodeCrypto";
 import {
   createTunnelConnector,
   TUNNEL_MAX_PLAIN_BYTES,
@@ -304,7 +305,7 @@ const closedPortUrl = Effect.promise(
 const connectUrl = (host: { readonly url: string }, endpointId: string) =>
   `${host.url}/v1/connect?endpointId=${endpointId}`;
 
-it.layer(NodeServices.layer)("DirectTunnel", (it) => {
+it.layer(Layer.mergeAll(NodeServices.layer, NodePlatformCrypto.layer))("DirectTunnel", (it) => {
   it.effect("carries API requests to the host without cookies in either direction", () =>
     Effect.gen(function* () {
       const host = yield* startHost(roomy);
@@ -484,29 +485,32 @@ const layerAdvertiser = (host: string) =>
     Layer.provide(layerConfig({ host, port: 3773 })),
   );
 
-it.layer(NodeServices.layer)("DirectTunnel advertisement", (it) => {
-  it.effect("advertises a non-loopback bind once the identity exists", () =>
-    Effect.gen(function* () {
-      const tunnel = yield* DirectTunnel.DirectTunnel;
-      const identity = yield* RelayIdentity.RelayIdentity;
-      expect(Option.isNone(yield* tunnel.advertisement)).toBe(true);
-      const updates = yield* tunnel.advertisements.pipe(
-        Stream.tap((current) => (Option.isNone(current) ? identity.get : Effect.void)),
-        Stream.take(2),
-        Stream.runCollect,
-      );
-      const created = yield* identity.get;
-      const expected = { address: created.address, urls: ["ws://192.168.1.20:3773"] };
-      expect(Array.from(updates)).toEqual([Option.none(), Option.some(expected)]);
-      expect(yield* tunnel.advertisement).toEqual(Option.some(expected));
-    }).pipe(Effect.provide(layerAdvertiser("192.168.1.20"))),
-  );
+it.layer(Layer.mergeAll(NodeServices.layer, NodePlatformCrypto.layer))(
+  "DirectTunnel advertisement",
+  (it) => {
+    it.effect("advertises a non-loopback bind once the identity exists", () =>
+      Effect.gen(function* () {
+        const tunnel = yield* DirectTunnel.DirectTunnel;
+        const identity = yield* RelayIdentity.RelayIdentity;
+        expect(Option.isNone(yield* tunnel.advertisement)).toBe(true);
+        const updates = yield* tunnel.advertisements.pipe(
+          Stream.tap((current) => (Option.isNone(current) ? identity.get : Effect.void)),
+          Stream.take(2),
+          Stream.runCollect,
+        );
+        const created = yield* identity.get;
+        const expected = { address: created.address, urls: ["ws://192.168.1.20:3773"] };
+        expect(Array.from(updates)).toEqual([Option.none(), Option.some(expected)]);
+        expect(yield* tunnel.advertisement).toEqual(Option.some(expected));
+      }).pipe(Effect.provide(layerAdvertiser("192.168.1.20"))),
+    );
 
-  it.effect("never advertises a loopback bind", () =>
-    Effect.gen(function* () {
-      const tunnel = yield* DirectTunnel.DirectTunnel;
-      yield* (yield* RelayIdentity.RelayIdentity).get;
-      expect(Option.isNone(yield* tunnel.advertisement)).toBe(true);
-    }).pipe(Effect.provide(layerAdvertiser("127.0.0.1"))),
-  );
-});
+    it.effect("never advertises a loopback bind", () =>
+      Effect.gen(function* () {
+        const tunnel = yield* DirectTunnel.DirectTunnel;
+        yield* (yield* RelayIdentity.RelayIdentity).get;
+        expect(Option.isNone(yield* tunnel.advertisement)).toBe(true);
+      }).pipe(Effect.provide(layerAdvertiser("127.0.0.1"))),
+    );
+  },
+);

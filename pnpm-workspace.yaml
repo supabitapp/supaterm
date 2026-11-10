@@ -28,12 +28,12 @@ allowBuilds:
   utf-8-validate: false
 
 catalog:
-  "@effect/atom-react": 4.0.5
-  "@effect/graphql-generator": 4.0.5
-  "@effect/openapi-generator": 4.0.5
-  "@effect/platform-node": 4.0.5
-  "@effect/platform-node-shared": 4.0.5
-  "@effect/vitest": 4.0.5
+  "@effect/atom-react": 4.1.2
+  "@effect/graphql-generator": 4.1.2
+  "@effect/openapi-generator": 4.1.2
+  "@effect/platform-node": 4.1.2
+  "@effect/platform-node-shared": 4.1.2
+  "@effect/vitest": 4.1.2
   "@legendapp/list": 3.3.5
   "@noble/hashes": 1.8.0
   "@pierre/diffs": 1.6.1
@@ -45,7 +45,7 @@ catalog:
   "@types/react": ~19.3.0
   "@types/react-dom": ~19.3.0
   "@types/ws": 8.18.2
-  effect: 4.0.5
+  effect: 4.1.2
   jose: 6.2.12
   lightningcss: 1.33.0
   react: 19.3.0
@@ -75,13 +75,13 @@ minimumReleaseAgeExclude:
   - expo-glass-effect@58.0.4
   - expo-blur@58.0.4
   - expo-audio@58.0.9
-  - "@effect/atom-react@4.0.5"
-  - "@effect/graphql-generator@4.0.5"
-  - "@effect/openapi-generator@4.0.5"
-  - "@effect/platform-node-shared@4.0.5"
-  - "@effect/platform-node@4.0.5"
-  - "@effect/vitest@4.0.5"
-  - effect@4.0.5
+  - "@effect/atom-react@4.1.2"
+  - "@effect/graphql-generator@4.1.2"
+  - "@effect/openapi-generator@4.1.2"
+  - "@effect/platform-node-shared@4.1.2"
+  - "@effect/platform-node@4.1.2"
+  - "@effect/vitest@4.1.2"
+  - effect@4.1.2
   - "@legendapp/list@3.3.5"
   - "@expo/cli@58.1.1 || 58.1.9 || 58.1.11"
   - "@expo/env@2.5.1"

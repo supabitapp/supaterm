@@ -1,5 +1,5 @@
 import type { SourceControlProviderKind } from "@supaterm/contracts";
-import type * as Crypto from "effect/Crypto";
+import type * as Digest from "effect/crypto/Digest";
 import * as Effect from "effect/Effect";
 import type * as FileSystem from "effect/FileSystem";
 import type { HttpClient, HttpClientError, HttpClientResponse } from "effect/http";
@@ -45,7 +45,7 @@ export type SourceControlDriverServices =
   | SourceControlRateLimit.SourceControlRateLimit
   | HttpClient.HttpClient
   | FileSystem.FileSystem
-  | Crypto.Crypto;
+  | Digest.Digest;
 
 export interface SourceControlDriver {
   readonly kind: SourceControlProviderKind;

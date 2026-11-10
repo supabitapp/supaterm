@@ -11,6 +11,7 @@ import { modelShortName } from "@supaterm/provider-core/modelShortName";
 import { cursorClient } from "@supaterm/provider-cursor/client";
 import { fxClient } from "@supaterm/provider-fx/client";
 import { grokClient } from "@supaterm/provider-grok/client";
+import { kiroClient } from "@supaterm/provider-kiro/client";
 import { museClient } from "@supaterm/provider-muse/client";
 import { openCodeClient } from "@supaterm/provider-opencode/client";
 import { piClient } from "@supaterm/provider-pi/client";
@@ -41,6 +42,7 @@ export const providerClients = makeProviderClientRegistry([
     acpRegistryAgentIds: ["antigravity-acp"],
     settingsSchema: AntigravitySettings,
   },
+  kiroClient,
   museClient,
   piClient,
   acpRegistryClient,

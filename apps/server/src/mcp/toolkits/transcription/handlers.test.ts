@@ -57,7 +57,7 @@ const otherCaller: McpInvocationContext.McpInvocationScope = {
 
 const withTranscription = (service: Partial<Transcription.Transcription["Service"]>) =>
   McpHttpServer.layerTranscriptionToolkit.pipe(
-    Layer.provideMerge(McpServer.McpServer.layer),
+    Layer.provideMerge(McpHttpServer.layerInProcessMcpServer),
     Layer.provideMerge(McpPendingUploads.layer),
     Layer.provide(McpToolAccessTestkit.liveThreadsLayer),
     Layer.provide(Layer.mock(Transcription.Transcription)(service)),

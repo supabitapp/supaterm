@@ -581,6 +581,7 @@
     "@supaterm/provider-cursor": "workspace:*",
     "@supaterm/provider-fx": "workspace:*",
     "@supaterm/provider-grok": "workspace:*",
+    "@supaterm/provider-kiro": "workspace:*",
     "@supaterm/provider-muse": "workspace:*",
     "@supaterm/provider-opencode": "workspace:*",
     "@supaterm/provider-pi": "workspace:*",
