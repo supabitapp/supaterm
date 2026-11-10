@@ -54,12 +54,19 @@ const make = Effect.gen(function* () {
     key: SuggestionKey,
   ) {
     const shell = yield* threads.getThreadShell(key.threadId);
-    if (shell?.latestRunId !== key.runId || shell.activeRunId !== null) return false;
+    const latestRunId = shell?.latestRunId ?? null;
+    if (latestRunId === null || shell?.activeRunId !== null) return false;
     const { runs } = yield* threads.getThreadRecords(key.threadId, ["runs"], {
-      runIds: [key.runId],
+      runIds: latestRunId === key.runId ? [key.runId] : [key.runId, latestRunId],
     });
-    const run = runs[0];
-    if (run?.status !== "completed" || run.completedAt === null) return false;
+    const run = runs.find((candidate) => candidate.id === key.runId);
+    const latest = runs.find((candidate) => candidate.id === latestRunId);
+    if (run?.status !== "completed" || run.completedAt === null || latest === undefined)
+      return false;
+    // A message promoted to Steer leaves its queued run cancelled before it started, still the latest.
+    const steeredPastLatest =
+      latest.status === "cancelled" && latest.startedAt === null && run.ordinal < latest.ordinal;
+    if (latest !== run && !steeredPastLatest) return false;
     const now = yield* DateTime.now;
     return DateTime.isGreaterThan(run.completedAt, DateTime.subtractDuration(now, FRESHNESS));
   });

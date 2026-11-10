@@ -2,12 +2,14 @@ import {
   ORCHESTRATION_V2_WS_METHODS,
   type EnvironmentId,
   type OrchestrationV2CommandOutputFrame,
+  type OrchestrationV2Run,
   type OrchestrationV2RunStatus,
   type RunId,
   type ThreadId,
   type OrchestrationV2ThreadLinkMetadata,
   type OrchestrationGetTurnDiffResult,
 } from "@supaterm/contracts";
+import { latestExecutedRun } from "@supaterm/shared/orchestrationV2ThreadError";
 import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
 import * as Stream from "effect/Stream";
@@ -238,18 +240,36 @@ export function createOrchestrationEnvironmentAtoms<R, E>(
   };
 }
 
-/** The completed run a client asks for a next prompt suggestion about, or null when it should not ask. */
+/**
+ * The completed run a client asks for a next prompt suggestion about, or null when it should not ask.
+ * A message promoted to Steer leaves its queued run cancelled before it started, still the latest
+ * run, so the last run that ran answers instead. Detail can lag the shell, so that skip waits until
+ * `runs` include the cancelled run.
+ */
 export function nextPromptSuggestionRunId(input: {
   readonly enabled: boolean;
   readonly connected: boolean;
   readonly canSuggest: boolean;
   readonly latestRun:
-    | { readonly runId: RunId; readonly status: OrchestrationV2RunStatus }
+    | {
+        readonly runId: RunId;
+        readonly status: OrchestrationV2RunStatus;
+        readonly startedAt?: string | null;
+      }
     | null
     | undefined;
+  readonly runs?: ReadonlyArray<OrchestrationV2Run>;
 }): RunId | null {
-  const { enabled, connected, canSuggest, latestRun } = input;
-  return enabled && connected && canSuggest && latestRun?.status === "completed"
-    ? latestRun.runId
-    : null;
+  const { enabled, connected, canSuggest, latestRun, runs = [] } = input;
+  if (!enabled || !connected || !canSuggest || !latestRun) return null;
+  if (latestRun.status === "completed") return latestRun.runId;
+  const steered =
+    latestRun.status === "cancelled" &&
+    latestRun.startedAt === null &&
+    runs.some(
+      (run) => run.id === latestRun.runId && run.status === "cancelled" && run.startedAt === null,
+    );
+  if (!steered) return null;
+  const executed = latestExecutedRun(runs);
+  return executed?.status === "completed" ? executed.id : null;
 }
