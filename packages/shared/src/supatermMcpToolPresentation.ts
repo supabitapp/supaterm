@@ -85,7 +85,8 @@ function tool(
   return { displayName, labels, icon, summaryAction };
 }
 
-const SUPATERM_MCP_SERVER_NAME = "supaterm";
+// Codex registers "supaterm-direct" for Supaterm tools kept out of Code Mode.
+const SUPATERM_MCP_SERVER_ALIASES = new Set(["supaterm", "supaterm-direct", "supaterm_direct"]);
 
 const SUPATERM_MCP_TOOLS: Readonly<Record<string, SupatermMcpToolDefinition>> = {
   link_pull_request: tool(
@@ -426,10 +427,12 @@ function resolveSupatermMcpToolName(value: string): string | null {
   const mcpMatch = /^mcp__(?<server>.+?)__(?<tool>.+)$/i.exec(label);
   if (mcpMatch?.groups) {
     const { server, tool } = mcpMatch.groups;
-    return tool !== undefined && server?.toLowerCase() === SUPATERM_MCP_SERVER_NAME ? tool : null;
+    return tool !== undefined && SUPATERM_MCP_SERVER_ALIASES.has(server?.toLowerCase() ?? "")
+      ? tool
+      : null;
   }
 
-  const namespaceMatch = /^supaterm(?:[.:/]|\s*·\s*)(?<tool>.+)$/i.exec(label);
+  const namespaceMatch = /^supaterm(?:[-_]direct)?(?:[.:/]|\s*·\s*)(?<tool>.+)$/i.exec(label);
   if (namespaceMatch?.groups) {
     return namespaceMatch.groups.tool ?? null;
   }

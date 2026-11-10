@@ -150,14 +150,28 @@ it("treats usage-limited and other provider-finished runs as forkable", () => {
   assert.isFalse(isForkableSourceRunStatus("rolled_back"));
 });
 
-it.effect("keeps a fork awake when its source thread is snoozed", () =>
+it.effect("resets a fork's pin, snooze and done state but keeps its origin", () =>
   Effect.gen(function* () {
-    const sourceThread = makeSourceThread();
+    const sourceThread: OrchestrationV2AppThread = {
+      ...makeSourceThread(),
+      lastSnoozeWakeAt: snoozedAt,
+      pinnedAt: snoozedAt,
+      pinOrderKey: "a0",
+      activeOrderKey: "a1",
+      autoMarkDoneDisabledAt: snoozedAt,
+      historyOrigin: "v1_import",
+    };
     const sourceRun = makeSourceRun("completed");
-    const result = yield* planFork(sourceRun);
+    const result = yield* planFork(sourceRun, sourceThread);
 
     assert.isNull(result.targetThread.snoozedUntil);
     assert.isNull(result.targetThread.snoozedAt);
+    assert.isNull(result.targetThread.lastSnoozeWakeAt);
+    assert.isNull(result.targetThread.pinnedAt);
+    assert.isNull(result.targetThread.pinOrderKey);
+    assert.isNull(result.targetThread.activeOrderKey);
+    assert.isNull(result.targetThread.autoMarkDoneDisabledAt);
+    assert.equal(result.targetThread.historyOrigin, "v1_import");
     assert.equal(result.targetThread.projectId, sourceThread.projectId);
     assert.equal(result.targetThread.providerInstanceId, sourceThread.providerInstanceId);
     assert.deepEqual(result.targetThread.modelSelection, sourceThread.modelSelection);

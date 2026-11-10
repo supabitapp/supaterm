@@ -17,6 +17,8 @@ describe("resolveSupatermMcpToolPresentation", () => {
         "mcp__Supaterm__",
         "supaterm.",
         "Supaterm.",
+        "supaterm-direct.",
+        "mcp__supaterm_direct__",
         "supaterm/",
         "supaterm:",
         "mcp_supaterm_",

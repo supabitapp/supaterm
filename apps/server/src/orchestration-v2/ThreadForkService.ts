@@ -97,7 +97,7 @@ export const layer: Layer.Layer<ThreadForkServiceV2> = Layer.succeed(
         // The source's title job completes only on the source thread.
         titleRegeneration: null,
         // Side chats show only their own rows, so the parent's pins would point at nothing.
-        ...(input.sideChat ? { pinnedAt: null, pinnedMessages: [] } : {}),
+        ...(input.sideChat ? { pinnedMessages: [] } : {}),
         activeProviderThreadId: null,
         lineage: {
           parentThreadId: input.sourceProjection.thread.id,
@@ -116,6 +116,11 @@ export const layer: Layer.Layer<ThreadForkServiceV2> = Layer.succeed(
         doneAt: null,
         snoozedUntil: null,
         snoozedAt: null,
+        lastSnoozeWakeAt: null,
+        pinnedAt: null,
+        pinOrderKey: null,
+        activeOrderKey: null,
+        autoMarkDoneDisabledAt: null,
         lastVisitedAt: null,
         // A fork is a new thread; it does not inherit how often the source was opened.
         opens: null,

@@ -1392,6 +1392,10 @@ export const CODEX_THREAD_CONFIG = {
 // Supaterm wait tools can block for up to an hour. Keep Codex's MCP timeout above
 // that limit so the server's own wait timeout ends a long call.
 const CODEX_SUPATERM_MCP_TOOL_TIMEOUT_SEC = 65 * 60;
+// Holds Supaterm tools Codex must call directly, never from Code Mode. Calls arrive as
+// `supaterm-direct.<tool>`; supatermMcpToolPresentation.ts must keep resolving that form.
+const CODEX_SUPATERM_DIRECT_MCP_SERVER = "supaterm-direct";
+const CODEX_DIRECT_ONLY_SUPATERM_TOOL = "supaterm_thread_wait";
 
 function codexThreadRuntimeParams(input: {
   readonly threadId: ThreadId | null;
@@ -1404,6 +1408,14 @@ function codexThreadRuntimeParams(input: {
   readonly config: Readonly<Record<string, Schema.Json>>;
 } {
   const { mcpSession } = input;
+  const supatermServer =
+    mcpSession === undefined
+      ? undefined
+      : {
+          url: mcpSession.endpoint,
+          tool_timeout_sec: CODEX_SUPATERM_MCP_TOOL_TIMEOUT_SEC,
+          http_headers: { Authorization: mcpSession.authorizationHeader },
+        };
   return {
     ...(input.runtimePolicy?.cwd == null ? {} : { cwd: input.runtimePolicy.cwd }),
     ...(input.modelSelection === undefined ? {} : { model: input.modelSelection.model }),
@@ -1413,16 +1425,20 @@ function codexThreadRuntimeParams(input: {
       ...(input.threadId === null
         ? {}
         : { [`shell_environment_policy.set.${PortScanner.AGENT_THREAD_ENV}`]: input.threadId }),
-      ...(mcpSession === undefined
+      ...(supatermServer === undefined
         ? {}
         : {
-            // Override only Supaterm's server so launch-argument MCP servers survive.
+            // Override only Supaterm's servers so launch-argument MCP servers survive.
             "mcp_servers.supaterm": {
-              url: mcpSession.endpoint,
-              tool_timeout_sec: CODEX_SUPATERM_MCP_TOOL_TIMEOUT_SEC,
-              http_headers: {
-                Authorization: mcpSession.authorizationHeader,
-              },
+              ...supatermServer,
+              disabled_tools: [CODEX_DIRECT_ONLY_SUPATERM_TOOL],
+            },
+            // Code Mode runs a blocking wait as a nested call, and the model keeps working
+            // around it. A second, direct-only registration makes it a plain tool call.
+            [`mcp_servers.${CODEX_SUPATERM_DIRECT_MCP_SERVER}`]: {
+              ...supatermServer,
+              enabled_tools: [CODEX_DIRECT_ONLY_SUPATERM_TOOL],
+              omit_tools_from: ["code_mode", "deferred"],
             },
           }),
     },
