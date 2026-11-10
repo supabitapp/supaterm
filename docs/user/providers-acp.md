@@ -1,6 +1,6 @@
-# ACP Registry
+# ACP providers
 
-Supaterm can run coding agents from the official
+Supaterm can run installed ACP commands or coding agents from the official
 [ACP Registry](https://agentclientprotocol.com/get-started/registry). Registry agents bring their
 own models, tools, and sign-in, while Supaterm provides projects, threads, checkpoints, and task
 delegation.
@@ -32,9 +32,12 @@ code; review an agent's source and license before adding it.
 
 In **Settings → Providers → Add provider**, select **Show more**, then **Local ACP command**. Enter the executable
 name or path on the selected environment, add one literal argument per row, and choose a display
-name. Local commands require no registry entry or download; credentials and skills remain managed
-by the installed agent or its wrapper. Supaterm launches the executable directly without expanding
-shell expressions.
+name.
+
+Local commands require no registry entry or download. Environment overrides apply to the command;
+credentials and skills remain managed by the installed agent or its wrapper. Models and reasoning
+options come from ACP, including model IDs that contain JSON. Supaterm launches the executable directly
+without expanding shell expressions.
 
 ## Where agents run
 
