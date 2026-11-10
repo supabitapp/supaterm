@@ -201,6 +201,7 @@ async function deliverVoiceTurn(
         ...(input.modelSelection ? { modelSelection: input.modelSelection } : {}),
         delivery: voiceDelivery(input.dispatchMode),
         creationSource: input.creationSource === "mobile" ? "mobile" : "web",
+        ...(input.freshContext ? { freshContext: true } : {}),
       },
     },
   });

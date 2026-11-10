@@ -1253,6 +1253,13 @@ export function snapshotComposerSend(contents: ComposerSendContents) {
 
 export type ComposerSendSnapshot = ReturnType<typeof snapshotComposerSend>;
 
+/** A turn that starts a new provider session cannot steer into or restart the running one. */
+export function freshTurnDispatchMode(dispatchMode: ComposerDispatchMode, freshContext: boolean) {
+  return freshContext && (dispatchMode === "steer" || dispatchMode === "restart")
+    ? "queue"
+    : dispatchMode;
+}
+
 /**
  * How a composer send dispatches: whether a new draft gets a worktree, and whether the
  * message waits behind other work. Only a local draft can create a worktree, and a missing
@@ -1273,10 +1280,7 @@ export function planComposerTurn(input: {
 }) {
   const shouldCreateWorktree =
     input.isLocalDraftThread && input.sendEnvMode === "worktree" && !input.worktreePath;
-  const dispatchMode =
-    input.freshContext && (input.dispatchMode === "steer" || input.dispatchMode === "restart")
-      ? "queue"
-      : input.dispatchMode;
+  const dispatchMode = freshTurnDispatchMode(input.dispatchMode, input.freshContext);
   return {
     shouldCreateWorktree,
     missingWorktreeBaseBranch: shouldRequireWorktreeBaseBranch({

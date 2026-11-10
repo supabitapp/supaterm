@@ -844,35 +844,43 @@ describe("web thread outbox voice messages", () => {
     };
   }
 
-  it("lets the environment transcribe and send it under the turn's own identifiers", async () => {
-    const { enqueueThreadOutboxTurn, webThreadOutbox } = await import("./threadOutbox");
-    await enqueueThreadOutboxTurn(voiceTarget());
-    harness.online = true;
-    harness.voice.mockResolvedValue({
-      text: "fix the build",
-      submission: { status: "sent", sequence: 3 },
-    });
-    await webThreadOutbox.drain();
+  it.each([
+    { name: "", fresh: {} },
+    { name: " in a fresh session after /clear", fresh: { freshContext: true } },
+  ])(
+    "lets the environment transcribe and send it under the turn's own identifiers$name",
+    async ({ fresh }) => {
+      const { enqueueThreadOutboxTurn, webThreadOutbox } = await import("./threadOutbox");
+      const turn = voiceTarget();
+      await enqueueThreadOutboxTurn({ ...turn, input: { ...turn.input, ...fresh } });
+      harness.online = true;
+      harness.voice.mockResolvedValue({
+        text: "fix the build",
+        submission: { status: "sent", sequence: 3 },
+      });
+      await webThreadOutbox.drain();
 
-    expect(harness.voice).toHaveBeenCalledWith(
-      expect.objectContaining({
-        environmentId: "environment",
-        request: {
-          language: "en",
-          submit: {
-            threadId: "thread",
-            commandId: "stable-command",
-            messageId: "message",
-            modelSelection: { instanceId: "codex", model: "test-model" },
-            delivery: "queue",
-            creationSource: "web",
+      expect(harness.voice).toHaveBeenCalledWith(
+        expect.objectContaining({
+          environmentId: "environment",
+          request: {
+            language: "en",
+            submit: {
+              threadId: "thread",
+              commandId: "stable-command",
+              messageId: "message",
+              modelSelection: { instanceId: "codex", model: "test-model" },
+              delivery: "queue",
+              creationSource: "web",
+              ...fresh,
+            },
           },
-        },
-      }),
-    );
-    expect(harness.run).not.toHaveBeenCalled();
-    expect(webThreadOutbox.getSnapshot()).toEqual([]);
-  });
+        }),
+      );
+      expect(harness.run).not.toHaveBeenCalled();
+      expect(webThreadOutbox.getSnapshot()).toEqual([]);
+    },
+  );
 
   it("applies the composer's thread settings before the environment sends it", async () => {
     const { enqueueThreadOutboxTurn, webThreadOutbox } = await import("./threadOutbox");

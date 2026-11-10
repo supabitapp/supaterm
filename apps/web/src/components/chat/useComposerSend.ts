@@ -24,6 +24,7 @@ import {
   buildExpiredTerminalContextToastCopy,
   deriveComposerSendState,
   formatOutgoingPrompt,
+  freshTurnDispatchMode,
   mergeDirectPreviewAnnotation,
   planComposerTurn,
   sendTitleFallbackLabels,
@@ -976,13 +977,16 @@ export function useComposerSend(input: ComposerSendInput) {
     if (!activeThread || !isServerThread || isLocalDraftThread || !sendCtx) {
       throw new Error("Voice messages need a thread that has started.");
     }
+    const freshArm = freshSessionAvailable ? readFreshSessionArm(routeThreadKey) : undefined;
+    const turnDispatchMode = freshTurnDispatchMode(dispatchMode, freshArm !== undefined);
     const input = {
       threadId: activeThread.id,
       message: { messageId: newMessageId(), role: "user" as const, text: "", attachments: [] },
       modelSelection: sendCtx.selectedModelSelection,
       runtimeMode,
       interactionMode: sendCtx.interactionMode,
-      dispatchMode: dispatchMode === "steer" ? ("auto" as const) : dispatchMode,
+      dispatchMode: turnDispatchMode === "steer" ? ("auto" as const) : turnDispatchMode,
+      ...(freshArm === undefined ? {} : { freshContext: true }),
       createdAt: new Date().toISOString(),
     };
     const branch = localCheckoutBranchMismatch?.currentBranch;
@@ -999,6 +1003,7 @@ export function useComposerSend(input: ComposerSendInput) {
         },
         ...(branch === undefined ? {} : { branch }),
       });
+      if (freshArm !== undefined) disarmFreshSession(routeThreadKey, freshArm);
     };
   };
 
