@@ -7,7 +7,6 @@ import type {
   ScopedThreadRef,
 } from "@supaterm/contracts";
 import { withOccurrenceKeys } from "@supaterm/shared/occurrenceKeys";
-import { ChevronDownIcon } from "@supaterm/icons";
 
 import { useOpenLink } from "~/browser/useOpenLink";
 import { cn } from "~/lib/utils";
@@ -178,7 +177,6 @@ export function PullRequestChecksPopover({
         ) : (
           <presentation.Icon aria-hidden className={cn("size-3.5", presentation.toneClassName)} />
         )}
-        {variant === "button" ? <ChevronDownIcon aria-hidden className="size-3" /> : null}
       </PopoverTrigger>
       <PopoverPopup align="start" width="md" side="bottom">
         <p className="mb-1 font-medium text-sm">{presentation.label}</p>
