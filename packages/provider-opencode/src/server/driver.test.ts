@@ -173,7 +173,42 @@ it.live("discovers models through a home-relative OpenCode wrapper", () =>
   ),
 );
 
+// Under MISE_OFFLINE the shim cannot install OpenCode; a normal run installs 2.x first.
+const lazyMiseShim = {
+  ...openCode2Runtime,
+  runOpenCodeCommand: ({ environment }: { readonly environment?: NodeJS.ProcessEnv }) =>
+    environment?.MISE_OFFLINE === "1"
+      ? Effect.fail(
+          new OpenCodeRuntime.OpenCodeRuntimeError({
+            operation: "runOpenCodeCommand",
+            detail: "mise ERROR Failed to install opencode@latest",
+          }),
+        )
+      : Effect.succeed({ stdout: "opencode v2.0.18\n", stderr: "", code: 0 }),
+} as unknown as OpenCodeRuntime.OpenCodeRuntime["Service"];
+
 it.layer(layer)("OpenCodeDriver", (it) => {
+  it.effect("opens a session through OpenCode 2 that a lazy mise shim installs on first use", () =>
+    Effect.gen(function* () {
+      serverStarts.length = 0;
+      const instance = yield* create({}, noHttp).pipe(
+        Effect.provideService(OpenCodeRuntime.OpenCodeRuntime, lazyMiseShim),
+        // The background status check probes offline, which this shim always fails.
+        Effect.provide(TestProviderHost.layer({ runBackgroundWork: false })),
+      );
+
+      yield* instance.orchestrationAdapter
+        .openSession({
+          threadId: ThreadId.make("thread-lazy-mise"),
+          providerSessionId: ProviderSessionId.make("session-lazy-mise"),
+          modelSelection: { instanceId: instance.instanceId, model: "opencode/big-pickle" },
+          runtimePolicy: { runtimeMode: "full-access", interactionMode: "default", cwd: null },
+        })
+        .pipe(Effect.scoped, Effect.flip);
+      assert.deepStrictEqual(serverStarts, ["start"], "the OpenCode 2 adapter starts its server");
+    }).pipe(Effect.scoped),
+  );
+
   it.effect("answers capability reads without waiting on an unreachable server", () =>
     Effect.gen(function* () {
       const hang = HttpClient.make(() => Effect.never);

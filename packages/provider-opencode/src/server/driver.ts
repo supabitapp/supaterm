@@ -51,6 +51,7 @@ import {
 } from "@supaterm/provider-core/server/driver";
 import { withInstanceIdentity } from "@supaterm/provider-core/server/instanceIdentity";
 import { mergeProviderInstanceEnvironment } from "@supaterm/provider-core/server/instanceEnvironment";
+import { providerProbeEnvironment } from "@supaterm/provider-core/server/snapshotProbe";
 import {
   enrichProviderSnapshotWithVersionAdvisory,
   makeCachedProviderMaintenanceResolution,
@@ -149,7 +150,7 @@ export const OpenCodeDriver: ProviderDriver<
       binaryPath: expandHomePath(config.binaryPath, homeDirectory),
     } satisfies OpenCodeSettings;
     const runtimeProbe = yield* makeOpenCodeRuntimeProbe(
-      probeOpenCodeRuntime(effectiveConfig, processEnv).pipe(
+      probeOpenCodeRuntime(effectiveConfig, providerProbeEnvironment(processEnv)).pipe(
         Effect.provideService(HttpClient.HttpClient, httpClient),
         Effect.provideService(OpenCodeRuntime.OpenCodeRuntime, openCodeRuntime),
       ),
