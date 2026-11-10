@@ -89,7 +89,8 @@ const CLONE_ENV = {
   // prompt would hang forever, so tell git to fail instead.
   GIT_PROGRESS_DELAY: "0",
   GIT_TERMINAL_PROMPT: "0",
-  LC_ALL: "C",
+  // English progress without overriding LC_CTYPE, which a global post-checkout hook inherits.
+  LANGUAGE: "C",
 } satisfies NodeJS.ProcessEnv;
 
 function mapRepositoryError(operation: string, provider: SourceControlProviderKind) {
