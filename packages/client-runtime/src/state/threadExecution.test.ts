@@ -14,6 +14,7 @@ import {
   type OrchestrationV2RunStatus,
 } from "@supaterm/contracts";
 import * as DateTime from "effect/DateTime";
+import { createModelCapabilities, createModelSelection } from "@supaterm/shared/model";
 import { usageLimitBlockedRun } from "@supaterm/shared/orchestrationV2ThreadError";
 import { describe, expect, it } from "vite-plus/test";
 
@@ -23,10 +24,10 @@ import {
   deriveLatestThreadRun,
   deriveProviderSubagentStatus,
   deriveResumableRunId,
-  formatModelSelectionEffort,
   deriveRunlessWorkStartedAt,
   deriveThreadActivityRun,
   deriveThreadRuntime,
+  formatModelSelectionEffort,
   isBackgroundWorkStopPending,
   presentPendingBackgroundWork,
   soleWatchedPullRequest,
@@ -535,6 +536,37 @@ describe("formatModelSelectionEffort", () => {
     expect(formatModelSelectionEffort(selection([{ id: "thinking", value: "off" }]), models)).toBe(
       "Off",
     );
+  });
+
+  it("labels an old Ultracode effort by the effort it runs at", () => {
+    const models = [
+      {
+        slug: "claude-opus-5-5",
+        name: "Claude Opus 5.5",
+        isCustom: false,
+        capabilities: createModelCapabilities({
+          optionDescriptors: [
+            {
+              id: "effort",
+              label: "Reasoning",
+              type: "select",
+              options: [
+                { id: "high", label: "High", isDefault: true },
+                { id: "xhigh", label: "Extra High" },
+              ],
+            },
+            { id: "ultracode", label: "Ultracode", type: "boolean" },
+          ],
+        }),
+      },
+    ];
+    const selection = createModelSelection(
+      ProviderInstanceId.make("claudeAgent"),
+      "claude-opus-5-5",
+      [{ id: "effort", value: "ultracode" }],
+    );
+
+    expect(formatModelSelectionEffort(selection, models)).toBe("Extra High");
   });
 });
 

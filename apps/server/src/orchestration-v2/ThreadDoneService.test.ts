@@ -7,6 +7,7 @@ import {
   EventId,
   ProviderInstanceId,
   ProviderSessionId,
+  RuntimeRequestId,
   RunId,
   ThreadId,
   TurnItemId,
@@ -1949,6 +1950,34 @@ describe("ThreadDoneServiceV2 single-thread sweeps", () => {
 
 describe("isSnoozed", () => {
   const snoozed = { snoozedAt: at(-2 * DAY_MS), snoozedUntil: at(DAY_MS) };
+  it("defers existing input while new questions and approvals wake the thread", () => {
+    const request = {
+      id: RuntimeRequestId.make("question"),
+      kind: "user_input" as const,
+      createdAt: snoozed.snoozedAt,
+    };
+    expect(
+      ThreadDoneService.isSnoozed(shell({ ...snoozed, pendingRuntimeRequest: request }), NOW_MS),
+    ).toBe(true);
+    expect(
+      ThreadDoneService.isSnoozed(
+        shell({ ...snoozed, pendingRuntimeRequest: { ...request, createdAt: at(-DAY_MS) } }),
+        NOW_MS,
+      ),
+    ).toBe(false);
+    expect(
+      ThreadDoneService.isSnoozed(
+        shell({ ...snoozed, pendingRuntimeRequest: { ...request, kind: "command" } }),
+        NOW_MS,
+      ),
+    ).toBe(false);
+    expect(
+      ThreadDoneService.isSnoozed(
+        shell({ ...snoozed, snoozedAt: null, pendingRuntimeRequest: request }),
+        NOW_MS,
+      ),
+    ).toBe(false);
+  });
   it("keeps a run requested and completed after snoozing parked until the timer", () => {
     const thread = shell({
       ...snoozed,

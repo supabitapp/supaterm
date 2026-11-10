@@ -1,7 +1,7 @@
 /**
  * Records a Kiro ACP replay transcript through the real orchestrator and
  * KiroAdapterV2, teeing only the protocol logger. Run from apps/server, signed in
- * with `kiro-cli login`, with `kiro-cli` on PATH (or Supaterm_KIRO_BIN):
+ * with `kiro-cli login`, with `kiro-cli` on PATH (or SUPATERM_KIRO_BIN):
  *   node scripts/record-kiro-acp-replay-fixture.ts --scenario simple
  */
 import * as NodeCrypto from "@effect/platform-node/NodeCrypto";
@@ -212,7 +212,7 @@ function wireToEntries(wire: ReadonlyArray<WireMessage>): {
   return { entries, droppedFrames };
 }
 
-const Supaterm_INSTRUCTIONS_BODY = /<supaterm_instructions>\n[\s\S]*?\n<\/supaterm_instructions>/u;
+const SUPATERM_INSTRUCTIONS_BODY = /<supaterm_instructions>\n[\s\S]*?\n<\/supaterm_instructions>/u;
 // A turn on another model sends its own runtime info, which the filter below
 // keeps; its model stays pinned and the linking guidance does not.
 const PULL_REQUEST_LINKING_BODY = /<pull_request_linking>\n[\s\S]*?\n<\/pull_request_linking>/u;
@@ -255,7 +255,7 @@ function normalizeOutboundFrame(frame: Record<string, unknown>, runtimeInstructi
                   ...part,
                   text: part.text
                     .replace(
-                      Supaterm_INSTRUCTIONS_BODY,
+                      SUPATERM_INSTRUCTIONS_BODY,
                       "<supaterm_instructions>\n<any>\n</supaterm_instructions>",
                     )
                     .replace(
@@ -404,7 +404,7 @@ function normalizeEntries(input: {
 
 const KIRO_RECORDING_SETTINGS = Schema.decodeSync(KiroSettings)({
   enabled: true,
-  binaryPath: process.env.Supaterm_KIRO_BIN ?? "kiro-cli",
+  binaryPath: process.env.SUPATERM_KIRO_BIN ?? "kiro-cli",
 });
 
 const recordScenario = Effect.fn("recordKiroScenario")(function* (fixtureName: string) {
@@ -544,7 +544,7 @@ const recordScenario = Effect.fn("recordKiroScenario")(function* (fixtureName: s
     scenario: fixtureName,
     metadata: {
       generatedBy: "live-kiro-recorder",
-      kiroVersion: process.env.Supaterm_KIRO_VERSION ?? "unknown",
+      kiroVersion: process.env.SUPATERM_KIRO_VERSION ?? "unknown",
       normalization:
         "Session ids are fixed sess_ UUIDs and other UUIDs (message and request ids) are numbered in first-seen order, the workspace is <workspace>, HOME is /home/kiro-replay and the recording user is kiro-replay. Supaterm-owned prompt text, MCP servers and initialize params other than clientCapabilities and _meta are <any>. Kiro's log directory, user-scoped commands and agents, and the _kiro/* broadcasts Supaterm ignores (governance, steering documents, powers, tools, hooks, MCP status, session roster, memory sync) are removed. Timestamps are kept as recorded.",
       droppedFrames,
