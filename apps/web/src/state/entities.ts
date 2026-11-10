@@ -209,7 +209,7 @@ const threadLinkMetadataAtom = Atom.family((environmentId: EnvironmentId) =>
   ).pipe(Atom.withLabel(`web-thread-link-metadata:${environmentId}`)),
 );
 
-/** Whether this environment answers thread link lookups, which settle a thread's absence. */
+/** Whether this environment answers thread link lookups, which tell a deleted thread from an unloaded one. */
 export function useThreadLinkMetadataSupported(environmentId: EnvironmentId): boolean {
   return useAtomValue(threadLinkMetadataAtom(environmentId));
 }
