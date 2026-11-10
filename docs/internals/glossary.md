@@ -28,6 +28,10 @@ Terms whose meaning matters across Supaterm. Architecture and lifecycle constrai
 | Command receipt         | A durable record of a command's result, used to make retries idempotent.                                  |
 | Outbox effect           | Side-effect intent committed with the events, such as starting a provider turn or capturing a checkpoint. |
 | Effect worker           | The worker that runs outbox effects after commit and feeds their results back as commands.                |
+| Working run             | A run whose agent turn is in progress: preparing, starting, or running.                                   |
+| Active run              | A working run, or one draining follow-up work such as checkpoints after its turn ended (waiting).         |
+| Unsettled run           | A run that was accepted and is not final: queued or active.                                               |
+| Settled run             | A run in a final status. `RUN_STAGE` in contracts is the one definition of these run groups.              |
 
 ## Providers and checkpoints
 
