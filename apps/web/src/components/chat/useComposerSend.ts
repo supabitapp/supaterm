@@ -24,6 +24,7 @@ import {
   buildExpiredTerminalContextToastCopy,
   deriveComposerSendState,
   formatOutgoingPrompt,
+  freshTurnDispatchMode,
   mergeDirectPreviewAnnotation,
   planComposerTurn,
   sendTitleFallbackLabels,
@@ -46,6 +47,8 @@ import type { VoiceRecording } from "../../voice/webVoiceRecorder";
 import { ensureInlineContextReferences } from "../../lib/composerContextReferences";
 import { settlePromise, squashAtomCommandFailure } from "@supaterm/client-runtime/state/runtime";
 import { isUsageLimitsCommand } from "@supaterm/shared/usageLimits";
+import { isClearComposerCommand } from "@supaterm/shared/composerTrigger";
+import { armFreshSession, disarmFreshSession, readFreshSessionArm } from "./freshSessionArms";
 import { newMessageId, newThreadId } from "~/lib/utils";
 import {
   parseCodexFeedbackCommand,
@@ -143,6 +146,8 @@ interface ComposerSendInput {
   readonly isDraftHeroState: boolean;
   readonly panelAnimationsActive: boolean;
   readonly panelAnimationDurationMs: number;
+  /** `/clear` can arm a fresh session on this thread. */
+  readonly freshSessionAvailable: boolean;
   readonly usageLimitsKey: string | null;
   readonly usageLimitsOffered: UsageLimitsPanel["offered"];
   readonly openUsageLimits: UsageLimitsPanel["open"];
@@ -210,6 +215,7 @@ export function useComposerSend(input: ComposerSendInput) {
     isDraftHeroState,
     panelAnimationsActive,
     panelAnimationDurationMs,
+    freshSessionAvailable,
     usageLimitsKey,
     usageLimitsOffered,
     openUsageLimits,
@@ -499,14 +505,15 @@ export function useComposerSend(input: ComposerSendInput) {
         composerReviewComments.length +
         composerReferenceContexts.length,
     });
-    const feedbackCommand =
-      ctxSelectedProvider === "codex" &&
+    const composerHoldsOnlyText =
       composerImages.length === 0 &&
       composerFiles.length === 0 &&
       sendableComposerTerminalContexts.length === 0 &&
       composerPreviewAnnotations.length === 0 &&
       composerReviewComments.length === 0 &&
-      composerReferenceContexts.length === 0
+      composerReferenceContexts.length === 0;
+    const feedbackCommand =
+      ctxSelectedProvider === "codex" && composerHoldsOnlyText
         ? parseCodexFeedbackCommand(trimmed)
         : null;
     if (feedbackCommand && multipleModelSelections === null) {
@@ -555,6 +562,18 @@ export function useComposerSend(input: ComposerSendInput) {
 
       return;
     }
+    if (freshSessionAvailable && composerHoldsOnlyText && isClearComposerCommand(trimmed)) {
+      armFreshSession(routeThreadKey);
+      promptRef.current = "";
+      clearComposerDraftContent(composerDraftTarget);
+      composerRef.current?.resetCursorState();
+      return;
+    }
+    // Read once: an arm made while this send is in flight belongs to the next message.
+    const freshArm =
+      freshSessionAvailable && multipleModelSelections === null
+        ? readFreshSessionArm(routeThreadKey)
+        : undefined;
     if (!hasSendableContent) {
       if (expiredTerminalContextCount > 0) {
         const toastCopy = buildExpiredTerminalContextToastCopy(
@@ -598,6 +617,7 @@ export function useComposerSend(input: ComposerSendInput) {
       environmentUnavailable: activeEnvironmentUnavailable,
       phase,
       dispatchMode,
+      freshContext: freshArm !== undefined,
     });
     if (missingWorktreeBaseBranch) {
       setThreadError(threadIdForSend, "Select a base branch before sending in New worktree mode.");
@@ -859,6 +879,7 @@ export function useComposerSend(input: ComposerSendInput) {
               interactionMode: target.interactionMode,
               // Like mobile, a delayed steer follows current server state at delivery.
               dispatchMode: turnDispatchMode === "steer" ? ("auto" as const) : turnDispatchMode,
+              ...(freshArm === undefined ? {} : { freshContext: true }),
               ...(bootstrap ? { bootstrap } : {}),
               createdAt: messageCreatedAt,
             },
@@ -911,6 +932,7 @@ export function useComposerSend(input: ComposerSendInput) {
       setThreadError(threadIdForSend, null);
       if (isLocalDraftThread && multipleModelSelections === null)
         markPromotedDraftThreadByRef(scopeThreadRef(environmentId, threadIdForSend));
+      if (freshArm !== undefined) disarmFreshSession(routeThreadKey, freshArm);
       clearUsageLimitsFor(routeThreadKey);
       if (submissionIntent === "background") handleNewThreadInActiveProject();
       else if (isLocalDraftThread && targets[0]) {
@@ -955,13 +977,16 @@ export function useComposerSend(input: ComposerSendInput) {
     if (!activeThread || !isServerThread || isLocalDraftThread || !sendCtx) {
       throw new Error("Voice messages need a thread that has started.");
     }
+    const freshArm = freshSessionAvailable ? readFreshSessionArm(routeThreadKey) : undefined;
+    const turnDispatchMode = freshTurnDispatchMode(dispatchMode, freshArm !== undefined);
     const input = {
       threadId: activeThread.id,
       message: { messageId: newMessageId(), role: "user" as const, text: "", attachments: [] },
       modelSelection: sendCtx.selectedModelSelection,
       runtimeMode,
       interactionMode: sendCtx.interactionMode,
-      dispatchMode: dispatchMode === "steer" ? ("auto" as const) : dispatchMode,
+      dispatchMode: turnDispatchMode === "steer" ? ("auto" as const) : turnDispatchMode,
+      ...(freshArm === undefined ? {} : { freshContext: true }),
       createdAt: new Date().toISOString(),
     };
     const branch = localCheckoutBranchMismatch?.currentBranch;
@@ -978,6 +1003,7 @@ export function useComposerSend(input: ComposerSendInput) {
         },
         ...(branch === undefined ? {} : { branch }),
       });
+      if (freshArm !== undefined) disarmFreshSession(routeThreadKey, freshArm);
     };
   };
 

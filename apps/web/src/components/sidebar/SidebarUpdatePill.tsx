@@ -21,6 +21,7 @@ import {
   shouldToastDesktopUpdateActionResult,
 } from "../desktopUpdate.logic";
 import { showDesktopUpdateDownloadedToast } from "../desktopUpdate.toast";
+import { useCheckProviderUpdates } from "../ProviderUpdatesAction";
 import { Alert, AlertDescription, AlertTitle } from "../ui/alert";
 import { Popover, PopoverCreateHandle, PopoverPopup, PopoverTrigger } from "../ui/popover";
 import { SidebarMenuItem } from "../ui/sidebar";
@@ -167,6 +168,7 @@ function SidebarUpdateControl() {
   if (liveState?.status !== "checking" && liveState !== state) setState(liveState);
   const isChecking = liveState?.status === "checking";
   const [isActionPending, setIsActionPending] = useState(false);
+  const [isCheckingProviders, setIsCheckingProviders] = useState(false);
   const [isConfirmingEverything, setIsConfirmingEverything] = useState(false);
   const [releaseNotesPopoverHandle] = useState(() => PopoverCreateHandle());
   const suppressReleaseNotesFocusOpen = useRef(false);
@@ -178,6 +180,7 @@ function SidebarUpdateControl() {
   const localUpdateVersion =
     state && action !== "none" ? getDesktopUpdateDownloadedVersion(state) : null;
   const everything = useUpdateEverything(localUpdateVersion);
+  const checkProviderUpdates = useCheckProviderUpdates();
   const runsEverything = everything.hasUpdates && !isDownloading;
   const run = useUpdateEverythingRun();
   const isRunningEverything = run !== null;
@@ -216,6 +219,9 @@ function SidebarUpdateControl() {
 
     if (runsEverything) {
       setIsConfirmingEverything(true);
+      // Machines that still cache an older latest version add their rows while the dialog is open.
+      setIsCheckingProviders(true);
+      void checkProviderUpdates({ quiet: true }).finally(() => setIsCheckingProviders(false));
       return;
     }
 
@@ -300,6 +306,7 @@ function SidebarUpdateControl() {
       providerCount={everything.providerCount}
       rows={everything.rows}
       restarts={everything.restarts}
+      checking={isCheckingProviders}
       onConfirm={() => void runEverything()}
     />
   );
@@ -312,7 +319,7 @@ function SidebarUpdateControl() {
           ? { status: "downloading", percent: state.downloadPercent }
           : { status: "waiting" };
     return (
-      <SidebarMenuItem className="flex min-w-0 flex-1">
+      <SidebarMenuItem className="flex flex-1">
         <SidebarUpdateCapsule
           run={run}
           local={local}

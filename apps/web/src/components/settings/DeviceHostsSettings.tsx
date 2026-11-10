@@ -41,7 +41,7 @@ import { DeviceHostEditor } from "./DeviceHostEditor";
 import { useHostConnectionChecks } from "./useHostConnectionChecks";
 import { deviceHostConnectionKey } from "./deviceHostConnectionChecks";
 import { settingsScopeEnvironmentLabel, settingsScopeEnvironmentLabels } from "./settingsScopeAxis";
-import { DeviceHostDiagnostics } from "../device/DeviceSetup";
+import { DeviceHostDiagnostics, incompleteListings } from "../device/DeviceSetup";
 
 export function DeviceHostsSettings(props: { environmentId: EnvironmentId | null }) {
   const { scope, environments, connectedEnvironments } = useSettingsScope();
@@ -437,21 +437,19 @@ function DeviceHostList({
                 ))}
               </div>
               <p className="text-xs text-muted-foreground wrap-anywhere">{host.target}</p>
-              {results.flatMap((result) =>
-                result.status?.status === "ready" && result.status.androidDiscoveryIncomplete
-                  ? [
-                      <p
-                        key={result.environmentId}
-                        role="status"
-                        className="mt-1 text-xs text-warning"
-                      >
-                        {compact ? `${result.label}: ` : ""}
-                        {result.status?.detail ??
-                          "The Android device list may be incomplete. Refresh devices to try again."}
-                      </p>,
-                    ]
-                  : [],
-              )}
+              {results.flatMap((result) => {
+                const incomplete = incompleteListings(result.status);
+                if (incomplete.length === 0) return [];
+                const list =
+                  incomplete.length > 1 ? "device" : incomplete[0] === "ios" ? "iOS" : "Android";
+                return [
+                  <p key={result.environmentId} role="status" className="mt-1 text-xs text-warning">
+                    {compact ? `${result.label}: ` : ""}
+                    {result.status?.detail ??
+                      `The ${list} list may be incomplete. Refresh devices to try again.`}
+                  </p>,
+                ];
+              })}
               {compact ? (
                 <Collapsible>
                   <div className="min-w-0 text-xs [--inline-button-white-space:normal]">

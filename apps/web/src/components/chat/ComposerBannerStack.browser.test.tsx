@@ -44,8 +44,11 @@ it.each([true, false])(
       },
       usageLimitRecoveryBannerItem({
         runId: RunId.make("limited"),
+        errorCode: null,
         resetAt: null,
         stoppedAt: "2026-10-20T12:00:00.000Z",
+        done: false,
+        requestPending: false,
         snoozedUntil: null,
         recovery: null,
         timestampFormat: "locale",

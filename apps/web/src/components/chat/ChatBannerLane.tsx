@@ -1,4 +1,5 @@
 import type {
+  EnvironmentId,
   OrchestrationV2ProviderFailureClass,
   ProviderInstanceId,
   ServerProvider,
@@ -14,6 +15,7 @@ import { dismissThreadErrorBannerForSession, ThreadErrorBanner } from "./ThreadE
  * neither banner leaves both cached.
  */
 export function ChatBannerLane(props: {
+  environmentId: EnvironmentId;
   routeThreadKey: string;
   providerStatus: ServerProvider | null;
   providerStatusBannerKey: string | null;
@@ -48,6 +50,7 @@ export function ChatBannerLane(props: {
       {children}
       <ProviderStatusBanner
         key={`provider:${routeThreadKey}`}
+        environmentId={props.environmentId}
         status={providerStatus}
         onDismiss={() => setDismissedProviderStatusBannerKey(providerStatusBannerKey)}
         onOpenProviderSetup={onOpenProviderSetup}

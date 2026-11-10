@@ -145,7 +145,6 @@ export function DraftProjectPicker({
           ),
         ) ?? null);
   const activeProjectKey = activeProjectGroup?.projectKey ?? "";
-  const activeProjectDisplayName = activeProjectGroup?.displayName ?? activeProjectTitle;
   const canChooseProject = projectPickerEntries.length > 0;
   // The project that hosts threads without a project appears once, as the
   // "No project" item, not as a project row.
@@ -310,9 +309,7 @@ export function DraftProjectPicker({
       composerRef?.current?.focusAtEnd();
     },
   });
-  const triggerLabel = isScratchDraft
-    ? "No project"
-    : (activeProjectDisplayName ?? "Choose a project");
+  const triggerLabel = isScratchDraft ? "No project" : (activeProjectTitle ?? "Choose a project");
 
   if (!canChooseProject) {
     return (

@@ -8,6 +8,7 @@ import {
   createOlderDoneThreadAtoms,
 } from "@supaterm/client-runtime/state/threads";
 import { withOptimisticThreadCreations } from "@supaterm/client-runtime/state/thread-creation";
+import { createChildThreadApprovalsAtom } from "@supaterm/client-runtime/state/thread-requests";
 import type { EnvironmentId } from "@supaterm/contracts";
 import { Atom } from "effect/reactivity";
 
@@ -41,6 +42,10 @@ export const threadEnvironment = {
   unpinMessage: messagePins.wrap(directThreadEnvironment.unpinMessage, false),
 };
 export const environmentThreadDetails = createEnvironmentThreadDetailAtoms(messagePins.stateAtom);
+export const childThreadApprovalsAtom = createChildThreadApprovalsAtom({
+  childThreadInputsAtom: environmentThreadShells.childThreadInputsAtom,
+  pendingRequestsAtom: environmentThreadDetails.pendingRequestsAtom,
+});
 // A send waits on local storage before startTurn runs; its outbox entry shows the thread meanwhile.
 const sidebarSnapshotAtom = Atom.family((environmentId: EnvironmentId) =>
   Atom.make((get) =>

@@ -1,8 +1,12 @@
 import { describe, expect, it, vi } from "vite-plus/test";
+import { userEvent } from "vite-plus/test/browser";
 
-import { clickOnFakeClock } from "~/test/inlineConfirm";
+import { clickOnFakeClock, pressAgain } from "~/test/inlineConfirm";
 import { act, fakeTimers, render as renderUi, type Screen } from "../../../test/render";
-import { PullRequestApproveWorkflowsButton } from "./PullRequestDetailActions";
+import {
+  PullRequestApproveWorkflowsButton,
+  PullRequestPrimaryAction,
+} from "./PullRequestDetailActions";
 
 let screen: Screen;
 const perform = vi.fn(async () => true);
@@ -42,4 +46,43 @@ describe("PullRequestApproveWorkflowsButton", () => {
     expect(perform).toHaveBeenCalledExactlyOnceWith("approve-workflows");
     expect(button().getAttribute("aria-label")).toBe("Approve workflows to run");
   });
+});
+
+describe("PullRequestPrimaryAction", () => {
+  it.each(["merge", "enable-auto-merge"] as const)(
+    "keeps a blocked %s action reachable without arming or performing it",
+    async (primaryAction) => {
+      const performAction = vi.fn(async () => true);
+      const control = (mergeBlockedReason: string | null) => (
+        <PullRequestPrimaryAction
+          pullRequestNumber={7}
+          baseBranch="main"
+          primaryAction={primaryAction}
+          mergeBlockedReason={mergeBlockedReason}
+          autoMergeArmed={false}
+          canDisableAutoMerge={false}
+          armedAutoMergeLabel="Auto-merge enabled"
+          pendingAutoMergeLabel="Auto-merge (squash)"
+          selectedMergeMethod="squash"
+          selectedMergeMethodLabel="Squash and merge"
+          statePresentation={null}
+          pendingAction={null}
+          perform={performAction}
+          resolveConflicts={null}
+        />
+      );
+      await using blocked = await renderUi(control("Checking stack membership…"));
+      const target = blocked.getByRole("button");
+      await userEvent.tab();
+      await expect.element(target).toHaveFocus();
+      await expect.element(target).toHaveAccessibleDescription("Checking stack membership…");
+      await userEvent.keyboard("{Enter}{Enter} ");
+      expect(performAction).not.toHaveBeenCalled();
+      await blocked.rerender(control(null));
+      await userEvent.click(target);
+      expect(performAction).not.toHaveBeenCalled();
+      await pressAgain(target.element());
+      expect(performAction).toHaveBeenCalledExactlyOnceWith(primaryAction, "squash");
+    },
+  );
 });

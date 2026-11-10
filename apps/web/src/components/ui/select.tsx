@@ -135,7 +135,8 @@ function SelectPopup({
         sideOffset={sideOffset}
       >
         <SelectPrimitive.Popup
-          className="origin-(--transform-origin) rounded-lg text-foreground outline-none transition-[scale] duration-150 ease-drawer data-starting-style:scale-98 data-ending-style:scale-98 data-ending-style:duration-100 data-ending-style:ease-in motion-reduce:transition-none"
+          // Electron drag hit-testing ignores z-index; items over a drag region would swallow clicks.
+          className="origin-(--transform-origin) rounded-lg text-foreground outline-none transition-[scale] duration-150 ease-drawer data-starting-style:scale-98 data-ending-style:scale-98 data-ending-style:duration-100 data-ending-style:ease-in motion-reduce:transition-none [-webkit-app-region:no-drag]"
           data-slot="select-popup"
           {...props}
         >

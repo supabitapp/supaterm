@@ -27,6 +27,7 @@ export function PullRequestStackMenu({
   stack,
   reference,
   environmentId,
+  stale,
   canMerge,
   canRebase,
   mergeMethod,
@@ -42,6 +43,7 @@ export function PullRequestStackMenu({
   stack: PullRequestStack;
   reference: PullRequestRef;
   environmentId: EnvironmentId;
+  stale: boolean;
   canMerge: boolean;
   canRebase: boolean;
   mergeMethod: PullRequestMergeMethod;
@@ -65,12 +67,13 @@ export function PullRequestStackMenu({
   const hasUnknownHead = expectedStackHeads.length !== unmerged.length;
   const mergeDisabled =
     pending ||
+    stale ||
     selectedLayer?.state !== "open" ||
     mergeLayers.some((layer) => !layer.headSha) ||
     mergeHasClosed ||
     mergeLayers.length === 0 ||
     mergeLayers.some((layer) => layer.isDraft);
-  const rebaseDisabled = pending || hasUnknownHead || hasClosed || unmerged.length === 0;
+  const rebaseDisabled = pending || stale || hasUnknownHead || hasClosed || unmerged.length === 0;
   const run = async (action: "merge" | "update-branch") => {
     if (pending || (action === "merge" ? !canMerge || mergeDisabled : !canRebase || rebaseDisabled))
       return;
@@ -207,14 +210,20 @@ export function PullRequestStackMenu({
         <InlineConfirmTooltip
           armed={confirm.armed === "merge"}
           render={<span className="inline-flex" />}
-          tip={`Merge stack through #${reference.number} into ${stack.base} (${mergeCountLabel})`}
+          tip={
+            stale
+              ? notice
+              : `Merge stack through #${reference.number} into ${stack.base} (${mergeCountLabel})`
+          }
           armedTip={`Click again to merge ${mergeCountLabel} into ${stack.base} using ${mergeMethod}`}
         >
           <Button
-            {...confirm.bind("merge", () => void run("merge"))}
+            {...(mergeDisabled ? {} : confirm.bind("merge", () => void run("merge")))}
             variant="default"
             size="xs"
-            disabled={mergeDisabled}
+            disabled={mergeDisabled && !stale}
+            aria-disabled={mergeDisabled || undefined}
+            aria-description={stale ? (notice ?? undefined) : undefined}
           >
             <InlineConfirmIcon armed={confirm.armed === "merge"}>
               <PullRequestGlyph.merged aria-hidden className="size-3.5" />

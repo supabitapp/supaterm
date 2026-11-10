@@ -107,10 +107,13 @@ type TraitsPersistence =
   | {
       threadRef?: ScopedThreadRef;
       draftId?: DraftId;
+      /** Runs after a change is written to the draft. */
+      onDraftModelOptionsChange?: () => void;
       onModelOptionsChange?: never;
     }
   | {
       threadRef?: undefined;
+      onDraftModelOptionsChange?: never;
       onModelOptionsChange: (nextOptions: ProviderOptions | undefined) => void;
     };
 
@@ -212,15 +215,15 @@ function getTraitsSectionVisibility(input: {
     input.allowPromptInjectedEffort ?? true,
   );
 
-  const speedToggle = selected.modelIsUnavailable
-    ? null
-    : getSpeedToggle(input.provider, selected.descriptors);
+  const speedToggle = selected.modelIsUnavailable ? null : getSpeedToggle(selected.descriptors);
   const toggleOnlyDescriptorId = speedToggle?.coversDescriptor ? speedToggle.descriptorId : null;
   const hasMenuControls =
     selected.descriptors.some(
       (descriptor) =>
         descriptor.id !== toggleOnlyDescriptorId &&
-        (descriptor.type === "select" || descriptor.id === "thinking"),
+        (descriptor.type === "select" ||
+          descriptor.id === "thinking" ||
+          descriptor.id === "ultracode"),
     ) ||
     (selected.modelIsUnavailable && selected.descriptors.length > 0);
 
@@ -360,6 +363,7 @@ function useUpdateModelOptions(
       model,
       persistSticky: true,
     });
+    persistence.onDraftModelOptionsChange?.();
   };
 }
 

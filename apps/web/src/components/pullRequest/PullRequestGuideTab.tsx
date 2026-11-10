@@ -21,6 +21,7 @@ import {
   usePendingReviewComments,
   usePullRequestReviewStore,
 } from "./pullRequestReviewStore";
+import type { PullRequestCompletionScope } from "./PullRequestMarkdownTextarea";
 
 export function PullRequestGuideTab({
   environmentId,
@@ -30,6 +31,7 @@ export function PullRequestGuideTab({
   active,
   canComment,
   rangeComments,
+  completionScope,
   onAskAboutLines,
   onAskAboutStop,
   onFinishReview,
@@ -43,6 +45,7 @@ export function PullRequestGuideTab({
   active: boolean;
   canComment: boolean;
   rangeComments: boolean;
+  completionScope: PullRequestCompletionScope | null;
   onAskAboutLines: ((comment: ReviewCommentContext, request: string) => void) | null;
   onAskAboutStop:
     | ((stop: PullRequestReviewGuideStop, index: number, question: string) => void)
@@ -67,6 +70,7 @@ export function PullRequestGuideTab({
           environmentId,
           canComment,
           rangeComments,
+          completionScope,
           pending,
           onComment: ({ path, oldPath, position, startPosition, body }) =>
             addComment(reviewKey, {

@@ -490,8 +490,6 @@ const ConversationTimeline = memo(function ConversationTimeline({
     setExpandedRunIds((current) => (current.has(runId) ? current : new Set([...current, runId])));
   };
   const [minimapStripMap] = useState(() => new Map<string, HTMLSpanElement>());
-  const [disclosureToggleSettling, setDisclosureToggleSettling] = useState(false);
-  const disclosureAnchorKeyRef = useRef<string | null>(null);
   const disclosureSettleRef = useRef<{
     readonly cancel: () => void;
     readonly followingEnd: boolean;
@@ -517,18 +515,14 @@ const ConversationTimeline = memo(function ConversationTimeline({
     };
   }, [settlingListIdentity]);
 
-  // End-follow stays off and only the toggled row anchors until that row has
-  // finished resizing, so an animated disclosure is never chased or yanked.
-  const suspendEndScrollMaintenanceForDisclosure = (anchorKey: string, collapsed = false) => {
+  const preserveDisclosurePosition = (anchorKey: string, collapsed = false) => {
     const pending = disclosureSettleRef.current;
     pending?.cancel();
-    // Rows streamed in during the hold push the end away, so the toggle-time
+    // Rows streamed in while the row resizes push the end away, so the toggle-time
     // position decides whether a close returns to the live edge.
     const followingEnd =
       pending?.followingEnd === true ||
       resolveTimelineIsAtEnd(listRef.current?.getState()) === true;
-    disclosureAnchorKeyRef.current = anchorKey;
-    setDisclosureToggleSettling(true);
     const cancel = waitForDisclosureSettle(
       () => {
         const state = listRef.current?.getState();
@@ -538,8 +532,6 @@ const ConversationTimeline = memo(function ConversationTimeline({
       },
       () => {
         disclosureSettleRef.current = null;
-        disclosureAnchorKeyRef.current = null;
-        setDisclosureToggleSettling(false);
         if (!collapsed) return;
         const list = listRef.current;
         let atEnd = resolveTimelineIsAtEnd(list?.getState()) === true;
@@ -551,20 +543,20 @@ const ConversationTimeline = memo(function ConversationTimeline({
       },
     );
     disclosureSettleRef.current = { cancel, followingEnd };
+    const list = listRef.current;
+    // An anchor ends end-follow until the reader scrolls, so a streaming turn keeps the live end.
+    if (!list || (isWorking && list.getState().isFollowingEnd)) return;
+    list.cancelScroll();
+    list.anchorVisibleContent({ key: anchorKey });
   };
   const onDisclosureToggle: TimelineDisclosureToggle = (target, closing) => {
     if (!(target instanceof Element)) return;
     const rowId = target.closest<HTMLElement>("[data-timeline-row-id]")?.dataset.timelineRowId;
-    if (rowId !== undefined) suspendEndScrollMaintenanceForDisclosure(rowId, closing);
-  };
-
-  const shouldRestoreVisibleContentPosition = (row: MessagesTimelineRow) => {
-    const disclosureAnchorKey = disclosureAnchorKeyRef.current;
-    return disclosureAnchorKey === null || row.id === disclosureAnchorKey;
+    if (rowId !== undefined) preserveDisclosurePosition(rowId, closing);
   };
 
   const onToggleTurnFold = (runId: RunId) => {
-    suspendEndScrollMaintenanceForDisclosure(`turn-fold:${runId}`);
+    preserveDisclosurePosition(`turn-fold:${runId}`);
     setExpandedRunIds((existing) => {
       const next = new Set(existing);
       if (next.has(runId)) {
@@ -576,7 +568,7 @@ const ConversationTimeline = memo(function ConversationTimeline({
     });
   };
   const onToggleWorkGroup = (groupId: string, anchorKey: string) => {
-    suspendEndScrollMaintenanceForDisclosure(anchorKey, expandedWorkGroupIds.has(groupId));
+    preserveDisclosurePosition(anchorKey, expandedWorkGroupIds.has(groupId));
     setExpandedWorkGroupIds((existing) => {
       const next = new Set(existing);
       if (next.has(groupId)) {
@@ -588,7 +580,7 @@ const ConversationTimeline = memo(function ConversationTimeline({
     });
   };
   const onToggleAttemptFold = (attemptId: RunAttemptId) => {
-    suspendEndScrollMaintenanceForDisclosure(`attempt-fold:${attemptId}`);
+    preserveDisclosurePosition(`attempt-fold:${attemptId}`);
     setExpandedAttemptIds((existing) => {
       const next = new Set(existing);
       if (next.has(attemptId)) {
@@ -897,7 +889,6 @@ const ConversationTimeline = memo(function ConversationTimeline({
   const maintainVisibleContentPosition = {
     data: true,
     size: true,
-    shouldRestorePosition: shouldRestoreVisibleContentPosition,
   };
   const timelineListFooter = (
     <TimelineListFooter
@@ -950,7 +941,7 @@ const ConversationTimeline = memo(function ConversationTimeline({
       firstBufferedIndex == null ? undefined : state.elementAtIndex(firstBufferedIndex);
     const firstBufferedTop =
       firstBufferedIndex == null ? undefined : state.positionAtIndex(firstBufferedIndex);
-    const viewport: HTMLElement | undefined = listRef.current?.getScrollableNode();
+    const viewport = listRef.current?.getScrollableNode() ?? undefined;
     // Cached row positions exclude the header and pending scroll adjustments.
     const scroll =
       firstBufferedRow && viewport && firstBufferedTop !== undefined
@@ -1129,7 +1120,7 @@ const ConversationTimeline = memo(function ConversationTimeline({
     onToggleTurnFold,
     onToggleAttemptFold,
     onToggleWorkGroup,
-    onToggleWorkEntry: suspendEndScrollMaintenanceForDisclosure,
+    onToggleWorkEntry: preserveDisclosurePosition,
     onCancelWorktreeSetup: onCancelWorktreeSetup ?? null,
     retryableWorkspacePreparationRunIds,
     onRetryWorkspacePreparation: onRetryWorkspacePreparation ?? null,
@@ -1435,8 +1426,7 @@ const ConversationTimeline = memo(function ConversationTimeline({
                   (restoringThreadPosition && rememberedPosition?.atEnd === false) ||
                   anchoredEndSpace ||
                   !liveFollowEnabled ||
-                  fullscreenAppRowId !== null ||
-                  disclosureToggleSettling
+                  fullscreenAppRowId !== null
                     ? false
                     : isWorking && !prefersReducedMotion && settlingListIdentity === null
                       ? TIMELINE_MAINTAIN_SCROLL_AT_END_SMOOTH
@@ -1527,10 +1517,14 @@ function keyExtractor(item: MessagesTimelineRow) {
   return item.id;
 }
 
+// LegendList estimates unmeasured rows from their type's average. Long messages of equal length
+// can differ in height by orders of magnitude, so each gets its own type to avoid nested-update loops.
 function getItemType(item: MessagesTimelineRow) {
   if (item.kind !== "message") return item.kind;
   const lengthBucket = Math.max(0, Math.floor(Math.log2(item.message.text.length / 1000)));
-  return `message:${item.message.role}:${lengthBucket}`;
+  return lengthBucket < 2
+    ? `message:${item.message.role}:${lengthBucket}`
+    : `message:${item.message.id}`;
 }
 
 const TimelineRowContent = memo(function TimelineRowContent({ row }: { row: TimelineRow }) {

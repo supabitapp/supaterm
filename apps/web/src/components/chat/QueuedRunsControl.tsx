@@ -103,7 +103,11 @@ export function QueuedRunsControl({
   const workflow = projection ? deriveThreadQueueWorkflowState(projection) : null;
   const queued = workflow?.queuedRuns ?? [];
   const activeRun = workflow?.activeRun ?? null;
-  const canSend = workflow?.canSendNow === true || workflow?.canPromoteToSteer === true;
+  // A fresh message starts its own turn: it may skip compaction, but not steer into a turn.
+  const canSendRun = (freshContext: boolean) =>
+    workflow?.canSendNow === true ||
+    (workflow?.canPromoteToSteer === true &&
+      (!freshContext || workflow.promoteSkipsCompaction === true));
   const queuedImageUrlById = new Map(
     queuedImageAttachmentUrls.flatMap((url, index) => {
       const resource = queuedImageAttachmentResources[index];
@@ -114,6 +118,7 @@ export function QueuedRunsControl({
     message,
     runId: run.id,
     messageId: run.userMessageId,
+    freshContext: run.freshContext === true,
     text,
     attachments,
     thumbnails: attachments
@@ -126,7 +131,10 @@ export function QueuedRunsControl({
   }));
 
   const sendQueuedMessage = async (queuedRunId: RunId) => {
-    if (!canSend || steerInFlightRef.current) return;
+    const freshContext = queued.some(
+      ({ run }) => run.id === queuedRunId && run.freshContext === true,
+    );
+    if (!canSendRun(freshContext) || steerInFlightRef.current) return;
     steerInFlightRef.current = true;
     setBusyRunId(queuedRunId);
     if (workflow?.canSendNow) {
@@ -147,7 +155,7 @@ export function QueuedRunsControl({
   useImperativeHandle(ref, () => ({
     steerNext(repeat) {
       const next = queued[0];
-      if (!next || !canSend) return false;
+      if (!next || !canSendRun(next.run.freshContext === true)) return false;
       if (!repeat && busyRunId === null) void sendQueuedMessage(next.run.id);
       return true;
     },
@@ -271,7 +279,7 @@ export function QueuedRunsControl({
                         </Tooltip>
                       </ComposerBanner.Content>
                       <ComposerBanner.Actions>
-                        {canSend && !isEditing ? (
+                        {canSendRun(item.freshContext) && !isEditing ? (
                           <>
                             <Tooltip>
                               <TooltipTrigger render={<span className="flex shrink-0" />}>

@@ -1,7 +1,6 @@
 import {
   buildExpiredTerminalContextToastCopy,
   deriveAvailableRevertTurnCounts,
-  deriveWorkspaceMutationId,
   planComposerTurn,
   sendTitleFallbackLabels,
   snapshotComposerSend,
@@ -1070,32 +1069,6 @@ describe("deriveAvailableRevertTurnCounts", () => {
   });
 });
 
-describe("deriveWorkspaceMutationId", () => {
-  const item = (id: string, type: string, status: string) =>
-    ({
-      item: { id: TurnItemId.make(id), type, status },
-    }) as unknown as OrchestrationV2ProjectedTurnItem;
-
-  it("keys on the latest finished command or file change and the latest checkpoint", () => {
-    expect(
-      deriveWorkspaceMutationId(
-        [
-          item("edit", "file_change", "completed"),
-          item("reply", "assistant_message", "completed"),
-          item("command", "command_execution", "running"),
-        ],
-        "2026-01-01T00:00:00.000Z",
-      ),
-    ).toBe(JSON.stringify(["edit", "2026-01-01T00:00:00.000Z"]));
-  });
-
-  it("is null before anything could have touched the workspace", () => {
-    expect(deriveWorkspaceMutationId([item("reply", "assistant_message", "completed")], null)).toBe(
-      null,
-    );
-  });
-});
-
 describe("snapshotComposerSend", () => {
   const expired = {
     id: "ctx-expired",
@@ -1151,6 +1124,7 @@ describe("planComposerTurn", () => {
     environmentUnavailable: false,
     phase: "ready" as const,
     dispatchMode: "auto" as const,
+    freshContext: false,
   };
 
   it("prepares a worktree from the selected branch on a new draft", () => {
@@ -1192,6 +1166,13 @@ describe("planComposerTurn", () => {
     expect(planComposerTurn({ ...running, dispatchMode: "steer" })).toMatchObject({
       turnDispatchMode: "steer",
       shouldQueueBehindActiveRun: false,
+    });
+    // A fresh session cannot join the running turn.
+    expect(
+      planComposerTurn({ ...running, dispatchMode: "steer", freshContext: true }),
+    ).toMatchObject({
+      turnDispatchMode: "queue",
+      shouldQueueBehindActiveRun: true,
     });
   });
 });

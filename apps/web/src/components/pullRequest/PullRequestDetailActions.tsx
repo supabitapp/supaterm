@@ -192,6 +192,7 @@ export function PullRequestPrimaryAction({
   pullRequestNumber,
   baseBranch,
   primaryAction,
+  mergeBlockedReason,
   autoMergeArmed,
   canDisableAutoMerge,
   armedAutoMergeLabel,
@@ -206,6 +207,7 @@ export function PullRequestPrimaryAction({
   pullRequestNumber: number;
   baseBranch: string;
   primaryAction: ReturnType<typeof resolvePullRequestPrimaryControl> | null;
+  mergeBlockedReason: string | null;
   autoMergeArmed: boolean;
   canDisableAutoMerge: boolean;
   armedAutoMergeLabel: string;
@@ -293,17 +295,24 @@ export function PullRequestPrimaryAction({
         <InlineConfirmTooltip
           armed={confirm.armed === "enable-auto-merge"}
           render={<span className="inline-flex shrink-0" />}
-          tip={pendingAction === "enable-auto-merge" ? "Enabling..." : pendingAutoMergeLabel}
+          tip={
+            mergeBlockedReason ??
+            (pendingAction === "enable-auto-merge" ? "Enabling..." : pendingAutoMergeLabel)
+          }
           armedTip={`Click again to enable auto-merge. The host may merge #${pullRequestNumber} right away.`}
         >
           <Button
             size="xs"
             variant="default"
             disabled={actionPending}
-            {...confirm.bind(
-              "enable-auto-merge",
-              () => void perform("enable-auto-merge", selectedMergeMethod),
-            )}
+            aria-disabled={mergeBlockedReason !== null || undefined}
+            aria-description={mergeBlockedReason ?? undefined}
+            {...(mergeBlockedReason === null
+              ? confirm.bind(
+                  "enable-auto-merge",
+                  () => void perform("enable-auto-merge", selectedMergeMethod),
+                )
+              : {})}
             aria-label={
               pendingAction === "enable-auto-merge"
                 ? "Enabling..."
@@ -328,14 +337,21 @@ export function PullRequestPrimaryAction({
         <InlineConfirmTooltip
           armed={confirm.armed === "merge"}
           render={<span className="inline-flex shrink-0" />}
-          tip={pendingAction === "merge" ? "Merging..." : selectedMergeMethodLabel}
+          tip={
+            mergeBlockedReason ??
+            (pendingAction === "merge" ? "Merging..." : selectedMergeMethodLabel)
+          }
           armedTip={`Click again to ${selectedMergeMethodLabel.toLowerCase()} #${pullRequestNumber} into ${baseBranch}`}
         >
           <Button
             size="xs"
             variant="default"
             disabled={actionPending}
-            {...confirm.bind("merge", () => void perform("merge", selectedMergeMethod))}
+            aria-disabled={mergeBlockedReason !== null || undefined}
+            aria-description={mergeBlockedReason ?? undefined}
+            {...(mergeBlockedReason === null
+              ? confirm.bind("merge", () => void perform("merge", selectedMergeMethod))
+              : {})}
             aria-label={
               pendingAction === "merge"
                 ? "Merging..."

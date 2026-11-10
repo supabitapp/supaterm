@@ -8,6 +8,8 @@ import {
 import {
   AuthOrchestrationOperateScope,
   type EnvironmentId,
+  type ModelSelection,
+  type RuntimeMode,
   type ScopedThreadRef,
   type ThreadId,
 } from "@supaterm/contracts";
@@ -86,8 +88,8 @@ export async function sendSideChatDraftMessage<A>(input: {
 /**
  * Side chats of `parent`, or none when it is null. Each one opens as a draft beside its parent
  * that holds its thread id and first message, so a start that fails is retried from the draft.
- * `send` with a prompt also starts sending that first message; it resolves false when nothing
- * opened.
+ * The draft starts with the parent composer's settings. `send` with a prompt also starts
+ * sending that first message; it resolves false when nothing opened.
  */
 export function useSideChat(input: {
   readonly parent: Pick<
@@ -101,6 +103,11 @@ export function useSideChat(input: {
     | "runtimeMode"
     | "interactionMode"
   > | null;
+  /** The parent composer's settings; the parent's own fill any it leaves out. */
+  readonly readSettings: () => {
+    readonly runtimeMode: RuntimeMode | undefined;
+    readonly modelSelection: ModelSelection | undefined;
+  };
   readonly onError: (message: string) => void;
 }) {
   const openPaneThread = usePaneThreadNavigation();
@@ -108,15 +115,22 @@ export function useSideChat(input: {
   const openDraft = (prompt = "") => {
     const { parent } = input;
     if (!parent) return null;
+    const settings = input.readSettings();
+    const runtimeMode = settings.runtimeMode ?? parent.runtimeMode;
+    const modelSelection = settings.modelSelection ?? parent.modelSelection;
     const draftId = newDraftId();
     const threadId = newThreadId();
     const store = useComposerDraftStore.getState();
-    store.createSideChatDraft({ draftId, threadId, parent });
+    store.createSideChatDraft({
+      draftId,
+      threadId,
+      parent: { ...parent, runtimeMode, modelSelection },
+    });
     if (prompt !== "") store.setPrompt(draftId, prompt);
     const target = { kind: "draft", draftId } as const;
     const parentRef = scopeThreadRef(parent.environmentId, parent.id);
     if (!openSideChatBeside(target, { parentRef, sideChat: target })) void openPaneThread(target);
-    return { parent, draftId, threadId };
+    return { parent, draftId, threadId, runtimeMode, modelSelection };
   };
 
   const send = async (prompt: string) => {
@@ -129,7 +143,13 @@ export function useSideChat(input: {
   };
 
   const sendFirstMessage = async (
-    { parent, draftId, threadId }: NonNullable<ReturnType<typeof openDraft>>,
+    {
+      parent,
+      draftId,
+      threadId,
+      runtimeMode,
+      modelSelection,
+    }: NonNullable<ReturnType<typeof openDraft>>,
     text: string,
   ) => {
     const result = await sendSideChatDraftMessage({
@@ -144,8 +164,9 @@ export function useSideChat(input: {
           input: {
             threadId,
             message: { messageId: newMessageId(), role: "user", text, attachments: [] },
+            modelSelection,
             titleSeed: deriveThreadTitleSeed({ text, attachments: [] }),
-            runtimeMode: modes.runtimeMode,
+            runtimeMode,
             interactionMode: modes.interactionMode,
             dispatchMode: "auto",
             createdAt: new Date().toISOString(),

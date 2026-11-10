@@ -6,17 +6,28 @@ import {
 import { GaugeIcon } from "@supaterm/icons";
 import { type TimestampFormat } from "@supaterm/contracts/settings";
 import { deadlineStore } from "@supaterm/client-runtime/clock";
+import { limitRecoveryOwnsSnooze } from "@supaterm/client-runtime/state/thread-execution";
+import {
+  CHATGPT_USAGE_LIMIT_CODE,
+  CHATGPT_WORKSPACE_USAGE_LIMIT_CODE,
+} from "@supaterm/shared/usageLimits";
 import { useState } from "react";
 import { useDeadlinePassed } from "../../hooks/useDeadline";
-import { Button } from "../ui/button";
+import { OpenAI } from "../Icons";
+import { ChatGptUsageButton } from "../settings/ChatGptUsageButton";
+import { Button, InlineButton } from "../ui/button";
 import { formatUpcomingTimestamp } from "../../timestampFormat";
 import { toastManager } from "../ui/toast";
 import type { ComposerBannerStackItem } from "./ComposerBannerStack";
+import { copyAdminRequest } from "./ThreadErrorBanner";
 
 type RecoveryProps = {
   runId: RunId;
+  errorCode: string | null;
   resetAt: string | null;
   stoppedAt: string;
+  done: boolean;
+  requestPending: boolean;
   snoozedUntil: string | null;
   recovery: OrchestrationV2LimitRecovery | null;
   timestampFormat: TimestampFormat;
@@ -24,19 +35,69 @@ type RecoveryProps = {
 };
 
 export function usageLimitRecoveryBannerItem(props: RecoveryProps): ComposerBannerStackItem {
-  const { runId, resetAt, stoppedAt, timestampFormat } = props;
-  const canSchedule = resetAt !== null && Date.parse(resetAt) > Date.parse(stoppedAt);
+  const {
+    runId,
+    errorCode,
+    resetAt,
+    stoppedAt,
+    done,
+    requestPending,
+    recovery,
+    snoozedUntil,
+    timestampFormat,
+  } = props;
+  // The server refuses recovery changes while a request is pending.
+  const canSchedule =
+    !done && !requestPending && resetAt !== null && Date.parse(resetAt) > Date.parse(stoppedAt);
+  const resumes =
+    canSchedule && recovery?.runId === runId && recovery.resetAt === resetAt && recovery.autoResume;
+  const workspaceLimit = errorCode === CHATGPT_WORKSPACE_USAGE_LIMIT_CODE;
+  const chatGptLimit = workspaceLimit || errorCode === CHATGPT_USAGE_LIMIT_CODE;
+  const recoveryActions = canSchedule ? (
+    <RecoveryActions key={`${runId}:${resetAt}`} {...props} />
+  ) : null;
+  const displayAt =
+    resumes && resetAt && snoozedUntil && Date.parse(snoozedUntil) > Date.parse(resetAt)
+      ? snoozedUntil
+      : resetAt;
+  const resetDescription = displayAt
+    ? `${resumes ? "Resumes" : "Resets"} ${formatUpcomingTimestamp(displayAt, timestampFormat)}`
+    : "Reset time unavailable; retry manually";
+  if (!chatGptLimit) {
+    return {
+      id: `usage-limit-recovery:${runId}`,
+      variant: "warning",
+      priority: "urgent",
+      alwaysVisible: true,
+      icon: <GaugeIcon />,
+      title: "Usage limit reached",
+      description: resetDescription,
+      actions: recoveryActions,
+    };
+  }
+  // OpenAI's partner guidelines specify this ChatGPT notice and its actions.
   return {
     id: `usage-limit-recovery:${runId}`,
     variant: "warning",
     priority: "urgent",
     alwaysVisible: true,
-    icon: <GaugeIcon />,
-    title: "Usage limit reached",
-    description: resetAt
-      ? `Resets ${formatUpcomingTimestamp(resetAt, timestampFormat)}`
-      : "Reset time unavailable; retry manually",
-    actions: canSchedule ? <RecoveryActions key={`${runId}:${resetAt}`} {...props} /> : null,
+    icon: <OpenAI aria-hidden="true" />,
+    title: "ChatGPT usage limit reached",
+    description: workspaceLimit
+      ? "You've reached your workspace's limit for using your ChatGPT plan in other apps."
+      : resetDescription,
+    actions: (
+      <>
+        {recoveryActions}
+        {workspaceLimit ? (
+          <Button size="xs" variant="ghost" onClick={copyAdminRequest}>
+            Copy request for admin
+          </Button>
+        ) : (
+          <ChatGptUsageButton size="xs" variant="ghost" />
+        )}
+      </>
+    ),
   };
 }
 
@@ -49,13 +110,7 @@ function RecoveryActions({ runId, resetAt, recovery, snoozedUntil, onChange }: R
   // so a snooze whose reset has passed is no longer active.
   const resetPassed = useDeadlinePassed(resetAt === null ? null : Date.parse(resetAt));
   const snoozed =
-    recovery?.snooze === true &&
-    recovery.runId === runId &&
-    recovery.resetAt === resetAt &&
-    resetAt !== null &&
-    snoozedUntil !== null &&
-    Date.parse(snoozedUntil) === Date.parse(resetAt) &&
-    !resetPassed;
+    limitRecoveryOwnsSnooze({ runId, resetAt, recovery, snoozedUntil }) && !resetPassed;
   async function toggle(action: "resume" | "snooze") {
     if (resetAt === null) return;
     if (action === "snooze" && !snoozed && Date.parse(resetAt) <= Date.now()) {
@@ -86,18 +141,17 @@ function RecoveryActions({ runId, resetAt, recovery, snoozedUntil, onChange }: R
   }
 
   return (
-    <>
-      <Button size="xs" variant="ghost" disabled={pending} onClick={() => void toggle("resume")}>
+    <span className="flex flex-wrap items-center gap-x-3 gap-y-1 px-1">
+      <InlineButton touchTarget="padded" disabled={pending} onClick={() => void toggle("resume")}>
         {pending ? "Saving..." : scheduled ? "Cancel auto-resume" : "Resume at reset"}
-      </Button>
-      <Button
-        size="xs"
-        variant="ghost"
+      </InlineButton>
+      <InlineButton
+        touchTarget="padded"
         disabled={pending || (!snoozed && resetPassed)}
         onClick={() => void toggle("snooze")}
       >
         {pending ? "Saving..." : snoozed ? "Wake now" : "Snooze until reset"}
-      </Button>
-    </>
+      </InlineButton>
+    </span>
   );
 }
