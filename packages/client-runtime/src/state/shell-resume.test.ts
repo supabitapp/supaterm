@@ -28,14 +28,19 @@ import { LIVE_SHELL_SNAPSHOT, PREPARED, TARGET, session } from "./shellSyncTestF
 describe("resuming the shell on a new connection", () => {
   const makeHarness = Effect.fnUntraced(function* (options?: {
     readonly cached?: OrchestrationV2ShellSnapshot;
+    readonly cachedOrigin?: Persistence.ShellCacheOrigin;
   }) {
     const supervisorState = yield* SubscriptionRef.make(AVAILABLE_CONNECTION_STATE);
     const activeSession = yield* SubscriptionRef.make<Option.Option<RpcSession.RpcSession>>(
       Option.none(),
     );
     const inputs = yield* SubscriptionRef.make<ReadonlyArray<number | undefined>>([]);
+    const httpFallbacks = yield* Ref.make<ReadonlyArray<boolean>>([]);
     const loaderCalls = yield* Ref.make(0);
     const saves = yield* SubscriptionRef.make<ReadonlyArray<number>>([]);
+    const savedOrigins = yield* Ref.make<ReadonlyArray<Persistence.ShellCacheOrigin | undefined>>(
+      [],
+    );
     const wakeups = yield* PubSub.unbounded<ConnectionWakeups.ConnectionWakeup>();
     const supervisor = EnvironmentSupervisor.EnvironmentSupervisor.of({
       target: TARGET,
@@ -47,9 +52,22 @@ describe("resuming the shell on a new connection", () => {
       retryNow: Effect.void,
     } satisfies EnvironmentSupervisor.EnvironmentSupervisor["Service"]);
     const cache = Persistence.EnvironmentCacheStore.of({
-      loadShell: () => Effect.succeed(Option.fromUndefinedOr(options?.cached)),
-      saveShell: (_environmentId, snapshot) =>
-        SubscriptionRef.update(saves, (saved) => [...saved, snapshot.snapshotSequence]),
+      loadShell: () =>
+        Effect.succeed(
+          Option.fromUndefinedOr(options?.cached).pipe(
+            Option.map((cached) =>
+              options?.cachedOrigin === undefined
+                ? cached
+                : { ...cached, origin: options.cachedOrigin },
+            ),
+          ),
+        ),
+      saveShell: (_environmentId, snapshot, origin) =>
+        Ref.update(savedOrigins, (saved) => [...saved, origin]).pipe(
+          Effect.andThen(
+            SubscriptionRef.update(saves, (saved) => [...saved, snapshot.snapshotSequence]),
+          ),
+        ),
       loadThread: () => Effect.succeedNone,
       saveThread: () => Effect.void,
       removeThread: () => Effect.void,
@@ -86,9 +104,16 @@ describe("resuming the shell on a new connection", () => {
       const client = {
         [ORCHESTRATION_V2_WS_METHODS.subscribeShell]: (input: {
           readonly afterSequence?: number;
+          readonly httpSnapshotFallback?: true;
         }) =>
           Stream.unwrap(
-            SubscriptionRef.update(inputs, (captured) => [...captured, input.afterSequence]).pipe(
+            Ref.update(httpFallbacks, (captured) => [
+              ...captured,
+              input.httpSnapshotFallback === true,
+            ]).pipe(
+              Effect.andThen(
+                SubscriptionRef.update(inputs, (captured) => [...captured, input.afterSequence]),
+              ),
               Effect.as(Stream.fromQueue(events)),
             ),
           ),
@@ -111,6 +136,7 @@ describe("resuming the shell on a new connection", () => {
       return {
         events,
         afterSequence: Option.getOrThrow(subscribed).at(-1),
+        httpSnapshotFallback: (yield* Ref.get(httpFallbacks)).at(-1),
       };
     });
 
@@ -147,8 +173,10 @@ describe("resuming the shell on a new connection", () => {
       awaitSubscriptions,
       update,
       inputs,
+      httpFallbacks,
       loaderCalls,
       saves,
+      savedOrigins,
       wakeups,
       shellState,
     };
@@ -208,6 +236,97 @@ describe("resuming the shell on a new connection", () => {
       const first = yield* harness.connect("run-1");
       expect(first.afterSequence).toBe(10);
       expect(yield* Ref.get(harness.loaderCalls)).toBe(1);
+    }),
+  );
+
+  const NOW = 1_800_000_000_000;
+  const RUN_1_ORIGIN: Persistence.ShellCacheOrigin = {
+    generation: "run-1",
+    omitIdleSubagents: false,
+    omitOlderDone: false,
+    snapshotAt: NOW - 60 * 60 * 1000,
+  };
+
+  it.effect("resumes cached rows that synchronized with the same server run", () =>
+    Effect.gen(function* () {
+      yield* TestClock.setTime(NOW);
+      const harness = yield* makeHarness({
+        cached: { ...LIVE_SHELL_SNAPSHOT, snapshotSequence: 5 },
+        cachedOrigin: RUN_1_ORIGIN,
+      });
+      const first = yield* harness.connect("run-1");
+      expect(first.afterSequence).toBe(5);
+      expect(first.httpSnapshotFallback).toBe(true);
+      expect(yield* Ref.get(harness.loaderCalls)).toBe(0);
+      yield* Queue.offer(first.events, { kind: "synchronized" });
+      // Thread families, older threads, and search wait for a nonzero generation.
+      expect(Option.getOrThrow(yield* harness.awaitLive).generation).toBeGreaterThan(0);
+    }),
+  );
+
+  it.effect.each([
+    { label: "another server run", origin: { ...RUN_1_ORIGIN, generation: "run-0" } },
+    { label: "other omissions", origin: { ...RUN_1_ORIGIN, omitIdleSubagents: true } },
+    {
+      label: "a six hour old snapshot",
+      origin: { ...RUN_1_ORIGIN, snapshotAt: NOW - 6 * 3_600_000 },
+    },
+  ])("reloads cached rows from $label over HTTP", ({ origin }) =>
+    Effect.gen(function* () {
+      yield* TestClock.setTime(NOW);
+      const harness = yield* makeHarness({
+        cached: { ...LIVE_SHELL_SNAPSHOT, snapshotSequence: 5 },
+        cachedOrigin: origin,
+      });
+      const first = yield* harness.connect("run-1");
+      expect(first.afterSequence).toBe(10);
+      expect(first.httpSnapshotFallback).toBe(false);
+      expect(yield* Ref.get(harness.loaderCalls)).toBe(1);
+    }),
+  );
+
+  it.effect("caches the server run only with rows that finished a sync", () =>
+    Effect.gen(function* () {
+      yield* TestClock.setTime(NOW);
+      const harness = yield* makeHarness();
+      const first = yield* harness.connect("run-1");
+      yield* Queue.offerAll(first.events, [harness.update(12), { kind: "synchronized" }]);
+      yield* harness.awaitLive;
+      yield* PubSub.publish(harness.wakeups, "application-background");
+      yield* SubscriptionRef.changes(harness.saves).pipe(
+        Stream.filter((sequences) => sequences.length > 0),
+        Stream.runHead,
+      );
+      expect((yield* Ref.get(harness.savedOrigins)).at(-1)).toEqual({
+        ...RUN_1_ORIGIN,
+        snapshotAt: NOW,
+      });
+    }),
+  );
+
+  it.effect("reloads over HTTP when the server answers a resume with snapshot-required", () =>
+    Effect.gen(function* () {
+      yield* TestClock.setTime(NOW);
+      const harness = yield* makeHarness({
+        cached: { ...LIVE_SHELL_SNAPSHOT, snapshotSequence: 5 },
+        cachedOrigin: RUN_1_ORIGIN,
+      });
+      const coldResume = yield* harness.connect("run-1");
+      expect(coldResume.afterSequence).toBe(5);
+      yield* Queue.offer(coldResume.events, { kind: "snapshot-required" });
+      expect((yield* harness.awaitSubscriptions(2)).at(-1)).toBe(10);
+      expect((yield* Ref.get(harness.httpFallbacks)).at(-1)).toBe(false);
+      expect(yield* Ref.get(harness.loaderCalls)).toBe(1);
+      yield* Queue.offer(coldResume.events, { kind: "synchronized" });
+      yield* harness.awaitLive;
+
+      // A new session resumes the in-memory shell and falls back the same way.
+      const warmResume = yield* harness.connect("run-1");
+      expect(warmResume.afterSequence).toBe(10);
+      expect(warmResume.httpSnapshotFallback).toBe(true);
+      yield* Queue.offer(warmResume.events, { kind: "snapshot-required" });
+      expect((yield* harness.awaitSubscriptions(4)).at(-1)).toBe(20);
+      expect(yield* Ref.get(harness.loaderCalls)).toBe(2);
     }),
   );
 

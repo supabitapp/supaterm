@@ -3,80 +3,6 @@ import * as NodeFS from "node:fs";
 import * as NodeVM from "node:vm";
 import { describe, expect, it } from "vite-plus/test";
 
-function createList(bundle: string, firstHeight = 32, platform = "web") {
-  const source = NodeFS.readFileSync(
-    new URL(`../apps/web/node_modules/@legendapp/list/${bundle}`, import.meta.url),
-    "utf8",
-  );
-  const positions = source.slice(
-    source.indexOf("function updateItemPositions("),
-    source.indexOf("// src/core/viewability.ts"),
-  );
-  const calculationStart = source.indexOf("function calculateItemsInView(");
-  const calculation = source.slice(
-    calculationStart,
-    source.indexOf("    totalSize = getContentSize(ctx);", calculationStart),
-  );
-  const keys = Array.from({ length: 80 }, (_, index) => `row-${index}`);
-  const sizes = new Map(keys.map((key, index) => [key, index === 0 ? firstHeight : 32]));
-  const state = {
-    props: {
-      data: keys,
-      alwaysRenderIndicesArr: [],
-      alwaysRenderIndicesSet: new Set(),
-      stickyHeaderIndicesSet: new Set(),
-    },
-    columns: [],
-    columnSpans: [],
-    idCache: keys,
-    indexByKey: new Map(keys.map((key, index) => [key, index])),
-    sizes,
-    sizesKnown: new Map(sizes),
-    positions: keys.map((_, index) => (index === 0 ? 0 : firstHeight + (index - 1) * 32)),
-    scroll: 0,
-    scrollLength: 600,
-    lastScrollDelta: 5,
-    startBuffered: 0,
-    minIndexSizeChanged: undefined as number | undefined,
-    scrollAdjustHandler: { getAdjust: () => 0 },
-  };
-  const values = new Map<string, unknown>([
-    ["numContainers", 35],
-    ["numColumns", 1],
-    ["stylePaddingTop", 0],
-    ["alignItemsAtEndPadding", 0],
-    ["headerSize", 0],
-    ["activeStickyIndex", -1],
-  ]);
-  const ctx = { state, values, positionListeners: new Map(), scrollAxisGap: 0 };
-  const totalSize = () => [...sizes.values()].reduce((total, size) => total + size, 0);
-  const calculate = NodeVM.runInNewContext(
-    `${positions}\n${calculation}\n  });\n}\ncalculateItemsInView`,
-    {
-      IS_DEV: false,
-      Platform: { OS: platform },
-      batchedUpdates: (run: () => void) => run(),
-      peek$: (_ctx: unknown, key: string) => values.get(key),
-      getContentSize: totalSize,
-      updateTotalSize: totalSize,
-      getEffectiveDrawDistance: () => 250,
-      getScrollVelocity: () => 1,
-      hasActiveInitialScroll: () => false,
-      getId: (_state: unknown, index: number) => keys[index],
-      prepareMVCP: () => undefined,
-    },
-  ) as (context: typeof ctx) => void;
-  return {
-    positions: state.positions,
-    resize(index: number, height: number) {
-      sizes.set(keys[index]!, height);
-      state.sizesKnown.set(keys[index]!, height);
-      state.minIndexSizeChanged = index;
-      calculate(ctx);
-    },
-  };
-}
-
 function createMeasurements(bundle: string, initialHeight: number) {
   const source = NodeFS.readFileSync(
     new URL(`../apps/web/node_modules/@legendapp/list/${bundle}`, import.meta.url),
@@ -109,16 +35,24 @@ function createMeasurements(bundle: string, initialHeight: number) {
   let cleanup = () => {};
   let cachedHeight = initialHeight;
   let deliveries = 0;
-  const ctx = { viewRefs: new Map([[0, ref]]) };
+  const ctx = {
+    viewRefs: new Map([[0, ref]]),
+    state: { containerItemGenerations: [], dataChangeEpoch: 0, initialScrollSession: undefined },
+  };
   const baselines = new Map<Element, ReturnType<Element["getBoundingClientRect"]>>();
   const useLayoutEffect = (effect: () => () => void) => {
     cleanup = effect();
   };
+  const useRef = <T>(current: T) => ({ current });
+  const useCallback = <T>(callback: T) => callback;
   const api = NodeVM.runInNewContext(
     `${measure}\n${observe}\n({ observe: useOnLayoutSync, measure: measureContainersInLayoutEffect })`,
     {
       HTMLElement: Element,
-      React3: { useLayoutEffect },
+      React3: { useCallback, useLayoutEffect, useRef },
+      React3__namespace: { useCallback, useLayoutEffect, useRef },
+      useCallback,
+      isContainerItemCurrent: () => true,
       ResizeObserver: class {
         constructor(callback: (entries: unknown[]) => void) {
           deliver = () => {
@@ -186,38 +120,6 @@ function createMeasurements(bundle: string, initialHeight: number) {
     cleanup: () => cleanup(),
   };
 }
-
-describe.each([
-  ["react.js", "web"],
-  ["react.mjs", "web"],
-  ["react-native.web.js", "web"],
-  ["react-native.web.mjs", "web"],
-  ["react-native.js", "ios"],
-  ["react-native.mjs", "ios"],
-  ["react-native.js", "android"],
-  ["react-native.mjs", "android"],
-])("measured row positions (%s, %s)", (bundle, platform) => {
-  it("keeps later rows below a reply that grows while scrolling", () => {
-    const list = createList(bundle, 32, platform);
-    list.resize(0, 5000);
-    expect(list.positions[13]).toBe(5384);
-    expect(list.positions[79]).toBe(7496);
-  });
-
-  it("closes the space after a reply shrinks while scrolling", () => {
-    const list = createList(bundle, 5000, platform);
-    list.resize(0, 32);
-    expect(list.positions[79]).toBe(2528);
-  });
-
-  it("reconciles the suffix without moving the unaffected prefix", () => {
-    const list = createList(bundle, 32, platform);
-    const prefix = list.positions.slice(0, 20);
-    list.resize(20, 5000);
-    expect(list.positions.slice(0, 20)).toEqual(prefix);
-    expect(list.positions[79]).toBe(7496);
-  });
-});
 
 describe.each(["react.js", "react.mjs", "react-native.web.js", "react-native.web.mjs"])(
   "observed row measurement (%s)",

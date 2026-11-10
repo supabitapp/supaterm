@@ -1,4 +1,4 @@
-import type { ThreadId } from "@supaterm/contracts";
+import type { ModelSelection, ThreadId } from "@supaterm/contracts";
 import * as SecureRandom from "effect/crypto/SecureRandom";
 import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
@@ -22,6 +22,7 @@ import {
 } from "./runtime.ts";
 import {
   type InterruptThreadTurnInput,
+  type UpdateThreadMetadataInput,
   archiveThread,
   cancelQueuedRun,
   createThread,
@@ -255,6 +256,13 @@ export function createThreadEnvironmentAtoms<R, E>(
       scheduler,
       concurrency,
     }),
+    setModelSelection: createEnvironmentCommand(runtime, {
+      label: "environment-data:commands:thread:set-model-selection",
+      execute: (input: UpdateThreadMetadataInput & { readonly modelSelection: ModelSelection }) =>
+        updateThreadMetadata(input),
+      scheduler,
+      concurrency,
+    }),
     setRuntimeMode: createEnvironmentCommand(runtime, {
       label: "environment-data:commands:thread:set-runtime-mode",
       execute: setThreadRuntimeMode,
@@ -400,6 +408,7 @@ export function createThreadEnvironmentAtoms<R, E>(
   return {
     ...commands,
     snapshotAtom: optimistic.snapshotAtom,
+    pendingThreadIdsAtom: optimistic.pendingThreadIdsAtom,
     sidebarSnapshotAtom: creation.snapshotAtom,
     startTurn: creation.wrap(commands.startTurn),
     markDone: optimistic.wrap(commands.markDone, (thread, _input, now, accepted) =>
@@ -476,6 +485,11 @@ export function createThreadEnvironmentAtoms<R, E>(
     reorderActive: optimistic.wrap(commands.reorderActive, (thread, input) => ({
       ...thread,
       activeOrderKey: input.orderKey,
+    })),
+    // Shown at once, so a composer that releases its accepted pick keeps showing it.
+    setModelSelection: optimistic.wrap(commands.setModelSelection, (thread, input) => ({
+      ...thread,
+      modelSelection: input.modelSelection,
     })),
   };
 }
