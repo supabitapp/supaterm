@@ -58,8 +58,9 @@ import {
 } from "@supaterm/provider-core/server/failure";
 import { turnScopedSelectionTransition } from "@supaterm/provider-core/server/selectionTransition";
 import {
+  findReportedPiModel,
   makePiRpcConnection,
-  parsePiModelSlug,
+  resolvePiModelSlug,
   piRecordField as recordField,
   piRecordNumber as recordNumber,
   piRecordString as recordString,
@@ -600,7 +601,7 @@ export const makePiAdapterV2 = Effect.fn("makePiAdapterV2")(function* (
       let baselineThinking: string | null = null;
       let contextWindow: number | null = null;
       const modelContextWindows = new Map<string, number>();
-      let modelsDiscovered = false;
+      let discoveredModels: ReadonlyArray<unknown> | null = null;
       // Prompt responses carry no id. Keep their session-wide send order and
       // owner so a late ack from a done turn cannot affect the next turn.
       const pendingPromptResponses: Array<PiPromptSend> = [];
@@ -2441,6 +2442,17 @@ export const makePiAdapterV2 = Effect.fn("makePiAdapterV2")(function* (
         Effect.forkIn(scope),
       );
 
+      const discoverModels = Effect.fnUntraced(function* () {
+        const modelsData = yield* request({ type: "get_available_models" }).pipe(
+          Effect.orElseSucceed(() => undefined),
+        );
+        const models = recordField(modelsData, "models");
+        if (Array.isArray(models)) {
+          for (const model of models) rememberModelContextWindow(model);
+          discoveredModels = models;
+        }
+      });
+
       const registerThread = Effect.fnUntraced(function* (
         threadInput: ProviderAdapter.ProviderAdapterV2EnsureThreadInput,
         publish = true,
@@ -2490,16 +2502,7 @@ export const makePiAdapterV2 = Effect.fn("makePiAdapterV2")(function* (
           }
         }
         const stateData = yield* request({ type: "get_state" });
-        if (!modelsDiscovered) {
-          const modelsData = yield* request({ type: "get_available_models" }).pipe(
-            Effect.orElseSucceed(() => undefined),
-          );
-          const models = recordField(modelsData, "models");
-          if (Array.isArray(models)) {
-            for (const model of models) rememberModelContextWindow(model);
-            modelsDiscovered = true;
-          }
-        }
+        if (discoveredModels === null) yield* discoverModels();
         contextWindow = rememberModelContextWindow(recordField(stateData, "model"));
         // Each baseline is captured independently, and only while nothing has
         // been applied yet, so a `get_state` that arrives after our own
@@ -2597,7 +2600,11 @@ export const makePiAdapterV2 = Effect.fn("makePiAdapterV2")(function* (
             appliedThinking = baselineThinking;
           }
         } else if (modelSelection.model !== appliedModel) {
-          const parsed = parsePiModelSlug(modelSelection.model);
+          // Extensions and models.json edits can add providers after the first discovery.
+          if (findReportedPiModel(modelSelection.model, discoveredModels) === undefined) {
+            yield* discoverModels();
+          }
+          const parsed = resolvePiModelSlug(modelSelection.model, discoveredModels);
           if (parsed === null) {
             return yield* protocolError(
               `Pi model '${modelSelection.model}' must use provider/model format`,
