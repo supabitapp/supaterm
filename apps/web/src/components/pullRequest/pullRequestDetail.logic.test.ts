@@ -13,12 +13,7 @@ import {
   type ThreadPullRequestLink,
 } from "@supaterm/contracts";
 import { describe, expect, it } from "vite-plus/test";
-import { formatInlineContextReference } from "~/lib/composerContextReferences";
-import {
-  buildMessageContext,
-  reviewCommentContextLabel,
-  reviewCommentContextReference,
-} from "~/lib/composerContextRecords";
+import { buildMessageContext, reviewCommentContextLabel } from "~/lib/composerContextRecords";
 
 import {
   buildAddSelectionToAgentHandoff,
