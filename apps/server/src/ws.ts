@@ -1280,7 +1280,6 @@ export const layerWsRpc = (
       const threadSearch = yield* ThreadSearch.ThreadSearch;
       const nextPromptSuggestions = yield* NextPromptSuggestionService.NextPromptSuggestionService;
 
-      const providerSessionsV2 = yield* ProviderSessionManager.ProviderSessionManagerV2;
       const mcpAppRequests = yield* McpAppRequests.McpAppRequests;
       const threadLaunch = yield* ThreadLaunchService.ThreadLaunchService;
       const commandOutputHub = yield* CommandOutputHub.CommandOutputHub;
@@ -2393,7 +2392,9 @@ export const layerWsRpc = (
                   cause: "No provider session has run in this thread yet.",
                 });
               }
-              const runtime = Option.getOrNull(yield* providerSessionsV2.get(providerSessionId));
+              const runtime = Option.getOrNull(
+                yield* providerSessionManager.get(providerSessionId),
+              );
               if (runtime === null) {
                 return yield* new ProviderUploadFeedbackError({
                   threadId: input.threadId,

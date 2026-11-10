@@ -11,10 +11,6 @@
       "types": "./src/schema.ts",
       "import": "./src/schema.ts"
     },
-    "./rpc": {
-      "types": "./src/rpc.ts",
-      "import": "./src/rpc.ts"
-    },
     "./protocol": {
       "types": "./src/protocol.ts",
       "import": "./src/protocol.ts"
