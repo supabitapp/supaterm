@@ -27,7 +27,7 @@ import { useFloatingWorkspaceTabs, useSystemWorkspaceTabBar } from "./useSystemW
 import { useControlTheme } from "../../../components/ui/useControlTheme";
 import { useDeviceType, useNativeLayoutMetrics } from "../../../native/native-layout-metrics";
 import { WorkspaceSidebarTabs } from "./WorkspaceSidebarTabs";
-import { useAdaptiveWorkspaceLayout } from "../AdaptiveWorkspaceLayout";
+import { useAdaptiveWorkspaceLayout, useWorkspacePaneState } from "../AdaptiveWorkspaceLayout";
 import { useSelectWorkspaceTab } from "./useSelectWorkspaceTab";
 
 const PULL_REQUEST_ICON = require("../../../../modules/supaterm-native-controls/ios/Resources/Icons/pull-request.png");
@@ -88,7 +88,8 @@ export function WorkspaceNativeTabs(props: {
   const deviceType = useDeviceType();
   const metrics = useNativeLayoutMetrics();
   const phoneBar = deviceType === "phone" && (metrics?.verticalBarEdge ?? "none") === "none";
-  const { layout, panes, startNewTask } = useAdaptiveWorkspaceLayout();
+  const { layout, startNewTask } = useAdaptiveWorkspaceLayout();
+  const { panes } = useWorkspacePaneState();
   // The tabs belong to the sidebar; over a page with the sidebar hidden they'd cover the composer.
   const hiddenWithSidebar =
     deviceType === "pad" &&

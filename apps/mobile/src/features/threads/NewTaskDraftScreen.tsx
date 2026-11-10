@@ -73,7 +73,7 @@ import {
 } from "../../lib/modelOptions";
 import { enqueueThreadOutboxMessage } from "../../state/thread-outbox";
 import { holdNewTaskDraft } from "../../state/use-pending-new-tasks";
-import { useAdaptiveWorkspaceLayout } from "../layout/AdaptiveWorkspaceLayout";
+import { useWorkspacePaneState } from "../layout/AdaptiveWorkspaceLayout";
 import {
   useRemoteConnections,
   useRemoteEnvironmentRuntime,
@@ -163,7 +163,7 @@ export function NewTaskDraftScreen(props: {
   const navigation = useNavigation();
   const goBack = useWorkspaceBackNavigation("threads");
   const focused = useIsFocused();
-  const { panes } = useAdaptiveWorkspaceLayout();
+  const { panes } = useWorkspacePaneState();
   const heldDraftKey = focused && panes.primarySidebarVisible ? flow.draftKey : null;
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- holds the draft's pending-task row in the app atom registry while the sidebar shows it, released on cleanup
   useEffect(

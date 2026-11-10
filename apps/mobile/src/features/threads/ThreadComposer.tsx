@@ -6,7 +6,6 @@ import type { VoiceRecordingHandOff } from "@supaterm/client-runtime/voice-input
 import { useSideChat } from "./useSideChat";
 import type { ComposerTextPaste } from "../../native/SupatermComposerEditor.types";
 import { useDeviceType } from "../../native/native-layout-metrics";
-import { useAdaptiveWorkspaceLayout } from "../layout/AdaptiveWorkspaceLayout";
 import { useAppearancePreferences } from "../settings/appearance/AppearancePreferencesProvider";
 import type { EnvironmentThreadShell } from "@supaterm/client-runtime/state/shell";
 import { useAtomValue } from "@effect/atom-react";
@@ -566,7 +565,6 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
   const compactSurfaceInset = usesLargeControls
     ? LARGE_COMPACT_SURFACE_INSET
     : COMPACT_SURFACE_INSET;
-  const { setComposerEditing } = useAdaptiveWorkspaceLayout();
   const showsCompactDictation = isVoiceInputPresented && !isExpanded;
   const isToolbarVisible = isExpanded || isVoiceInputPresented;
   const attachmentBlockReason = composerAttachmentUploadBlockReason({
@@ -593,8 +591,6 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
   useEffect(() => {
     onExpandedChange?.(isExpanded);
   }, [isExpanded, onExpandedChange]);
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- clears the workspace layout's composer-editing flag when the composer unmounts
-  useEffect(() => () => setComposerEditing(false), [setComposerEditing]);
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- cancels a pending sheet presentation or focus restore when the composer unmounts
   useEffect(() => () => disposeSettingsSheetPresentation(), []);
 
@@ -648,7 +644,6 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
     settingsSheetPresentation.onEditorFocusChange(true);
     onExpandedChange?.(true);
     onEditorFocusChange?.(true);
-    setComposerEditing(true);
   };
 
   const handleBlur = () => {
@@ -658,7 +653,6 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
       onExpandedChange?.(false);
     }
     onEditorFocusChange?.(false);
-    setComposerEditing(false);
   };
   const handleSend = async (followUp?: ActiveTurnComposerAction) => {
     if (
