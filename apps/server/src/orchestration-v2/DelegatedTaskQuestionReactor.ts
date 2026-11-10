@@ -63,12 +63,13 @@ const make = Effect.gen(function* () {
     function* (event) {
       if (event.type === "run.updated") {
         if (!["completed", "failed", "waiting"].includes(event.payload.status)) return;
-        const parent = yield* projections.getThreadRecords(event.threadId, ["subagents"]);
+        const parent = yield* projections.getThreadRecords(event.threadId, ["subagents"], {
+          subagentRunIds: [event.payload.id],
+        });
         if (parent.thread.archivedAt !== null || parent.thread.deletedAt !== null) return;
         for (const task of parent.subagents) {
           if (
             task.origin !== "app_owned" ||
-            task.runId !== event.payload.id ||
             task.completionWake !== "settled_only" ||
             task.completionDelivery?.state === "disposed" ||
             task.childThreadId === null ||
