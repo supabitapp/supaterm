@@ -4,6 +4,7 @@ import * as NodePath from "node:path";
 
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import * as NodeCrypto from "@effect/platform-node/NodeCrypto";
+import * as AssetSigner from "../assets/AssetSigner.ts";
 import {
   CommandId,
   MessageId,
@@ -56,7 +57,8 @@ type LivePlan =
       readonly result: Effect.Effect<{ text: string }, TranscriptionError>;
     };
 
-const environment = ServerSecretStore.layer.pipe(
+const environment = AssetSigner.layer.pipe(
+  Layer.provideMerge(ServerSecretStore.layer),
   Layer.provideMerge(
     ServerConfig.layerTest(process.cwd(), { prefix: "supaterm-transcription-uploads-" }),
   ),

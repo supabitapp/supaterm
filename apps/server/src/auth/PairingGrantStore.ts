@@ -12,6 +12,7 @@ import * as Context from "effect/Context";
 import * as SecureRandom from "effect/crypto/SecureRandom";
 import * as DateTime from "effect/DateTime";
 import * as Duration from "effect/Duration";
+import * as Mac from "effect/crypto/Mac";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
@@ -273,9 +274,13 @@ const make = Effect.gen(function* () {
     }).pipe(Effect.asVoid);
 
   const desktopBootstrapSecret = config.desktopBootstrapSecret;
+  const mac = yield* Mac.Mac;
   const consumeRotatingDesktopToken = (credential: string, nowMs: number) =>
-    desktopBootstrapSecret !== undefined &&
-    isValidDesktopBootstrapToken(desktopBootstrapSecret, credential, nowMs);
+    desktopBootstrapSecret === undefined
+      ? Effect.succeed(false)
+      : isValidDesktopBootstrapToken(desktopBootstrapSecret, credential, nowMs).pipe(
+          Effect.provideService(Mac.Mac, mac),
+        );
 
   const listActive: PairingGrantStore["Service"]["listActive"] = Effect.fn(
     "PairingGrantStore.listActive",
@@ -384,7 +389,7 @@ const make = Effect.gen(function* () {
   const consume: PairingGrantStore["Service"]["consume"] = Effect.fn("PairingGrantStore.consume")(
     function* (credential, input) {
       const now = yield* DateTime.now;
-      if (consumeRotatingDesktopToken(credential, now.epochMilliseconds)) {
+      if (yield* consumeRotatingDesktopToken(credential, now.epochMilliseconds)) {
         return {
           method: "desktop-bootstrap",
           scopes: AuthStandardClientScopes,

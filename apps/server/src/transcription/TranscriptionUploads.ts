@@ -37,7 +37,8 @@ import * as Semaphore from "effect/Semaphore";
 import * as Socket from "effect/socket/Socket";
 import * as Stream from "effect/Stream";
 
-import { signUploadToken, verifyUploadToken, writeUploadBody } from "../assets/AttachmentUpload.ts";
+import * as AssetSigner from "../assets/AssetSigner.ts";
+import * as AttachmentUpload from "../assets/AttachmentUpload.ts";
 import * as ServerSecretStore from "../auth/ServerSecretStore.ts";
 import * as ServerConfig from "../config.ts";
 import * as ThreadManagement from "../orchestration-v2/ThreadManagementService.ts";
@@ -239,6 +240,15 @@ const make = Effect.gen(function* () {
   const fileSystem = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
   const random = yield* SecureRandom.SecureRandom;
+  const assetSigner = yield* AssetSigner.AssetSigner;
+  const signUploadToken = (payloadJson: string) =>
+    AttachmentUpload.signUploadToken(payloadJson).pipe(
+      Effect.provideService(AssetSigner.AssetSigner, assetSigner),
+    );
+  const verifyUploadToken = (token: string) =>
+    AttachmentUpload.verifyUploadToken(token).pipe(
+      Effect.provideService(AssetSigner.AssetSigner, assetSigner),
+    );
   const secretStore = yield* ServerSecretStore.ServerSecretStore;
   const threads = yield* ThreadManagement.ThreadManagementService;
   const transcription = yield* Transcription.Transcription;
@@ -658,7 +668,7 @@ const make = Effect.gen(function* () {
     sizeBytes: number,
   ) {
     const partPath = path.join(directory, `${yield* randomId}.part`);
-    const audio = yield* writeUploadBody(body, sizeBytes, partPath).pipe(
+    const audio = yield* AttachmentUpload.writeUploadBody(body, sizeBytes, partPath).pipe(
       Effect.provideService(FileSystem.FileSystem, fileSystem),
       Effect.provideService(Path.Path, path),
       Effect.flatMap((receivedBytes) =>
@@ -751,7 +761,7 @@ const make = Effect.gen(function* () {
 
     const partPath = path.join(directory, `${yield* randomId}.part`);
     const outcome = yield* Effect.uninterruptibleMask((restore) =>
-      restore(writeUploadBody(body, claims.request.sizeBytes, partPath)).pipe(
+      restore(AttachmentUpload.writeUploadBody(body, claims.request.sizeBytes, partPath)).pipe(
         Effect.provideService(FileSystem.FileSystem, fileSystem),
         Effect.provideService(Path.Path, path),
         Effect.mapError((cause) => new TranscriptionError({ reason: "failed", cause })),

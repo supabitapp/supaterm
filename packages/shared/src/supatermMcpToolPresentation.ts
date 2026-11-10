@@ -417,12 +417,28 @@ function normalizeSupatermMcpToolLabel(value: string): string {
   return value.replace(/\s+(?:complete|completed)\s*$/i, "").trim();
 }
 
+// Timelines resolve every work row's tool name on each update; names repeat across updates.
+// ACP titles can carry whole commands, so long labels are parsed but not kept.
+const toolNameCache = new Map<string, string | null>();
+const TOOL_NAME_CACHE_LIMIT = 10_000;
+const TOOL_NAME_CACHE_MAX_KEY_LENGTH = 256;
+
+function resolveSupatermMcpToolName(value: string): string | null {
+  if (value.length > TOOL_NAME_CACHE_MAX_KEY_LENGTH) return parseSupatermMcpToolName(value);
+  const cached = toolNameCache.get(value);
+  if (cached !== undefined) return cached;
+  const name = parseSupatermMcpToolName(value);
+  if (toolNameCache.size >= TOOL_NAME_CACHE_LIMIT) toolNameCache.clear();
+  toolNameCache.set(value, name);
+  return name;
+}
+
 /**
  * Agents disagree on the Supaterm tool prefix (`mcp__supaterm__x`, `supaterm.x`, and
  * underscore, colon, slash, dash, or space separators). The match is loose because the
  * display-name inventory is the real gate; unknown tools stay on the generic renderer.
  */
-function resolveSupatermMcpToolName(value: string): string | null {
+function parseSupatermMcpToolName(value: string): string | null {
   const label = normalizeSupatermMcpToolLabel(value);
   const mcpMatch = /^mcp__(?<server>.+?)__(?<tool>.+)$/i.exec(label);
   if (mcpMatch?.groups) {

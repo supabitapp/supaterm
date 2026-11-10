@@ -589,7 +589,7 @@ it.layer(layerBase, { excludeTestServices: true })("PullRequestReviewGuideServic
     ),
   );
 
-  it.effect("keeps excerpts of source lines a configured diff driver would convert away", () =>
+  it.effect("keeps excerpts despite the checkout's diff driver and a failing hook", () =>
     Effect.scoped(
       Effect.gen(function* () {
         const repositories = yield* makeRepositories;
@@ -599,6 +599,9 @@ it.layer(layerBase, { excludeTestServices: true })("PullRequestReviewGuideServic
           "feature.txt diff=blank\n",
         );
         yield* git(repositories.workspace, ["config", "diff.blank.textconv", "true"]);
+        const hook = `${repositories.workspace}/.git/hooks/post-checkout`;
+        yield* fs.writeFileString(hook, "#!/bin/sh\nexit 1\n");
+        yield* fs.chmod(hook, 0o755);
         const stored = yield* Deferred.make<void>();
         const context = yield* Layer.build(
           makeLayer({
@@ -624,9 +627,11 @@ it.layer(layerBase, { excludeTestServices: true })("PullRequestReviewGuideServic
           context,
           PullRequestReviewGuideService.PullRequestReviewGuideService,
         );
-        yield* service.generate(reference);
-        yield* Deferred.await(stored);
+        const runs = makeRunEnds();
+        yield* service.generate(reference).pipe(Effect.provideService(Tracer.Tracer, runs.tracer));
+        yield* Deferred.await(runs.ended(repositories.headSha));
         const result = yield* service.get(reference);
+        assert.notStrictEqual(result.run?._tag, "Failed", JSON.stringify(result.run));
         assert.deepStrictEqual(result.guide?.stops[0]?.excerpts, [
           { path: "feature.txt", side: "new", start: 1, end: 3, caption: "" },
         ]);

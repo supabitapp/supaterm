@@ -467,6 +467,13 @@ export interface ProjectionStoreV2Shape {
     readonly threadId: ThreadId;
     readonly itemId: TurnItemId;
   }) => Effect.Effect<OrchestrationV2TurnItem | null, ProjectionStoreV2Error>;
+  readonly getMessagesById: (
+    threadId: ThreadId,
+    messageIds: ReadonlyArray<MessageId>,
+  ) => Effect.Effect<
+    ReadonlyMap<MessageId, OrchestrationV2ConversationMessage>,
+    ProjectionStoreV2Error
+  >;
   readonly getThreadRecords: <K extends ProjectionRecordField>(
     threadId: ThreadId,
     fields: ReadonlyArray<K>,
@@ -5503,7 +5510,8 @@ export const layer: Layer.Layer<ProjectionStoreV2, never, SqlClient.SqlClient> =
       FROM orchestration_v2_projection_turn_items
       WHERE thread_id = ${threadId}
         AND type = 'dynamic_tool'
-        AND (payload_json LIKE '%htmlRender%' OR payload_json LIKE ${`%${MCP_APP_OUTPUT_KEY}%`})
+        AND (payload_json LIKE '%htmlRender%' OR payload_json LIKE ${`%${MCP_APP_OUTPUT_KEY}%`}
+          OR payload_json LIKE '%preview_recording_stop%')
     `,
         sql<{ id: string }>`
       SELECT DISTINCT json_extract(attachment.value, '$.id') AS id
@@ -5532,6 +5540,23 @@ export const layer: Layer.Layer<ProjectionStoreV2, never, SqlClient.SqlClient> =
         ]),
         Effect.mapError((cause) => new ProjectionStoreReadError({ threadId, cause })),
       );
+
+    const getMessagesById = Effect.fn("ProjectionStore.getMessagesById")(
+      function* (threadId: ThreadId, messageIds: ReadonlyArray<MessageId>) {
+        if (messageIds.length === 0)
+          return new Map<MessageId, OrchestrationV2ConversationMessage>();
+        const rows = yield* sql<PayloadRow>`
+          SELECT message.payload_json
+          FROM json_each(${encodeIdList([...new Set(messageIds)])}) AS requested
+          CROSS JOIN orchestration_v2_projection_messages AS message
+            ON message.message_id = requested.value
+          WHERE message.thread_id = ${threadId}
+        `;
+        const messages = yield* decodeRows(decodeMessagePayload, threadId)(rows);
+        return new Map(messages.map((message) => [message.id, message]));
+      },
+      (effect, threadId) => effect.pipe(Effect.mapError(controlReadError(threadId))),
+    );
 
     const getThreadRecords: ProjectionStoreV2Shape["getThreadRecords"] = (
       threadId,
@@ -7181,6 +7206,7 @@ export const layer: Layer.Layer<ProjectionStoreV2, never, SqlClient.SqlClient> =
       listAppOwnedChildThreadIds: readOnReader(listAppOwnedChildThreadIds),
       getNextTurnItemOrdinal: readOnReader(getNextTurnItemOrdinal),
       getTurnItem: readOnReader(getTurnItem),
+      getMessagesById: readOnReader(getMessagesById),
       getThreadRecords: (threadId, fields, filter) =>
         getThreadRecords(threadId, fields, filter).pipe(NodeSqliteClient.readOnly),
       getRuntimeRequest: readOnReader(getRuntimeRequest),

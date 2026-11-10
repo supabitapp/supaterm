@@ -1,6 +1,7 @@
 import { NodeHttpServer } from "@effect/platform-node";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import * as NodeCrypto from "@effect/platform-node/NodeCrypto";
+import * as AssetSigner from "../assets/AssetSigner.ts";
 import { assert, it } from "@effect/vitest";
 import {
   AttachmentCreateUploadUrlResult,
@@ -164,7 +165,8 @@ const withServer = <A, E, R>(
       Layer.mergeAll(
         NodeHttpServer.layerTest,
         FetchHttpClient.layer,
-        ServerSecretStore.layer.pipe(
+        AssetSigner.layer.pipe(
+          Layer.provideMerge(ServerSecretStore.layer),
           Layer.provideMerge(
             ServerConfig.layerTest(process.cwd(), { prefix: "supaterm-transcribe-cli-" }),
           ),

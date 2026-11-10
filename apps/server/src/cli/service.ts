@@ -10,7 +10,7 @@ import packageJson from "../../package.json" with { type: "json" };
 import * as BootService from "../service/bootService.ts";
 import * as ServiceProtection from "../service/serviceProtection.ts";
 import { compareExactServiceVersions } from "../service/serviceProtocol.ts";
-import type * as ServerConfig from "../config.ts";
+import * as ServerConfig from "../config.ts";
 import * as ProcessRunner from "../processRunner.ts";
 import { projectLocationFlags, resolveCliAuthConfig } from "./config.ts";
 import { resolveEntryPath } from "./invocation.ts";
@@ -128,7 +128,7 @@ const runServiceCommand = Effect.fn("cli.service.run")(function* <A, E, R>(
 ) {
   const logLevel = yield* GlobalFlag.LogLevel;
   const config = yield* resolveCliAuthConfig(flags, logLevel);
-  return yield* run.pipe(Effect.provide(layer(config)));
+  return yield* run.pipe(Effect.provide(Layer.merge(layer(config), ServerConfig.layer(config))));
 });
 
 const serviceReconcileFlags = {
@@ -190,6 +190,22 @@ const serviceUninstallCommand = Command.make("uninstall", projectLocationFlags).
       flags,
       Effect.gen(function* () {
         const service = yield* BootService.BootService;
+        const path = yield* Path.Path;
+        const { baseDir } = yield* ServerConfig.ServerConfig;
+        // An unreadable unit stays removable; only a unit known to serve another home is kept.
+        const installedBaseDir = yield* service.status.pipe(
+          Effect.map((status) => status.installedBaseDir),
+          Effect.orElseSucceed(() => undefined),
+        );
+        if (
+          installedBaseDir !== undefined &&
+          path.resolve(installedBaseDir) !== path.resolve(baseDir)
+        ) {
+          yield* Console.log(
+            "The installed service runs another Supaterm home, so it was not removed. Pass its --base-dir.",
+          );
+          return;
+        }
         const removed = yield* service.uninstall;
         yield* Console.log(
           removed ? "Removed the Supaterm service." : "Supaterm service is not installed.",
