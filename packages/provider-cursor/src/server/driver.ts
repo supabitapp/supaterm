@@ -93,7 +93,6 @@ export const CursorDriver: ProviderDriver<
     enabled,
     config,
   }) {
-    const host = yield* ProviderHost.ProviderHost;
     const fileSystem = yield* FileSystem.FileSystem;
     const path = yield* Path.Path;
     const httpClient = yield* HttpClient.HttpClient;
