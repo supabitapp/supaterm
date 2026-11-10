@@ -1,8 +1,10 @@
-import { ProviderDriverKind } from "@supaterm/contracts";
+import { ProviderDriverKind, type ServerProvider } from "@supaterm/contracts";
 import { MuseSettings } from "../settings.ts";
 import * as HostProcess from "@supaterm/shared/HostProcess";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
+import * as Ref from "effect/Ref";
+import * as Semaphore from "effect/Semaphore";
 import * as Path from "effect/Path";
 import * as Schema from "effect/Schema";
 import * as HttpClient from "effect/http/HttpClient";
@@ -20,6 +22,8 @@ import * as ProviderContinuationRequests from "@supaterm/provider-core/server/Pr
 import { checkMuseProviderStatus, makePendingMuseProvider } from "./status.ts";
 import * as ProviderEventLoggers from "@supaterm/provider-core/server/ProviderEventLoggers";
 import { makeManagedServerProvider } from "@supaterm/provider-core/server/managedProvider";
+import type { ProviderUsageLimitsReport } from "@supaterm/provider-core/server/snapshot";
+import { makeUsageLimits } from "@supaterm/provider-core/server/usageLimits";
 import { enrichMuseSnapshot, latestMuseVersion, museMaintenance } from "./maintenance.ts";
 import { makeMuseEnvironment } from "./sdk.ts";
 import { museUsageReader } from "./usage.ts";
@@ -104,6 +108,26 @@ export const MuseDriver: ProviderDriver<
       accentColor,
       continuationGroupKey: continuationIdentity.continuationKey,
     });
+    // Only a running CLI reports usage; status probes cannot fetch it.
+    const latestUsage = yield* Ref.make<ProviderUsageLimitsReport | undefined>(undefined);
+    const usagePermit = yield* Semaphore.make(1);
+    const withLatestUsage = (provider: ServerProvider) =>
+      Ref.get(latestUsage).pipe(
+        Effect.map((report): ServerProvider =>
+          report
+            ? {
+                ...provider,
+                ...(report.authLabel
+                  ? { auth: { ...provider.auth, label: report.authLabel } }
+                  : {}),
+                usageLimits: makeUsageLimits({
+                  checkedAt: report.checkedAt,
+                  windows: report.windows,
+                }),
+              }
+            : provider,
+        ),
+      );
     const snapshotSettings = yield* makeProviderSnapshotSettingsSource(effectiveConfig);
     const resolveInstallation = yield* makeCachedProviderMaintenanceResolution(
       resolveProviderMaintenanceCapabilitiesEffect(museMaintenance, {
@@ -147,6 +171,7 @@ export const MuseDriver: ProviderDriver<
         makePendingMuseProvider(settings.provider).pipe(Effect.map(stampIdentity)),
       checkProvider: checkMuseProviderStatus(effectiveConfig, processEnvironment, cwd).pipe(
         Effect.map(stampIdentity),
+        Effect.flatMap(withLatestUsage),
         Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, spawner),
         Effect.provideService(FileSystem.FileSystem, fileSystem),
         Effect.provideService(Path.Path, path),
@@ -184,6 +209,15 @@ export const MuseDriver: ProviderDriver<
       modelCatalog,
       ...(eventLoggers.native ? { nativeEventLogger: eventLoggers.native } : {}),
       continuationRequests,
+      onUsageLimits: (report) =>
+        usagePermit.withPermits(1)(
+          Effect.gen(function* () {
+            const previous = yield* Ref.get(latestUsage);
+            if (previous && Date.parse(report.checkedAt) < Date.parse(previous.checkedAt)) return;
+            yield* Ref.set(latestUsage, report);
+            yield* snapshot.applyUsageLimits({ ...report, complete: true });
+          }),
+        ),
     });
     const textGeneration = yield* makeMuseTextGeneration(effectiveConfig, {
       environment: processEnvironment,
@@ -196,7 +230,7 @@ export const MuseDriver: ProviderDriver<
       displayName,
       accentColor,
       enabled,
-      snapshot: { ...snapshot, resolveMaintenance },
+      snapshot: { ...snapshot, resolveMaintenance, refreshUsage: Effect.void },
       orchestrationAdapter,
       textGeneration,
     } satisfies ProviderInstance;
