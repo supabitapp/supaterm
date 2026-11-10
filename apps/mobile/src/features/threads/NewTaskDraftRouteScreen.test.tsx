@@ -4,18 +4,15 @@ import { createRoot } from "react-dom/client";
 import { AsyncResult } from "effect/reactivity";
 import { expect, it, vi } from "vite-plus/test";
 
+import type { WorkspacePhase } from "../../state/workspaceModel";
+
 interface Snapshot {
   readonly projects: ReadonlyArray<{
     readonly environmentId: string;
     readonly id: string;
     readonly workspaceRoot: string;
   }>;
-  readonly catalog: {
-    readonly isLoadingConnections: boolean;
-    readonly hasLoadedShellSnapshot: boolean;
-    readonly hasConnectingEnvironment: boolean;
-    readonly connectionError: string | null;
-  };
+  readonly catalog: { readonly phase: WorkspacePhase; readonly environmentsPending: boolean };
 }
 
 const harness = vi.hoisted(() => {
@@ -97,15 +94,17 @@ import { NewTaskDraftRouteScreen } from "./NewTaskDraftRouteScreen";
 
 const project = { environmentId: "env-1", id: "project-1", workspaceRoot: "/repo" };
 const connected: Snapshot["catalog"] = {
-  isLoadingConnections: false,
-  hasLoadedShellSnapshot: true,
-  hasConnectingEnvironment: false,
-  connectionError: null,
+  phase: { type: "connected", shell: "loaded" },
+  environmentsPending: false,
+};
+const reloading: Snapshot["catalog"] = {
+  phase: { type: "loading-catalog", offline: false },
+  environmentsPending: false,
 };
 
 // The project can vanish while the catalog still loads, or while it reports ready.
 it.each([
-  ["while the catalog reloads", { ...connected, isLoadingConnections: true }],
+  ["while the catalog reloads", reloading],
   ["while the catalog stays ready", connected],
 ])(
   "checks the branch out once when a reconnect drops and restores the project %s",
