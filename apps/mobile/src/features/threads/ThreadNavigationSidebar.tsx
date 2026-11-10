@@ -46,7 +46,6 @@ import { useThreadListSearchMatches } from "./useThreadListSearchMatches";
 import { useHomeListOptions } from "../home/home-list-options";
 import { buildHomeListFilterMenuItems } from "../home/home-list-filter-menu";
 import { WorkspaceListHeader } from "../layout/workspace/WorkspaceListHeader";
-import { WORKSPACE_LIST_SCROLL_INSETS } from "../layout/workspace/workspace-list-insets";
 import { WorkspaceSidebarColumn } from "../layout/workspace/WorkspaceSidebarColumn";
 import { buildHomeProjectScopes, findHomeProjectScope } from "../home/homeThreadList";
 import { SwipeableScrollGateProvider, useSwipeableScrollGate } from "../home/thread-swipe-actions";
@@ -644,7 +643,9 @@ function ThreadNavigationSidebarPane(props: ThreadNavigationSidebarProps) {
                 itemsAreEqual={threadListV2ListItemsAreEqual}
                 keyExtractor={(item) => item.key}
                 renderItem={renderListItem}
-                {...WORKSPACE_LIST_SCROLL_INSETS}
+                automaticallyAdjustsScrollIndicatorInsets
+                // The column lays the list under its bar, glass or solid; UIKit insets it past both.
+                contentInsetAdjustmentBehavior="automatic"
                 contentContainerStyle={[
                   styles.threadListContent,
                   {
