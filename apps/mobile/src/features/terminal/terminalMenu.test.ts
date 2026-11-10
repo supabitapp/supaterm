@@ -5,6 +5,7 @@ import { DEFAULT_TERMINAL_ID } from "@supaterm/contracts";
 import { getTerminalLabel } from "@supaterm/shared/terminalLabels";
 
 import {
+  basename,
   nextOpenTerminalId,
   previousLiveTerminalId,
   resolveProjectScriptTerminalId,
@@ -24,6 +25,18 @@ function makeMenuSession(input: {
     updatedAt: null,
   };
 }
+
+describe("basename", () => {
+  it.each([
+    ["/Users/me/repo", "repo"],
+    ["/Users/me/repo/", "repo"],
+    ["C:\\Users\\me\\repo", "repo"],
+    ["/", "/"],
+    [null, null],
+  ])("names the last folder of %s", (cwd, expected) => {
+    expect(basename(cwd)).toBe(expected);
+  });
+});
 
 describe("nextOpenTerminalId", () => {
   it("allocates separate terminals on repeated visits without readable metadata", () => {

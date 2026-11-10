@@ -1,5 +1,6 @@
 import { type KnownTerminalSession } from "@supaterm/client-runtime/state/terminal";
 import { DEFAULT_TERMINAL_ID, type ProjectScript } from "@supaterm/contracts";
+import { fileBasename } from "@supaterm/shared/path";
 import { nextTerminalId, resolveTerminalSessionLabel } from "@supaterm/shared/terminalLabels";
 import * as Arr from "effect/Array";
 import * as Order from "effect/Order";
@@ -24,17 +25,7 @@ const terminalMenuSessionOrder = Order.make<TerminalMenuSession>((left, right) =
 });
 
 export function basename(input: string | null): string | null {
-  if (!input) {
-    return null;
-  }
-
-  const normalized = input.replace(/\/+$/, "");
-  if (normalized.length === 0) {
-    return "/";
-  }
-
-  const segments = normalized.split("/");
-  return segments[segments.length - 1] ?? normalized;
+  return input ? fileBasename(input) : null;
 }
 
 export function getTerminalStatusLabel(input: {
