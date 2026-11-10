@@ -206,7 +206,9 @@ describe("isSourceInstalled", () => {
         Effect.gen(function* () {
           const fileSystem = yield* FileSystem.FileSystem;
           const path = yield* Path.Path;
-          const home = yield* fileSystem.makeTempDirectoryScoped({ prefix: "supaterm-sources-xdg-" });
+          const home = yield* fileSystem.makeTempDirectoryScoped({
+            prefix: "supaterm-sources-xdg-",
+          });
           const xdgConfigHome =
             configHome === "relocated" || configHome === "chrome-override"
               ? path.join(home, "config")
