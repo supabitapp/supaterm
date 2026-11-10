@@ -2418,7 +2418,7 @@ export function computeStableMessagesTimelineRows(
 }
 
 function isRowUnchanged(a: MessagesTimelineRow, b: MessagesTimelineRow): boolean {
-  if (a.kind !== b.kind || a.id !== b.id) return false;
+  if (a.kind !== b.kind || a.id !== b.id || a.continuesWorkLog !== b.continuesWorkLog) return false;
 
   switch (a.kind) {
     case "working":

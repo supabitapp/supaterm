@@ -3506,6 +3506,60 @@ describe("computeStableMessagesTimelineRows", () => {
     expect(updated.result.at(-1)).toBe(updatedThinking);
   });
 
+  it("refreshes a work row when the row after it stops being a work row", () => {
+    const runId = RunId.make("notice-run");
+    const time = (second: number) => new Date(Date.UTC(2026, 0, 1, 0, 0, second)).toISOString();
+    const message = (id: string, second: number, role: "user" | "assistant"): TimelineEntry => ({
+      kind: "message",
+      id,
+      createdAt: time(second),
+      message: {
+        id: MessageId.make(id),
+        role,
+        text: id,
+        runId,
+        createdAt: time(second),
+        updatedAt: time(second),
+        streaming: role === "assistant",
+      },
+    });
+    const notice: TimelineEntry = {
+      kind: "work",
+      id: "notice",
+      createdAt: time(4),
+      entry: {
+        id: "notice",
+        createdAt: time(4),
+        runId,
+        label: "Heads up",
+        tone: "info",
+        itemType: "system_notice",
+      },
+    };
+    const deriveRows = (timelineEntries: TimelineEntry[]) =>
+      deriveMessagesTimelineRows({
+        timelineEntries,
+        latestRun: { runId, status: "running", startedAt: time(0), completedAt: null },
+        runningRunId: runId,
+        isWorking: true,
+        expandedRunIds: new Set(),
+        turnDiffSummaries: [],
+        supportsConversationRollback: false,
+      });
+    const prompt = message("prompt", 0, "user");
+    const before = computeStableMessagesTimelineRows(deriveRows([prompt, notice]), {
+      result: [],
+      byId: new Map(),
+    });
+    const after = computeStableMessagesTimelineRows(
+      deriveRows([prompt, notice, message("answer", 6, "assistant")]),
+      before,
+    );
+
+    expect(before.byId.get("notice")).toMatchObject({ continuesWorkLog: true });
+    expect(after.byId.get("notice")).not.toHaveProperty("continuesWorkLog");
+  });
+
   it("returns the previous result when row order and content are unchanged", () => {
     const firstUserMessage = {
       id: "user-1" as never,
