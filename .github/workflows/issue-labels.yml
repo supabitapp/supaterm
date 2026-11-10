@@ -43,6 +43,11 @@ jobs:
                 color: "fbca04",
                 description: "Issue needs maintainer review and initial categorization.",
               },
+              {
+                name: "via-triage",
+                color: "c5def5",
+                description: "Filed with supaterm triage after an agent investigated the machine.",
+              },
             ];
 
             for (const label of managedLabels) {

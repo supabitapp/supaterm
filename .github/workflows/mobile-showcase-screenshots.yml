@@ -42,12 +42,27 @@ on:
         type: choice
         options:
           - supaterm
-          - supaterm-chat
-          - grove
-          - ocean
-          - ember
-          - iris
-          - zenbones
+          - midnight
+          - dracula
+          - one-dark-pro
+          - catppuccin-mocha
+          - tokyo-night
+          - nord
+          - github-dark
+          - github-dark-dimmed
+          - gruvbox-dark
+          - solarized-dark
+          - rose-pine
+          - night-owl
+          - kanagawa-wave
+          - paper
+          - one-light
+          - catppuccin-latte
+          - github-light
+          - gruvbox-light
+          - solarized-light
+          - rose-pine-dawn
+          - night-owl-light
           - all
 
 permissions:
