@@ -3,8 +3,10 @@ import { WORKING_EXIT_GRACE_MS } from "@supaterm/client-runtime/state/thread-inb
 export type ThreadNotificationKind = "input" | "completion";
 
 export interface ThreadNotificationObservation {
-  /** Run and status key while the thread needs attention, otherwise null. */
+  /** Run, status and request key while the thread needs attention, otherwise null. */
   readonly attention: string | null;
+  /** The pending request's id, when it has one; null whenever attention is. */
+  readonly requestId: string | null;
   /** The thread is idle and its latest run completed. */
   readonly settled: boolean;
   /** When the latest run completed, if it did. */
@@ -31,6 +33,24 @@ export function createThreadNotificationGate<Key>(
   const skip = (key: Key, at: number | null) => {
     if (at !== null && at > (handled.get(key) ?? -Infinity)) handled.set(key, at);
   };
+  // Attention keys with a request id seen since the thread last stopped needing attention.
+  const attended = new Map<Key, Set<string>>();
+  const attend = (
+    key: Key,
+    prior: ThreadNotificationObservation | undefined,
+    next: ThreadNotificationObservation,
+  ): boolean => {
+    if (next.attention === null) {
+      attended.delete(key);
+      return false;
+    }
+    if (next.requestId === null) return next.attention !== prior?.attention;
+    const seen = attended.get(key);
+    if (seen?.has(next.attention)) return false;
+    if (seen) seen.add(next.attention);
+    else attended.set(key, new Set([next.attention]));
+    return true;
+  };
   return {
     observe(
       key: Key,
@@ -42,8 +62,9 @@ export function createThreadNotificationGate<Key>(
       if (!next.settled || options.archived || options.quiet) cancel(key);
       // The first sighting, archived threads, and stopped or silent runs never notify completion.
       if (!prior || options.archived || options.quiet) skip(key, next.completedAt);
+      const fresh = attend(key, prior, next);
       if (!prior || options.archived) return;
-      if (next.attention && next.attention !== prior.attention) {
+      if (fresh) {
         // Attention replaces the completion before it, so that run must not notify later.
         skip(key, lastSettled.get(key) ?? null);
         cancel(key);
@@ -68,6 +89,7 @@ export function createThreadNotificationGate<Key>(
       for (const key of pending.keys()) if (!keys.has(key)) cancel(key);
       for (const key of handled.keys()) if (!keys.has(key)) handled.delete(key);
       for (const key of lastSettled.keys()) if (!keys.has(key)) lastSettled.delete(key);
+      for (const key of attended.keys()) if (!keys.has(key)) attended.delete(key);
     },
     cancelPending(): void {
       for (const key of pending.keys()) cancel(key);
@@ -76,6 +98,7 @@ export function createThreadNotificationGate<Key>(
       for (const key of pending.keys()) cancel(key);
       handled.clear();
       lastSettled.clear();
+      attended.clear();
     },
   };
 }
