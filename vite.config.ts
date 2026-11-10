@@ -337,6 +337,12 @@ export default defineConfig({
         rules: { "supaterm/prefer-effect-fn": "off" },
       },
       {
+        files: ["apps/web/src/**", "apps/mobile/src/**", "apps/desktop/src/**"],
+        // Users still pick their own project icon from the full project icon set.
+        excludeFiles: ["apps/web/src/projectIconOptions.ts"],
+        rules: { "supaterm/no-sparkles-icon": "error" },
+      },
+      {
         files: ["apps/web/**/*.test.{ts,tsx}"],
         rules: { "supaterm/require-disposable-render": "error" },
       },
