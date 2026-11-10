@@ -3150,6 +3150,12 @@ it.effect("ProviderSessionManagerV2 marks pending runtime requests non-live on r
         })).turnItems.map((item) => item.id),
         [pendingRequest.events.find((event) => event.type === "turn-item.updated")!.payload.id],
       );
+      assert.deepEqual(
+        (yield* projectionStore.getThreadRecords(threadId, ["runtimeRequests"], {
+          runtimeRequestStatuses: ["pending"],
+        })).runtimeRequests.map((request) => request.id),
+        [pendingRequest.requestId],
+      );
       yield* manager.open({
         threadId,
         providerSessionId,
