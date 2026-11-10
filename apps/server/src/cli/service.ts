@@ -10,7 +10,7 @@ import packageJson from "../../package.json" with { type: "json" };
 import * as BootService from "../service/bootService.ts";
 import * as ServiceProtection from "../service/serviceProtection.ts";
 import { compareExactServiceVersions } from "../service/serviceProtocol.ts";
-import type * as ServerConfig from "../config.ts";
+import * as ServerConfig from "../config.ts";
 import * as ProcessRunner from "../processRunner.ts";
 import { projectLocationFlags, resolveCliAuthConfig } from "./config.ts";
 import { resolveEntryPath } from "./invocation.ts";
@@ -128,7 +128,7 @@ const runServiceCommand = Effect.fn("cli.service.run")(function* <A, E, R>(
 ) {
   const logLevel = yield* GlobalFlag.LogLevel;
   const config = yield* resolveCliAuthConfig(flags, logLevel);
-  return yield* run.pipe(Effect.provide(layer(config)));
+  return yield* run.pipe(Effect.provide(Layer.merge(layer(config), ServerConfig.layer(config))));
 });
 
 const serviceReconcileFlags = {
