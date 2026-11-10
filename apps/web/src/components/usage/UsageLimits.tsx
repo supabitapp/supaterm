@@ -11,12 +11,13 @@ import {
 import { useAtomValue } from "@effect/atom-react";
 import { normalizeProviderAccentColor } from "@supaterm/client-runtime/state/provider-instance-display";
 import {
-  formatDuration,
   formatResetsIn,
   type LimitPace,
   paceOf,
   paceRemainingPercent,
   remainingPercent,
+  type ResetCreditChoice,
+  resetCreditChoices,
 } from "@supaterm/shared/usageLimits";
 import { GaugeIcon, TrendingDownIcon, TrendingUpIcon } from "@supaterm/icons";
 import { Fragment, useLayoutEffect, useState } from "react";
@@ -230,20 +231,17 @@ const OUTCOME_TEXT: Record<ProviderConsumeResetCreditOutcome, string> = {
   alreadyRedeemed: "That credit was already redeemed.",
 };
 
-export function useResetCredit(
-  environmentId: EnvironmentId,
-  input: ProviderConsumeResetCreditInput,
-) {
+export function useResetCredit(environmentId: EnvironmentId) {
   const canManageProviders = useEnvironmentScope(environmentId, AuthProvidersManageScope);
   const consume = useAtomCommand(serverEnvironment.consumeResetCredit, { reportFailure: false });
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
 
-  const redeem = async () => {
+  const redeem = async (choice: ResetCreditChoice) => {
     if (!readEnvironmentScope(environmentId, AuthProvidersManageScope)) return;
     setBusy(true);
     setStatus(null);
-    const result = await consume({ environmentId, input });
+    const result = await consume({ environmentId, input: choice.input });
     setBusy(false);
     if (result._tag === "Success") {
       setStatus(result.value.warning ?? OUTCOME_TEXT[result.value.outcome]);
@@ -261,10 +259,12 @@ export function useResetCredit(
 
 export function ResetCreditButton({
   busy,
+  choice,
   onRedeem,
   disabled = false,
 }: {
   readonly busy: boolean;
+  readonly choice: ResetCreditChoice;
   readonly onRedeem: () => void;
   readonly disabled?: boolean;
 }) {
@@ -282,35 +282,17 @@ export function ResetCreditButton({
           >
             <InlineConfirmLabel
               armed={armed}
-              idle={busy ? "Using…" : "Use reset"}
+              idle={busy ? "Using…" : choice.actionLabel}
               confirm="Confirm reset"
             />
           </Button>
         }
       />
       <TooltipPopup>
-        {armed
-          ? "Click again to redeem one reset credit. It clears the current rate-limit windows and can’t be undone."
-          : "Redeem a reset credit to clear the current rate-limit windows"}
+        {armed ? `Click again to confirm. ${choice.confirmDescription}` : choice.confirmDescription}
       </TooltipPopup>
     </Tooltip>
   );
-}
-
-export function resetCreditsSummary(
-  credits: ServerProviderResetCredits,
-  now: number,
-  compact = false,
-): string {
-  const expiresIn = credits.nextExpiresAt
-    ? formatDuration(Date.parse(credits.nextExpiresAt) - now)
-    : null;
-  if (credits.availableCount === 0) return "No reset credits banked";
-  if (compact)
-    return `${credits.availableCount} banked${expiresIn ? ` · expires in ${expiresIn}` : ""}`;
-  return `${credits.availableCount} ${credits.availableCount === 1 ? "reset credit" : "reset credits"} banked${
-    expiresIn ? ` · next expires in ${expiresIn}` : ""
-  }`;
 }
 
 export function ResetCredits({
@@ -324,18 +306,23 @@ export function ResetCredits({
   readonly credits: ServerProviderResetCredits;
   readonly now: number;
 }) {
-  const { canManageProviders, busy, status, redeem } = useResetCredit(environmentId, input);
+  const { canManageProviders, busy, status, redeem } = useResetCredit(environmentId);
   if (credits.availableCount === 0 && status === null) return null;
   return (
-    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-      <span className="tabular-nums">{resetCreditsSummary(credits, now)}</span>
-      {credits.availableCount > 0 ? (
-        <ResetCreditButton
-          busy={busy}
-          disabled={!canManageProviders}
-          onRedeem={() => void redeem()}
-        />
-      ) : null}
+    <div className="flex flex-col gap-1 text-xs text-muted-foreground">
+      {resetCreditChoices(credits, input, now).map((choice) => (
+        <div key={choice.key} className="flex flex-wrap items-center gap-x-3 gap-y-1">
+          <span className="tabular-nums">{choice.summary}</span>
+          {choice.availableCount > 0 ? (
+            <ResetCreditButton
+              busy={busy}
+              choice={choice}
+              disabled={!canManageProviders}
+              onRedeem={() => void redeem(choice)}
+            />
+          ) : null}
+        </div>
+      ))}
       {status ? <span className="text-foreground">{status}</span> : null}
     </div>
   );
