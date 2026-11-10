@@ -3195,13 +3195,12 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
         )
         .pipe(mapDispatchError(command));
       const automaticMessageIds = new Set(
-        [...queuedMessages.values()]
-          .filter(
-            (message) =>
-              message.role === "user" &&
-              (message.notification !== undefined || message.delegatedCompletion !== undefined),
-          )
-          .map((message) => message.id),
+        [...queuedMessages.values()].flatMap((message) =>
+          message.role === "user" &&
+          (message.notification !== undefined || message.delegatedCompletion !== undefined)
+            ? [message.id]
+            : [],
+        ),
       );
       const automaticQueuedRuns = projection.runs.filter(
         (run) => run.status === "queued" && automaticMessageIds.has(run.userMessageId),

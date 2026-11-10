@@ -1427,7 +1427,7 @@ const make = Effect.gen(function* () {
   });
 
   const openingReservations = () =>
-    [...pendingTabs.entries()].filter(([key]) => !tabs.has(key)).map(([, pending]) => pending);
+    [...pendingTabs.entries()].flatMap(([key, pending]) => (tabs.has(key) ? [] : [pending]));
   const serverAtTabLimit = () => tabs.size + openingReservations().length >= SERVER_TAB_LIMIT;
   const agentAtTabLimit = (agentSessionId: string) =>
     [...tabs.values()].filter((tab) => tab.control.agentId === agentSessionId).length +

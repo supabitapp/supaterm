@@ -693,18 +693,26 @@ function closeClaudeQuery(queryRuntime: ClaudeQuery) {
 }
 
 // SDK 0.3.316 types `mcp_call` and `list_permission_rules` but has no Query method for them; its own readMcpResource sends control requests this way.
+interface ClaudeControlRequest {
+  readonly subtype: "mcp_call" | "list_permission_rules";
+  readonly [key: string]: unknown;
+}
+
+interface ClaudeControlRequestSender {
+  readonly request: (request: ClaudeControlRequest) => Promise<unknown>;
+}
+
+const canSendClaudeControlRequest = (value: unknown): value is ClaudeControlRequestSender =>
+  Predicate.hasProperty(value, "request") && typeof value.request === "function";
+
 async function sendClaudeControlRequest(
   queryRuntime: ClaudeQuery,
-  request: {
-    readonly subtype: "mcp_call" | "list_permission_rules";
-    readonly [key: string]: unknown;
-  },
+  request: ClaudeControlRequest,
 ): Promise<unknown> {
-  const send: unknown = Reflect.get(queryRuntime, "request");
-  if (typeof send !== "function") {
+  if (!canSendClaudeControlRequest(queryRuntime)) {
     throw new Error(`This Claude Agent SDK cannot send ${request.subtype}.`);
   }
-  const reply: unknown = await Reflect.apply(send, queryRuntime, [request]);
+  const reply = await queryRuntime.request(request);
   return Predicate.isObject(reply) ? reply.response : undefined;
 }
 
