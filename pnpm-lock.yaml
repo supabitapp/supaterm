@@ -1296,6 +1296,9 @@ importers:
       three:
         specifier: 0.180.0
         version: 0.180.0
+      unbash:
+        specifier: ^5.0.0
+        version: 5.0.0
     devDependencies:
       '@effect/vitest':
         specifier: 4.1.2
