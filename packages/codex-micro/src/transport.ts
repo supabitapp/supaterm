@@ -284,11 +284,16 @@ export const makeConnection = Effect.fnUntraced(function* (
       Effect.gen(function* () {
         yield* restore(permits.take(1));
         const exit = yield* Effect.exit(restore(exchange(method, params)));
-        yield* Effect.forkIn(
-          Effect.sleep(REQUEST_GAP).pipe(Effect.ensuring(permits.release(1))),
-          scope,
-          { startImmediately: true },
-        );
+        // A fiber forked into a closed scope never starts, so it would never release the permit.
+        if (scope.state._tag === "Closed") {
+          yield* permits.release(1);
+        } else {
+          yield* Effect.forkIn(
+            Effect.sleep(REQUEST_GAP).pipe(Effect.ensuring(permits.release(1))),
+            scope,
+            { startImmediately: true },
+          );
+        }
         return yield* exit;
       }),
     );
