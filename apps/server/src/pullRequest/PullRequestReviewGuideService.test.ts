@@ -627,9 +627,10 @@ it.layer(layerBase, { excludeTestServices: true })("PullRequestReviewGuideServic
           context,
           PullRequestReviewGuideService.PullRequestReviewGuideService,
         );
-        const runs = yield* watchRuns;
-        yield* runs.generate(service, reference);
-        const result = yield* runs.done(service, reference);
+        const runs = makeRunEnds();
+        yield* service.generate(reference).pipe(Effect.provideService(Tracer.Tracer, runs.tracer));
+        yield* Deferred.await(runs.ended(repositories.headSha));
+        const result = yield* service.get(reference);
         assert.notStrictEqual(result.run?._tag, "Failed", JSON.stringify(result.run));
         assert.deepStrictEqual(result.guide?.stops[0]?.excerpts, [
           { path: "feature.txt", side: "new", start: 1, end: 3, caption: "" },
