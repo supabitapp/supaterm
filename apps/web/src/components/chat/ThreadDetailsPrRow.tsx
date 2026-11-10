@@ -466,9 +466,8 @@ export function ThreadDetailsPrRow({
   const rowContent = (
     <>
       {icon}
-      {/* The title wraps onto the clipped second line when it cannot show a few characters. */}
       <span className="flex h-4 min-w-0 flex-1 flex-wrap overflow-hidden text-left">
-        <span className="shrink-0">#{number}</span>
+        <span className="min-w-0 truncate">#{number}</span>
         {title ? (
           <span className="min-w-8 flex-1 basis-0 truncate contain-inline-size">: {title}</span>
         ) : null}
@@ -605,7 +604,6 @@ export function ThreadDetailsPrRow({
                   variant="ghost"
                   size="sm"
                   part="link-primary"
-                  className="min-w-min"
                   aria-label={openAriaLabel}
                   onClick={onOpen}
                   onAuxClick={onOpen}
@@ -665,7 +663,6 @@ export function ThreadDetailsPrRow({
                   variant="ghost"
                   size="sm"
                   part="link-primary"
-                  className="min-w-min"
                   aria-label={openAriaLabel}
                   onClick={onOpen}
                   onAuxClick={onOpen}
