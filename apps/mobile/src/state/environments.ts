@@ -14,7 +14,7 @@ export interface EnvironmentPresentation extends BaseEnvironmentPresentation {
   readonly displayUrl: string | null;
 }
 
-export function projectEnvironmentPresentation(
+function projectEnvironmentPresentation(
   environmentId: EnvironmentId,
   presentation: BaseEnvironmentPresentation,
 ): EnvironmentPresentation {

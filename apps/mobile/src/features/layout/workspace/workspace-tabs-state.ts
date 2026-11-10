@@ -116,7 +116,7 @@ export function shouldRestoreNativeSearch(tab: WorkspaceTabState, keepsEmptySear
   return tab.searchMode === "active" || tab.query !== "" || keepsEmptySearchOpen;
 }
 
-export const WORKSPACE_TOOLBAR = { height: 48, expandedGap: 10, edge: 16, gap: 8 };
+const WORKSPACE_TOOLBAR = { height: 48, expandedGap: 10, edge: 16, gap: 8 };
 export const WORKSPACE_DOCK = { height: 48, bottomGap: 6 };
 
 export function workspaceDockBottomClearance(input: {

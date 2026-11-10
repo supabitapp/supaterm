@@ -1126,19 +1126,6 @@ export function insertComposerDraftText(
   });
 }
 
-export function appendComposerDraftText(draftKey: string, value: string): void {
-  updateComposerDrafts((current) => {
-    const existing = normalizeDraft(current[draftKey]);
-    return {
-      ...current,
-      [draftKey]: {
-        ...existing,
-        text: `${existing.text}${value}`,
-      },
-    };
-  });
-}
-
 /**
  * Restore paths pass allowOverflow so a failed send never drops the message's
  * own attachments.

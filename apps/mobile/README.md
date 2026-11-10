@@ -56,9 +56,6 @@ invalid output, clear it for one development-client start:
 vp run dev:client:reset
 ```
 
-Run that reset once after installing or changing the Uniwind dependency patch. Cached transforms
-can otherwise reference its previous pnpm package path. Ordinary Metro starts still keep the cache.
-
 Component edits use Fast Refresh. See [mobile development lifecycle](../../docs/internals/mobile-development.md)
 before changing runtime ownership or refresh behavior.
 

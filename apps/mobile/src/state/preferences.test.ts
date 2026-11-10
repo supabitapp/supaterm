@@ -74,11 +74,11 @@ describe("mobile preferences state", () => {
       const unmountUpdate = registry.mount(state.updatePreferencesAtom);
 
       registry.set(state.updatePreferencesAtom, {
-        collapsedProjectGroups: ["project:new"],
+        threadListCollapsedGroups: ["project:new"],
       });
       pendingLoad.resolve({
         baseFontSize: 18,
-        collapsedProjectGroups: ["project:old"],
+        threadListCollapsedGroups: ["project:old"],
       });
 
       const preferences = yield* AtomRegistry.getResult(registry, state.preferencesAtom, {
@@ -86,10 +86,10 @@ describe("mobile preferences state", () => {
       });
       expect(preferences).toEqual({
         baseFontSize: 18,
-        collapsedProjectGroups: ["project:new"],
+        threadListCollapsedGroups: ["project:new"],
       });
       expect(savePatch).toHaveBeenCalledWith({
-        collapsedProjectGroups: ["project:new"],
+        threadListCollapsedGroups: ["project:new"],
       });
       expect(AsyncResult.isFailure(registry.get(state.updatePreferencesAtom))).toBe(false);
 
@@ -101,7 +101,7 @@ describe("mobile preferences state", () => {
 
   it.effect("keeps both updates when the React setter sends them before a render", () =>
     Effect.gen(function* () {
-      let persisted: MobilePreferences.Preferences = { collapsedProjectGroups: [] };
+      let persisted: MobilePreferences.Preferences = { threadListCollapsedGroups: [] };
       const state = makePreferencesState({
         load: Effect.succeed(persisted),
         savePatch: (patch) =>
@@ -135,23 +135,23 @@ describe("mobile preferences state", () => {
       const savePreferences = setters[0]!;
       savePreferences({
         transform: (current) => ({
-          collapsedProjectGroups: [...(current.collapsedProjectGroups ?? []), "astra"],
+          threadListCollapsedGroups: [...(current.threadListCollapsedGroups ?? []), "astra"],
         }),
       });
       savePreferences({
         transform: (current) => ({
-          collapsedProjectGroups: [...(current.collapsedProjectGroups ?? []), "sol"],
+          threadListCollapsedGroups: [...(current.threadListCollapsedGroups ?? []), "sol"],
         }),
       });
       yield* AtomRegistry.getResult(registry, state.updatePreferencesAtom, {
         suspendOnWaiting: true,
       });
 
-      expect(persisted.collapsedProjectGroups).toEqual(["astra", "sol"]);
+      expect(persisted.threadListCollapsedGroups).toEqual(["astra", "sol"]);
 
       savePreferences({
         transform: (current) => ({
-          collapsedProjectGroups: (current.collapsedProjectGroups ?? []).filter(
+          threadListCollapsedGroups: (current.threadListCollapsedGroups ?? []).filter(
             (group) => group !== "astra",
           ),
         }),
@@ -159,7 +159,7 @@ describe("mobile preferences state", () => {
       yield* AtomRegistry.getResult(registry, state.updatePreferencesAtom, {
         suspendOnWaiting: true,
       });
-      expect(persisted.collapsedProjectGroups).toEqual(["sol"]);
+      expect(persisted.threadListCollapsedGroups).toEqual(["sol"]);
 
       unmountUpdate();
       unmountPreferences();

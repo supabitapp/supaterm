@@ -38,7 +38,7 @@ import { appAtomRegistry } from "./atom-registry";
 import { serverEnvironment } from "./server";
 import { environmentSession } from "./session";
 
-export const transcriptionEnvironment = createTranscriptionEnvironmentAtoms(connectionAtomRuntime);
+const transcriptionEnvironment = createTranscriptionEnvironmentAtoms(connectionAtomRuntime);
 
 // Long enough for five minutes of audio to upload and transcribe on a slow link. Running out
 // only drops this wait: the server keeps working, and posting again joins it.
