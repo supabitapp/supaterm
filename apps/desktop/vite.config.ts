@@ -15,7 +15,7 @@ export default defineConfig({
     tasks: {
       build: {
         command:
-          "node scripts/build-browser-secret.mjs && node scripts/build-preview-annotation-css.mjs && vp pack",
+          "node scripts/build-browser-secret.mjs && node scripts/build-sd-eject-guard.mjs && node scripts/build-preview-annotation-css.mjs && vp pack",
         dependsOn: ["supaterm#build"],
         cache: false,
       },
@@ -27,13 +27,13 @@ export default defineConfig({
       },
       dev: {
         command:
-          "node scripts/build-browser-secret.mjs && node scripts/build-preview-annotation-css.mjs && cross-env SUPATERM_DESKTOP_DEV=1 vp pack --watch",
+          "node scripts/build-browser-secret.mjs && node scripts/build-sd-eject-guard.mjs && node scripts/build-preview-annotation-css.mjs && cross-env SUPATERM_DESKTOP_DEV=1 vp pack --watch",
         dependsOn: ["supaterm#build"],
         cache: false,
       },
       "dev:bundle": {
         command:
-          "node scripts/build-browser-secret.mjs && node scripts/build-preview-annotation-css.mjs && vp pack --watch",
+          "node scripts/build-browser-secret.mjs && node scripts/build-sd-eject-guard.mjs && node scripts/build-preview-annotation-css.mjs && vp pack --watch",
         cache: false,
       },
       "dev:electron": {

@@ -30,7 +30,6 @@ const clientSettings: ClientSettings = {
   browserAutoOpenPanel: false,
   browserProfiles: [{ id: "work", name: "Work", kind: "persistent" }],
   browserDefaultProfileId: "work",
-  confirmQuit: "double-click",
   confirmThreadArchive: true,
   confirmThreadDelete: false,
   confirmThreadUnpin: false,

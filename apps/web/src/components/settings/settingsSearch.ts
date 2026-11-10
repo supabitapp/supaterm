@@ -515,13 +515,6 @@ export const SETTINGS_SEARCH_ITEMS = [
     searchTerms: ["ask before thread chat history"],
   },
   {
-    id: "quit-confirmation",
-    title: "Quit shortcut",
-    to: "/settings/general",
-    searchTerms: ["confirmation desktop app exit direct hold double click press twice"],
-    desktopOnly: true,
-  },
-  {
     id: "time-format",
     title: "Time format",
     to: "/settings/general",

@@ -19,5 +19,8 @@ export function makeSidePulseBridge(platform: NodeJS.Platform): DesktopSidePulse
     },
     setLedState: (state) => ipcRenderer.invoke(IpcChannels.SIDE_PULSE_SET_LED_STATE_CHANNEL, state),
     preview: (light) => ipcRenderer.invoke(IpcChannels.SIDE_PULSE_PREVIEW_CHANNEL, light),
+    getEjectGuardStatus: () => ipcRenderer.invoke(IpcChannels.SIDE_PULSE_GET_EJECT_GUARD_CHANNEL),
+    setEjectGuardInstalled: (installed) =>
+      ipcRenderer.invoke(IpcChannels.SIDE_PULSE_SET_EJECT_GUARD_CHANNEL, installed),
   };
 }

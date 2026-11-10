@@ -1,6 +1,7 @@
 import {
   DEFAULT_CLIENT_SETTINGS,
   SidePulseDeviceState,
+  SidePulseEjectGuardStatus,
   SidePulseLedState,
 } from "@supaterm/contracts";
 import * as Effect from "effect/Effect";
@@ -13,6 +14,7 @@ import * as DesktopIpc from "../ipc/DesktopIpc.ts";
 import * as MainWindowOwner from "../ipc/MainWindowOwner.ts";
 import * as DesktopClientSettings from "../settings/DesktopClientSettings.ts";
 import * as SidePulse from "./SidePulse.ts";
+import * as SidePulseEjectGuard from "./SidePulseEjectGuard.ts";
 import * as IpcChannels from "./SidePulseChannels.ts";
 
 const { logWarning } = makeComponentLogger("desktop-sidepulse");
@@ -50,6 +52,24 @@ const preview = DesktopIpc.makeIpcMethod({
   }),
 });
 
+const getEjectGuardStatus = DesktopIpc.makeIpcMethod({
+  channel: IpcChannels.SIDE_PULSE_GET_EJECT_GUARD_CHANNEL,
+  payload: Schema.Void,
+  result: SidePulseEjectGuardStatus,
+  handler: Effect.fn("desktop.ipc.sidePulse.getEjectGuardStatus")(function* () {
+    return yield* (yield* SidePulseEjectGuard.SidePulseEjectGuard).status;
+  }),
+});
+
+const setEjectGuardInstalled = DesktopIpc.makeIpcMethod({
+  channel: IpcChannels.SIDE_PULSE_SET_EJECT_GUARD_CHANNEL,
+  payload: Schema.Boolean,
+  result: SidePulseEjectGuardStatus,
+  handler: Effect.fn("desktop.ipc.sidePulse.setEjectGuardInstalled")(function* (installed) {
+    return yield* (yield* SidePulseEjectGuard.SidePulseEjectGuard).setInstalled(installed);
+  }),
+});
+
 export const install = Effect.gen(function* () {
   const ipc = yield* DesktopIpc.DesktopIpc;
   const sidePulse = yield* SidePulse.SidePulse;
@@ -60,6 +80,8 @@ export const install = Effect.gen(function* () {
   yield* ipc.handle(getState);
   yield* ipc.handle(yield* makeSetLedState);
   yield* ipc.handle(preview);
+  yield* ipc.handle(getEjectGuardStatus);
+  yield* ipc.handle(setEjectGuardInstalled);
   yield* (yield* DesktopClientSettings.DesktopClientSettings).get.pipe(
     Effect.map(
       Option.match({

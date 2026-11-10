@@ -268,6 +268,28 @@ describe("DesktopApplicationMenu", () => {
     }),
   );
 
+  it.effect("binds Cmd/Ctrl+Q to quit on every platform", () =>
+    Effect.gen(function* () {
+      for (const platform of ["darwin", "linux", "win32"] as const) {
+        const applicationMenuTemplate =
+          yield* Deferred.make<readonly Electron.MenuItemConstructorOptions[]>();
+        yield* configureMenu(yield* Deferred.make<string>(), applicationMenuTemplate, {
+          platform,
+        });
+
+        const quitItem = (yield* Deferred.await(applicationMenuTemplate))
+          .flatMap((item) => (Array.isArray(item.submenu) ? item.submenu : []))
+          .find((item) => item.role === "quit");
+
+        assert.isDefined(quitItem, platform);
+        // Electron gives the quit role no default accelerator on Windows.
+        if (platform !== "darwin") {
+          assert.strictEqual(quitItem?.accelerator, "CmdOrCtrl+Q", platform);
+        }
+      }
+    }),
+  );
+
   it.effect("reloads the main window even while a browser page has focus", () =>
     Effect.gen(function* () {
       const selectedAction = yield* Deferred.make<string>();
