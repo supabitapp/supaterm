@@ -186,27 +186,35 @@ export function AttachmentFileScreen(props: AttachmentFileScreenProps) {
             {
               id: "modes",
               inline: true,
-              items: menuActions
-                .filter(({ inline }) => inline)
-                .map((action) => ({
-                  id: action.id,
-                  title: action.title,
-                  icon: action.icon,
-                  selected: action.id === selectedAction,
-                  onPress: action.onPress,
-                })),
+              items: menuActions.flatMap((action) =>
+                action.inline
+                  ? [
+                      {
+                        id: action.id,
+                        title: action.title,
+                        icon: action.icon,
+                        selected: action.id === selectedAction,
+                        onPress: action.onPress,
+                      },
+                    ]
+                  : [],
+              ),
             },
           ]
         : []),
-      ...menuActions
-        .filter(({ inline }) => !inline)
-        .map((action) => ({
-          id: action.id,
-          title: action.title,
-          icon: action.icon,
-          destructive: "destructive" in action,
-          onPress: action.onPress,
-        })),
+      ...menuActions.flatMap((action) =>
+        action.inline
+          ? []
+          : [
+              {
+                id: action.id,
+                title: action.title,
+                icon: action.icon,
+                destructive: "destructive" in action,
+                onPress: action.onPress,
+              },
+            ],
+      ),
     ],
   };
   const subtitle = `${draftKey ? "Draft attachment" : "Attachment"}${sizeBytes > 0 ? ` · ${formatAttachmentSize(sizeBytes)}` : ""}`;
