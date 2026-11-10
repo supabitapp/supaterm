@@ -15,6 +15,13 @@
       "noticeFile": "apps/web/src/components/sidePulse/vendor/LICENSE"
     },
     {
+      "name": "SidePulse Pro Eject Prevention",
+      "bundles": ["desktop"],
+      "license": "MIT",
+      "sourceUrl": "https://github.com/inteliwear/sidepulse/blob/main/src/sidepulse/resources/sd_eject_guard.c",
+      "noticeFile": "apps/web/src/components/sidePulse/vendor/LICENSE"
+    },
+    {
       "bundles": ["assets", "desktop", "web", "mobile"],
       "license": "MIT",
       "name": "Catppuccin themes",

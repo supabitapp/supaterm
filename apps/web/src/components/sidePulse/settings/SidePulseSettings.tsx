@@ -5,15 +5,17 @@ import {
   type SidePulseColor,
   type SidePulseDeviceState,
   type SidePulseEffect,
+  type SidePulseEjectGuardStatus,
   type SidePulseLedState,
   type SidePulseSettings as SidePulseSettingsValue,
 } from "@supaterm/contracts";
 import { sidePulseEffectUsesColor, sidePulseLightColor } from "@supaterm/shared/sidePulsePrograms";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { useDesktopDeviceState } from "../../../hooks/useDesktopDeviceState";
 import { updateClientSettings, useClientSettings } from "../../../hooks/useSettings";
 import { cn, isMacPlatform } from "../../../lib/utils";
+import { Button } from "../../ui/button";
 import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "../../ui/select";
 import { Switch } from "../../ui/switch";
 import { BrightnessSlider } from "../../settings/BrightnessSlider";
@@ -240,6 +242,79 @@ function connectionSummary(
   return { label: "Connected", description: DEFAULT_DESCRIPTION, tone: "success" };
 }
 
+const EJECT_GUARD_DESCRIPTION =
+  "macOS ejects SidePulse when a locked Mac wakes from deep sleep. This helper keeps it connected and needs your administrator password.";
+
+function SidePulseEjectGuardRow({ bridge }: { readonly bridge: DesktopSidePulseBridge }) {
+  const [status, setStatus] = useState<SidePulseEjectGuardStatus | null>(null);
+  const [pending, setPending] = useState(false);
+  const [failed, setFailed] = useState(false);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- reads the helper's install state from the desktop main process once
+  useEffect(() => {
+    let current = true;
+    void bridge.getEjectGuardStatus().then(
+      (next) => {
+        if (current) setStatus(next);
+      },
+      () => undefined,
+    );
+    return () => {
+      current = false;
+    };
+  }, [bridge]);
+
+  if (status === null || status === "unavailable") return null;
+  const installed = status === "installed";
+  const toggle = () => {
+    setPending(true);
+    setFailed(false);
+    bridge
+      .setEjectGuardInstalled(!installed)
+      .then(setStatus, () => setFailed(true))
+      .finally(() => setPending(false));
+  };
+
+  return (
+    <SettingsRow
+      {...searchableSetting("sidepulse-eject-guard")}
+      description={
+        failed ? (
+          <span role="alert" className="text-destructive-foreground">
+            {installed
+              ? "Couldn't remove the helper. Try again."
+              : "Couldn't install the helper. Try again."}
+          </span>
+        ) : (
+          EJECT_GUARD_DESCRIPTION
+        )
+      }
+      control={
+        <>
+          {installed ? (
+            <span role="status" className="text-xs text-success-foreground">
+              Installed
+            </span>
+          ) : null}
+          <Button
+            size="sm"
+            variant={installed ? "ghost-muted" : "outline"}
+            disabled={pending}
+            onClick={toggle}
+          >
+            {pending
+              ? installed
+                ? "Removing…"
+                : "Installing…"
+              : installed
+                ? "Remove…"
+                : "Install…"}
+          </Button>
+        </>
+      }
+    />
+  );
+}
+
 export function SidePulseSettings() {
   const bridge = getSidePulseBridge();
   if (bridge === null) return null;
@@ -288,6 +363,7 @@ function SidePulseSettingsPage({ bridge }: { readonly bridge: DesktopSidePulseBr
             />
           }
         />
+        {isMacHost ? <SidePulseEjectGuardRow bridge={bridge} /> : null}
       </SettingsSection>
       <SettingsSection id="sidepulse-lights" title="Lights">
         {LIGHTS.map((light) => (
