@@ -443,11 +443,8 @@ export class EnvironmentAuth extends Context.Service<
       ServerAuthInternalError
     >;
     /**
-     * Spends a one-time pairing code as approval for an MCP client with the
-     * given access and returns the level it approves; the code must hold every
-     * scope that access grants, and a level-bound code must name `access`.
-     * Proof-bound codes (Supaterm Connect) are refused without being spent, and
-     * desktop bootstrap grants never qualify.
+     * Spends a code covering all granted scopes and returns the level it approves. A level-bound
+     * code must name `access`. Rejects desktop grants and leaves refused codes unspent.
      */
     readonly consumeMcpApprovalCode: (
       code: string,

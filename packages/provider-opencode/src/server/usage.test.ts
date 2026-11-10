@@ -259,9 +259,9 @@ describe("readOpenCodeUsage", () => {
         assert.deepStrictEqual(
           records.map((record) => record.dedupeKey),
           [
-            ...cases.filter(([, , valid]) => valid).map(([id]) => `opencode:message-${id}`),
+            ...cases.flatMap(([id, , valid]) => (valid ? [`opencode:message-${id}`] : [])),
             "opencode:message-type-user",
-            ...cases.filter(([, , valid]) => valid).map(([id]) => `opencode:session_message-${id}`),
+            ...cases.flatMap(([id, , valid]) => (valid ? [`opencode:session_message-${id}`] : [])),
           ],
         );
         assert.strictEqual(records[0]?.reportedCostUsd, 0.25);
