@@ -10,6 +10,7 @@ import {
   AuthEnvironmentMaintainScope,
   AuthOrchestrationOperateScope,
   AuthAccessWriteScope,
+  AuthFilesystemWriteScope,
   AuthOrchestrationReadScope,
   AuthProvidersManageScope,
   AuthSettingsWriteScope,
@@ -95,6 +96,7 @@ describe("command permissions", () => {
     { method: ORCHESTRATION_V2_WS_METHODS.stopWorkflow, scope: AuthOrchestrationOperateScope },
     { method: WS_METHODS.pullRequestsGenerateReviewGuide, scope: AuthOrchestrationOperateScope },
     { method: WS_METHODS.projectsCreateFromThread, scope: AuthOrchestrationOperateScope },
+    { method: WS_METHODS.projectsWriteFile, scope: AuthFilesystemWriteScope },
   ])("checks the destination grant for $method", ({ method, scope }) =>
     Effect.scoped(
       Effect.gen(function* () {
