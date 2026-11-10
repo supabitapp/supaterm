@@ -14,20 +14,20 @@ import * as Stream from "effect/Stream";
 import { vi } from "vite-plus/test";
 
 vi.mock("electron", () => ({}));
-vi.mock("@clerk/electron", () => ({ createClerkBridge: vi.fn() }));
-vi.mock("@clerk/electron/storage", () => ({ storage: vi.fn() }));
 vi.mock("../ipc/DesktopIpcHandlers.ts", () => ({
   installDesktopIpcHandlers: () => Effect.void,
 }));
 vi.mock("../updates/DesktopRemoteUpdates.ts", () => ({ listen: Effect.void }));
 vi.mock("./DesktopStartupRecovery.ts", () => ({ listen: Effect.void }));
+vi.mock("../codexMicro/CodexMicroDesktop.ts", () => ({ install: Effect.void }));
+vi.mock("../sidePulse/SidePulseIpc.ts", () => ({ install: Effect.void }));
 
 import * as DesktopApp from "./DesktopApp.ts";
 import * as DesktopAppActivation from "./DesktopAppActivation.ts";
 import * as DesktopAppIdentity from "./DesktopAppIdentity.ts";
-import * as DesktopClerk from "./DesktopClerk.ts";
+import * as DesktopDeepLinks from "./DesktopDeepLinks.ts";
 import * as DesktopEnvironment from "./DesktopEnvironment.ts";
-import * as DesktopLegacyLocalStorage from "./DesktopLegacyLocalStorage.ts";
+import * as DesktopLaunchIcon from "./DesktopLaunchIcon.ts";
 import * as DesktopLifecycle from "./DesktopLifecycle.ts";
 import * as DesktopLinuxUrlHandler from "./DesktopLinuxUrlHandler.ts";
 import * as DesktopPreReadyPlatform from "./DesktopPreReadyPlatform.ts";
@@ -43,31 +43,35 @@ import * as PreviewPasskeys from "../preview/Passkeys.ts";
 import * as DesktopAppSettings from "../settings/DesktopAppSettings.ts";
 import * as DesktopShellEnvironment from "../shell/DesktopShellEnvironment.ts";
 import * as DesktopSnapShot from "../snapShot/DesktopSnapShot.ts";
-import * as DesktopRendererHistory from "../telemetry/DesktopRendererHistory.ts";
 import * as DesktopUpdates from "../updates/DesktopUpdates.ts";
 import * as DesktopApplicationMenu from "../window/DesktopApplicationMenu.ts";
 import * as DesktopWindow from "../window/DesktopWindow.ts";
 import * as DesktopWslBackend from "../wsl/DesktopWslBackend.ts";
 
 import * as BrowserImport from "../preview/BrowserImport/BrowserImport.ts";
+import * as CodexMicro from "../codexMicro/CodexMicro.ts";
 import * as DesktopBackendConfiguration from "../backend/DesktopBackendConfiguration.ts";
 import * as DesktopCliCommand from "./DesktopCliCommand.ts";
 import * as DesktopClientSettings from "../settings/DesktopClientSettings.ts";
 import * as DesktopConnectionCatalogStore from "./DesktopConnectionCatalogStore.ts";
 import * as DesktopIpc from "../ipc/DesktopIpc.ts";
 import * as DesktopLocalEnvironmentAuth from "../backend/DesktopLocalEnvironmentAuth.ts";
-import * as DesktopManagedPolicy from "./DesktopManagedPolicy.ts";
+import * as DesktopOpenEvents from "./DesktopOpenEvents.ts";
+import * as DesktopRelayGateway from "../relay/DesktopRelayGateway.ts";
 import * as DesktopSshEnvironment from "../ssh/DesktopSshEnvironment.ts";
 import * as DesktopSshPasswordPrompts from "../ssh/DesktopSshPasswordPrompts.ts";
 import * as DesktopTelemetryPublisher from "../telemetry/DesktopTelemetryPublisher.ts";
 import * as DesktopWebLinks from "./DesktopWebLinks.ts";
 import * as DesktopWslEnvironment from "../wsl/DesktopWslEnvironment.ts";
 import * as ElectronMenu from "../electron/ElectronMenu.ts";
+import * as ElectronPowerMonitor from "../electron/ElectronPowerMonitor.ts";
 import * as ElectronShell from "../electron/ElectronShell.ts";
 import * as ElectronTheme from "../electron/ElectronTheme.ts";
 import * as ElectronWindow from "../electron/ElectronWindow.ts";
+import * as MacInputMonitoring from "../permissions/MacInputMonitoring.ts";
 import * as MacPermissions from "../permissions/MacPermissions.ts";
 import * as PreviewManager from "../preview/Manager.ts";
+import * as SidePulse from "../sidePulse/SidePulse.ts";
 
 it.effect(
   "starts the backend and window while Linux registration is stalled and cancels it on shutdown",
@@ -87,11 +91,9 @@ it.effect(
         .pipe(
           Effect.provide(NodeCrypto.layer),
           Effect.provideService(DesktopAppIdentity.DesktopAppIdentity, {
-            resolveUserDataPath: Effect.succeed("/isolated/userdata"),
             configure: record("identity"),
           } as DesktopAppIdentity.DesktopAppIdentity["Service"]),
           Effect.provideService(ElectronApp.ElectronApp, {
-            setPath: () => Effect.void,
             whenReady: record("ready"),
           } as unknown as ElectronApp.ElectronApp["Service"]),
           Effect.provideService(ElectronDialog.ElectronDialog, {
@@ -124,9 +126,15 @@ it.effect(
             register: Effect.void,
             relaunch: () => Effect.void,
           }),
-          Effect.provideService(DesktopClerk.DesktopClerk, {
+          Effect.provideService(DesktopDeepLinks.DesktopDeepLinks, {
             configure: Effect.void,
-          } as DesktopClerk.DesktopClerk["Service"]),
+          } as DesktopDeepLinks.DesktopDeepLinks["Service"]),
+          Effect.provideService(DesktopLaunchIcon.DesktopLaunchIcon, {
+            start: Effect.void,
+          } as unknown as DesktopLaunchIcon.DesktopLaunchIcon["Service"]),
+          Effect.provideService(DesktopCliCommand.DesktopCliCommand, {
+            installAutomatically: Effect.void,
+          } as DesktopCliCommand.DesktopCliCommand["Service"]),
           Effect.provideService(ElectronSafeStorage.ElectronSafeStorage, {
             selectedStorageBackend: Effect.succeedNone,
           } as unknown as ElectronSafeStorage.ElectronSafeStorage["Service"]),
@@ -150,9 +158,6 @@ it.effect(
           Effect.provideService(ElectronProtocol.ElectronProtocol, {
             registerDesktopProtocol: () => Effect.void,
           } as unknown as ElectronProtocol.ElectronProtocol["Service"]),
-          Effect.provideService(DesktopLegacyLocalStorage.DesktopLegacyLocalStorage, {
-            load: () => Effect.void,
-          } as unknown as DesktopLegacyLocalStorage.DesktopLegacyLocalStorage["Service"]),
           Effect.provideService(DesktopSnapShot.DesktopSnapShot, {
             initialize: Effect.void,
           } as DesktopSnapShot.DesktopSnapShot["Service"]),
@@ -181,36 +186,37 @@ it.effect(
           Effect.provideService(DesktopAppActivation.DesktopAppActivation, {
             start: Effect.void,
           } as unknown as DesktopAppActivation.DesktopAppActivation["Service"]),
-          Effect.provideService(DesktopRendererHistory.DesktopRendererHistory, {
-            shutdown: Effect.void,
-          } as DesktopRendererHistory.DesktopRendererHistory["Service"]),
         );
       const app = yield* runApp.pipe(
         Effect.provide(
           Layer.mergeAll(
             Layer.mock(BrowserImport.BrowserImport, {}),
+            Layer.mock(CodexMicro.CodexMicro, { available: false }),
             Layer.mock(DesktopBackendConfiguration.DesktopBackendConfiguration, {}),
-            Layer.mock(DesktopCliCommand.DesktopCliCommand, {}),
             Layer.mock(DesktopClientSettings.DesktopClientSettings, {}),
             Layer.mock(DesktopConnectionCatalogStore.DesktopConnectionCatalogStore, {}),
             Layer.mock(DesktopIpc.DesktopIpc, {}),
             Layer.mock(DesktopLocalEnvironmentAuth.DesktopLocalEnvironmentAuth, {}),
-            Layer.mock(DesktopManagedPolicy.DesktopManagedPolicy, {}),
+            Layer.mock(DesktopOpenEvents.DesktopOpenEvents, {}),
+            Layer.mock(DesktopRelayGateway.DesktopRelayGateway, {}),
             Layer.mock(DesktopSshEnvironment.DesktopSshEnvironment, {}),
             Layer.mock(DesktopSshPasswordPrompts.DesktopSshPasswordPrompts, {}),
             Layer.mock(DesktopTelemetryPublisher.DesktopTelemetryPublisher, {}),
             Layer.mock(DesktopWebLinks.DesktopWebLinks, {}),
             Layer.mock(DesktopWslEnvironment.DesktopWslEnvironment, {}),
             Layer.mock(ElectronMenu.ElectronMenu, {}),
+            Layer.mock(ElectronPowerMonitor.ElectronPowerMonitor, {}),
             Layer.mock(ElectronShell.ElectronShell, {}),
             Layer.mock(ElectronTheme.ElectronTheme, {}),
             Layer.mock(ElectronWindow.ElectronWindow, {}),
+            Layer.mock(MacInputMonitoring.MacInputMonitoring, {}),
             Layer.mock(MacPermissions.MacPermissions, {}),
             Layer.mock(PreviewManager.PreviewManager, {
               isBrowserPartition: () => {
                 throw new Error("unexpected browser partition lookup");
               },
             }),
+            Layer.mock(SidePulse.SidePulse, {}),
             FileSystem.layerNoop({}),
             Layer.mock(NetService.NetService, {}),
             Path.layer,
