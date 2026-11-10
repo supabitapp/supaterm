@@ -1083,12 +1083,12 @@ function acpMcpFallbackInput(value: string | undefined): Record<string, unknown>
 
 /**
  * Agents name injected MCP tools with no shared convention (`supaterm_<tool>`,
- * `mcp__supaterm__<tool>`, `supaterm___<tool>`, `supaterm-<tool>`, cline appends
- * `: <args json>`). Matches are also gated on the known Supaterm tool inventory,
+ * `mcp__supaterm__<tool>`, `supaterm___<tool>`, `supaterm-<tool>`, Kiro's `@supaterm/<tool>`,
+ * cline appends `: <args json>`). Matches are also gated on the known Supaterm tool inventory,
  * so the separator match can stay loose.
  */
 const SUPATERM_MCP_TITLE_CALL =
-  /^(?:mcp[-_]{1,2})?supaterm[-_.:/ ]{1,3}(?<tool>[A-Za-z0-9][A-Za-z0-9_.-]*)(?::.*)?$/i;
+  /^(?:@|mcp[-_]{1,2})?supaterm[-_.:/ ]{1,3}(?<tool>[A-Za-z0-9][A-Za-z0-9_.-]*)(?::.*)?$/i;
 
 /**
  * Gemini CLI titles injected MCP calls "<tool> (<server> MCP Server)" and

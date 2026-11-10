@@ -1393,6 +1393,20 @@ describe("extractMcpToolCallIdentity", () => {
     }
   });
 
+  it("recovers Supaterm identity from Kiro's @-scoped titles", () => {
+    for (const tool of ["html_render", "supaterm_thread_read", "delegate_task"]) {
+      const toolCall = toolCallFromUpdate({
+        sessionUpdate: "tool_call",
+        toolCallId: "kiro-1",
+        kind: "other",
+        title: `@supaterm/${tool}`,
+        status: "pending",
+        rawInput: { tool_id: `supaterm::${tool}`, arguments: { threadId: "thread-1" } },
+      });
+      expect(extractMcpToolCallIdentity(toolCall), tool).toEqual({ server: "supaterm", tool });
+    }
+  });
+
   it("does not claim an agent's own tool that shares a Supaterm tool name", () => {
     const toolCall = toolCallFromUpdate({
       sessionUpdate: "tool_call",

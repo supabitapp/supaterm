@@ -1,4 +1,4 @@
-import { assert, it } from "@effect/vitest";
+import { assert, it, vi } from "@effect/vitest";
 import {
   EventId,
   CommandId,
@@ -46,6 +46,7 @@ import {
   THREAD_HISTORY_PAGE_POLICY,
   THREAD_HISTORY_TURN_SNAPSHOT_ROW_LIMIT,
 } from "./threadHistoryPaging.ts";
+import { limitRecoveryCommand } from "./UsageLimitRecoveryWorker.ts";
 
 const layerTest = Layer.mergeAll(
   ProjectionStore.layer.pipe(Layer.provideMerge(SqlitePersistence.layerMemory)),
@@ -1719,6 +1720,95 @@ it.layer(layerTest)("ProjectionStoreV2", (it) => {
     }),
   );
 
+  // regression: #25157 streamed payloads are not re-parsed to read their indexed timestamps
+  it.effect("indexes streamed payload timestamps without parsing the payload JSON", () =>
+    Effect.gen(function* () {
+      const store = yield* ProjectionStore.ProjectionStoreV2;
+      const sql = yield* SqlClient.SqlClient;
+      const threadId = yield* addRolledBackRecoveryCandidate("streamed-payload-parse");
+      const runId = RunId.make("run:streamed-payload-parse:rolled-back");
+      const createdAt = DateTime.makeUnsafe("2026-01-02T03:04:05.006Z");
+      const updatedAt = DateTime.makeUnsafe("2026-01-02T03:04:06.007Z");
+      const text = "x".repeat(128 * 1024);
+      const messageId = MessageId.make("message:streamed-payload-parse");
+      const itemId = TurnItemId.make("item:streamed-payload-parse");
+
+      const parsedPayloads = yield* Effect.acquireUseRelease(
+        Effect.sync(() => vi.spyOn(JSON, "parse")),
+        (parse) =>
+          Effect.gen(function* () {
+            yield* store.apply({
+              id: EventId.make("event:streamed-payload-parse:message"),
+              type: "message.updated",
+              threadId,
+              occurredAt: updatedAt,
+              payload: {
+                createdBy: "agent",
+                creationSource: "server",
+                id: messageId,
+                threadId,
+                runId,
+                nodeId: null,
+                role: "assistant",
+                text,
+                attachments: [],
+                streaming: true,
+                createdAt,
+                updatedAt,
+              },
+            });
+            yield* store.apply({
+              id: EventId.make("event:streamed-payload-parse:item"),
+              type: "turn-item.updated",
+              threadId,
+              runId,
+              occurredAt: updatedAt,
+              payload: {
+                id: itemId,
+                threadId,
+                runId,
+                nodeId: null,
+                providerThreadId: null,
+                providerTurnId: null,
+                nativeItemRef: null,
+                parentItemId: null,
+                ordinal: 1,
+                type: "assistant_message",
+                status: "running",
+                title: "Assistant",
+                messageId,
+                text,
+                streaming: true,
+                startedAt: createdAt,
+                completedAt: null,
+                updatedAt,
+              },
+            });
+            return parse.mock.calls
+              .filter(([json]) => typeof json === "string" && json.includes(text))
+              .map(([json]) => (JSON.parse(json) as { readonly id: string }).id);
+          }),
+        (parse) => Effect.sync(() => parse.mockRestore()),
+      );
+
+      assert.deepStrictEqual(parsedPayloads, []);
+      assert.deepStrictEqual(
+        yield* sql`
+          SELECT created_at, updated_at FROM orchestration_v2_projection_messages
+          WHERE message_id = ${messageId}
+        `,
+        [{ created_at: DateTime.formatIso(createdAt), updated_at: DateTime.formatIso(updatedAt) }],
+      );
+      assert.deepStrictEqual(
+        yield* sql`
+          SELECT updated_at FROM orchestration_v2_projection_turn_items
+          WHERE turn_item_id = ${itemId}
+        `,
+        [{ updated_at: DateTime.formatIso(updatedAt) }],
+      );
+    }),
+  );
+
   it.effect(
     "SQL recovery selects unfinished runless native subagents",
     () => runlessNativeSubagentNeedsRecovery,
@@ -2141,6 +2231,69 @@ it.layer(layerTest)("ProjectionStoreV2", (it) => {
         byteIds,
         Array.from({ length: 70 }, (_, index) => `turn-item:bounded-sql-history:${index + 1}`),
       );
+
+      // Selected message reads recover ordinals for only the loaded messages, while 69
+      // unloaded assistant messages remain in the thread's history.
+      const firstMessageId = MessageId.make("message:bounded-sql-history:1");
+      const lastMessageId = MessageId.make("message:bounded-sql-history:1000");
+      const insertMessageItem = (
+        suffix: string,
+        itemThreadId: string,
+        ordinal: number,
+        messageId: string | null | undefined,
+      ) => sql`
+        INSERT INTO orchestration_v2_projection_turn_items (
+          turn_item_id, thread_id, run_id, node_id, provider_thread_id, provider_turn_id,
+          parent_item_id, ordinal, type, status, updated_at, payload_json
+        ) VALUES (
+          ${`turn-item:bounded-sql-history:ordinal-${suffix}`}, ${itemThreadId}, NULL, NULL, NULL,
+          NULL, NULL, ${ordinal}, 'assistant_message', 'completed', ${nowIso},
+          ${encodeUnknownJsonString({ messageId })}
+        )
+      `;
+      yield* insertMessageItem("duplicate", threadId, 0, lastMessageId);
+      yield* insertMessageItem(
+        "other-thread",
+        "thread:bounded-sql-history:other",
+        -1,
+        firstMessageId,
+      );
+      yield* insertMessageItem("null-id", threadId, -2, null);
+      yield* insertMessageItem("missing-id", threadId, -3, undefined);
+      const readMessageIds = (filter?: ProjectionStore.ProjectionRecordFilter) =>
+        projectionStore
+          .getThreadRecords(threadId, ["messages"], filter)
+          .pipe(Effect.map(({ messages }) => messages.map((message) => message.id)));
+      assert.deepEqual(yield* readMessageIds(), [lastMessageId, firstMessageId]);
+      assert.deepEqual(yield* readMessageIds({ messageRoles: ["user", "assistant"] }), [
+        lastMessageId,
+        firstMessageId,
+      ]);
+      for (const filter of [
+        {
+          messageIds: [
+            firstMessageId,
+            lastMessageId,
+            MessageId.make("message:bounded-sql-history:absent"),
+          ],
+        },
+        { messageRoles: ["user" as const] },
+        {
+          messageRunIds: [
+            RunId.make("run:bounded-sql-history:1"),
+            RunId.make("run:bounded-sql-history:1000"),
+          ],
+        },
+      ]) {
+        assert.deepEqual(yield* readMessageIds(filter), [lastMessageId, firstMessageId]);
+      }
+      assert.deepEqual(yield* readMessageIds({ messageIds: [] }), []);
+      assert.deepEqual(yield* readMessageIds({ messageIds: [firstMessageId] }), [firstMessageId]);
+      yield* sql`
+        DELETE FROM orchestration_v2_projection_turn_items
+        WHERE turn_item_id LIKE 'turn-item:bounded-sql-history:ordinal-%'
+      `;
+
       yield* sql`
         UPDATE orchestration_v2_projection_turn_items
         SET type = 'command_execution', payload_json = json_set(payload_json, '$.type', 'command_execution')
@@ -5256,6 +5409,183 @@ it.layer(layerTest)("ProjectionStoreV2", (it) => {
       }
       yield* applyRun("failed", NodeId.make("new-attempt-root"));
       yield* assertSummary(null, null);
+    }),
+  );
+
+  it.effect("does not freshly arm limit recovery for a subagent of a done parent", () =>
+    Effect.gen(function* () {
+      const store = yield* ProjectionStore.ProjectionStoreV2;
+      const now = yield* DateTime.now;
+      const resetAt = DateTime.formatIso(DateTime.add(now, { hours: 1 }));
+      const threadPayload = (
+        threadId: ThreadId,
+        parentThreadId: ThreadId | null,
+        doneOverride: "done" | null,
+      ) =>
+        ({
+          createdBy: "user",
+          creationSource: "web",
+          id: threadId,
+          projectId: ProjectId.make("project:done-parent-limit"),
+          title: "Done parent limit recovery",
+          providerInstanceId,
+          modelSelection,
+          runtimeMode: "full-access",
+          interactionMode: "default",
+          branch: null,
+          worktreePath: null,
+          activeProviderThreadId: null,
+          lineage: {
+            parentThreadId,
+            relationshipToParent: parentThreadId === null ? null : "subagent",
+            rootThreadId: parentThreadId ?? threadId,
+          },
+          forkedFrom: null,
+          createdAt: now,
+          updatedAt: now,
+          archivedAt: null,
+          doneOverride,
+          doneAt: doneOverride === null ? null : now,
+          lastVisitedAt: null,
+          deletedAt: null,
+        }) as const;
+      const createThread = (
+        threadId: ThreadId,
+        parentThreadId: ThreadId | null,
+        doneOverride: "done" | null,
+      ) =>
+        store.apply({
+          id: EventId.make(`event:${threadId}:created`),
+          type: "thread.created",
+          threadId,
+          occurredAt: now,
+          payload: threadPayload(threadId, parentThreadId, doneOverride),
+        });
+      const addLimitedChild = Effect.fnUntraced(function* (name: string, parentDone: boolean) {
+        const parentId = ThreadId.make(`thread:done-parent-limit:${name}:parent`);
+        const childId = ThreadId.make(`thread:done-parent-limit:${name}:child`);
+        const runId = RunId.make(`run:done-parent-limit:${name}`);
+        const rootNodeId = NodeId.make(`node:done-parent-limit:${name}`);
+        yield* createThread(parentId, null, parentDone ? "done" : null);
+        yield* createThread(childId, parentId, null);
+        const run = {
+          id: runId,
+          threadId: childId,
+          ordinal: 1,
+          providerInstanceId,
+          modelSelection,
+          providerThreadId: null,
+          userMessageId: MessageId.make(`message:done-parent-limit:${name}`),
+          rootNodeId,
+          activeAttemptId: null,
+          status: "failed" as const,
+          requestedAt: now,
+          startedAt: now,
+          completedAt: now,
+          checkpointId: null,
+          contextHandoffId: null,
+        };
+        yield* store.apply({
+          id: EventId.make(`event:done-parent-limit:${name}:run`),
+          type: "run.created",
+          threadId: childId,
+          runId,
+          nodeId: rootNodeId,
+          driver,
+          providerInstanceId,
+          occurredAt: now,
+          payload: run,
+        });
+        yield* store.apply({
+          id: EventId.make(`event:done-parent-limit:${name}:error`),
+          type: "turn-item.updated",
+          threadId: childId,
+          occurredAt: now,
+          payload: {
+            id: TurnItemId.make(`item:done-parent-limit:${name}:error`),
+            threadId: childId,
+            runId,
+            nodeId: rootNodeId,
+            providerThreadId: null,
+            providerTurnId: null,
+            nativeItemRef: null,
+            parentItemId: null,
+            ordinal: 1,
+            status: "failed",
+            title: "Usage limit reached",
+            startedAt: now,
+            completedAt: now,
+            updatedAt: now,
+            type: "error",
+            failure: {
+              class: "usage_limit",
+              message: "Plan limit reached.",
+              resetAt,
+              code: "usageLimitExceeded",
+              retryable: null,
+            },
+          },
+        });
+        return childId;
+      });
+      const doneParentChild = yield* addLimitedChild("done", true);
+      const activeParentChild = yield* addLimitedChild("active", false);
+      for (const options of [
+        { now, autoResume: true, snooze: false },
+        { now, autoResume: false, snooze: true },
+      ]) {
+        const armed = (yield* store.getLimitRecoveryCandidates(options))
+          .filter((row) => row.id === doneParentChild || row.id === activeParentChild)
+          .filter(
+            (row) =>
+              limitRecoveryCommand(
+                row,
+                options.autoResume,
+                DateTime.toEpochMillis(now),
+                options.snooze,
+              )?.type === "thread.metadata.update",
+          )
+          .map((row) => row.id);
+        assert.deepEqual(
+          armed,
+          [activeParentChild],
+          `only the child of the parent that is not done is armed (${JSON.stringify(options)})`,
+        );
+      }
+      // A recovery armed before the parent done still resumes at its reset.
+      yield* store.apply({
+        id: EventId.make("event:done-parent-limit:done:armed"),
+        type: "thread.metadata-updated",
+        threadId: doneParentChild,
+        occurredAt: now,
+        payload: {
+          ...threadPayload(
+            doneParentChild,
+            ThreadId.make("thread:done-parent-limit:done:parent"),
+            null,
+          ),
+          limitRecovery: {
+            runId: RunId.make("run:done-parent-limit:done"),
+            resetAt,
+            autoResume: true,
+          },
+        },
+      });
+      const afterReset = DateTime.add(now, { hours: 2 });
+      const resumed = (yield* store.getLimitRecoveryCandidates({
+        now: afterReset,
+        autoResume: true,
+        snooze: false,
+      })).find((row) => row.id === doneParentChild);
+      assert.isDefined(resumed);
+      assert.isTrue(
+        limitRecoveryCommand(
+          resumed,
+          true,
+          DateTime.toEpochMillis(afterReset),
+          false,
+        )?.commandId.startsWith("limit-resume:"),
+      );
     }),
   );
 

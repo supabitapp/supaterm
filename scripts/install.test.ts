@@ -12,6 +12,58 @@ const nightlies = Array.from({ length: 100 }, (_, index) => ({
   tag_name: `v1.2.4-nightly.20261020.${200 - index}`,
 }));
 
+describe.skipIf(HostProcess.Platform.defaultValue() !== "linux")("installer home", () => {
+  it("installs a relative home from a directory ending in a newline", async () => {
+    const temporaryRoot = await NodeFSP.realpath(
+      await NodeFSP.mkdtemp(NodePath.join(NodeOS.tmpdir(), "supaterm-install-home-")),
+    );
+    const root = NodePath.join(temporaryRoot, "cwd\n");
+    const homeName = "-custom home\\home\n";
+    const home = NodePath.join(root, homeName);
+    const version = "1.2.3";
+    const target = NodePath.join(home, "runtime/versions", version);
+    const launcher = NodePath.join(root, "bin/supaterm");
+    try {
+      await NodeFSP.mkdir(target, { recursive: true });
+      await NodeFSP.writeFile(NodePath.join(target, ".install-complete"), `${version}\n`);
+      await NodeFSP.writeFile(
+        NodePath.join(target, "supaterm"),
+        "#!/bin/sh\necho 'supaterm v1.2.3'\n",
+        {
+          mode: 0o755,
+        },
+      );
+      const { status, stdout, stderr } = NodeChildProcess.spawnSync(
+        "sh",
+        [NodePath.resolve(import.meta.dirname, "install.sh")],
+        {
+          cwd: root,
+          env: {
+            ...process.env,
+            HOME: root,
+            SUPATERM_HOME: homeName,
+            SUPATERM_VERSION: version,
+            SUPATERM_INSTALL_BIN_DIR: NodePath.dirname(launcher),
+            SUPATERM_RELEASE_BASE_URL: "http://127.0.0.1:1",
+          },
+          encoding: "utf8",
+        },
+      );
+      expect(status, stdout + stderr).toBe(0);
+      expect(stderr).toContain(`Installed Supaterm ${version}`);
+      expect(await NodeFSP.readlink(launcher)).toBe(NodePath.join(target, "supaterm"));
+      expect(
+        NodeChildProcess.execFileSync(launcher, ["--version"], {
+          cwd: NodeOS.tmpdir(),
+          encoding: "utf8",
+        }).trim(),
+      ).toBe("supaterm v1.2.3");
+    } finally {
+      await NodeFSP.rm(temporaryRoot, { recursive: true, force: true });
+    }
+  });
+});
+
 // regression: #22490
 describe.skipIf(HostProcess.Platform.defaultValue() !== "linux")("installer channel lookup", () => {
   it.each([
