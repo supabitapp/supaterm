@@ -67,7 +67,7 @@ describe("provider compatibility", () => {
       ["26.10.12", "1.18.32", "graceful", null],
       ["26.10.12", "2.0.17", "unsupported", null],
       ["26.10.12", "2.0.18", "supported", null],
-      ["26.10.13", "1.18.32", "unsupported", null],
+      ["26.10.13", "1.18.32", "unknown", null],
       ["26.10.13", "2.0.17", "unsupported", null],
       ["26.10.13", "2.0.18", "supported", null],
     ] as const) {

@@ -78,7 +78,7 @@
       "recommendedRange": ">=2.0.18",
       "ranges": [
         { "range": ">=2.0.18", "status": "supported" },
-        { "range": "<2.0.18", "status": "unsupported" }
+        { "range": ">=2.0.0 <2.0.18", "status": "unsupported" }
       ]
     },
     {
