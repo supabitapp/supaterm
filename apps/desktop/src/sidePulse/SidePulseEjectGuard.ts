@@ -117,12 +117,6 @@ export const make = Effect.fn("SidePulseEjectGuard.make")(function* (
         if (exitCode === 0 || USER_CANCELED.test(stderr.trim())) return;
         return yield* new SidePulseEjectGuardError({ operation, detail: stderr.trim() });
       }),
-    ).pipe(
-      Effect.catchTags({
-        PlatformError: (cause) =>
-          Effect.fail(new SidePulseEjectGuardError({ operation, detail: cause.message })),
-      }),
-      Effect.tapError((error) => logWarning(error.message)),
     );
 
   const install = Effect.scoped(
@@ -142,17 +136,25 @@ export const make = Effect.fn("SidePulseEjectGuard.make")(function* (
         INSTALL_PROMPT,
       );
     }),
-  ).pipe(
-    Effect.catchTags({
-      PlatformError: (cause) =>
-        Effect.fail(new SidePulseEjectGuardError({ operation: "install", detail: cause.message })),
-    }),
   );
 
   const setInstalled = Effect.fn("SidePulseEjectGuard.setInstalled")(function* (
     installed: boolean,
   ) {
-    yield* installed ? install : runAsAdministrator("uninstall", uninstallScript, UNINSTALL_PROMPT);
+    yield* (
+      installed ? install : runAsAdministrator("uninstall", uninstallScript, UNINSTALL_PROMPT)
+    ).pipe(
+      Effect.catchTags({
+        PlatformError: (cause) =>
+          Effect.fail(
+            new SidePulseEjectGuardError({
+              operation: installed ? "install" : "uninstall",
+              detail: cause.message,
+            }),
+          ),
+      }),
+      Effect.tapError((error) => logWarning(error.message)),
+    );
     return yield* status;
   });
 
@@ -165,20 +167,16 @@ export const layer = Layer.effect(
     const environment = yield* DesktopEnvironment.DesktopEnvironment;
     const fs = yield* FileSystem.FileSystem;
     if (environment.platform !== "darwin") return yield* make(undefined);
-    const candidates = environment.isPackaged
-      ? [environment.path.join(environment.resourcesPath, "sd-eject-guard", BINARY_NAME)]
-      : [
-          environment.path.join(
-            environment.rootDir,
-            "native",
-            "sd-eject-guard",
-            "build",
-            BINARY_NAME,
-          ),
-        ];
-    const bundled = yield* Effect.findFirst(candidates, (candidate) =>
-      fs.exists(candidate).pipe(Effect.orElseSucceed(() => false)),
-    );
-    return yield* make(bundled._tag === "Some" ? bundled.value : undefined);
+    const bundled = environment.isPackaged
+      ? environment.path.join(environment.resourcesPath, "sd-eject-guard", BINARY_NAME)
+      : environment.path.join(
+          environment.rootDir,
+          "native",
+          "sd-eject-guard",
+          "build",
+          BINARY_NAME,
+        );
+    const exists = yield* fs.exists(bundled).pipe(Effect.orElseSucceed(() => false));
+    return yield* make(exists ? bundled : undefined);
   }),
 );

@@ -245,6 +245,17 @@ function connectionSummary(
 const EJECT_GUARD_DESCRIPTION =
   "macOS ejects SidePulse when a locked Mac wakes from deep sleep. This helper keeps it connected and needs your administrator password.";
 
+const INSTALL_COPY = {
+  action: "Install…",
+  pending: "Installing…",
+  failed: "Couldn't install the helper. Try again.",
+};
+const REMOVE_COPY = {
+  action: "Remove…",
+  pending: "Removing…",
+  failed: "Couldn't remove the helper. Try again.",
+};
+
 function SidePulseEjectGuardRow({ bridge }: { readonly bridge: DesktopSidePulseBridge }) {
   const [status, setStatus] = useState<SidePulseEjectGuardStatus | null>(null);
   const [pending, setPending] = useState(false);
@@ -265,6 +276,7 @@ function SidePulseEjectGuardRow({ bridge }: { readonly bridge: DesktopSidePulseB
 
   if (status === null || status === "unavailable") return null;
   const installed = status === "installed";
+  const copy = installed ? REMOVE_COPY : INSTALL_COPY;
   const toggle = () => {
     setPending(true);
     setFailed(false);
@@ -280,9 +292,7 @@ function SidePulseEjectGuardRow({ bridge }: { readonly bridge: DesktopSidePulseB
       description={
         failed ? (
           <span role="alert" className="text-destructive-foreground">
-            {installed
-              ? "Couldn't remove the helper. Try again."
-              : "Couldn't install the helper. Try again."}
+            {copy.failed}
           </span>
         ) : (
           EJECT_GUARD_DESCRIPTION
@@ -301,13 +311,7 @@ function SidePulseEjectGuardRow({ bridge }: { readonly bridge: DesktopSidePulseB
             disabled={pending}
             onClick={toggle}
           >
-            {pending
-              ? installed
-                ? "Removing…"
-                : "Installing…"
-              : installed
-                ? "Remove…"
-                : "Install…"}
+            {pending ? copy.pending : copy.action}
           </Button>
         </>
       }
