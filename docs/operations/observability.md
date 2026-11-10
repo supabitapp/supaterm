@@ -98,7 +98,7 @@ If OTLP is not configured, metrics still exist in-process, but you will not have
 `apps/server/src/observability/EventLoopMonitor.ts` samples the server's event loop every 30 s. When
 the loop stalled for more than 2 s since the previous sample, it records a root
 `server.eventLoop.stall` span with a warning. The span has trace level `Warn`, so it stays when
-`SUPATERM_TRACE_MIN_LEVEL` is `Warn`. The warning shows in Settings > Diagnostics unless OTLP logs are
+`SUPATERM_TRACE_MIN_LEVEL` is `Warn`. The warning shows in Settings > Maintenance > Diagnostics unless OTLP logs are
 on. The span time is when the sample ran, not when the stall happened.
 
 The trace file rotates in well under an hour on a busy server, so each stall is also appended as one
@@ -378,11 +378,12 @@ Good first searches:
 
 - service name `supaterm-server` or `supaterm-desktop`, plus a resource attribute such as
   `deployment.environment.name`
-- span names like `sendTurn` or a Git operation such as `GitVcsDriver.statusDetails.status`
+- span names like `ws.rpc.orchestration.dispatchCommand` or a Git operation such as
+  `GitVcsDriver.statusDetails.status`
 - Git spans whose `git.operation` attribute identifies the operation
 - orchestration spans with attributes like `orchestration_v2.command_type`
 
-Once you know traces are arriving, narrower TraceQL queries for names such as `sendTurn` or Git
+Once you know traces are arriving, narrower TraceQL queries for names such as `ws.rpc.orchestration.dispatchCommand` or Git
 operation names become useful.
 
 ### Use Metrics To See Systemic Problems

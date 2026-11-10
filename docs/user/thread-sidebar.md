@@ -8,7 +8,8 @@ need a separate branch and working directory.
 On web and desktop, a new thread keeps the current project and carries your model
 and mode selections, unless the destination project has its own model default.
 Its branch and workspace mode come from your configured defaults. To continue in
-an existing worktree, use **New thread in this worktree** from the branch toolbar.
+the previous worktree, choose **Previous worktree** in the workspace menu or press
+`mod+shift+l`.
 
 On mobile, **New thread** starts in the last project you opened or chose on that
 device. If it is not available, the project picker opens; tap the project in the

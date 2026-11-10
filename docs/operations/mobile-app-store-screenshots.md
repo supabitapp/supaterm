@@ -60,8 +60,8 @@ Every configured device defaults to dark appearance and the `supaterm` palette, 
 `pnpm screenshots:mobile` produces 35 dark PNGs. Pass `--appearance light`, `--appearance dark`, or
 `--appearance both` to override the configured appearance; `both` produces 70 PNGs.
 
-Pass `--theme <id>` (repeatable) or `--theme all` to capture the app's other palettes: `supaterm`,
-`supaterm-chat`, `grove`, `ocean`, `ember`, `iris`, and `zenbones`. The runner hands the palette to
+Pass `--theme <id>` (repeatable) or `--theme all` to capture the app's other palettes, such as
+`midnight` or `paper`; `pnpm screenshots:mobile --list` prints every id. The runner hands the palette to
 the app as a launch argument, the app applies it to both color schemes, and a scene only reports
 itself ready once the requested palette is active — so a capture can never show the previous theme.
 `--theme all` multiplies the run by the palette count; only the native build is shared.
@@ -161,8 +161,8 @@ Override the configured appearance or capture both variants:
 
 Capture other palettes:
 
-    pnpm screenshots:mobile --device iphone-6.9 --theme ocean
-    pnpm screenshots:mobile --device iphone-6.9 --theme ocean --theme ember
+    pnpm screenshots:mobile --device iphone-6.9 --theme midnight
+    pnpm screenshots:mobile --device iphone-6.9 --theme midnight --theme paper
     pnpm screenshots:mobile --device iphone-6.9 --theme all
 
 Reuse the native build and retain the disposable environment:
@@ -173,7 +173,7 @@ By default, let the screenshot runner start Metro on port `8199`. To keep Metro 
 terminal, start it with the same showcase environment and explicit harness port:
 
     cd apps/mobile
-    APP_VARIANT=development EXPO_PUBLIC_SHOWCASE=1 pnpm exec expo start --dev-client --port 8199
+    APP_VARIANT=production EXPO_PUBLIC_SHOWCASE=1 pnpm exec expo start --dev-client --port 8199
 
 Then run the capture from the repository root:
 

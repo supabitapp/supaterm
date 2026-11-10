@@ -6,9 +6,7 @@ The v2 transport has a focused regression command:
 vp run test:perf:v2-wire
 ```
 
-It exercises the real v2 projection and client reducers. This matters because the older
-built-app benchmark fixtures seed v1 orchestration events; running those fixtures against a v2
-client can produce reassuring timings while missing the active transport path.
+It exercises the real v2 projection and client reducers.
 
 The v2 checks pin these invariants:
 

@@ -198,7 +198,8 @@ A preview annotation's context id is derived from `annotation-<id>` so it stays 
 screenshot image, whose attachment id is the annotation id; the record links the two through
 `screenshotContextId`.
 
-`projection_thread_messages.context_json` persists records, so a restart or projection reload
+The message `context` field in `orchestration_v2_projection_messages.payload_json` persists
+records, so a restart or projection reload
 keeps chips resolvable. Prompt stash entries carry `records` for terminal excerpts, review
 comments, and preview annotations; stashing moves them out of the draft and restoring imports
 them back through the same importer the paste path uses.

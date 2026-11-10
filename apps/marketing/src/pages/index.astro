@@ -228,11 +228,7 @@ const screenshot = await getImage({
     try {
       const release = await fetchLatestRelease();
       const url = pickAsset(release.assets ?? [], platform);
-      if (url && btn) {
-        btn.href = url;
-        btn.removeAttribute("target");
-        btn.removeAttribute("rel");
-      }
+      if (url && btn) btn.href = url;
     } catch {
       if (btn) btn.href = RELEASES_URL;
     }

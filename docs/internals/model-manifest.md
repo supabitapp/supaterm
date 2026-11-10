@@ -25,11 +25,9 @@ ships. Claude entries set `adapter.claudeCode.minVersion`; Codex entries set
 released after the installed build. Snapshots report those models in
 `updateRequiredModels`, and the picker tells the user which update unlocks them.
 
-`currentModels.claudeAgent` is the current-model classification overlay for
-releases that predate catalog discovery; it does not add models to their catalogs.
-Catalog-aware releases use `providers.claudeAgent.models[].status` instead.
-Codex uses `currentModels.codex` as a legacy-classification overlay for discovered
-models.
+`currentModels` is the current-model classification overlay for releases that
+predate catalog discovery; it does not add models to their catalogs. Catalog-aware
+releases use `providers.<driver>.models[].status` instead, for Claude and Codex alike.
 
 Model data is schema-validated configuration. Tests should cover resolver, cache,
 and adapter semantics with synthetic model names, so adding a model never requires

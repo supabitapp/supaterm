@@ -53,7 +53,7 @@ Running `vp run dev` through an agent's own shell tool does not attach it to thi
 ### State and ports
 
 Linked worktrees default to their own `.supaterm/userdata`, even when `SUPATERM_HOME` is set.
-The main checkout defaults to `~/.supaterm/dev/userdata`. An explicit `--home-dir` wins in both cases.
+The main checkout defaults to `~/.supaterm/dev`. An explicit `--home-dir` wins in both cases.
 Never run a development server against the live `~/.supaterm/userdata`.
 See [test data](../../AGENTS.md#test-data) for copying a consistent database snapshot.
 
