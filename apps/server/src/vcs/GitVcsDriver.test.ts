@@ -331,7 +331,9 @@ it.effect("checkpoint capture keeps LF files that core.safecrlf would refuse to 
     const fileSystem = yield* FileSystem.FileSystem;
     const path = yield* Path.Path;
     const driver = yield* GitVcsDriver.makeVcsDriverShape();
-    const cwd = yield* fileSystem.makeTempDirectoryScoped({ prefix: "supaterm-checkpoint-safecrlf-" });
+    const cwd = yield* fileSystem.makeTempDirectoryScoped({
+      prefix: "supaterm-checkpoint-safecrlf-",
+    });
     const { git, checkpointRef } = yield* makeCheckpointFixture(driver, cwd);
     yield* fileSystem.writeFileString(path.join(cwd, ".gitattributes"), "*.txt text eol=crlf\n");
     yield* git(["config", "core.safecrlf", "true"]);

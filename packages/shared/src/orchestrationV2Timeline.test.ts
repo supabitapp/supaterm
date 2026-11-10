@@ -154,7 +154,7 @@ describe.each([
       attempts: [],
       items: rows,
     } satisfies VisibilityInput;
-    expect(rows.filter((item) => isVisible({ ...input, item })).map((item) => item.id)).toEqual(
+    expect(rows.flatMap((item) => (isVisible({ ...input, item }) ? [item.id] : []))).toEqual(
       [
         "queued",
         "start",

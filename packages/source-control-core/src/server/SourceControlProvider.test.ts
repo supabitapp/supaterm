@@ -15,10 +15,10 @@ it("removes URL credentials, query parameters, and fragments from error transpor
 });
 
 it.each([
-  ["git@github.com:SupatermTools/supaterm.git", "SupatermTools/supaterm"],
-  ["github.com:SupatermTools/supaterm.git", "SupatermTools/supaterm"],
-  ["gitlab.com:SupatermTools/platform/supaterm", "SupatermTools/platform/supaterm"],
-  ["https://github.com/SupatermTools/supaterm.git", "SupatermTools/supaterm"],
+  ["git@github.com:SupabitApp/supaterm.git", "SupabitApp/supaterm"],
+  ["github.com:SupabitApp/supaterm.git", "SupabitApp/supaterm"],
+  ["gitlab.com:SupabitApp/platform/supaterm", "SupabitApp/platform/supaterm"],
+  ["https://github.com/SupabitApp/supaterm.git", "SupabitApp/supaterm"],
   ["C:/repos/supaterm", null],
 ])("reads the repository path of %s", (remoteUrl, expected) => {
   assert.strictEqual(repositoryPathFromRemoteUrl(remoteUrl), expected);

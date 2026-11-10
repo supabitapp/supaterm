@@ -95,14 +95,14 @@ it.layer(NodeServices.layer)("RepositoryIdentityResolverLive", (it) => {
       });
 
       yield* git(cwd, ["init"]);
-      yield* git(cwd, ["remote", "add", "origin", "github.com:SupatermTools/supaterm.git"]);
+      yield* git(cwd, ["remote", "add", "origin", "github.com:SupabitApp/supaterm.git"]);
 
       const resolver = yield* RepositoryIdentityResolver.RepositoryIdentityResolver;
       const identity = yield* resolver.resolve(cwd);
 
       expect(identity?.canonicalKey).toBe("github.com/supabitapp/supaterm");
       expect(identity?.provider).toBe("github");
-      expect(identity?.displayName).toBe("SupatermTools/supaterm");
+      expect(identity?.displayName).toBe("SupabitApp/supaterm");
     }).pipe(Effect.provide(RepositoryIdentityResolver.layer)),
   );
 
