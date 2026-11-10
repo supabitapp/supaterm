@@ -5936,7 +5936,7 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
       command.deliveryIntent,
     );
     let steeredRun = runSteeredByMessage(projection, command.messageId);
-    if (dispatchMode.type === "steer_active") {
+    if (dispatchMode.type === "steer_active" || dispatchMode.type === "restart_active") {
       const targetRunId = dispatchMode.targetRunId;
       const target = projection.runs.find((run) => run.id === targetRunId);
       const turn = latestProviderTurnForAttempt(
@@ -5948,23 +5948,39 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
       if (
         target !== undefined &&
         (target.status === "completed" ||
+          (dispatchMode.type === "restart_active" && !isRunInProgress(target)) ||
           ((target.status === "running" || target.status === "waiting") &&
             turn !== undefined &&
-            turn.status === "completed"))
+            (turn.status === "completed" ||
+              (dispatchMode.type === "restart_active" &&
+                turn.status !== "pending" &&
+                turn.status !== "running"))))
       ) {
         dispatchMode = { type: "start_immediately" };
-        // A completed target may have settled long before this stale client
+        // A settled target may have settled long before this stale client
         // caught up, so its start says nothing about how long the user waited.
-        if (target.status !== "completed") steeredRun = target;
+        if (isRunInProgress(target)) steeredRun = target;
       }
     }
     const steeredWorkStartedAt = continuedWorkStartedAt(steeredRun);
+    // Stop leaves the run reading as running until its provider stops. A plain
+    // send in that window queues behind the stopped queue instead of steering
+    // text the agent never receives, and like any user send it releases the
+    // hold; an explicit steer still fails below.
     if (
       command.deliveryIntent === "auto" &&
       (dispatchMode.type === "steer_active" || dispatchMode.type === "restart_active") &&
       (yield* stopReachedRun(command, command.threadId, dispatchMode.targetRunId))
     ) {
       dispatchMode = { type: "queue_after_active" };
+    }
+    // An explicit restart that Stop reached has only its start left, so it
+    // queues behind the stopping run like any other start.
+    if (
+      dispatchMode.type === "restart_active" &&
+      (yield* stopReachedRun(command, command.threadId, dispatchMode.targetRunId))
+    ) {
+      dispatchMode = { type: "start_immediately" };
     }
     const freshContext = command.freshContext === true;
     if (
