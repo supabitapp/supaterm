@@ -97,6 +97,16 @@ export interface ThreadRightPanelState {
   proactiveDiffTurnId?: RunId;
 }
 
+type ResolvedPanelState = ThreadRightPanelState &
+  ({ isOpen: false; maximized?: never } | { isOpen: true; maximized?: true });
+
+const resolvePanelState = ({
+  isOpen,
+  maximized,
+  ...tabs
+}: ThreadRightPanelState): ResolvedPanelState =>
+  isOpen && maximized ? { ...tabs, isOpen, maximized } : { ...tabs, isOpen };
+
 export interface ThreadPanelVisibility {
   inlineOpen: boolean;
   popoverOpen: boolean;
@@ -106,7 +116,7 @@ interface RightPanelStoreState {
   pendingMaximizeThreadKey: string | null;
   requestMaximize: (ref: ScopedThreadRef) => void;
   consumeMaximizeRequest: (ref: ScopedThreadRef) => boolean;
-  byThreadKey: Record<string, ThreadRightPanelState>;
+  byThreadKey: Record<string, ResolvedPanelState>;
   threadPanelVisibilityByThreadKey: Record<string, ThreadPanelVisibility>;
   userActionRevisionByThreadKey: Record<string, number>;
   closeRevisionByThreadKey: Record<string, number>;
@@ -202,7 +212,7 @@ interface RightPanelStoreState {
   removeThread: (ref: ScopedThreadRef) => void;
 }
 
-const EMPTY_THREAD_STATE: ThreadRightPanelState = {
+const EMPTY_THREAD_STATE: ResolvedPanelState = {
   isOpen: false,
   activeSurfaceId: null,
   surfaces: [],
@@ -300,10 +310,10 @@ export function pullRequestSurface(target: {
 }
 
 const upsertSurface = (
-  current: ThreadRightPanelState,
+  current: ResolvedPanelState,
   surface: RightPanelSurface,
   activate = true,
-): ThreadRightPanelState => ({
+): ResolvedPanelState => ({
   ...current,
   isOpen: true,
   surfaces: current.surfaces.some((entry) => entry.id === surface.id)
@@ -313,10 +323,10 @@ const upsertSurface = (
 });
 
 const updateThreadStateMap = (
-  byThreadKey: Record<string, ThreadRightPanelState>,
+  byThreadKey: Record<string, ResolvedPanelState>,
   threadKey: string,
-  updater: (current: ThreadRightPanelState) => ThreadRightPanelState,
-): Record<string, ThreadRightPanelState> => {
+  updater: (current: ResolvedPanelState) => ResolvedPanelState,
+): Record<string, ResolvedPanelState> => {
   const current = byThreadKey[threadKey] ?? EMPTY_THREAD_STATE;
   const next = updater(current);
   if (
@@ -355,10 +365,15 @@ type RightPanelStoreData = Pick<
   "byThreadKey" | "threadPanelVisibilityByThreadKey"
 >;
 
+interface PersistedRightPanelData {
+  byThreadKey: Record<string, ThreadRightPanelState>;
+  threadPanelVisibilityByThreadKey: Record<string, ThreadPanelVisibility>;
+}
+
 const updateThread = (
   state: RightPanelStoreData,
   threadKey: string,
-  updater: (current: ThreadRightPanelState) => ThreadRightPanelState,
+  updater: (current: ResolvedPanelState) => ResolvedPanelState,
 ): RightPanelStoreData => {
   const current = state.byThreadKey[threadKey] ?? EMPTY_THREAD_STATE;
   const byThreadKey = updateThreadStateMap(state.byThreadKey, threadKey, updater);
@@ -390,7 +405,7 @@ const updateFrom = (origin: PanelOpenOrigin) => (origin === "user" ? userAction 
 const automaticUpdate = (
   state: RightPanelStoreState,
   threadKey: string,
-  updater: (current: ThreadRightPanelState) => ThreadRightPanelState,
+  updater: (current: ResolvedPanelState) => ResolvedPanelState,
 ): Partial<RightPanelStoreState> => ({
   ...updateThread(state, threadKey, updater),
 });
@@ -398,7 +413,7 @@ const automaticUpdate = (
 const userAction = (
   state: RightPanelStoreState,
   threadKey: string,
-  updater: (current: ThreadRightPanelState) => ThreadRightPanelState,
+  updater: (current: ResolvedPanelState) => ResolvedPanelState,
   closesView = false,
 ): Partial<RightPanelStoreState> => ({
   ...updateThread(state, threadKey, (current) => {
@@ -436,7 +451,7 @@ const userAction = (
 const closeAction = (
   state: RightPanelStoreState,
   threadKey: string,
-  updater: (current: ThreadRightPanelState) => ThreadRightPanelState,
+  updater: (current: ResolvedPanelState) => ResolvedPanelState,
 ): Partial<RightPanelStoreState> => userAction(state, threadKey, updater, true);
 
 function normalizeRevealLine(line: number | undefined): number | null {
@@ -740,7 +755,7 @@ export const useRightPanelStore = create<RightPanelStoreState>()(
               const index = current.surfaces.findIndex((entry) => entry.id === surfaceId);
               const surfaces = current.surfaces.filter((entry) => entry.id !== surfaceId);
               const fallback = surfaces[Math.min(index, surfaces.length - 1)] ?? null;
-              return {
+              return resolvePanelState({
                 ...current,
                 isOpen: surfaces.length > 0 && current.isOpen,
                 surfaces,
@@ -748,7 +763,7 @@ export const useRightPanelStore = create<RightPanelStoreState>()(
                   current.activeSurfaceId === surfaceId
                     ? (fallback?.id ?? null)
                     : current.activeSurfaceId,
-              };
+              });
             }
             return {
               ...current,
@@ -781,11 +796,11 @@ export const useRightPanelStore = create<RightPanelStoreState>()(
             const index = current.surfaces.findIndex((surface) => surface.id === surfaceId);
             if (index < 0) return current;
             const surfaces = current.surfaces.filter((surface) => surface.id !== surfaceId);
-            const next = {
+            const next = resolvePanelState({
               ...current,
               isOpen: surfaces.length > 0 && current.isOpen,
               surfaces,
-            };
+            });
             if (current.activeSurfaceId !== surfaceId) {
               return next;
             }
@@ -830,7 +845,12 @@ export const useRightPanelStore = create<RightPanelStoreState>()(
           closeAction(state, scopedThreadKey(ref), (current) =>
             current.surfaces.length === 0
               ? current
-              : { ...current, isOpen: false, surfaces: [], activeSurfaceId: null },
+              : resolvePanelState({
+                  ...current,
+                  isOpen: false,
+                  surfaces: [],
+                  activeSurfaceId: null,
+                }),
           ),
         ),
       moveSurface: (ref, surfaceId, toIndex) =>
@@ -866,14 +886,14 @@ export const useRightPanelStore = create<RightPanelStoreState>()(
             const closedLastSessionTab =
               surfaces.length === 0 &&
               current.surfaces.some((surface) => surface.kind === "preview" && surface.resourceId);
-            return {
+            return resolvePanelState({
               ...current,
               isOpen: closedLastSessionTab ? false : current.isOpen,
               surfaces,
               activeSurfaceId: activeStillExists
                 ? current.activeSurfaceId
                 : (fallbackBrowser?.id ?? surfaces[0]?.id ?? null),
-            };
+            });
           }),
         ),
       reconcileFileSurfaces: (ref, workspaceAvailable) =>
@@ -889,14 +909,14 @@ export const useRightPanelStore = create<RightPanelStoreState>()(
             const activeStillExists = surfaces.some(
               (surface) => surface.id === current.activeSurfaceId,
             );
-            return {
+            return resolvePanelState({
               ...current,
               isOpen: surfaces.length > 0 ? current.isOpen : false,
               surfaces,
               activeSurfaceId: activeStillExists
                 ? current.activeSurfaceId
                 : (surfaces.at(-1)?.id ?? null),
-            };
+            });
           }),
         ),
       show: (ref) =>
@@ -908,23 +928,22 @@ export const useRightPanelStore = create<RightPanelStoreState>()(
       close: (ref) =>
         set((state) =>
           userAction(state, scopedThreadKey(ref), (current) =>
-            current.isOpen ? { ...current, isOpen: false } : current,
+            current.isOpen ? resolvePanelState({ ...current, isOpen: false }) : current,
           ),
         ),
       setMaximized: (ref, maximized) =>
         set((state) =>
           automaticUpdate(state, scopedThreadKey(ref), (current) => {
-            if ((current.maximized ?? false) === maximized) return current;
+            if (!current.isOpen || (current.maximized ?? false) === maximized) return current;
             const { maximized: _maximized, ...rest } = current;
             return maximized ? { ...rest, maximized: true } : rest;
           }),
         ),
       toggleVisibility: (ref) =>
         set((state) =>
-          userAction(state, scopedThreadKey(ref), (current) => ({
-            ...current,
-            isOpen: !current.isOpen,
-          })),
+          userAction(state, scopedThreadKey(ref), (current) =>
+            resolvePanelState({ ...current, isOpen: !current.isOpen }),
+          ),
         ),
       toggle: (ref, kind) =>
         set((state) =>
@@ -933,7 +952,7 @@ export const useRightPanelStore = create<RightPanelStoreState>()(
               (surface) => surface.id === current.activeSurfaceId,
             );
             if (current.isOpen && active?.kind === kind) {
-              return { ...current, isOpen: false };
+              return resolvePanelState({ ...current, isOpen: false });
             }
             if (kind === "preview") {
               const existing = current.surfaces.find((surface) => surface.kind === "preview");
@@ -996,7 +1015,7 @@ export const useRightPanelStore = create<RightPanelStoreState>()(
       storage: createJSONStorage(() =>
         resolveStorage(typeof window !== "undefined" ? window.localStorage : undefined),
       ),
-      partialize: (state) => ({
+      partialize: (state): PersistedRightPanelData => ({
         byThreadKey: Object.fromEntries(
           Object.entries(state.byThreadKey).filter(
             ([threadKey]) => !isPullRequestsPanelKey(threadKey),
@@ -1009,6 +1028,19 @@ export const useRightPanelStore = create<RightPanelStoreState>()(
           ),
         ),
       }),
+      merge: (persisted, current) => {
+        const { byThreadKey = current.byThreadKey, ...stored } = (persisted ??
+          {}) as Partial<PersistedRightPanelData>;
+        return {
+          ...current,
+          ...stored,
+          byThreadKey: Object.fromEntries(
+            Object.entries(byThreadKey).flatMap(([threadKey, panel]) =>
+              panel ? [[threadKey, resolvePanelState(panel)]] : [],
+            ),
+          ),
+        };
+      },
     },
   ),
 );
