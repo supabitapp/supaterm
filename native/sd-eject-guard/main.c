@@ -17,6 +17,7 @@
 #define DA_PIDFILE "/var/run/diskarbitrationd.pid"
 
 static long g_da_pid = 0;
+static DASessionRef g_session = NULL;
 
 static long disk_arbitration_pid(void) {
     FILE *file = fopen(DA_PIDFILE, "r");
@@ -90,22 +91,48 @@ static bool is_mounted(DADiskRef disk) {
     return mounted;
 }
 
+// The slot holds one card, so one retry loop covers it; a newer eject replaces it.
+static CFRunLoopTimerRef g_retry_timer = NULL;
+
+static void stop_mount_retries(void) {
+    if (!g_retry_timer) return;
+    CFRunLoopTimerInvalidate(g_retry_timer);
+    CFRelease(g_retry_timer);
+    g_retry_timer = NULL;
+}
+
+// A callback's disk object keeps the description from that event, so re-resolve it to see the mount.
 static void retry_mount(CFRunLoopTimerRef timer, void *info) {
-    DADiskRef disk = (DADiskRef)info;
-    if (is_mounted(disk)) {
-        CFRunLoopTimerInvalidate(timer);
+    (void)timer;
+    const char *bsd_name = DADiskGetBSDName((DADiskRef)info);
+    DADiskRef disk = bsd_name ? DADiskCreateFromBSDName(kCFAllocatorDefault, g_session, bsd_name) : NULL;
+    if (!disk) {
+        stop_mount_retries();
         return;
     }
-    DADiskMount(disk, NULL, kDADiskMountOptionDefault, NULL, NULL);
+    if (is_mounted(disk)) {
+        stop_mount_retries();
+    } else {
+        DADiskMount(disk, NULL, kDADiskMountOptionDefault, NULL, NULL);
+    }
+    CFRelease(disk);
 }
 
 static void start_mount_retries(DADiskRef disk) {
+    stop_mount_retries();
     CFRunLoopTimerContext context = {0, (void *)disk, CFRetain, CFRelease, NULL};
-    CFRunLoopTimerRef timer = CFRunLoopTimerCreate(
+    g_retry_timer = CFRunLoopTimerCreate(
         kCFAllocatorDefault, CFAbsoluteTimeGetCurrent() + MOUNT_RETRY_SECONDS,
         MOUNT_RETRY_SECONDS, 0, 0, retry_mount, &context);
-    CFRunLoopAddTimer(CFRunLoopGetCurrent(), timer, kCFRunLoopDefaultMode);
-    CFRelease(timer);
+    CFRunLoopAddTimer(CFRunLoopGetCurrent(), g_retry_timer, kCFRunLoopDefaultMode);
+}
+
+static void disk_disappeared(DADiskRef disk, void *ctx) {
+    (void)ctx;
+    if (!g_retry_timer) return;
+    CFRunLoopTimerContext context;
+    CFRunLoopTimerGetContext(g_retry_timer, &context);
+    if (CFEqual(disk, (DADiskRef)context.info)) stop_mount_retries();
 }
 
 static DADissenterRef eject_approval(DADiskRef disk, void *ctx) {
@@ -124,11 +151,13 @@ static DADissenterRef eject_approval(DADiskRef disk, void *ctx) {
 int main(void) {
     g_da_pid = disk_arbitration_pid();
     DASessionRef session = DASessionCreate(kCFAllocatorDefault);
+    g_session = session;
     if (!session) {
         fprintf(stderr, "DASessionCreate failed\n");
         return 1;
     }
     DARegisterDiskEjectApprovalCallback(session, NULL, eject_approval, NULL);
+    DARegisterDiskDisappearedCallback(session, NULL, disk_disappeared, NULL);
     DASessionScheduleWithRunLoop(session, CFRunLoopGetCurrent(), kCFRunLoopDefaultMode);
     CFRunLoopTimerRef daemon_timer = CFRunLoopTimerCreate(
         kCFAllocatorDefault, CFAbsoluteTimeGetCurrent() + DA_PID_CHECK_SECONDS,

@@ -10,16 +10,20 @@ import * as SidePulseEjectGuard from "./SidePulseEjectGuard.ts";
 
 const BUNDLED = "/Applications/Kh'oi's Supaterm.app/Contents/Resources/sd-eject-guard/guard";
 
+const PLIST = "/Library/LaunchDaemons/com.supaterm.sidepulse-eject-guard.plist";
+const INSTALLED = "/Library/Application Support/Supaterm/sidepulse-eject-guard";
+
 const run = (input: { readonly exitCode: number; readonly stderr?: string }) => {
   const files = new Set<string>();
   const commands: Array<ReadonlyArray<string>> = [];
   const spawner = ChildProcessSpawner.make((command) => {
     const { args } = command as unknown as { readonly args: ReadonlyArray<string> };
     commands.push(args);
-    if (input.exitCode === 0) {
-      if (args.at(-1) === SidePulseEjectGuard.INSTALL_PROMPT)
-        files.add(SidePulseEjectGuard.DAEMON_PLIST);
-      else files.delete(SidePulseEjectGuard.DAEMON_PLIST);
+    const script = args.at(-2) ?? "";
+    if (input.exitCode === 0 && script.includes(`launchctl bootstrap system ${PLIST}`)) {
+      files.add(PLIST).add(INSTALLED);
+    } else if (input.exitCode === 0 && script.includes(`rm -f ${PLIST}`)) {
+      files.clear();
     }
     const stderr = new TextEncoder().encode(input.stderr ?? "");
     return Effect.succeed(
@@ -44,8 +48,6 @@ const run = (input: { readonly exitCode: number; readonly stderr?: string }) => 
       Effect.provide(
         FileSystem.layerNoop({
           exists: (path) => Effect.succeed(files.has(path)),
-          makeTempDirectoryScoped: () => Effect.succeed("/tmp/stage"),
-          writeFileString: () => Effect.void,
         }),
       ),
       Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, spawner),
@@ -61,17 +63,26 @@ describe("SidePulseEjectGuard", () => {
       assert.strictEqual(yield* service.status, "not-installed");
       assert.strictEqual(yield* service.setInstalled(true), "installed");
       assert.strictEqual(yield* service.setInstalled(false), "not-installed");
+
       const [install, uninstall] = commands;
       assert.include(install?.join("\n"), "with administrator privileges");
-      assert.deepStrictEqual(install?.slice(-2), [
-        SidePulseEjectGuard.installScript(BUNDLED, `/tmp/stage/${SidePulseEjectGuard.LABEL}.plist`),
-        SidePulseEjectGuard.INSTALL_PROMPT,
-      ]);
-      assert.include(install?.at(-2), `'/Applications/Kh'\\''oi'\\''s Supaterm.app/`);
-      assert.deepStrictEqual(uninstall?.slice(-2), [
-        SidePulseEjectGuard.uninstallScript,
-        SidePulseEjectGuard.UNINSTALL_PROMPT,
-      ]);
+      assert.strictEqual(install?.at(-1), SidePulseEjectGuard.INSTALL_PROMPT);
+      const installScript = install?.at(-2) ?? "";
+      assert.include(
+        installScript,
+        `/usr/bin/install -m 755 -o root -g wheel '/Applications/Kh'\\''oi'\\''s Supaterm.app/Contents/Resources/sd-eject-guard/guard' '${INSTALLED}'`,
+      );
+      assert.include(installScript, `<array><string>${INSTALLED}</string></array>`);
+      assert.include(installScript, "<key>KeepAlive</key><true/>");
+      assert.include(installScript, `> ${PLIST}\n/usr/sbin/chown root:wheel ${PLIST}`);
+      assert.include(installScript, `/bin/launchctl bootstrap system ${PLIST} || {`);
+
+      assert.strictEqual(uninstall?.at(-1), SidePulseEjectGuard.UNINSTALL_PROMPT);
+      assert.include(
+        uninstall?.at(-2),
+        "/bin/launchctl bootout system/com.supaterm.sidepulse-eject-guard",
+      );
+      assert.include(uninstall?.at(-2), `/bin/rm -f ${PLIST} '${INSTALLED}'`);
     }),
   );
 
