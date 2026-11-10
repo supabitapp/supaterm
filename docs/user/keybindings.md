@@ -116,9 +116,11 @@ Join modifiers and a key with `+`, such as `mod+shift+d` or `ctrl+l`.
 ## When conditions
 
 Available context keys are `terminalFocus`, `terminalOpen`, `previewFocus`,
-`previewOpen`, `modelPickerOpen`, `projectPickerOpen`, `hostPickerOpen`,
+`previewOpen`, `rightPanelOpen`, `modelPickerOpen`, `projectPickerOpen`, `hostPickerOpen`,
 `branchPickerOpen`, `usagePageOpen`, `composerFocus`, `draftThreadRoute`,
 `turnRunning`, `editableFocus`, `textSelected`, `paneClosable`, `isWeb`, and `isDesktop`.
+`rightPanelOpen` applies only to `rightPanel.new` and is true while the right panel is
+open; the default `mod+t` uses it to open the panel's new-tab menu.
 `paneClosable` is true while [threads are side by side](./thread-sidebar.md#open-threads-side-by-side)
 and the focused pane has no right panel open.
 `draftThreadRoute` is true on a draft thread, including a restored draft, until it is first sent.

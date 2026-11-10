@@ -1481,7 +1481,10 @@ describe("PiAdapterV2", () => {
   it.effect("gives notify and extension-error items distinct ids in each thread", () =>
     Effect.gen(function* () {
       const itemIds = new Set<string>();
-      for (const threadId of [THREAD_ID, ThreadId.make("thread-pi-test-2")]) {
+      for (const [threadId, extensionPath] of [
+        [THREAD_ID, "/ext/a.ts"],
+        [ThreadId.make("thread-pi-test-2"), "/ext/a/index.ts"],
+      ] as const) {
         const fake = yield* makeFakePi;
         const { runtime, takeEvent } = yield* openRuntime(fake, "default", threadId);
         const providerThread = yield* runtime.ensureThread({
@@ -1506,7 +1509,7 @@ describe("PiAdapterV2", () => {
           method: "notify",
           message: "note",
         });
-        yield* fake.emit({ type: "extension_error", extensionPath: "/ext/a.ts", error: "boom" });
+        yield* fake.emit({ type: "extension_error", extensionPath, error: "boom" });
         for (const prefix of ["notify:", "extension-error:"]) {
           const item = yield* takeEvent(
             (event) =>
@@ -1514,6 +1517,9 @@ describe("PiAdapterV2", () => {
               event.turnItem.nativeItemRef?.nativeId?.startsWith(prefix) === true,
           );
           if (item.type === "turn_item.updated") itemIds.add(item.turnItem.id);
+          if (item.type === "turn_item.updated" && prefix === "extension-error:") {
+            assert.equal(item.turnItem.title, "a");
+          }
         }
       }
       assert.equal(itemIds.size, 4);

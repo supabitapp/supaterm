@@ -2374,6 +2374,20 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
       );
       assert.deepEqual(activeShell?.reopenedAt, activeProjection.thread.reopenedAt);
 
+      yield* orchestrator.dispatch({
+        type: "thread.mark-done",
+        commandId: CommandId.make("runtime-layer-lifecycle-remarkDone"),
+        threadId,
+      });
+      yield* orchestrator.dispatch({
+        type: "thread.pin",
+        commandId: CommandId.make("runtime-layer-lifecycle-pin-done"),
+        threadId,
+      });
+      const pinnedProjection = yield* orchestrator.getThreadProjection(threadId);
+      assert.equal(pinnedProjection.thread.doneOverride, "active");
+      assert.isNotNull(pinnedProjection.thread.reopenedAt);
+
       const archive = yield* orchestrator.dispatch({
         type: "thread.archive",
         commandId: CommandId.make("runtime-layer-lifecycle-archive"),

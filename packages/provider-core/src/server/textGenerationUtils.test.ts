@@ -1,10 +1,17 @@
 import { describe, expect, it } from "vite-plus/test";
 
 import {
+  limitSection,
   sanitizeCommitSubject,
   sanitizeNextPrompt,
   sanitizeThreadTitle,
 } from "./textGenerationUtils.ts";
+
+describe("limitSection", () => {
+  it("cuts a long section without splitting an emoji", () => {
+    expect(limitSection(`${"a".repeat(9)}🚀 more`, 10)).toBe(`${"a".repeat(9)}\n\n[truncated]`);
+  });
+});
 
 describe("sanitizeCommitSubject", () => {
   it.each([
