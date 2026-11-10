@@ -4489,7 +4489,7 @@ it.effect.each([
       "turn_item:running",
       "subagent:completed",
     ]);
-    // A streaming write after the run done would reopen the root's message.
+    // A streaming write after the run finished would reopen the root's message.
     assert.deepEqual(yield* Ref.get(rootWrites), ["Root.\n\n"]);
   }),
 );
