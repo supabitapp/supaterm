@@ -36,7 +36,7 @@ import { formatDuration } from "@supaterm/shared/orchestrationTiming";
 import * as DateTime from "effect/DateTime";
 
 import {
-  threadRuntimeIsActive,
+  threadRuntimeIsUnsettled,
   type ThreadRunSummary,
   type ThreadRuntimeSummary,
   type ThreadStructure,
@@ -298,7 +298,7 @@ export function threadRuntimeHasInterruptibleRun(
   runtime: ThreadStructureRuntime | null | undefined,
 ): boolean {
   return (
-    threadRuntimeIsActive(runtime) &&
+    threadRuntimeIsUnsettled(runtime) &&
     runtime?.activeRunId !== null &&
     runtime?.activeRunId !== undefined
   );

@@ -88,7 +88,7 @@ export const PULL_REQUESTS_PANEL_REF = scopeThreadRef(
 
 const isPullRequestsPanelKey = (threadKey: string) => threadKey.endsWith(":pull-requests-panel");
 
-export interface ThreadRightPanelState {
+interface StoredPanelState {
   isOpen: boolean;
   activeSurfaceId: string | null;
   surfaces: RightPanelSurface[];
@@ -97,14 +97,14 @@ export interface ThreadRightPanelState {
   proactiveDiffTurnId?: RunId;
 }
 
-type ResolvedPanelState = ThreadRightPanelState &
+export type ThreadRightPanelState = StoredPanelState &
   ({ isOpen: false; maximized?: never } | { isOpen: true; maximized?: true });
 
 const resolvePanelState = ({
   isOpen,
   maximized,
   ...tabs
-}: ThreadRightPanelState): ResolvedPanelState =>
+}: StoredPanelState): ThreadRightPanelState =>
   isOpen && maximized ? { ...tabs, isOpen, maximized } : { ...tabs, isOpen };
 
 export interface ThreadPanelVisibility {
@@ -116,7 +116,7 @@ interface RightPanelStoreState {
   pendingMaximizeThreadKey: string | null;
   requestMaximize: (ref: ScopedThreadRef) => void;
   consumeMaximizeRequest: (ref: ScopedThreadRef) => boolean;
-  byThreadKey: Record<string, ResolvedPanelState>;
+  byThreadKey: Record<string, ThreadRightPanelState>;
   threadPanelVisibilityByThreadKey: Record<string, ThreadPanelVisibility>;
   userActionRevisionByThreadKey: Record<string, number>;
   closeRevisionByThreadKey: Record<string, number>;
@@ -212,7 +212,7 @@ interface RightPanelStoreState {
   removeThread: (ref: ScopedThreadRef) => void;
 }
 
-const EMPTY_THREAD_STATE: ResolvedPanelState = {
+const EMPTY_THREAD_STATE: ThreadRightPanelState = {
   isOpen: false,
   activeSurfaceId: null,
   surfaces: [],
@@ -310,10 +310,10 @@ export function pullRequestSurface(target: {
 }
 
 const upsertSurface = (
-  current: ResolvedPanelState,
+  current: ThreadRightPanelState,
   surface: RightPanelSurface,
   activate = true,
-): ResolvedPanelState => ({
+): ThreadRightPanelState => ({
   ...current,
   isOpen: true,
   surfaces: current.surfaces.some((entry) => entry.id === surface.id)
@@ -323,10 +323,10 @@ const upsertSurface = (
 });
 
 const updateThreadStateMap = (
-  byThreadKey: Record<string, ResolvedPanelState>,
+  byThreadKey: Record<string, ThreadRightPanelState>,
   threadKey: string,
-  updater: (current: ResolvedPanelState) => ResolvedPanelState,
-): Record<string, ResolvedPanelState> => {
+  updater: (current: ThreadRightPanelState) => ThreadRightPanelState,
+): Record<string, ThreadRightPanelState> => {
   const current = byThreadKey[threadKey] ?? EMPTY_THREAD_STATE;
   const next = updater(current);
   if (
@@ -366,14 +366,14 @@ type RightPanelStoreData = Pick<
 >;
 
 interface PersistedRightPanelData {
-  byThreadKey: Record<string, ThreadRightPanelState>;
+  byThreadKey: Record<string, StoredPanelState>;
   threadPanelVisibilityByThreadKey: Record<string, ThreadPanelVisibility>;
 }
 
 const updateThread = (
   state: RightPanelStoreData,
   threadKey: string,
-  updater: (current: ResolvedPanelState) => ResolvedPanelState,
+  updater: (current: ThreadRightPanelState) => ThreadRightPanelState,
 ): RightPanelStoreData => {
   const current = state.byThreadKey[threadKey] ?? EMPTY_THREAD_STATE;
   const byThreadKey = updateThreadStateMap(state.byThreadKey, threadKey, updater);
@@ -405,7 +405,7 @@ const updateFrom = (origin: PanelOpenOrigin) => (origin === "user" ? userAction 
 const automaticUpdate = (
   state: RightPanelStoreState,
   threadKey: string,
-  updater: (current: ResolvedPanelState) => ResolvedPanelState,
+  updater: (current: ThreadRightPanelState) => ThreadRightPanelState,
 ): Partial<RightPanelStoreState> => ({
   ...updateThread(state, threadKey, updater),
 });
@@ -413,7 +413,7 @@ const automaticUpdate = (
 const userAction = (
   state: RightPanelStoreState,
   threadKey: string,
-  updater: (current: ResolvedPanelState) => ResolvedPanelState,
+  updater: (current: ThreadRightPanelState) => ThreadRightPanelState,
   closesView = false,
 ): Partial<RightPanelStoreState> => ({
   ...updateThread(state, threadKey, (current) => {
@@ -451,7 +451,7 @@ const userAction = (
 const closeAction = (
   state: RightPanelStoreState,
   threadKey: string,
-  updater: (current: ResolvedPanelState) => ResolvedPanelState,
+  updater: (current: ThreadRightPanelState) => ThreadRightPanelState,
 ): Partial<RightPanelStoreState> => userAction(state, threadKey, updater, true);
 
 function normalizeRevealLine(line: number | undefined): number | null {

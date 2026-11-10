@@ -562,7 +562,6 @@ export const OrchestrationV2RunStatus = Schema.Literals([
 ]);
 export type OrchestrationV2RunStatus = typeof OrchestrationV2RunStatus.Type;
 
-// The one place a run status is given its place in the run's life; every predicate below reads it.
 const RUN_STAGE = {
   queued: "queued",
   preparing: "setup",

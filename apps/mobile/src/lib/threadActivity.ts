@@ -970,10 +970,10 @@ function maxIsoTimestamp(left: string | null, right: string | null): string | nu
 }
 
 function unsettledRunId(latestRun: ThreadFeedLatestRun | null): RunId | null {
-  return threadFeedRunIsUnsettled(latestRun) ? latestRun.runId : null;
+  return threadFeedRunIsInProgress(latestRun) ? latestRun.runId : null;
 }
 
-export function threadFeedRunIsUnsettled(
+export function threadFeedRunIsInProgress(
   run: ThreadFeedLatestRun | null,
 ): run is ThreadFeedLatestRun {
   if (run === null || run.status === "queued") return false;

@@ -45,7 +45,6 @@ export type ComposerPrimaryActionBlock =
 
 type ComposerSubmitKind = "resume" | "update-queued" | "queue" | "steer" | "send";
 
-/** The control is disabled while `busy` or `blocked`. */
 export type ComposerPrimaryAction = {
   readonly busy: boolean;
   readonly blocked: ComposerPrimaryActionBlock | null;

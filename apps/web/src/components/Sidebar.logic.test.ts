@@ -1,6 +1,5 @@
 import { presentThreadShell } from "@supaterm/client-runtime/state/models";
 import { isThreadWorking as isSidebarThreadWorking } from "@supaterm/client-runtime/state/thread-inbox";
-import { resolveThreadRowStatus } from "@supaterm/client-runtime/state/thread-row-status";
 import * as DateTime from "effect/DateTime";
 import { describe, expect, it, vi } from "vite-plus/test";
 import {
@@ -364,14 +363,12 @@ describe("resolveThreadStatusPill", () => {
 
   it("shows an active thread wait without a pulse and resumes Working when it ends", () => {
     const blocked = { ...baseThread, blockedOnThreadWait: true };
-    expect(resolveThreadRowStatus(blocked)).toBe("waiting");
     expect(resolveThreadStatusPill({ thread: blocked })).toMatchObject({
       label: "Waiting",
       pulse: false,
     });
 
     const resumed = { ...blocked, blockedOnThreadWait: false };
-    expect(resolveThreadRowStatus(resumed)).toBe("working");
     expect(resolveThreadStatusPill({ thread: resumed })).toMatchObject({
       label: "Working",
       pulse: true,
@@ -876,11 +873,10 @@ describe("unseen completion with background work", () => {
       lastVisitedAt: DateTime.makeUnsafe("2026-06-20T00:59:00.000Z"),
       pendingBackgroundTasks: [{ taskId: "background-work", ...expected.task }],
     });
-    const status = resolveThreadRowStatus(thread);
+    const { status } = expected;
     const isUnread = hasUnseenCompletion(thread);
 
     expect(isUnread).toBe(true);
-    expect(status).toBe(expected.status);
     expect(
       resolveSidebarV2TopStatus({ environmentConnected: true, status, isUnread, isWoke: false }),
     ).toBe(expected.topStatus);

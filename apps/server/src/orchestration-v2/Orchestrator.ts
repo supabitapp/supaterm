@@ -676,10 +676,6 @@ function isWorkingRun(run: OrchestrationV2Run): boolean {
   return isOrchestrationV2RunWorking(run.status);
 }
 
-function hasWorkingRun(projection: Pick<OrchestrationV2ThreadProjection, "runs">): boolean {
-  return projection.runs.some(isWorkingRun);
-}
-
 function legacyPullRequestLink(
   thread: OrchestrationV2AppThread,
   linked: ThreadLinkedPullRequest,
@@ -7960,7 +7956,7 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
       command.completionWake === "always" &&
       isTerminalDelegatedTaskStatus(task.status) &&
       parentRun !== undefined &&
-      hasWorkingRun({ runs: [parentRun] })
+      isWorkingRun(parentRun)
         ? yield* planDelegatedCompletionDelivery({
             parentProjection,
             parentRun,
@@ -11203,8 +11199,7 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
     const executed = latestExecutedRun(projection.runs);
     const reached = new Map<RunId, OrchestrationV2Run>();
     if (target !== undefined) reached.set(target.id, target);
-    if (executed !== null && !hasWorkingRun({ runs: [executed] }))
-      reached.set(executed.id, executed);
+    if (executed !== null && !isWorkingRun(executed)) reached.set(executed.id, executed);
     for (const run of reached.values()) {
       yield* markStoppedRun({ command, events, thread: projection.thread, run, now });
     }
@@ -11517,7 +11512,7 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
     // continues it as a new run), nothing else delivers the result.
     if (
       (input.task.completionWake ?? "settled_only") === "settled_only" &&
-      hasWorkingRun({ runs: [input.parentRun] })
+      isWorkingRun(input.parentRun)
     ) {
       return {
         task: input.updatedTask,
@@ -12247,7 +12242,7 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
       });
       return;
     }
-    const parentIsLive = hasWorkingRun({ runs: [parentRun] });
+    const parentIsLive = isWorkingRun(parentRun);
     const pendingTaskIds =
       projection.thread.archivedAt === null && projection.thread.deletedAt === null
         ? projection.subagents

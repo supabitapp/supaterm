@@ -732,7 +732,6 @@ async function writePersistedComposerState(
   }
 }
 
-// A failed write leaves memory ahead of disk, so the next flush writes again.
 function landComposerState(): Promise<void> {
   cancelPersistDebounce();
   return persistenceQueue.run(async () => {

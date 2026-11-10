@@ -21,35 +21,21 @@ import {
 } from "@supaterm/client-runtime/state/composer-dispatch";
 import {
   resolveComposerPrimaryAction,
-  type ComposerPendingAnswer,
   type ComposerPrimaryAction,
   type ComposerPrimaryActionBlock,
   type ComposerPrimaryActionInput,
 } from "./composerPrimaryAction.logic";
 
-interface ComposerPrimaryActionsProps {
+interface ComposerPrimaryActionsProps extends Omit<
+  ComposerPrimaryActionInput,
+  "alternateModifier"
+> {
   compact: boolean;
   keybindings: ResolvedKeybindingsConfig;
-  canOperateThread: boolean;
-  canQueueMessage: boolean;
-  pendingAction: ComposerPendingAnswer | null;
-  isRunning: boolean;
-  canInterrupt: boolean;
-  followUpBehavior?: "queue" | "steer";
-  canSteer?: boolean;
-  isSendBusy: boolean;
-  sendDisabledReason: string | null;
-  isEnvironmentUnavailable: boolean;
-  providerQueue: ComposerPrimaryActionInput["providerQueue"];
-  isProjectSelectionRequired: boolean;
-  isPreparingWorktree: boolean;
-  hasSendableContent: boolean;
   sendShortcut?: ClientSettings["sendShortcut"] | undefined;
   isDraftThread?: boolean | undefined;
   hasMultilinePrompt?: boolean | undefined;
-  canResume?: boolean;
   preserveComposerFocusOnPointerDown?: boolean;
-  isEditingQueuedMessage?: boolean;
   onSubmitMessage?: MouseEventHandler<HTMLButtonElement>;
   onResume?: () => void;
   onInterrupt: () => void;
@@ -209,52 +195,23 @@ function SendActionsTooltip(props: {
 export const ComposerPrimaryActions = memo(function ComposerPrimaryActions({
   compact,
   keybindings,
-  canOperateThread,
-  canQueueMessage,
-  pendingAction,
-  isRunning,
-  canInterrupt,
-  followUpBehavior = "steer",
-  canSteer = true,
-  isSendBusy,
-  sendDisabledReason,
-  isEnvironmentUnavailable,
-  providerQueue,
-  isProjectSelectionRequired,
-  isPreparingWorktree,
-  hasSendableContent,
   sendShortcut = "enter",
   isDraftThread = false,
   hasMultilinePrompt = false,
-  canResume = false,
   preserveComposerFocusOnPointerDown = false,
-  isEditingQueuedMessage = false,
   onSubmitMessage,
   onResume,
   onInterrupt,
+  ...facts
 }: ComposerPrimaryActionsProps) {
+  const { canOperateThread, canInterrupt, isRunning, followUpBehavior, canSteer } = facts;
   const pointerFocusProps = preserveComposerFocusOnPointerDown
     ? { onPointerDown: preventPointerFocus }
     : undefined;
   const shortcutModifiers = useShortcutModifierState();
   const action = resolveComposerPrimaryAction({
-    pendingAction,
-    canOperateThread,
-    canQueueMessage,
-    canInterrupt,
-    canResume,
-    isRunning,
-    followUpBehavior,
-    canSteer,
+    ...facts,
     alternateModifier: shortcutModifiers.metaKey || shortcutModifiers.ctrlKey,
-    isEditingQueuedMessage,
-    hasSendableContent,
-    isSendBusy,
-    isPreparingWorktree,
-    sendDisabledReason,
-    isEnvironmentUnavailable,
-    providerQueue,
-    isProjectSelectionRequired,
   });
   const disabled = action.busy || action.blocked !== null;
 

@@ -3,7 +3,7 @@ import * as Dialog from "../components/ui/Dialog";
 import { AuthOrchestrationOperateScope } from "@supaterm/contracts";
 import { readEnvironmentScope } from "./session";
 import { useAtomValue } from "@effect/atom-react";
-import { threadRuntimeIsActive } from "@supaterm/client-runtime/state/shell";
+import { threadRuntimeIsUnsettled } from "@supaterm/client-runtime/state/shell";
 import type { ThreadCheckpointSummary } from "@supaterm/client-runtime/state/thread-checkpoints";
 import { VoiceUploadError } from "@supaterm/client-runtime/state/transcription";
 import type { VoiceRecordingHandOff } from "@supaterm/client-runtime/voice-input";
@@ -315,7 +315,7 @@ export function useThreadComposerState() {
     );
     if (queuedCompact) return true;
     const activeRunId = selectedThreadRuntime?.activeRunId;
-    if (!activeRunId || !threadRuntimeIsActive(selectedThreadRuntime)) return false;
+    if (!activeRunId || !threadRuntimeIsUnsettled(selectedThreadRuntime)) return false;
     if (
       selectedThreadVisibleTurnItems.some(
         ({ item }) =>
@@ -370,7 +370,7 @@ export function useThreadComposerState() {
     ? deriveProviderSubagentStatus(selectedThreadProjection.projection)
     : null;
 
-  const activeThreadBusy = threadRuntimeIsActive(selectedThreadRuntime);
+  const activeThreadBusy = threadRuntimeIsUnsettled(selectedThreadRuntime);
   const interruptibleRunId = threadRuntimeHasInterruptibleRun(selectedThreadRuntime)
     ? (selectedThreadRuntime?.activeRunId ?? null)
     : null;

@@ -221,7 +221,7 @@ import {
   threadFeedCompactionTitles,
   failedFeedRunIds,
   deriveThreadFeedPresentation,
-  threadFeedRunIsUnsettled,
+  threadFeedRunIsInProgress,
   isContextCompactionActivityGroup,
   isContextHandoffActivityGroup,
   isSecretRequestActivityGroup,
@@ -3217,7 +3217,7 @@ export const ThreadFeed = memo(function ThreadFeed({
     />
   );
   const reviewCommentColors = useReviewCommentColors();
-  const unsettledTurnId = threadFeedRunIsUnsettled(props.latestRun) ? props.latestRun.runId : null;
+  const unsettledTurnId = threadFeedRunIsInProgress(props.latestRun) ? props.latestRun.runId : null;
   const worktreeSetup = useExitingWorktreeSetup(props.worktreeSetup ?? null);
   const worktreeSetupCard = worktreeSetup ? (
     <WorktreeSetupCard

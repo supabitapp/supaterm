@@ -12,7 +12,7 @@ import { copySorted } from "@supaterm/shared/Array";
 import {
   type ThreadStructure,
   type ThreadStructureRuntime,
-  threadRuntimeIsActive,
+  threadRuntimeIsUnsettled,
 } from "./models.ts";
 
 type Projection = ThreadStructure;
@@ -92,7 +92,8 @@ export function sideChatBringBackBlockedReason(input: {
 }) {
   if (!input.canOperate) return "This connection cannot change threads.";
   // A pending merge-back would fail the main thread's queued message, so the server refuses it.
-  if (threadRuntimeIsActive(input.parentRuntime)) return "Available when the main thread is idle.";
+  if (threadRuntimeIsUnsettled(input.parentRuntime))
+    return "Available when the main thread is idle.";
   return input.mergeRun === null ? "Available after a finished reply." : null;
 }
 
