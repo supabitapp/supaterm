@@ -4,7 +4,7 @@ import {
   LockIcon,
   LockOpenIcon,
   PenLineIcon,
-  SparklesIcon,
+  ShieldCheckIcon,
 } from "@supaterm/icons";
 
 export const runtimeModeConfig: Record<
@@ -24,7 +24,7 @@ export const runtimeModeConfig: Record<
   auto: {
     label: "Auto",
     description: "Supported providers approve routine actions; others still ask.",
-    icon: SparklesIcon,
+    icon: ShieldCheckIcon,
   },
   "full-access": {
     label: "Full access",
