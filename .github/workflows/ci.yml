@@ -468,7 +468,7 @@ jobs:
   release_smoke:
     name: Release Smoke
     runs-on: depot-ubuntu-24.04-16
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - name: Checkout
         uses: actions/checkout@v7

@@ -662,12 +662,23 @@ export const layerWithOptions = (
         });
       });
 
+      // A detach removes its thread before releasing, but that thread's records still need releasing.
+      const releasedThreadIds = (input: {
+        readonly entry: LiveSessionEntry;
+        readonly detachedThreadId?: ThreadId;
+      }) => {
+        const threadIds = new Set(input.entry.attachedThreadIds);
+        if (input.detachedThreadId !== undefined) threadIds.add(input.detachedThreadId);
+        return threadIds;
+      };
+
       const writeReleasedRuntimeRequestEvents = Effect.fn(
         "ProviderSessionManager.writeReleasedRuntimeRequestEvents",
       )(function* (input: {
         readonly entry: LiveSessionEntry;
         readonly reason: ProviderSessionReleaseReason;
         readonly releasedAt: DateTime.Utc;
+        readonly detachedThreadId?: ThreadId;
       }) {
         const providerSessionId = input.entry.runtime.providerSessionId;
         const now = yield* DateTime.now;
@@ -678,7 +689,7 @@ export const layerWithOptions = (
             : "Provider session was closed before this runtime request was resolved.";
 
         const events: Array<OrchestrationV2DomainEvent> = [];
-        for (const threadId of input.entry.attachedThreadIds) {
+        for (const threadId of releasedThreadIds(input)) {
           const projection = yield* projectionStore.getThreadRecords(
             threadId,
             ["runtimeRequests"],
@@ -798,10 +809,8 @@ export const layerWithOptions = (
             return [];
           }
           const providerSessionId = input.entry.runtime.providerSessionId;
-          const threadIds = new Set(input.entry.attachedThreadIds);
-          if (input.detachedThreadId !== undefined) threadIds.add(input.detachedThreadId);
           const released = [];
-          for (const threadId of threadIds) {
+          for (const threadId of releasedThreadIds(input)) {
             const projection = yield* projectionStore.getThreadRecords(threadId, [
               "providerThreads",
             ]);
@@ -891,6 +900,7 @@ export const layerWithOptions = (
         readonly detail?: string;
         readonly releasedBackgroundTasks: ReadonlyArray<ReleasedBackgroundTasks>;
         readonly releasedAt: DateTime.Utc;
+        readonly detachedThreadId?: ThreadId;
         readonly replaced: boolean;
       }) =>
         Effect.all(
@@ -1063,12 +1073,14 @@ export const layerWithOptions = (
               onNone: () => Effect.void,
               // The enclosing operation owns the span for this inline handler.
               onSome: Effect.fnUntraced(function* (entry) {
+                const detachedThread =
+                  input.detachedThreadId === undefined
+                    ? {}
+                    : { detachedThreadId: input.detachedThreadId };
                 const releasedBackgroundTasks = yield* readReleasedBackgroundTasks({
                   entry,
                   reason: input.reason,
-                  ...(input.detachedThreadId === undefined
-                    ? {}
-                    : { detachedThreadId: input.detachedThreadId }),
+                  ...detachedThread,
                 });
                 if (input.cancelIdleFiber !== false) {
                   yield* cancelIdleFiber(entry.idleFiber);
@@ -1093,6 +1105,7 @@ export const layerWithOptions = (
                   ...(input.detail === undefined ? {} : { detail: input.detail }),
                   releasedBackgroundTasks,
                   releasedAt,
+                  ...detachedThread,
                 };
                 const recorded = yield* Effect.exit(
                   writeReleaseRecords({ ...records, replaced: false }),
