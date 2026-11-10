@@ -1,6 +1,6 @@
 // @effect-diagnostics nodeBuiltinImport:off - serves the proxy on a real HTTP server with production WebSocket options.
 import { expect, it } from "@effect/vitest";
-import { NodeWS } from "@effect/platform-node/NodeSocket";
+import * as NodeWS from "@effect/platform-node/NodeWS";
 import * as NodeHttp from "node:http";
 import * as NodeNet from "node:net";
 import * as Context from "effect/Context";

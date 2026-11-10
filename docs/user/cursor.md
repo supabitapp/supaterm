@@ -15,6 +15,17 @@ The adapter currently uses the SDK's local-agent runtime so runs operate in the 
 workspace. Cursor cloud agents need repository and cloud-environment configuration that Supaterm does
 not expose yet.
 
+Custom Cursor MCP servers and plugins are not configured in Supaterm. They load from the environment
+machine's Cursor config when the agent opens: project `.cursor/mcp.json`, user `~/.cursor/mcp.json`,
+and installed plugins under `~/.cursor/plugins`. Plugin tools
+can appear without a login; OAuth MCP servers still need credentials. Run `agent mcp login <server>`
+with the cwd set to the Supaterm project root (tokens land in
+`~/.cursor/projects/<folder-slug>/mcp-auth.json`). Cursor desktop Connections auth does not write
+that file, and the local SDK cannot complete interactive MCP OAuth itself—auth attempts fail with
+messages such as "MCP authentication is not supported in local SDK runs" or that the auth server
+does not support dynamic client registration. After you add or change skills, plugins, or MCP
+servers, or after a successful CLI login, use **Restart agent session**.
+
 ## Sign in
 
 Choose **Sign in**, then open the sign-in page and complete it in your browser. Supaterm
@@ -36,7 +47,7 @@ The adapter supports:
 - creating and resuming local Cursor agent threads;
 - changing the model and model parameters between turns;
 - assistant text, reasoning, tool activity, plans, and todo streaming;
-- thread-scoped Supaterm MCP tools;
+- thread-scoped Supaterm MCP tools alongside ambient Cursor MCP/plugins from disk;
 - image attachments;
 - interruption, queued app messages, and orchestrator-owned interrupt/restart steering;
 - provider conversation snapshots through `Agent.messages.list()`;

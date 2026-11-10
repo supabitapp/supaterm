@@ -11,9 +11,12 @@ export const layer = HttpRouter.add(
   Effect.gen(function* () {
     const request = yield* HttpServerRequest.HttpServerRequest;
     const tunnel = yield* DirectTunnel.DirectTunnel;
+    const incoming = NodeHttpServerRequest.toIncomingMessage(request);
+    // Only an HTTP/1.1 request can upgrade; an HTTP/2 one carries a `stream`.
+    if ("stream" in incoming) return HttpServerResponse.empty({ status: 400 });
     yield* tunnel.accept({
       endpointId: new URL(request.url, "http://host").searchParams.get("endpointId"),
-      request: NodeHttpServerRequest.toIncomingMessage(request),
+      request: incoming,
     });
     return HttpServerResponse.empty();
   }).pipe(

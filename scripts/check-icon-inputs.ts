@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 
+import * as NodeCrypto from "@effect/platform-node/NodeCrypto";
 import * as NodeRuntime from "@effect/platform-node/NodeRuntime";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import * as Console from "effect/Console";
@@ -34,5 +35,5 @@ const checkIconInputs = Effect.gen(function* () {
 });
 
 if (import.meta.main) {
-  checkIconInputs.pipe(Effect.provide(NodeServices.layer), NodeRuntime.runMain);
+  checkIconInputs.pipe(Effect.provide([NodeServices.layer, NodeCrypto.layer]), NodeRuntime.runMain);
 }

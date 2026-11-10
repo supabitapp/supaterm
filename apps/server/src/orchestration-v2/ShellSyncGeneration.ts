@@ -1,5 +1,5 @@
 import * as Context from "effect/Context";
-import * as Crypto from "effect/Crypto";
+import * as SecureRandom from "effect/crypto/SecureRandom";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 
@@ -15,7 +15,7 @@ export class ShellSyncGeneration extends Context.Service<
 export const layer = Layer.effect(
   ShellSyncGeneration,
   Effect.gen(function* () {
-    const crypto = yield* Crypto.Crypto;
-    return ShellSyncGeneration.of({ id: yield* crypto.randomUUIDv4().pipe(Effect.orDie) });
+    const random = yield* SecureRandom.SecureRandom;
+    return ShellSyncGeneration.of({ id: yield* random.uuidV4() });
   }),
 );

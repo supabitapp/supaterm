@@ -11,15 +11,17 @@ import * as Option from "effect/Option";
 import {
   HttpClient,
   HttpClientRequest,
+  HttpMethod,
   HttpRouter,
   HttpServerRequest,
   HttpServerResponse,
 } from "effect/http";
 import * as Socket from "effect/socket/Socket";
 import * as NodeHttpServerRequest from "@effect/platform-node/NodeHttpServerRequest";
-import * as NodeSocket from "@effect/platform-node/NodeSocket";
+import * as NodeWS from "@effect/platform-node/NodeWS";
 
 import { authenticateMediaRequest } from "../auth/http.ts";
+import { requestUrl } from "../requestUrl.ts";
 import * as DeviceService from "./DeviceService.ts";
 import { repeatStillFrame } from "./mjpegStillFrame.ts";
 
@@ -99,7 +101,7 @@ export const upstreamWebSocketConstructor = Layer.effect(
       return socket;
     };
   }),
-).pipe(Layer.provide(NodeSocket.layerWebSocketConstructorWS));
+).pipe(Layer.provide(NodeWS.layerWebSocketConstructor));
 
 const proxyWebSocket = Effect.fn("DeviceHubProxy.proxyWebSocket")(function* (
   request: HttpServerRequest.HttpServerRequest,
@@ -175,6 +177,9 @@ const proxyHttp = Effect.fn("DeviceHubProxy.proxyHttp")(function* (
 ) {
   const httpClient = HttpClient.withScope(yield* HttpClient.HttpClient);
   const method = request.method;
+  if (!HttpMethod.isHttpMethod(method)) {
+    return HttpServerResponse.text("Method Not Allowed", { status: 405 });
+  }
   const upstreamRequest = HttpClientRequest.make(method)(upstreamUrl).pipe(
     HttpClientRequest.setHeaders({
       ...forwardHeaders(request, new URL(upstreamUrl).origin),
@@ -216,7 +221,7 @@ const proxyHttp = Effect.fn("DeviceHubProxy.proxyHttp")(function* (
 
 const handler = Effect.gen(function* () {
   const request = yield* HttpServerRequest.HttpServerRequest;
-  const url = HttpServerRequest.toURL(request);
+  const url = requestUrl(request);
   if (Option.isNone(url)) {
     return HttpServerResponse.text("Bad Request", { status: 400 });
   }
