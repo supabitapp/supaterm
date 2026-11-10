@@ -290,6 +290,7 @@ export class GitLabCli extends Context.Service<
 
     readonly getRepositoryCloneUrls: (input: {
       readonly cwd: string;
+      readonly host?: string | undefined;
       readonly repository: string;
     }) => Effect.Effect<GitLabRepositoryCloneUrls, GitLabCliError>;
 
@@ -546,6 +547,7 @@ export const make = Effect.gen(function* () {
     getRepositoryCloneUrls: Effect.fn("GitLabCli.getRepositoryCloneUrls")(function (input) {
       return execute({
         cwd: input.cwd,
+        host: input.host,
         args: ["api", `projects/${encodeURIComponent(input.repository)}`],
       }).pipe(
         Effect.map((result) => result.stdout.trim()),

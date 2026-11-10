@@ -323,7 +323,7 @@ export const make = Effect.gen(function* () {
     // Merge settings only affect the detail panel's actions.
     getChangeRequestPreview: (input) =>
       cli
-        .getMergeRequestDetail({ ...input, maintainerEdits: false })
+        .getMergeRequestDetail({ ...input, maintainerEdits: false, downstreamChecks: false })
         .pipe(Effect.mapError(fail("getChangeRequestPreview"))),
 
     getChangeRequestSummary: (input) =>
@@ -331,7 +331,11 @@ export const make = Effect.gen(function* () {
         [
           mergeRequestWithStats(
             input,
-            cli.getMergeRequestDetail({ ...input, maintainerEdits: false }),
+            cli.getMergeRequestDetail({
+              ...input,
+              maintainerEdits: false,
+              downstreamChecks: false,
+            }),
           ),
           listStates({
             cwd: input.cwd,

@@ -211,12 +211,16 @@ layer("GitLabCli.layer", (it) => {
         const glab = yield* GitLabCli.GitLabCli;
         return yield* glab.getRepositoryCloneUrls({
           cwd: "/repo",
+          host: "gitlab.example.com",
           repository: "missing/project",
         });
       }).pipe(Effect.flip);
 
       assert.strictEqual(error._tag, "GitLabCliCommandError");
       assert.strictEqual(error.cause, cause);
+      assert.deepStrictEqual(mockedRun.mock.calls[0]?.[0].env, {
+        GITLAB_HOST: "gitlab.example.com",
+      });
     }),
   );
 

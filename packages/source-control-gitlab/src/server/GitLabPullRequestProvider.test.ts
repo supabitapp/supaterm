@@ -193,10 +193,13 @@ describe("getChangeRequest base freshness", () => {
   };
 
   it.effect.each(["getChangeRequestPreview", "getChangeRequestSummary"] as const)(
-    "%s preserves merge request fields without fetching project settings or fork permissions",
+    "%s preserves merge request fields without fetching project settings, fork permissions, or trigger jobs",
     (operation) =>
       Effect.gen(function* () {
-        const detailInputs: Array<{ readonly maintainerEdits?: boolean }> = [];
+        const detailInputs: Array<{
+          readonly maintainerEdits?: boolean;
+          readonly downstreamChecks?: boolean;
+        }> = [];
         const provider = yield* make.pipe(
           Effect.provide(
             Layer.mock(GitLabPullRequestCli.GitLabPullRequestCli)({
@@ -216,6 +219,7 @@ describe("getChangeRequest base freshness", () => {
           yield* read({ cwd: "/w", repository: "acme/web", host: "gitlab.com", number: 7 }),
         ).toEqual(detail);
         expect(detailInputs.map((input) => input.maintainerEdits)).toEqual([false]);
+        expect(detailInputs.map((input) => input.downstreamChecks)).toEqual([false]);
       }),
   );
 
