@@ -1,4 +1,4 @@
-import { RotateCcwIcon } from "@supaterm/icons";
+import { EraserIcon } from "@supaterm/icons";
 
 import type { ComposerBannerStackItem } from "./ComposerBannerStack";
 
@@ -7,7 +7,7 @@ export function freshSessionBannerItem(onUndo: () => void): ComposerBannerStackI
   return {
     id: "fresh-session",
     variant: "info",
-    icon: <RotateCcwIcon />,
+    icon: <EraserIcon />,
     title: "Your next message starts a fresh session",
     description: "The agent won't see earlier messages in this thread.",
     dismissLabel: "Keep the current session",

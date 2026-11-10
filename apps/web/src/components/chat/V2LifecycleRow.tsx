@@ -38,9 +38,9 @@ import {
   ArrowRightLeftIcon,
   BotIcon,
   ChevronRightIcon,
+  EraserIcon,
   GitForkIcon,
   MessageSquareIcon,
-  RotateCcwIcon,
   StopFilledIcon,
 } from "@supaterm/icons";
 
@@ -566,7 +566,7 @@ function EnvironmentHandoffRow({
 
 /** Marks where `/clear` or an automation started a new provider session in this thread. */
 export function FreshSessionRow() {
-  return <TimelineSystemDivider label="New session" icon={RotateCcwIcon} />;
+  return <TimelineSystemDivider label="New session" icon={EraserIcon} />;
 }
 
 /** A same-harness model or effort change. Shows only what changed. */

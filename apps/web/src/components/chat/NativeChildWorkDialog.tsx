@@ -5,7 +5,7 @@ import type {
   OrchestrationV2NativeChildWork,
   ThreadId,
 } from "@supaterm/contracts";
-import { FolderTreeIcon } from "@supaterm/icons";
+import { ListTreeIcon } from "@supaterm/icons";
 import { useState } from "react";
 
 import { orchestrationEnvironment } from "../../state/orchestration";
@@ -35,7 +35,7 @@ export function NativeChildWorkDialog(props: {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <Button size="sm" variant="ghost" onClick={() => setOpen(true)}>
-        <FolderTreeIcon />
+        <ListTreeIcon />
         <span className="@max-[420px]/composer-surface:sr-only">Subagent work</span>
       </Button>
       <DialogPopup className="max-w-2xl">
