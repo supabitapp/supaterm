@@ -16,7 +16,7 @@ Lots of apps have gotten bogged down with bad tech decisions and "slop". We have
 
 ### 3. Remote ready
 
-Supaterm's WebSocket layer supports remote connections. Whether users connect directly over their local network, use Tailscale, or reach a remote machine over SSH, new features need to work across those connections.
+Supaterm's WebSocket layer supports remote connections. Whether users connect through the Encrypted Relay, directly over their local network, through Tailscale, or over SSH, new features need to work across those connections.
 
 ### 4. Multi-surface
 
@@ -60,7 +60,7 @@ The most common defect in this repo is a change that works on the path you teste
 - **Agents.** A capability a user can trigger is usually one an agent should reach through MCP tools, and scheduled tasks run the same paths. That only works when it is a service method, not handler code.
 - **Contracts.** Anything crossing the wire is typed in `packages/contracts`. Change the schema and the server, web, mobile, and desktop all follow.
 - **Reverse states.** If you added a way in, add the way out and the way to see it. Snooze needs unsnooze. Close needs reopen. A one-way door is a bug.
-- **Connection modes.** Local, remote/direct, and SSH behave differently. Multi-device and multi-environment cases are real.
+- **Connection modes.** Local, remote/direct, remote/relay, and SSH behave differently. Multi-device and multi-environment cases are real.
 - **Docs.** Check whether the change makes existing guidance inaccurate. Apply the [documentation rules](#documentation) before adding anything.
 
 ## Dev servers

@@ -36,7 +36,7 @@ Implement only approved items. If the scope expands, present a revised proposal 
 
 Before declaring a port complete, byte-compare every agent-facing prompt, tool description, MCP schema, and returned instruction against the pinned upstream commit, allowing only required renames and explicitly approved fork exceptions.
 
-Create a final PR including the whole port.
+When the developer asks for a PR, create one including the whole port.
 
 ## Notes
 
