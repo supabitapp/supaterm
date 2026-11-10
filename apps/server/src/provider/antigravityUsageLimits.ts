@@ -15,10 +15,14 @@ import {
   makeUsageLimits,
 } from "@supaterm/provider-core/server/usageLimits";
 
-const ENDPOINTS = [
-  "https://daily-cloudcode-pa.googleapis.com",
-  "https://cloudcode-pa.googleapis.com",
-];
+const DAILY_ENDPOINT = "https://daily-cloudcode-pa.googleapis.com";
+const PROD_ENDPOINT = "https://cloudcode-pa.googleapis.com";
+// The ACP runtime meters consumer tiers on the daily host and GCP-terms tiers on prod.
+// The sign-in method stands in for the tier.
+const ENDPOINTS = {
+  "oauth-personal": [DAILY_ENDPOINT, PROD_ENDPOINT],
+  "oauth-business": [PROD_ENDPOINT, DAILY_ENDPOINT],
+};
 const SUMMARY_WINDOW_MINS = new Map([
   ["5h", 5 * 60],
   ["weekly", 7 * 24 * 60],
@@ -271,6 +275,8 @@ export const makeAntigravityUsageProbe = Effect.fn("makeAntigravityUsageProbe")(
       account = cached.account;
     }
 
+    const endpoints = ENDPOINTS[input.authMethod];
+    // Merge endpoints because quota groups differ; the metered host's reading of a bucket wins.
     const fetchWindows = Effect.fn("AntigravityUsageProbe.fetchWindows")(function* <E>(
       operation: string,
       parse: (
@@ -279,7 +285,7 @@ export const makeAntigravityUsageProbe = Effect.fn("makeAntigravityUsageProbe")(
       ) => Effect.Effect<ServerProviderUsageWindow[], E>,
     ) {
       const responses = yield* Effect.forEach(
-        ENDPOINTS,
+        endpoints,
         (endpoint) =>
           Effect.gen(function* () {
             // Capture each request after auth, so refresh latency does not widen the tolerance.
@@ -303,8 +309,7 @@ export const makeAntigravityUsageProbe = Effect.fn("makeAntigravityUsageProbe")(
       );
       const windows = new Map<string, ServerProviderUsageWindow>();
       for (const window of responses.flat()) {
-        const previous = windows.get(window.id);
-        if (!previous || window.usedPercent > previous.usedPercent) windows.set(window.id, window);
+        if (!windows.has(window.id)) windows.set(window.id, window);
       }
       return [...windows.values()];
     });
