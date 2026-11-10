@@ -47,7 +47,6 @@ import {
   pinThread,
   pinThreadMessage,
   reorderPinnedThread,
-  reorderActiveThread,
   setThreadAutoMarkDone,
   markThreadDone,
   snoozeThread,
@@ -211,12 +210,6 @@ export function createThreadEnvironmentAtoms<R, E>(
     setAutoMarkDone: createEnvironmentCommand(runtime, {
       label: "environment-data:commands:thread:set-auto-mark-done",
       execute: setThreadAutoMarkDone,
-      scheduler,
-      concurrency,
-    }),
-    reorderActive: createEnvironmentCommand(runtime, {
-      label: "environment-data:commands:thread:reorder-active",
-      execute: reorderActiveThread,
       scheduler,
       concurrency,
     }),
@@ -481,10 +474,6 @@ export function createThreadEnvironmentAtoms<R, E>(
     reorderPin: optimistic.wrap(commands.reorderPin, (thread, input) => ({
       ...thread,
       pinOrderKey: input.orderKey,
-    })),
-    reorderActive: optimistic.wrap(commands.reorderActive, (thread, input) => ({
-      ...thread,
-      activeOrderKey: input.orderKey,
     })),
     // Shown at once, so a composer that releases its accepted pick keeps showing it.
     setModelSelection: optimistic.wrap(commands.setModelSelection, (thread, input) => ({

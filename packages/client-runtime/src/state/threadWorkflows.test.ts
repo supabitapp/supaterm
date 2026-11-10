@@ -2,7 +2,6 @@ import { describe, expect, it } from "vite-plus/test";
 import { RunId, ThreadId, type OrchestrationV2ThreadProjection } from "@supaterm/contracts";
 
 import {
-  canDetachThreadProviderSession,
   canForkProjectedAssistantItem,
   deriveThreadQueueWorkflowState,
   resolveLatestMergeBackRun,
@@ -486,7 +485,6 @@ describe("thread workflows", () => {
     expect(canForkProjectedAssistantItem({ projectedItem, capabilities: capabilities() })).toBe(
       false,
     );
-    expect(canDetachThreadProviderSession(projection)).toBe(true);
   });
 
   it("allows native, portable, and capability-unknown exact-run forks", () => {

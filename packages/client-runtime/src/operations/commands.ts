@@ -105,10 +105,6 @@ export interface ReorderPinnedThreadInput extends ThreadCommandInput {
   readonly orderKey: string;
 }
 
-export interface ReorderActiveThreadInput extends ThreadCommandInput {
-  readonly orderKey: string;
-}
-
 export interface SnoozeThreadInput extends ThreadCommandInput {
   readonly snoozedUntil: string;
 }
@@ -489,17 +485,6 @@ export const reorderPinnedThread = Effect.fn("EnvironmentCommands.reorderPinnedT
   return yield* dispatch({
     type: "thread.pin.reorder",
     commandId,
-    threadId: input.threadId,
-    orderKey: input.orderKey,
-  });
-});
-
-export const reorderActiveThread = Effect.fn("EnvironmentCommands.reorderActiveThread")(function* (
-  input: ReorderActiveThreadInput,
-) {
-  return yield* dispatch({
-    type: "thread.active.reorder",
-    commandId: yield* allocateCommandId(input),
     threadId: input.threadId,
     orderKey: input.orderKey,
   });

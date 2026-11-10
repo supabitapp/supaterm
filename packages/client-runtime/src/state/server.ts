@@ -1172,7 +1172,6 @@ export function createServerEnvironmentAtoms<R, E>(
       tag: WS_METHODS.serverPrepareTriage,
       concurrency: { mode: "singleFlight", key: ({ environmentId }) => environmentId },
     }),
-    databaseStorage,
     databaseCompactionRecommendations,
     reclaimDatabaseSpace: createEnvironmentRpcCommand(runtime, {
       label: "environment-data:server:reclaim-database-space",

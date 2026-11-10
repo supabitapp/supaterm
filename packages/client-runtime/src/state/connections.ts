@@ -202,7 +202,6 @@ export function createEnvironmentCatalogAtoms<R, E>(
     catalogValueAtom,
     pullRequestRoutingPermissionsValueAtom,
     setPullRequestRoutingPermission,
-    networkStatusAtom,
     networkStatusValueAtom,
     stateAtom,
     sessionGenerationAtom,

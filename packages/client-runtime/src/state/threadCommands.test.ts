@@ -266,7 +266,6 @@ describe("remote thread lifecycle commands", () => {
     ["unpin", {}, { pinnedAt: null, pinOrderKey: null }],
     ["setAutoMarkDone", { enabled: false }, { autoMarkDoneDisabledAt: expect.any(Object) }],
     ["reorderPin", { orderKey: "b" }, { pinOrderKey: "b" }],
-    ["reorderActive", { orderKey: "b" }, { activeOrderKey: "b" }],
   ] as const;
 
   it.effect.each(actions)(

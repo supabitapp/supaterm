@@ -129,7 +129,6 @@ vi.mock("../../state/threads", () => ({
       "pin",
       "unpin",
       "reorderPin",
-      "reorderActive",
       "updateMetadata",
     ].map((action) => [
       action,

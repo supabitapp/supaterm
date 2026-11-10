@@ -183,10 +183,6 @@
       "types": "./src/remote.ts",
       "import": "./src/remote.ts"
     },
-    "./stableStringify": {
-      "types": "./src/stableStringify.ts",
-      "import": "./src/stableStringify.ts"
-    },
     "./desktopBootstrapToken": {
       "types": "./src/desktopBootstrapToken.ts",
       "import": "./src/desktopBootstrapToken.ts"
@@ -323,10 +319,6 @@
       "types": "./src/HostProcess.ts",
       "import": "./src/HostProcess.ts"
     },
-    "./testing/longTempDir": {
-      "types": "./src/testing/longTempDir.ts",
-      "import": "./src/testing/longTempDir.ts"
-    },
     "./testing/symlinks": {
       "types": "./src/testing/symlinks.ts",
       "import": "./src/testing/symlinks.ts"
@@ -426,10 +418,6 @@
     "./codexArtifactTemplates": {
       "types": "./src/codexArtifactTemplates.ts",
       "import": "./src/codexArtifactTemplates.ts"
-    },
-    "./codexFileCitations": {
-      "types": "./src/codexFileCitations.ts",
-      "import": "./src/codexFileCitations.ts"
     },
     "./codexMarkdownDirectives": {
       "types": "./src/codexMarkdownDirectives.ts",
