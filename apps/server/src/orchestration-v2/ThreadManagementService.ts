@@ -43,6 +43,7 @@ import {
   isOrchestrationV2RunActive,
   isOrchestrationV2RunSettled,
 } from "@supaterm/contracts";
+import { latestUnheldRun } from "@supaterm/shared/orchestrationV2ThreadError";
 import { threadTranscriptHeader } from "@supaterm/shared/threadTranscript";
 import { AgentScope } from "@supaterm/shared/AgentScope";
 import * as Clock from "effect/Clock";
@@ -453,12 +454,6 @@ export class ThreadManagementService extends Context.Service<
   ThreadManagementServiceShape
 >()("supaterm/orchestration-v2/ThreadManagementService") {}
 
-export function latestRun(
-  projection: Pick<OrchestrationV2ThreadProjection, "runs">,
-): OrchestrationV2Run | undefined {
-  return projection.runs.toSorted((left, right) => right.ordinal - left.ordinal)[0];
-}
-
 function latestRestartContinuation(
   runs: ReadonlyArray<OrchestrationV2Run>,
   run: OrchestrationV2Run,
@@ -775,7 +770,7 @@ const make = Effect.gen(function* () {
     const target = yield* getProjectThreadRecords(input, ["runs"]);
     const selectedRun =
       input.runId === undefined
-        ? latestRun(target)
+        ? (latestUnheldRun(target.runs) ?? undefined)
         : target.runs.find((candidate) => candidate.id === input.runId);
     if (input.runId !== undefined && selectedRun === undefined) {
       return yield* new ThreadManagementRunNotFoundError({

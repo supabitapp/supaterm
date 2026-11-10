@@ -70,7 +70,7 @@ import {
   isOrchestrationV2RunSettled,
 } from "@supaterm/contracts";
 import { getProviderOptionCurrentValue } from "@supaterm/shared/model";
-import { runRanAfter } from "@supaterm/shared/orchestrationV2ThreadError";
+import { latestUnheldRun, runRanAfter } from "@supaterm/shared/orchestrationV2ThreadError";
 import { formatThreadLink } from "@supaterm/shared/threadLinks";
 import {
   normalizeThreadPullRequestKey,
@@ -925,7 +925,7 @@ function threadDetail(
   shell: OrchestrationV2ThreadShell,
   nowMs: number,
 ): OrchestratorMcpThreadDetail {
-  const latest = ThreadManagementService.latestRun(projection);
+  const latest = latestUnheldRun(projection.runs);
   const active = ThreadManagementService.latestActiveRun(projection);
   return {
     threadId: projection.thread.id,
