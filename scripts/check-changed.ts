@@ -254,7 +254,9 @@ const compilerCoverage = compilerApps.length > 0 && {
 
 // Suites written for `node --test` register nothing with Vitest, which then fails them.
 const nodeTests = [...tests].filter((file) =>
-  /from ["']node:test["']/.test(NodeFS.readFileSync(NodePath.join(root, file), "utf8")),
+  /^import\b[^\n]*\bfrom ["']node:test["']/m.test(
+    NodeFS.readFileSync(NodePath.join(root, file), "utf8"),
+  ),
 );
 const vitestTests = [...tests].filter((file) => !nodeTests.includes(file));
 

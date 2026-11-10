@@ -169,7 +169,6 @@ export default defineConfig({
       "node_modules",
       "pnpm-lock.yaml",
       "*.tsbuildinfo",
-      ".mise/locks/**",
       "**/routeTree.gen.ts",
       "**/*.graphql.ts",
       "packages/source-control-github/schema/**",
@@ -550,8 +549,6 @@ export default defineConfig({
           "**/*.{test,spec}.{ts,tsx,js,jsx,mts,cts,mjs,cjs}",
           "**/testkit/**",
           "**/_generated/**",
-          // Real user quotes stay verbatim.
-          "apps/marketing/src/lib/tweets.ts",
         ],
         rules: { "supaterm/no-em-dash-copy": "error" },
       },
