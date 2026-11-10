@@ -340,7 +340,7 @@ interface MessagesTimelineProps {
 
 export interface TimelineTurnNavigation {
   /** Returns `false` when the thread has no user messages to step between. */
-  readonly step: (delta: -1 | 1, repeat: boolean) => boolean | void;
+  readonly step: (delta: -1 | 1, repeat: boolean) => boolean;
 }
 
 export function MessagesTimeline(props: MessagesTimelineProps) {
@@ -1374,15 +1374,18 @@ const ConversationTimeline = memo(function ConversationTimeline({
   useImperativeHandle(turnNavigationRef, () => ({
     step: (delta: -1 | 1, repeat: boolean) => {
       if (minimapItems.length === 0) return false;
+      if (!repeat) heldTurnRef.current = null;
       const held = heldTurnRef.current;
       const item = resolveTimelineTurnStep({
         items: minimapItems,
         currentIndex: minimapCurrentIndex,
-        heldItemId: repeat && held?.listIdentityKey === listIdentityKey ? held.itemId : null,
+        heldItemId: held?.listIdentityKey === listIdentityKey ? held.itemId : null,
         delta,
       });
-      heldTurnRef.current = item ? { listIdentityKey, itemId: item.id } : null;
-      if (item) scrollToMinimapTurn(item, !repeat);
+      if (!item) return true;
+      heldTurnRef.current = { listIdentityKey, itemId: item.id };
+      scrollToMinimapTurn(item, !repeat);
+      return true;
     },
   }));
 
