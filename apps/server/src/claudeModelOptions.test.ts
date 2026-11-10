@@ -105,6 +105,25 @@ describe("compileClaudeModelSelection", () => {
     ).toMatchObject({ effort: "high", promptEffort: "ultrathink" });
   });
 
+  it.each(
+    BUNDLED_CLAUDE_MODEL_CATALOG.models
+      .filter(({ model }) =>
+        model.capabilities?.optionDescriptors?.some(
+          (descriptor) =>
+            descriptor.type === "select" &&
+            descriptor.id === "effort" &&
+            descriptor.options.some((option) => option.id === "ultracode"),
+        ),
+      )
+      .map(({ model }) => model.slug),
+  )("sends Ultracode on %s as a valid SDK effort", (model) => {
+    const compiled = compileClaudeModelSelection(
+      selection(model, [{ id: "effort", value: "ultracode" }]),
+    );
+    expect(["low", "medium", "high", "xhigh", "max"]).toContain(compiled.effort);
+    expect(compiled.settings).toMatchObject({ ultracode: true });
+  });
+
   it("keeps explicit effort for models missing from the local catalog", () => {
     expect(
       compileClaudeModelSelection(
