@@ -29,7 +29,6 @@ import {
   MOUSE_NAVIGATE_CHANNEL,
   RECORDING_CURSOR_CHANNEL,
   RECORDING_POINTER_CHANNEL,
-  RECORDING_KEY_CHANNEL,
   RECORDING_INPUT_CHANNEL,
   RECORDING_CONTROLLER_CHANNEL,
   START_PICK_CHANNEL,
@@ -94,22 +93,6 @@ ipcRenderer.on(RECORDING_CONTROLLER_CHANNEL, (_event, controller: unknown, point
       : undefined;
   if (controller === "agent" || controller === "human" || controller === "none")
     recordingCursor?.setController(controller, humanPoint);
-});
-ipcRenderer.on(RECORDING_KEY_CHANNEL, (_event, input: unknown) => {
-  if (
-    typeof input !== "object" ||
-    input === null ||
-    !("key" in input) ||
-    typeof input.key !== "string"
-  )
-    return;
-  recordingCursor?.keyPress({
-    key: input.key,
-    metaKey: "metaKey" in input && input.metaKey === true,
-    ctrlKey: "ctrlKey" in input && input.ctrlKey === true,
-    altKey: "altKey" in input && input.altKey === true,
-    shiftKey: "shiftKey" in input && input.shiftKey === true,
-  });
 });
 ipcRenderer.on(RECORDING_POINTER_CHANNEL, (_event, point: unknown) => {
   if (

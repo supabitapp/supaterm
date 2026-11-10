@@ -201,7 +201,6 @@ export function installRecordingCursor(
   window.addEventListener("blur", hide);
   return {
     move,
-    keyPress,
     setController,
     setTheme,
     dispose: () => {
