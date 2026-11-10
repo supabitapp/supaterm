@@ -322,7 +322,7 @@ patchedDependencies:
   app-builder-lib@26.17.0: 65c8343198108861190501b3aca64068d687ad6cde497e1f5c9ca39516d9627c
   expo-audio@58.0.9: 530af071088a809fe1a97ce2b2269c78335fbb5dcd3893d6937ff5c304c85a0a
   expo-modules-core@58.0.22: f0b0fd100550ed76e5c25b4d13eb7c9ff62825f8f197c53edf7bf447c50c9fb7
-  expo-network@58.0.3: cd09b6d1744dde4efa081b5619ebcff38877d98f7502a51cab121629dece8237
+  expo-network@58.0.3: b79a46db8484fa3b5fc9f509fb78b71380219d2865d261c4d82170b5393e8419
   expo-sharing@58.0.19: 108f1b00debef8288e914da45657e5ccc84af9a26a5c0183b3c5593f8b4f2ce6
   expo-video@58.0.11: e80ec3ef8c4af50a607beea1c0917e71ba679844efdb702b45d17a5f03cf466c
   mdast-util-math@3.0.0: afe6b2c89e1eaddfd3c90cf2723f12c9a17d513e65beff51653781486013251c
@@ -623,7 +623,7 @@ importers:
         version: 58.0.13(@tsc-rs/typescript@0.8.0)(@types/react@19.3.0)(expo@58.0.14)(react-native@0.88.0(@babel/core@7.29.7(supports-color@8.1.1))(@react-native/metro-config@0.88.0(@babel/core@7.29.7(supports-color@8.1.1))(bufferutil@4.1.0)(supports-color@8.1.1)(utf-8-validate@6.0.6))(@types/react@19.3.0)(bufferutil@4.1.0)(react@19.3.0)(supports-color@8.1.1)(utf-8-validate@6.0.6))(react@19.3.0)(supports-color@8.1.1)
       expo-network:
         specifier: 58.0.3
-        version: 58.0.3(patch_hash=cd09b6d1744dde4efa081b5619ebcff38877d98f7502a51cab121629dece8237)(@types/react@19.3.0)(expo@58.0.14)(react@19.3.0)
+        version: 58.0.3(patch_hash=b79a46db8484fa3b5fc9f509fb78b71380219d2865d261c4d82170b5393e8419)(@types/react@19.3.0)(expo@58.0.14)(react@19.3.0)
       expo-paste-input:
         specifier: ^0.1.15
         version: 0.1.15(@types/react@19.3.0)(expo@58.0.14)(react-native@0.88.0(@babel/core@7.29.7(supports-color@8.1.1))(@react-native/metro-config@0.88.0(@babel/core@7.29.7(supports-color@8.1.1))(bufferutil@4.1.0)(supports-color@8.1.1)(utf-8-validate@6.0.6))(@types/react@19.3.0)(bufferutil@4.1.0)(react@19.3.0)(supports-color@8.1.1)(utf-8-validate@6.0.6))(react@19.3.0)
@@ -17476,7 +17476,7 @@ snapshots:
       '@expo/modules-macros-win32-arm64': 0.20.0
       '@expo/modules-macros-win32-x64': 0.20.0
 
-  expo-network@58.0.3(patch_hash=cd09b6d1744dde4efa081b5619ebcff38877d98f7502a51cab121629dece8237)(@types/react@19.3.0)(expo@58.0.14)(react@19.3.0):
+  expo-network@58.0.3(patch_hash=b79a46db8484fa3b5fc9f509fb78b71380219d2865d261c4d82170b5393e8419)(@types/react@19.3.0)(expo@58.0.14)(react@19.3.0):
     dependencies:
       '@types/react': 19.3.0
       expo: 58.0.14(ed6053e824e1f32ccdf163b2f5116f3c)
