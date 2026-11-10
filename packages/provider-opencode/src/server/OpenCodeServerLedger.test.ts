@@ -298,7 +298,12 @@ describe.skipIf(observedPlatforms.length === 0)("OpenCode server startup", () =>
       const serverScope = yield* Scope.make();
       const starting = yield* OpenCodeRuntime.OpenCodeRuntime.pipe(
         Effect.flatMap((runtime) =>
-          runtime.startOpenCodeServerProcess({ binaryPath, directory: tempDir, port: 4096 }),
+          runtime.startOpenCodeServerProcess({
+            binaryPath,
+            directory: tempDir,
+            port: 4096,
+            verify: () => Effect.succeed("2.0.18"),
+          }),
         ),
         Effect.provideService(Scope.Scope, serverScope),
         Effect.provide(layerRuntime),

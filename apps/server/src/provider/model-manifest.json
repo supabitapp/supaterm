@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": "2026-11-10T05:21:16Z",
+  "updatedAt": "2026-11-10T21:33:16Z",
   "compatibility": [
     {
       "driver": "codex",
@@ -63,13 +63,22 @@
     },
     {
       "driver": "opencode",
-      "supatermRange": ">=0.0.46",
+      "supatermRange": ">=0.0.46 <26.10.13",
       "recommendedRange": ">=2.0.18",
       "ranges": [
         { "range": ">=2.0.18", "status": "supported" },
         { "range": ">=2.0.0 <2.0.18", "status": "unsupported" },
         { "range": ">=1.14.19 <2.0.0", "status": "graceful" },
         { "range": "<1.14.19", "status": "broken" }
+      ]
+    },
+    {
+      "driver": "opencode",
+      "supatermRange": ">=26.10.13",
+      "recommendedRange": ">=2.0.18",
+      "ranges": [
+        { "range": ">=2.0.18", "status": "supported" },
+        { "range": "<2.0.18", "status": "unsupported" }
       ]
     },
     {
