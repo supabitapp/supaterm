@@ -12,7 +12,6 @@ export const PASTE_AS_TEXT_CHANNEL = "desktop:paste-as-text";
 export const REVEAL_WINDOW_CHANNEL = "desktop:reveal-window";
 export const PERFORM_ALIGNMENT_HAPTIC_CHANNEL = "desktop:perform-alignment-haptic";
 export const SNAP_SHOT_EVENT_CHANNEL = "desktop:snap-shot-event";
-export const QUIT_SHORTCUT_CHANNEL = "desktop:quit-shortcut";
 export const TRACKPAD_SCROLL_BEGIN_CHANNEL = "desktop:trackpad-scroll-begin";
 export const TRACKPAD_SCROLL_END_CHANNEL = "desktop:trackpad-scroll-end";
 export const GET_WINDOW_FULLSCREEN_STATE_CHANNEL = "desktop:get-window-fullscreen-state";
