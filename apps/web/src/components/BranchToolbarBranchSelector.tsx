@@ -543,11 +543,6 @@ export function BranchToolbarBranchSelector({
   const prNumber = currentLinkedPr?.number ?? displayedPr?.number;
   const prUrl = currentLinkedPr?.url ?? displayedPr?.url;
   const openPrLink = useOpenPrLink(threadRef);
-  const panelPrLabel =
-    prNumber === undefined
-      ? ""
-      : `#${prNumber}${displayedPr?.title.trim() ? `: ${displayedPr.title}` : ""}`;
-
   function selectPickerItem(itemValue: string) {
     if (itemValue === checkoutPullRequestItemValue && prReference && onCheckoutPullRequestRequest) {
       handleOpenChange(false);
@@ -741,7 +736,7 @@ export function BranchToolbarBranchSelector({
             reference={currentLinkedPr}
             status={displayedPrStatus}
             project={activeProject}
-            label={panelPrLabel}
+            title={displayedPr?.title.trim() || null}
             openAriaLabel={prUrl ?? `Open ${sourceControlPresentation.terminology.singular}`}
             composerTarget={composerDraftTarget ?? draftId ?? threadRef}
             onOpen={(event) => openPrLink(event, prUrl)}

@@ -120,7 +120,7 @@ const renderRow = () => (
     number={1}
     status={null}
     project={null}
-    label="Test PR"
+    title="Test PR"
     openAriaLabel="Open PR"
     composerTarget={threadRef}
     onOpen={vi.fn()}

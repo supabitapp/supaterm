@@ -57,7 +57,7 @@ function ThreadDetailsPrLinkRow({
       reference={link}
       status={prStatusIndicator(pr, linked?.sourceControlProvider)}
       project={project}
-      label={`#${link.number}${link.snapshot === null ? "" : `: ${link.snapshot.title}`}`}
+      title={link.snapshot?.title ?? null}
       openAriaLabel={link.url}
       composerTarget={composerTarget}
       onOpen={onOpen}
