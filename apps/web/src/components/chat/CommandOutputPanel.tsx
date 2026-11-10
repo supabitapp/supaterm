@@ -73,9 +73,6 @@ export function CommandOutputPanel(props: {
   // Fills a parent with a fixed height, and sizes to its output up to max-h-80 otherwise.
   return (
     <div className="flex h-full flex-col">
-      {data?.output.truncated ? (
-        <div className="text-muted-foreground italic">Earlier output not shown</div>
-      ) : null}
       <div
         ref={scrollRef}
         onScroll={(event) => {
@@ -85,6 +82,7 @@ export function CommandOutputPanel(props: {
         }}
         className="max-h-80 min-h-0 flex-auto overflow-auto text-muted-foreground"
       >
+        {data?.output.truncated ? <div className="italic">Earlier output not shown</div> : null}
         {spans.map((span, index) =>
           span.style === null ? (
             span.text
