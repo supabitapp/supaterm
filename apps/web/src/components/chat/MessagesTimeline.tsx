@@ -36,8 +36,6 @@ import {
 } from "./useTimelineRows";
 import { TimelineRowExit } from "./TimelineRowExit";
 import { usePaneInputOwner } from "../../chatPanes/paneScope";
-import { registerCommands } from "../../shortcuts/dispatcher";
-import { BackgroundThreadContext } from "./backgroundThread";
 import { startTimelinePositionRestore } from "./useTimelinePositionRestore";
 import {
   attachTimelineViewport,
@@ -78,6 +76,7 @@ import { resolveChatListAnchoredEndSpace } from "@supaterm/shared/chatList";
 import { observeVisibleAnimation } from "../../lib/visibleAnimation";
 import {
   type ReactNode,
+  type Ref,
   type SyntheticEvent,
   useContext,
   useEffect,
@@ -85,6 +84,7 @@ import {
   memo,
   useState,
   useRef,
+  useImperativeHandle,
   useLayoutEffect,
   use,
 } from "react";
@@ -129,7 +129,7 @@ import {
   resolveTimelineMinimapVisibleRange,
   isTimelineMinimapRowVisible,
   resolveTimelineMinimapCurrentIndex,
-  resolveTimelineTurnStepIndex,
+  resolveTimelineTurnStep,
   resolveTimelineMinimapHasPersistentGutter,
   resolveTimelineMinimapHitStripWidth,
   resolveWorktreeSetupLabel,
@@ -331,10 +331,16 @@ interface MessagesTimelineProps {
   onJumpToPinnedMessage: (pin: ThreadPinnedMessage) => void;
   messageJump?: MessageJump | null;
   onMessageJumpFailed?: MessageJumpHandlers["fail"];
+  turnNavigationRef?: Ref<TimelineTurnNavigation | null>;
   findExpanded?: boolean;
   findQuery?: string;
   activeFindMatch?: ThreadFindMatch | null;
   findNavigationId?: number;
+}
+
+export interface TimelineTurnNavigation {
+  /** Returns `false` when the thread has no user messages to step between. */
+  readonly step: (delta: -1 | 1, repeat: boolean) => boolean | void;
 }
 
 export function MessagesTimeline(props: MessagesTimelineProps) {
@@ -427,11 +433,11 @@ const ConversationTimeline = memo(function ConversationTimeline({
   onJumpToPinnedMessage,
   messageJump = null,
   onMessageJumpFailed = NOOP_MESSAGE_JUMP_FAILED,
+  turnNavigationRef,
 }: MessagesTimelineProps) {
   const listIdentityKey = displayThreadKey ?? routeThreadKey;
   // Keys typed outside every list reach each pane's viewport; only the focused pane's reacts.
   const isPaneInputOwner = usePaneInputOwner();
-  const backgroundThread = use(BackgroundThreadContext);
   // The remembered position is a snapshot taken when the list identity changes;
   // scrolling keeps rewriting the stored entry, which must not move the restore.
   // Find open at the opening is part of the snapshot: opening find later
@@ -1364,33 +1370,21 @@ const ConversationTimeline = memo(function ConversationTimeline({
     });
   };
 
-  const heldTurnStepIndexRef = useRef<number | null>(null);
-  const stepTurn = useStableCallback((delta: -1 | 1, repeat: boolean) => {
-    if (minimapItems.length === 0) return false;
-    const index = resolveTimelineTurnStepIndex({
-      currentIndex: minimapCurrentIndex,
-      heldStepIndex: repeat ? heldTurnStepIndexRef.current : null,
-      delta,
-      itemCount: minimapItems.length,
-    });
-    const item = index === null ? undefined : minimapItems[index];
-    if (index === null || !item) return;
-    heldTurnStepIndexRef.current = index;
-    scrollToMinimapTurn(item, !repeat);
-  });
-  const isTurnStepLive = useStableCallback(() => !backgroundThread && isPaneInputOwner());
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- registers turn stepping with the shortcut dispatcher for the list's lifetime
-  useEffect(
-    () =>
-      registerCommands(
-        {
-          "conversation.previousTurn": ({ repeat }) => stepTurn(-1, repeat),
-          "conversation.nextTurn": ({ repeat }) => stepTurn(1, repeat),
-        },
-        { when: isTurnStepLive },
-      ),
-    [isTurnStepLive, stepTurn],
-  );
+  const heldTurnRef = useRef<{ listIdentityKey: string; itemId: string } | null>(null);
+  useImperativeHandle(turnNavigationRef, () => ({
+    step: (delta: -1 | 1, repeat: boolean) => {
+      if (minimapItems.length === 0) return false;
+      const held = heldTurnRef.current;
+      const item = resolveTimelineTurnStep({
+        items: minimapItems,
+        currentIndex: minimapCurrentIndex,
+        heldItemId: repeat && held?.listIdentityKey === listIdentityKey ? held.itemId : null,
+        delta,
+      });
+      heldTurnRef.current = item ? { listIdentityKey, itemId: item.id } : null;
+      if (item) scrollToMinimapTurn(item, !repeat);
+    },
+  }));
 
   const forwardMinimapWheel = (event: WheelEvent) => {
     const scrollNode = listRef.current?.getScrollableNode();

@@ -35,7 +35,7 @@ import {
   type MessagesTimelineRow,
   resolveTimelineIsAtEnd,
   resolveTimelineToolPresentation,
-  resolveTimelineTurnStepIndex,
+  resolveTimelineTurnStep,
   withExitingWorktreeSetupRow,
   workEntryDisplayLabel,
 } from "./MessagesTimeline.logic";
@@ -111,15 +111,20 @@ describe("resolveTimelineIsAtEnd", () => {
   });
 });
 
-describe("resolveTimelineTurnStepIndex", () => {
-  it("steps from the current turn, or from the last target while the key is held", () => {
-    const step = { currentIndex: 2, heldStepIndex: null, itemCount: 4 } as const;
-    expect(resolveTimelineTurnStepIndex({ ...step, delta: -1 })).toBe(1);
-    expect(resolveTimelineTurnStepIndex({ ...step, delta: 1 })).toBe(3);
-    expect(resolveTimelineTurnStepIndex({ ...step, heldStepIndex: 1, delta: -1 })).toBe(0);
-    expect(resolveTimelineTurnStepIndex({ ...step, heldStepIndex: 0, delta: -1 })).toBeNull();
-    expect(resolveTimelineTurnStepIndex({ ...step, currentIndex: 3, delta: 1 })).toBeNull();
-    expect(resolveTimelineTurnStepIndex({ ...step, currentIndex: null, delta: -1 })).toBeNull();
+describe("resolveTimelineTurnStep", () => {
+  it("steps from the current turn, or from the held target even after history is prepended", () => {
+    const items = ["a", "b", "c", "d"].map((id) => ({ id }));
+    const step = { items, currentIndex: 2, heldItemId: null } as const;
+    expect(resolveTimelineTurnStep({ ...step, delta: -1 })?.id).toBe("b");
+    expect(resolveTimelineTurnStep({ ...step, delta: 1 })?.id).toBe("d");
+    expect(resolveTimelineTurnStep({ ...step, heldItemId: "b", delta: -1 })?.id).toBe("a");
+    expect(resolveTimelineTurnStep({ ...step, heldItemId: "a", delta: -1 })).toBeNull();
+    expect(resolveTimelineTurnStep({ ...step, currentIndex: 3, delta: 1 })).toBeNull();
+    expect(resolveTimelineTurnStep({ ...step, currentIndex: null, delta: -1 })).toBeNull();
+    const prepended = [{ id: "y" }, { id: "z" }, ...items];
+    expect(
+      resolveTimelineTurnStep({ ...step, items: prepended, heldItemId: "a", delta: -1 })?.id,
+    ).toBe("z");
   });
 });
 
