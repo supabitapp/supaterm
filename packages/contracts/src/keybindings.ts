@@ -172,6 +172,8 @@ export const STATIC_KEYBINDING_COMMANDS = [
   "conversation.scrollUp",
   "conversation.scrollDown",
   "conversation.scrollToEnd",
+  "conversation.previousTurn",
+  "conversation.nextTurn",
   "editor.openFavorite",
   "usage.cost",
   "usage.tokens",

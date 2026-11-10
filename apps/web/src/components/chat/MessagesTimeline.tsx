@@ -36,6 +36,8 @@ import {
 } from "./useTimelineRows";
 import { TimelineRowExit } from "./TimelineRowExit";
 import { usePaneInputOwner } from "../../chatPanes/paneScope";
+import { registerCommands } from "../../shortcuts/dispatcher";
+import { BackgroundThreadContext } from "./backgroundThread";
 import { startTimelinePositionRestore } from "./useTimelinePositionRestore";
 import {
   attachTimelineViewport,
@@ -127,6 +129,7 @@ import {
   resolveTimelineMinimapVisibleRange,
   isTimelineMinimapRowVisible,
   resolveTimelineMinimapCurrentIndex,
+  resolveTimelineTurnStepIndex,
   resolveTimelineMinimapHasPersistentGutter,
   resolveTimelineMinimapHitStripWidth,
   resolveWorktreeSetupLabel,
@@ -428,6 +431,7 @@ const ConversationTimeline = memo(function ConversationTimeline({
   const listIdentityKey = displayThreadKey ?? routeThreadKey;
   // Keys typed outside every list reach each pane's viewport; only the focused pane's reacts.
   const isPaneInputOwner = usePaneInputOwner();
+  const backgroundThread = use(BackgroundThreadContext);
   // The remembered position is a snapshot taken when the list identity changes;
   // scrolling keeps rewriting the stored entry, which must not move the restore.
   // Find open at the opening is part of the snapshot: opening find later
@@ -756,6 +760,65 @@ const ConversationTimeline = memo(function ConversationTimeline({
   // is not keyed per thread and reports no "new data" event, and the restore
   // must land before paint, after LegendList's own layout effects applied the
   // new data. A citation request that arrives mid-restore takes over.
+  const [minimapCurrentIndex, setMinimapCurrentIndex] = useState<number | null>(null);
+  const refreshMinimap = useStableCallback(() => {
+    const state = listRef.current?.getState?.();
+    if (restoringThreadPosition || state?.data !== rows) return;
+    if (!state || minimapItems.length === 0) {
+      return;
+    }
+
+    const firstBufferedIndex = state.startBuffered;
+    const firstBufferedRow: HTMLElement | undefined =
+      firstBufferedIndex == null ? undefined : state.elementAtIndex(firstBufferedIndex);
+    const firstBufferedTop =
+      firstBufferedIndex == null ? undefined : state.positionAtIndex(firstBufferedIndex);
+    const viewport = listRef.current?.getScrollableNode() ?? undefined;
+    // Cached row positions exclude the header and pending scroll adjustments.
+    const scroll =
+      firstBufferedRow && viewport && firstBufferedTop !== undefined
+        ? firstBufferedTop +
+          viewport.getBoundingClientRect().top -
+          firstBufferedRow.getBoundingClientRect().top
+        : state.scroll;
+    const visibleRange = resolveTimelineMinimapVisibleRange({ ...state, scroll });
+    for (const item of minimapItems) {
+      const strip = minimapStripMap.get(item.id);
+      const inView = isTimelineMinimapRowVisible(
+        item.rowIndex,
+        visibleRange.start,
+        visibleRange.end,
+      );
+      const next = inView ? "true" : "false";
+      // Avoid dirtying style state on every scroll tick for unchanged strips.
+      if (strip && strip.dataset.inView !== next) {
+        strip.dataset.inView = next;
+      }
+    }
+    const nextCurrentIndex = resolveTimelineMinimapCurrentIndex({
+      visibleStart: visibleRange.start,
+      visibleEnd: visibleRange.end,
+      rowIndices: minimapRowIndices,
+    });
+    setMinimapCurrentIndex((current) =>
+      current === nextCurrentIndex ? current : nextCurrentIndex,
+    );
+  });
+
+  const minimapRefreshFrameRef = useRef<number | null>(null);
+  const scheduleMinimapRefresh = () => {
+    if (minimapRefreshFrameRef.current !== null) return;
+    // LegendList recycles row containers before React commits their positions.
+    minimapRefreshFrameRef.current = requestAnimationFrame(() => {
+      minimapRefreshFrameRef.current = null;
+      refreshMinimap();
+    });
+  };
+
+  const onTimelinePositioned = useStableCallback((threadKey: string) => {
+    setPositionedThreadKey(threadKey);
+    scheduleMinimapRefresh();
+  });
   const { findOpenAtOpening } = identityChanged ? { findOpenAtOpening: findOpen } : listState;
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- restores LegendList's scroll position for the shown thread before paint, after the list's own layout
   useLayoutEffect(() => {
@@ -770,7 +833,7 @@ const ConversationTimeline = memo(function ConversationTimeline({
       rememberedPosition,
       citationPending: citationRequest !== null,
       releaseForFind: findOpenAtOpening,
-      onPositioned: setPositionedThreadKey,
+      onPositioned: onTimelinePositioned,
     });
   }, [
     citationRequest,
@@ -778,6 +841,7 @@ const ConversationTimeline = memo(function ConversationTimeline({
     listIdentityKey,
     listOpenedOn,
     listRef,
+    onTimelinePositioned,
     rememberedPosition,
     restoreReady,
   ]);
@@ -862,7 +926,6 @@ const ConversationTimeline = memo(function ConversationTimeline({
           ...(alwaysRenderKeys.length === 0 ? {} : { keys: alwaysRenderKeys }),
         };
   const [minimapHitStripWidth, setMinimapHitStripWidth] = useState(0);
-  const [minimapCurrentIndex, setMinimapCurrentIndex] = useState<number | null>(null);
   const handleAnchorReady = (info: { anchorIndex: number | undefined }) => {
     if (anchorMessageId !== null && info.anchorIndex !== undefined) {
       onAnchorReady(anchorMessageId, info.anchorIndex);
@@ -928,60 +991,6 @@ const ConversationTimeline = memo(function ConversationTimeline({
     onContentOverflowChange?.(measureContentOverflow());
     // oxlint-disable-next-line react/exhaustive-effect-dependencies -- rows.length and layout inputs trigger a re-measure; the effect reads them through the DOM
   }, [cancelContentOverflowFrame, measureContentOverflow, onContentOverflowChange, rows.length]);
-
-  const refreshMinimap = useStableCallback(() => {
-    const state = listRef.current?.getState?.();
-    if (restoringThreadPosition || state?.data !== rows) return;
-    if (!state || minimapItems.length === 0) {
-      return;
-    }
-
-    const firstBufferedIndex = state.startBuffered;
-    const firstBufferedRow: HTMLElement | undefined =
-      firstBufferedIndex == null ? undefined : state.elementAtIndex(firstBufferedIndex);
-    const firstBufferedTop =
-      firstBufferedIndex == null ? undefined : state.positionAtIndex(firstBufferedIndex);
-    const viewport = listRef.current?.getScrollableNode() ?? undefined;
-    // Cached row positions exclude the header and pending scroll adjustments.
-    const scroll =
-      firstBufferedRow && viewport && firstBufferedTop !== undefined
-        ? firstBufferedTop +
-          viewport.getBoundingClientRect().top -
-          firstBufferedRow.getBoundingClientRect().top
-        : state.scroll;
-    const visibleRange = resolveTimelineMinimapVisibleRange({ ...state, scroll });
-    for (const item of minimapItems) {
-      const strip = minimapStripMap.get(item.id);
-      const inView = isTimelineMinimapRowVisible(
-        item.rowIndex,
-        visibleRange.start,
-        visibleRange.end,
-      );
-      const next = inView ? "true" : "false";
-      // Avoid dirtying style state on every scroll tick for unchanged strips.
-      if (strip && strip.dataset.inView !== next) {
-        strip.dataset.inView = next;
-      }
-    }
-    const nextCurrentIndex = resolveTimelineMinimapCurrentIndex({
-      visibleStart: visibleRange.start,
-      visibleEnd: visibleRange.end,
-      rowIndices: minimapRowIndices,
-    });
-    setMinimapCurrentIndex((current) =>
-      current === nextCurrentIndex ? current : nextCurrentIndex,
-    );
-  });
-
-  const minimapRefreshFrameRef = useRef<number | null>(null);
-  const scheduleMinimapRefresh = () => {
-    if (minimapRefreshFrameRef.current !== null) return;
-    // LegendList recycles row containers before React commits their positions.
-    minimapRefreshFrameRef.current = requestAnimationFrame(() => {
-      minimapRefreshFrameRef.current = null;
-      refreshMinimap();
-    });
-  };
 
   const handleScroll = () => {
     handleHistoryPrefetch();
@@ -1346,14 +1355,42 @@ const ConversationTimeline = memo(function ConversationTimeline({
   );
   const listExtraData = { identity: listIdentityKey, rowCount: rows.length, sharedState };
 
-  const scrollToMinimapTurn = (item: TimelineMinimapItem) => {
+  const scrollToMinimapTurn = (item: TimelineMinimapItem, animated = true) => {
     navigateTimeline();
     void listRef.current?.scrollToIndex({
       index: item.rowIndex,
-      animated: !prefersReducedMotion,
+      animated: animated && !prefersReducedMotion,
       viewOffset: 24,
     });
   };
+
+  const heldTurnStepIndexRef = useRef<number | null>(null);
+  const stepTurn = useStableCallback((delta: -1 | 1, repeat: boolean) => {
+    if (minimapItems.length === 0) return false;
+    const index = resolveTimelineTurnStepIndex({
+      currentIndex: minimapCurrentIndex,
+      heldStepIndex: repeat ? heldTurnStepIndexRef.current : null,
+      delta,
+      itemCount: minimapItems.length,
+    });
+    const item = index === null ? undefined : minimapItems[index];
+    if (index === null || !item) return;
+    heldTurnStepIndexRef.current = index;
+    scrollToMinimapTurn(item, !repeat);
+  });
+  const isTurnStepLive = useStableCallback(() => !backgroundThread && isPaneInputOwner());
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- registers turn stepping with the shortcut dispatcher for the list's lifetime
+  useEffect(
+    () =>
+      registerCommands(
+        {
+          "conversation.previousTurn": ({ repeat }) => stepTurn(-1, repeat),
+          "conversation.nextTurn": ({ repeat }) => stepTurn(1, repeat),
+        },
+        { when: isTurnStepLive },
+      ),
+    [isTurnStepLive, stepTurn],
+  );
 
   const forwardMinimapWheel = (event: WheelEvent) => {
     const scrollNode = listRef.current?.getScrollableNode();

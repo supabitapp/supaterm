@@ -444,6 +444,19 @@ export function resolveTimelineMinimapCurrentIndex(input: {
   return precedingIndex;
 }
 
+/** A held key steps from its last target; the scroll it started has not moved the current turn yet. */
+export function resolveTimelineTurnStepIndex(input: {
+  readonly currentIndex: number | null;
+  readonly heldStepIndex: number | null;
+  readonly delta: -1 | 1;
+  readonly itemCount: number;
+}): number | null {
+  const base = input.heldStepIndex ?? input.currentIndex;
+  if (base === null) return null;
+  const next = base + input.delta;
+  return next >= 0 && next < input.itemCount ? next : null;
+}
+
 function resolveTimelineSideGutter(viewportWidth: number, contentWidth: number): number {
   if (!Number.isFinite(viewportWidth) || viewportWidth <= 0 || !Number.isFinite(contentWidth)) {
     return 0;

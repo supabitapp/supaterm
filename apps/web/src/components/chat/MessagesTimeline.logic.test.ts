@@ -35,6 +35,7 @@ import {
   type MessagesTimelineRow,
   resolveTimelineIsAtEnd,
   resolveTimelineToolPresentation,
+  resolveTimelineTurnStepIndex,
   withExitingWorktreeSetupRow,
   workEntryDisplayLabel,
 } from "./MessagesTimeline.logic";
@@ -107,6 +108,18 @@ describe("resolveTimelineIsAtEnd", () => {
     expect(resolveTimelineIsAtEnd(atEnd, -30)).toBe(true);
     expect(resolveTimelineIsAtEnd(atEnd, -100)).toBe(false);
     expect(resolveTimelineIsAtEnd({ ...atEnd, scroll: 300 }, 80)).toBe(true);
+  });
+});
+
+describe("resolveTimelineTurnStepIndex", () => {
+  it("steps from the current turn, or from the last target while the key is held", () => {
+    const step = { currentIndex: 2, heldStepIndex: null, itemCount: 4 } as const;
+    expect(resolveTimelineTurnStepIndex({ ...step, delta: -1 })).toBe(1);
+    expect(resolveTimelineTurnStepIndex({ ...step, delta: 1 })).toBe(3);
+    expect(resolveTimelineTurnStepIndex({ ...step, heldStepIndex: 1, delta: -1 })).toBe(0);
+    expect(resolveTimelineTurnStepIndex({ ...step, heldStepIndex: 0, delta: -1 })).toBeNull();
+    expect(resolveTimelineTurnStepIndex({ ...step, currentIndex: 3, delta: 1 })).toBeNull();
+    expect(resolveTimelineTurnStepIndex({ ...step, currentIndex: null, delta: -1 })).toBeNull();
   });
 });
 

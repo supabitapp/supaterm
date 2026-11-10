@@ -208,6 +208,16 @@ export const DEFAULT_KEYBINDINGS: ReadonlyArray<KeybindingRule> = [
   },
   { key: "mod+shift+enter", command: "thread.steerQueuedMessage", when: "!terminalFocus" },
   { key: "alt+arrowup", command: "thread.editQueuedMessage", when: "composerFocus" },
+  {
+    key: "alt+arrowup",
+    command: "conversation.previousTurn",
+    when: "!terminalFocus && !previewFocus && !editableFocus",
+  },
+  {
+    key: "alt+arrowdown",
+    command: "conversation.nextTurn",
+    when: "!terminalFocus && !previewFocus && !editableFocus",
+  },
   { key: "mod+enter", command: "composer.sendAlternate", when: "composerFocus && turnRunning" },
   {
     key: "mod+enter",
