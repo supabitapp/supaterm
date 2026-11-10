@@ -3,6 +3,7 @@ import type { EnvironmentThreadShell } from "@supaterm/client-runtime/state/mode
 import {
   isListedDoneThread,
   doneShelfFrontier,
+  sortOlderDoneScopes,
   unloadedOlderDoneCount,
   wantedOlderDonePages,
   type OlderDoneScope,
@@ -27,10 +28,11 @@ export function useOlderDoneShelf(input: {
   /** Rows the shelf shows; pages are read until it lists that many. */
   readonly visibleCount: number;
 }) {
-  const scopeKey = JSON.stringify(input.scopes);
+  const scopes = sortOlderDoneScopes(input.scopes);
+  const scopeKey = JSON.stringify(scopes);
   const [requested, setRequested] = useState({ scopeKey, pages: NO_PAGES });
   const pages = requested.scopeKey === scopeKey && input.expanded ? requested.pages : NO_PAGES;
-  const shelfScopes = input.scopes.map((scope) => ({
+  const shelfScopes = scopes.map((scope) => ({
     scope,
     pages: pages.get(scope.environmentId) ?? 0,
   }));
@@ -67,7 +69,7 @@ export function useOlderDoneShelf(input: {
     isListed: (thread: EnvironmentThreadShell) => isListedDoneThread(thread.source, frontier),
     /** Older done threads in scope that are not local; add it to the local Done rows. */
     unloadedCount: (threads: ReadonlyArray<EnvironmentThreadShell>) =>
-      unloadedOlderDoneCount({ olderDone: olderOf, scopes: input.scopes, threads }),
+      unloadedOlderDoneCount({ olderDone: olderOf, scopes, threads }),
     loading: loaded.some(({ scope }) => pagesOf(scope.environmentId)?.status === "pending"),
     failed: loaded.some(({ scope }) => pagesOf(scope.environmentId)?.status === "failed"),
     retry: () => {

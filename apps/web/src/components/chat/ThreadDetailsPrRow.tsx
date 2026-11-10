@@ -78,7 +78,7 @@ import {
   usePullRequestActionRunner,
   usePullRequestDefaultMergeMethod,
   usePullRequestHandoffs,
-  writePullRequestTaskToComposer,
+  writeHandoffToComposer,
 } from "../pullRequest/usePullRequestActions";
 import {
   ChangeRequestStatusIcon,
@@ -185,7 +185,6 @@ export function ThreadDetailsPrRow({
     reference,
     terminology,
     onSuccess: () => {
-      detailQuery.refresh();
       checksQuery.refresh();
       onActed?.();
     },
@@ -258,6 +257,8 @@ export function ThreadDetailsPrRow({
             url: detail.url,
             headBranch: detail.headBranch,
             baseBranch: detail.baseBranch,
+            state: detail.state,
+            isDraft: detail.isDraft,
             reviewThreads: [],
             comments: [],
             checks: detail.checks,
@@ -268,7 +269,7 @@ export function ThreadDetailsPrRow({
 
   const draftSubagentHandoff = (kind: HandoffKind) => {
     if (detail === null) return;
-    writePullRequestTaskToComposer(composerTarget, {
+    writeHandoffToComposer(composerTarget, {
       prompt:
         kind === "conflicts"
           ? buildSubagentResolveConflictsPrompt(detail)

@@ -51,6 +51,19 @@ function withEarlierSegmentUsage(
   return total;
 }
 
+/** The window each model in the SDK's `modelUsage` is measured against, as Claude Code resolved it. */
+export function claudeReportedContextWindows(modelUsage: unknown): ReadonlyMap<string, number> {
+  const windows = new Map<string, number>();
+  if (typeof modelUsage !== "object" || modelUsage === null) return windows;
+  for (const [model, entry] of Object.entries(modelUsage as Record<string, unknown>)) {
+    const window = finiteNonNegativeInteger(
+      (entry as Record<string, unknown> | null)?.contextWindow,
+    );
+    if (window !== undefined && window > 0) windows.set(model, window);
+  }
+  return windows;
+}
+
 export function normalizeClaudeTurnTokenUsage(
   result: { readonly subtype: SDKResultMessage["subtype"]; readonly usage?: unknown } | undefined,
   hasSubagents: boolean,

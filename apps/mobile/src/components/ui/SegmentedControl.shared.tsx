@@ -1,7 +1,7 @@
 import * as Haptics from "expo-haptics";
 import { useState } from "react";
 import { I18nManager, Platform, Pressable, View } from "react-native";
-import Animated, { useAnimatedStyle, withTiming } from "react-native-reanimated";
+import Animated, { useAnimatedStyle, useDerivedValue, withTiming } from "react-native-reanimated";
 
 import { useReduceMotion } from "../../lib/useReducedMotionPreference";
 import { segmentedControlColors } from "./segmentedControlColors";
@@ -20,10 +20,14 @@ export function SegmentedControl<Value extends string | number>(
   const reduceMotion = useReduceMotion();
   const selectedIndex = props.options.findIndex((option) => option.value === props.selected);
   const segmentWidth = props.options.length ? Math.max(0, width - 6) / props.options.length : 0;
-  const selectionOffset = selectedIndex * segmentWidth * (I18nManager.isRTL ? -1 : 1);
+  const direction = I18nManager.isRTL ? -1 : 1;
+  // The index animates, not the offset, so a resize moves the selection without sliding it.
+  const selectedPosition = useDerivedValue(() =>
+    withTiming(selectedIndex, { duration: 160, reduceMotion }),
+  );
   const selectionStyle = useAnimatedStyle(() => ({
     width: segmentWidth,
-    transform: [{ translateX: withTiming(selectionOffset, { duration: 160, reduceMotion }) }],
+    transform: [{ translateX: selectedPosition.value * segmentWidth * direction }],
   }));
   const { trackColor, selectedColor, selectedTextColor, mutedColor } = segmentedControlColors(
     colors,

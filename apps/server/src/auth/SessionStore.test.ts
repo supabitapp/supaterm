@@ -1,3 +1,4 @@
+import * as NodeCrypto from "@effect/platform-node/NodeCrypto";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { EnvironmentId } from "@supaterm/contracts";
 import { expect, it } from "@effect/vitest";
@@ -18,7 +19,8 @@ import * as ServerEnvironment from "../environment/ServerEnvironment.ts";
 import * as SqlitePersistence from "../persistence/Sqlite.ts";
 import * as SessionStore from "./SessionStore.ts";
 import * as ServerSecretStore from "./ServerSecretStore.ts";
-import { base64UrlDecodeUtf8, base64UrlEncode, signPayload } from "./utils.ts";
+import { base64UrlDecodeUtf8, base64UrlEncode } from "./utils.ts";
+import * as PayloadSigner from "./PayloadSigner.ts";
 
 const layerServerConfig = (overrides?: Partial<ServerConfig.ServerConfig["Service"]>) =>
   Layer.effect(
@@ -83,7 +85,7 @@ const makeDiskSessionStoreLayer = Effect.fn("makeDiskSessionStoreLayer")(functio
   );
 });
 
-it.layer(NodeServices.layer)("SessionStore.layer", (it) => {
+it.layer(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer))("SessionStore.layer", (it) => {
   it.effect.each(["revoke", "revokeAllExcept", "replace"] as const)(
     "invalidates every connection for a session on %s and leaves other sessions active",
     (operation) =>
@@ -278,11 +280,13 @@ it.layer(NodeServices.layer)("SessionStore.layer", (it) => {
       const issued = yield* sessions.issue({ subject: "one-time-token", scopes: recordedScopes });
       const [encodedPayload] = issued.token.split(".");
       const currentClaims = base64UrlDecodeUtf8(encodedPayload!);
-      const secret = yield* secrets.getOrCreateRandom("server-signing-key", 32);
+      const signer = yield* PayloadSigner.fromSecret(
+        yield* secrets.getOrCreateRandom("server-signing-key", 32),
+      );
       const editedPayload = base64UrlEncode(
         currentClaims.replace(/"scopes":\[[^\]]*\]/, '"scopes":["access:write"]'),
       );
-      const editedToken = `${editedPayload}.${signPayload(editedPayload, secret)}`;
+      const editedToken = `${editedPayload}.${yield* signer.sign(editedPayload)}`;
 
       expect((yield* sessions.verify(issued.token)).scopes).toEqual(recordedScopes);
       expect((yield* sessions.verify(editedToken)).scopes).toEqual(recordedScopes);

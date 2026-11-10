@@ -52,6 +52,17 @@ Then choose what the agent may do:
   threads in every project. A thread it starts or steers cannot run with more
   permissions than the mode you chose.
 
+A code from **Use in another app (MCP)** names its level, so the page does not
+ask again.
+
+## Give an app a sign-in code
+
+In **Settings → Sharing & access** on web or desktop, choose **Use in another
+app (MCP)** under Authorized clients. Add the URL to the app, pick what it may
+do (**Read only** is selected) and choose **Get code**. Enter the code on the
+sign-in page the app opens. It approves that one sign-in at the level you
+picked, once, and expires soon.
+
 ## Claude Code
 
 ```sh

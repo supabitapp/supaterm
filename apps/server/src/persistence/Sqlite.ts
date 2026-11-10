@@ -8,7 +8,7 @@ import * as NodeSqliteClient from "@supaterm/shared/nodeSqliteClient";
 import { runMigrations } from "./Migrations.ts";
 import * as ServerConfig from "../config.ts";
 
-const WAL_SIZE_LIMIT_BYTES = 32 * 1024 * 1024;
+const WAL_SIZE_LIMIT_BYTES = 128 * 1024 * 1024;
 
 const layerSetup = Layer.effectDiscard(
   Effect.gen(function* () {
@@ -40,7 +40,7 @@ const layerSetup = Layer.effectDiscard(
       yield* sql`DELETE FROM sqlite_stat1;`;
       yield* sql`ANALYZE sqlite_schema;`;
     }
-  }),
+  }).pipe(Effect.withSpan("Sqlite.setup")),
 );
 
 export const layerFromPath = Effect.fn("makeSqlitePersistenceLive")(function* (dbPath: string) {

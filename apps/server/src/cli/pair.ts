@@ -60,6 +60,7 @@ import {
   requireMatchingServerVersion,
   resolveCliWorktreeHome,
 } from "./config.ts";
+import { resolveHostCliCommand } from "./invocation.ts";
 
 const WELL_KNOWN_ENVIRONMENT_PATH = "/.well-known/supaterm/environment";
 const PAIR_PROBE_TIMEOUT = Duration.millis(2_500);
@@ -79,6 +80,7 @@ export class NoRunningServerError extends Schema.TaggedError<NoRunningServerErro
   {
     checkedStatePaths: Schema.Array(Schema.String),
     inLinkedWorktree: Schema.Boolean,
+    serveCommand: Schema.String,
   },
 ) {
   override get message(): string {
@@ -88,7 +90,7 @@ export class NoRunningServerError extends Schema.TaggedError<NoRunningServerErro
       ...(this.inLinkedWorktree
         ? ["In a linked worktree, pass --base-dir to pair with a server outside it."]
         : []),
-      "Start one with `supaterm serve`.",
+      `Start one with \`${this.serveCommand}\`.`,
     ].join("\n");
   }
 }
@@ -259,10 +261,11 @@ const discoverPairTarget = Effect.fn("pair.discoverPairTarget")(function* (
   explicitBaseDir: string | undefined,
 ) {
   const bases: Array<string> = [];
+  const hasExplicitBaseDir = explicitBaseDir !== undefined && explicitBaseDir.trim().length > 0;
   const worktreeHome = yield* resolveCliWorktreeHome(Option.fromUndefinedOr(explicitBaseDir));
   if (worktreeHome !== undefined) {
     bases.push(worktreeHome);
-  } else if (explicitBaseDir !== undefined && explicitBaseDir.trim().length > 0) {
+  } else if (hasExplicitBaseDir) {
     bases.push(yield* resolveBaseDir(explicitBaseDir));
   } else {
     const envHome = yield* Config.String("SUPATERM_HOME").pipe(Config.option);
@@ -301,9 +304,11 @@ const discoverPairTarget = Effect.fn("pair.discoverPairTarget")(function* (
       } satisfies DiscoveredPairTarget;
     }
   }
+  const baseDirArgs = hasExplicitBaseDir ? ["--base-dir", explicitBaseDir] : [];
   return yield* new NoRunningServerError({
     checkedStatePaths,
     inLinkedWorktree: worktreeHome !== undefined,
+    serveCommand: (yield* resolveHostCliCommand("serve", baseDirArgs)).command,
   });
 });
 

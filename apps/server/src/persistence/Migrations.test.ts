@@ -142,9 +142,10 @@ describe("runMigrations", () => {
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient;
       yield* runMigrations();
+      const nextId = migrationManifest.length + 1;
       const newer = [
-        [7, "ThreadFailureLookupIndex"],
-        [8, "FromANewerBuild"],
+        [nextId, "ThreadFailureLookupIndex"],
+        [nextId + 1, "FromANewerBuild"],
       ] as const;
       for (const [id, name] of newer) {
         yield* sql`INSERT INTO effect_sql_migrations (migration_id, name) VALUES (${id}, ${name})`;

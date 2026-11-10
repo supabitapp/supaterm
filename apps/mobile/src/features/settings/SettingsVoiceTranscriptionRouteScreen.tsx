@@ -14,10 +14,7 @@ import { AppText as Text } from "../../components/ui/AppText";
 import { ScreenScrollView as ScrollView } from "../../components/ui/ScreenScrollView";
 import { serverEnvironment } from "../../state/server";
 import { readEnvironmentScope, useEnvironmentScope } from "../../state/session";
-import {
-  AndroidSettingsEnvironmentFilter,
-  SettingsEnvironmentFilterHeader,
-} from "./components/SettingsEnvironmentFilterHeader";
+import { useSettingsEnvironmentMenu } from "./components/SettingsEnvironmentFilterHeader";
 import { ListChoiceRow as SettingsChoiceRow } from "../../components/ui/ListChoiceRow";
 import { SettingsScreen } from "./components/SettingsScreen";
 import { SettingsSection } from "./components/SettingsSection";
@@ -38,39 +35,37 @@ function providerStatus(provider: ServerProvider): string | null {
 /** Chooses whose account transcribes voice input on each environment, for every device. */
 export function SettingsVoiceTranscriptionRouteScreen() {
   const insets = useSafeAreaInsets();
+  const environmentMenu = useSettingsEnvironmentMenu();
   const { selectedTargets } = useSettingsEnvironmentFilter();
   return (
-    <>
-      <SettingsEnvironmentFilterHeader />
-      <SettingsScreen title="Voice transcription" trailing={<AndroidSettingsEnvironmentFilter />}>
-        <ScrollView
-          contentInsetAdjustmentBehavior="automatic"
-          showsVerticalScrollIndicator={false}
-          className="flex-1"
-          contentContainerClassName="gap-6 px-5 pt-4"
-          contentContainerStyle={{ paddingBottom: Math.max(insets.bottom, 18) + 18 }}
-        >
-          {selectedTargets.length === 0 ? (
-            <Text className="px-2 text-base text-foreground-muted">
-              Use the filter above to select a connected environment.
-            </Text>
-          ) : (
-            selectedTargets.map((target) => (
-              <EnvironmentTranscriptionSection
-                key={target.environmentId}
-                target={target}
-                title={selectedTargets.length > 1 ? target.label : "Transcribe with"}
-              />
-            ))
-          )}
-          <Text className="px-2 text-sm text-foreground-muted">
-            Recordings from every device that uses an environment are transcribed with the account
-            chosen here. Automatic uses the first ready login, Claude's first. If an account you
-            choose can't transcribe, voice input says why instead of using another account.
+    <SettingsScreen title="Voice transcription" menus={[environmentMenu]}>
+      <ScrollView
+        contentInsetAdjustmentBehavior="automatic"
+        showsVerticalScrollIndicator={false}
+        className="flex-1"
+        contentContainerClassName="gap-6 px-5 pt-4"
+        contentContainerStyle={{ paddingBottom: Math.max(insets.bottom, 18) + 18 }}
+      >
+        {selectedTargets.length === 0 ? (
+          <Text className="px-2 text-base text-foreground-muted">
+            Use the filter above to select a connected environment.
           </Text>
-        </ScrollView>
-      </SettingsScreen>
-    </>
+        ) : (
+          selectedTargets.map((target) => (
+            <EnvironmentTranscriptionSection
+              key={target.environmentId}
+              target={target}
+              title={selectedTargets.length > 1 ? target.label : "Transcribe with"}
+            />
+          ))
+        )}
+        <Text className="px-2 text-sm text-foreground-muted">
+          Recordings from every device that uses an environment are transcribed with the account
+          chosen here. Automatic uses the first ready login, Claude's first. If an account you
+          choose can't transcribe, voice input says why instead of using another account.
+        </Text>
+      </ScrollView>
+    </SettingsScreen>
   );
 }
 

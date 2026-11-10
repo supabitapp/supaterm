@@ -18,13 +18,12 @@ import { useAndroidControlSizing } from "./ui/useAndroidControlSizing";
 const ThemedSvg = withUniwind(Svg);
 
 export function ComposerSpeedToggle(props: {
-  readonly provider: string | null | undefined;
   readonly descriptors: ReadonlyArray<ProviderOptionDescriptor>;
   readonly disabled?: boolean;
   readonly onChange: (options: ReadonlyArray<ProviderOptionSelection>) => void;
 }) {
   const { scale } = useAndroidControlSizing();
-  const speedToggle = getSpeedToggle(props.provider, props.descriptors);
+  const speedToggle = getSpeedToggle(props.descriptors);
   if (!speedToggle) {
     return null;
   }

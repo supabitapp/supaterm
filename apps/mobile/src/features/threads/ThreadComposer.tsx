@@ -1,11 +1,11 @@
-import { useSidebarWorkspaceTabs } from "../workspace/useSystemWorkspaceTabBar";
+import { useSidebarWorkspaceTabs } from "../layout/workspace/useSystemWorkspaceTabBar";
 import { Button } from "../../components/ui/Button";
 import * as Dialog from "../../components/ui/Dialog";
 import { resolveSideChatCommand } from "@supaterm/client-runtime/state/side-chats";
 import type { VoiceRecordingHandOff } from "@supaterm/client-runtime/voice-input";
 import { useSideChat } from "./useSideChat";
 import type { ComposerTextPaste } from "../../native/SupatermComposerEditor.types";
-import { useAdaptiveWorkspaceLayout } from "../layout/AdaptiveWorkspaceLayout";
+import { useDeviceType } from "../../native/native-layout-metrics";
 import { useAppearancePreferences } from "../settings/appearance/AppearancePreferencesProvider";
 import type { EnvironmentThreadShell } from "@supaterm/client-runtime/state/shell";
 import { useAtomValue } from "@effect/atom-react";
@@ -33,7 +33,7 @@ import * as Haptics from "expo-haptics";
 import { Keyboard, Platform, View, type ViewStyle } from "react-native";
 import { composerImageGallery } from "../../lib/composerImageGallery";
 import { filePreviewGallery } from "../../lib/filePreviewGallery";
-import { FilePreviewModal, type FilePreviewSource } from "../../components/FilePreviewModal";
+import { FilePreviewModal, type FilePreviewSource } from "../../components/ui/FilePreviewModal";
 import {
   composerAttachmentUploadBlockReason,
   composerAttachmentsStillUploading,
@@ -73,7 +73,7 @@ import {
   ComposerAttachmentStrip,
   ComposerAttachmentThumbnail,
 } from "../../components/ComposerAttachmentStrip";
-import { VideoPreviewModal, type VideoPreviewSource } from "../../components/VideoPreviewModal";
+import { VideoPreviewModal, type VideoPreviewSource } from "../../components/ui/VideoPreviewModal";
 import { GlassSurface } from "../../components/ui/GlassSurface";
 import { ComposerEditor, type ComposerEditorHandle } from "../../components/ComposerEditor";
 import { fileRoutePathSegments } from "../files/filePath";
@@ -151,6 +151,8 @@ export interface ThreadComposerProps {
   readonly selectedThread: EnvironmentThreadShell;
   readonly reportedModelSelection?: ModelSelection | null;
   readonly hasCompactableConversation: boolean;
+  /** Arms a fresh session for the next message; absent where `/clear` is unavailable. */
+  readonly onFreshSession?: () => void;
   readonly serverConfig: SupatermServerConfig | null;
   readonly queueCount: number;
   readonly activeThreadBusy: boolean;
@@ -512,6 +514,7 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
     offersUsageLimits: usageLimitsOffered,
     onUsageLimits:
       usageLimitsOffered && draftAttachments.length === 0 ? openUsageLimits : undefined,
+    ...(props.onFreshSession === undefined ? {} : { onFreshSession: props.onFreshSession }),
   });
   const voiceInput = useVoiceInputController({
     ownerKey: composerDraftKey,
@@ -555,13 +558,13 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
   const isExpanded =
     !voiceInput.isBusy && (isFocused || settingsSheetPresentation.keepsComposerExpanded);
   // iPad workspace navigation is taller, so the collapsed row's controls grow to match.
-  const usesLargeControls =
-    useSidebarWorkspaceTabs() === "picker" || (Platform.OS === "ios" && Platform.isPad);
+  const sidebarWorkspaceTabs = useSidebarWorkspaceTabs();
+  const deviceType = useDeviceType();
+  const usesLargeControls = sidebarWorkspaceTabs === "picker" || deviceType === "pad";
   const rowControlSize = usesLargeControls && !isExpanded ? "large" : "regular";
   const compactSurfaceInset = usesLargeControls
     ? LARGE_COMPACT_SURFACE_INSET
     : COMPACT_SURFACE_INSET;
-  const { setComposerEditing } = useAdaptiveWorkspaceLayout();
   const showsCompactDictation = isVoiceInputPresented && !isExpanded;
   const isToolbarVisible = isExpanded || isVoiceInputPresented;
   const attachmentBlockReason = composerAttachmentUploadBlockReason({
@@ -588,8 +591,6 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
   useEffect(() => {
     onExpandedChange?.(isExpanded);
   }, [isExpanded, onExpandedChange]);
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- clears the workspace layout's composer-editing flag when the composer unmounts
-  useEffect(() => () => setComposerEditing(false), [setComposerEditing]);
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- cancels a pending sheet presentation or focus restore when the composer unmounts
   useEffect(() => () => disposeSettingsSheetPresentation(), []);
 
@@ -643,7 +644,6 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
     settingsSheetPresentation.onEditorFocusChange(true);
     onExpandedChange?.(true);
     onEditorFocusChange?.(true);
-    setComposerEditing(true);
   };
 
   const handleBlur = () => {
@@ -653,7 +653,6 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
       onExpandedChange?.(false);
     }
     onEditorFocusChange?.(false);
-    setComposerEditing(false);
   };
   const handleSend = async (followUp?: ActiveTurnComposerAction) => {
     if (
@@ -687,6 +686,7 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
     const threadKey = scopedThreadKey(props.environmentId, props.selectedThread.id);
     if (inFlightThreadIdsRef.current.has(threadKey)) return;
     inFlightThreadIdsRef.current.add(threadKey);
+    await inputRef.current?.flushPendingInput();
     const draftAtSend = getComposerDraftSnapshot(composerDraftKey);
     const stillSendable = () => {
       const draft = getComposerDraftSnapshot(composerDraftKey);
@@ -1185,7 +1185,6 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
                       />
                     </View>
                     <ComposerSpeedToggle
-                      provider={currentModelOption?.providerDriver}
                       descriptors={providerOptionDescriptors}
                       onChange={(options) =>
                         props.onUpdateModelSelection({ ...currentModelSelection, options })

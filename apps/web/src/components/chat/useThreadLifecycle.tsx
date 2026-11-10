@@ -10,7 +10,7 @@ import {
   makeThreadErrorSetter,
 } from "../ChatView.logic";
 import { useStableCallback } from "../../hooks/useStableCallback";
-import { useNowAfter } from "../../hooks/useDeadline";
+import { useDeadlinePassed, useNowAfter } from "../../hooks/useDeadline";
 import type { usePendingThreadRequests } from "./usePendingThreadRequests";
 import {
   AuthOrchestrationOperateScope,
@@ -25,6 +25,12 @@ import {
   snoozeWakeLabel,
   threadWokeAt,
 } from "@supaterm/client-runtime/state/thread-snooze";
+import {
+  BACKGROUND_WORK_STOP_RETRY_AFTER_MS,
+  type BackgroundWorkStopRequest,
+  isBackgroundWorkStopPending,
+  type RunStopPresentation,
+} from "@supaterm/client-runtime/state/thread-execution";
 import { useAcknowledgeThreadWoke, useThreadActions } from "../../hooks/useThreadActions";
 import { markDoneAndAdvance } from "../../markDoneAndAdvance";
 import type { ChatShortcutCommands } from "./useChatShortcuts";
@@ -67,7 +73,6 @@ import {
 } from "./ThreadActivityBanners";
 import { useForceStopThread } from "./useForceStopThread";
 import { useAtomValue } from "@effect/atom-react";
-import type { RunStopPresentation } from "@supaterm/client-runtime/state/thread-execution";
 import { Atom } from "effect/reactivity";
 import { environmentThreadDetails } from "../../state/threads";
 import { openSideChatBeside } from "../../chatPanes/actions";
@@ -93,6 +98,8 @@ interface ThreadLifecycleInput {
   readonly activeThreadKey: string | null;
   readonly activeThreadShell: EnvironmentThreadShell | null;
   readonly isServerThread: boolean;
+  /** The usage-limit recovery banner shows this snooze and its Wake now. */
+  readonly limitRecoveryHoldsSnooze: boolean;
   readonly activeLatestRun: EnvironmentThreadShell["latestRun"];
   readonly activeProjectCwd: string | null;
   readonly serverConfig: EnvironmentPresentation["serverConfig"] | null;
@@ -135,6 +142,7 @@ export function useThreadLifecycle(input: ThreadLifecycleInput) {
     activeThreadShell,
     isServerThread,
     activeLatestRun,
+    limitRecoveryHoldsSnooze,
     activeProjectCwd,
     serverConfig,
     runtimeMode,
@@ -375,22 +383,45 @@ export function useThreadLifecycle(input: ThreadLifecycleInput) {
   // last. Background work can outlive the turn and its stop button, so its banner is the only
   // visible stop; the interrupt path accepts a completed run while background work remains.
   const activeBackgroundTasks = !isWorking && activeThread ? pendingBackgroundTasks : [];
-  const [stoppingBackgroundWorkKey, setStoppingBackgroundWorkKey] = useState<string | null>(null);
+  const [backgroundWorkStops, setBackgroundWorkStops] = useState<
+    Record<string, BackgroundWorkStopRequest | undefined>
+  >({});
   const [backgroundTaskOutputHandle] = useState(PopoverCreateHandle<BackgroundTaskOutputTarget>);
-  const isStoppingBackgroundWork =
-    stoppingBackgroundWorkKey === `${environmentId}:${activeThreadId}`;
+  const backgroundWorkStop = backgroundWorkStops[`${environmentId}:${activeThreadId}`] ?? null;
+  const isStoppingBackgroundWork = isBackgroundWorkStopPending(
+    backgroundWorkStop,
+    `${environmentId}:${activeThreadId}`,
+    pendingBackgroundTasks,
+    useDeadlinePassed(backgroundWorkStop?.retryAt ?? null),
+  );
   const handleStopBackgroundWork = async () => {
-    if (!activeThread || !readEnvironmentScope(environmentId, AuthOrchestrationOperateScope))
+    if (
+      isStoppingBackgroundWork ||
+      !activeThread ||
+      !readEnvironmentScope(environmentId, AuthOrchestrationOperateScope)
+    )
       return;
-    const requestKey = `${environmentId}:${activeThread.id}`;
-    setStoppingBackgroundWorkKey(requestKey);
+    const request: BackgroundWorkStopRequest = {
+      threadKey: `${environmentId}:${activeThread.id}`,
+      taskIds: pendingBackgroundTasks.map((task) => task.taskId),
+      retryAt: null,
+    };
+    setBackgroundWorkStops((current) => ({ ...current, [request.threadKey]: request }));
     const result = await interruptThreadTurn({
       environmentId,
       input: { threadId: activeThread.id },
     });
-    // Acceptance does not confirm termination. Allow retry while the provider
-    // finishes stopping the tasks or reports a failure.
-    setStoppingBackgroundWorkKey((current) => (current === requestKey ? null : current));
+    setBackgroundWorkStops((current) =>
+      current[request.threadKey] !== request
+        ? current
+        : {
+            ...current,
+            [request.threadKey]:
+              result._tag === "Failure"
+                ? undefined
+                : { ...request, retryAt: Date.now() + BACKGROUND_WORK_STOP_RETRY_AFTER_MS },
+          },
+    );
     if (result._tag === "Failure") {
       if (!isAtomCommandInterrupted(result)) {
         const error = squashAtomCommandFailure(result);
@@ -546,13 +577,15 @@ export function useThreadLifecycle(input: ThreadLifecycleInput) {
       ? snoozeWakeLabel(activeSnoozedUntil, { now: `${nowMinute}:00.000Z` })
       : null;
     return activeThreadSnoozed ? (
-      <ThreadStatusLine
-        icon={<ClockSnoozeIcon />}
-        label={snoozeWake && snoozeWake !== "now" ? `Snoozed, ${snoozeWake} left` : "Snoozed"}
-        actionLabel={isUnsnoozing ? "Waking..." : "Wake now"}
-        actionDisabled={!canOperateThread || isUnsnoozing}
-        onAction={() => void handleUnsnoozeActiveThreadStable()}
-      />
+      limitRecoveryHoldsSnooze ? null : (
+        <ThreadStatusLine
+          icon={<ClockSnoozeIcon />}
+          label={snoozeWake && snoozeWake !== "now" ? `Snoozed, ${snoozeWake} left` : "Snoozed"}
+          actionLabel={isUnsnoozing ? "Waking..." : "Wake now"}
+          actionDisabled={!canOperateThread || isUnsnoozing}
+          onAction={() => void handleUnsnoozeActiveThreadStable()}
+        />
+      )
     ) : activeThreadDone ? (
       <ThreadStatusLine
         icon={<CircleCheckIcon />}

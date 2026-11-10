@@ -192,6 +192,8 @@ import { DotsThreeIcon as EllipsisSource } from "@phosphor-icons/react/dist/csr/
 export const EllipsisIcon = /* @__PURE__ */ withIconDefaults(EllipsisSource);
 import { DotsThreeVerticalIcon as EllipsisVerticalSource } from "@phosphor-icons/react/dist/csr/DotsThreeVertical";
 export const EllipsisVerticalIcon = /* @__PURE__ */ withIconDefaults(EllipsisVerticalSource);
+import { EraserIcon as EraserSource } from "@phosphor-icons/react/dist/csr/Eraser";
+export const EraserIcon = /* @__PURE__ */ withIconDefaults(EraserSource);
 import { ArrowsOutSimpleIcon as ExpandSource } from "@phosphor-icons/react/dist/csr/ArrowsOutSimple";
 export const ExpandIcon = /* @__PURE__ */ withIconDefaults(ExpandSource);
 import { ArrowSquareOutIcon as ExternalLinkSource } from "@phosphor-icons/react/dist/csr/ArrowSquareOut";
@@ -322,6 +324,8 @@ import { ListNumbersIcon as ListOrderedSource } from "@phosphor-icons/react/dist
 export const ListOrderedIcon = /* @__PURE__ */ withIconDefaults(ListOrderedSource);
 import { ListPlusIcon as ListPlusSource } from "@phosphor-icons/react/dist/csr/ListPlus";
 export const ListPlusIcon = /* @__PURE__ */ withIconDefaults(ListPlusSource);
+import { TreeViewIcon as ListTreeSource } from "@phosphor-icons/react/dist/csr/TreeView";
+export const ListTreeIcon = /* @__PURE__ */ withIconDefaults(ListTreeSource);
 import { SpinnerGapIcon as LoaderCircleSource } from "@phosphor-icons/react/dist/csr/SpinnerGap";
 export const LoaderCircleIcon = /* @__PURE__ */ withIconDefaults(LoaderCircleSource);
 import { LockIcon as LockSource } from "@phosphor-icons/react/dist/csr/Lock";

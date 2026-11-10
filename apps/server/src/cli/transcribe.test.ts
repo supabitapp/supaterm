@@ -1,5 +1,7 @@
 import { NodeHttpServer } from "@effect/platform-node";
 import * as NodeServices from "@effect/platform-node/NodeServices";
+import * as NodeCrypto from "@effect/platform-node/NodeCrypto";
+import * as AssetSigner from "../assets/AssetSigner.ts";
 import { assert, it } from "@effect/vitest";
 import {
   AttachmentCreateUploadUrlResult,
@@ -102,12 +104,15 @@ const withServer = <A, E, R>(
       },
     } as unknown as ProviderInstance;
     const server = Layer.mergeAll(
-      McpHttpServer.layerAttachmentToolkit,
-      McpHttpServer.layerTranscriptionToolkit,
+      McpHttpServer.layerMcpTransport(
+        Layer.mergeAll(
+          McpHttpServer.layerAttachmentToolkit,
+          McpHttpServer.layerTranscriptionToolkit,
+        ),
+      ),
       layerAttachmentUploadRoute,
     ).pipe(
       Layer.provide(McpPendingUploads.layer),
-      Layer.provideMerge(McpHttpServer.layerMcpTransport),
       Layer.provide(
         Layer.mock(McpSessionRegistry.McpSessionRegistry)({
           resolve: () => Effect.undefined,
@@ -160,11 +165,16 @@ const withServer = <A, E, R>(
       Layer.mergeAll(
         NodeHttpServer.layerTest,
         FetchHttpClient.layer,
-        ServerSecretStore.layer.pipe(
+        AssetSigner.layer.pipe(
+          Layer.provideMerge(ServerSecretStore.layer),
           Layer.provideMerge(
             ServerConfig.layerTest(process.cwd(), { prefix: "supaterm-transcribe-cli-" }),
           ),
-          Layer.provideMerge(DocumentText.layer.pipe(Layer.provideMerge(NodeServices.layer))),
+          Layer.provideMerge(
+            DocumentText.layer.pipe(
+              Layer.provideMerge(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer)),
+            ),
+          ),
         ),
       ),
     ),

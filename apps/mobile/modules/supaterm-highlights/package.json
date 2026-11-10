@@ -2,16 +2,8 @@
   "name": "@supaterm/mobile-highlights-native",
   "version": "0.0.0",
   "private": true,
-  "expo-module": {
-    "ios": {
-      "modules": [
-        "SupatermHighlightsModule"
-      ]
-    },
-    "android": {
-      "modules": [
-        "expo.modules.supatermhighlights.SupatermHighlightsModule"
-      ]
-    }
+  "types": "./src/SupatermHighlights.nitro.ts",
+  "peerDependencies": {
+    "react-native-nitro-modules": "*"
   }
 }

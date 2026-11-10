@@ -30,6 +30,7 @@ import {
   routesAfterRemoving,
   routeHttpBaseUrl,
   sendsTokenInClear,
+  upsertRoute,
   usableRoutes,
 } from "./routes.ts";
 
@@ -215,6 +216,20 @@ describe("connection routes", () => {
       environmentId,
       routes: [{ httpBaseUrl: "https://minim5.tail.ts.net/" }],
     });
+  });
+
+  it("puts a newly paired route ahead of saved routes of the same kind", () => {
+    const lan = route("http://192.168.1.10:3773/", "lan");
+    const tailnet = route("https://desk.tail1234.ts.net/", "tailnet");
+    const pasted = route("http://192.168.1.11:3773/", "lan-2");
+    expect(upsertRoute([lan, tailnet], pasted)).toEqual([pasted, lan, tailnet]);
+  });
+
+  it("keeps a newly paired route behind a different kind of the same rank", () => {
+    const vpn = route("http://100.101.102.103:3773/", "vpn");
+    const tailnet = route("https://desk.tail1234.ts.net/", "tailnet");
+    const pasted = route("http://[fd7a:115c:a1e0::2]:3773/", "ts-2");
+    expect(upsertRoute([vpn, tailnet], pasted)).toEqual([vpn, pasted, tailnet]);
   });
 
   it("shows a dragged order only until the saved routes catch up or change", () => {

@@ -83,6 +83,19 @@ const RESTRICTED_PULL_REQUEST_GLYPH_IMPORTS = {
 };
 
 export default defineConfig({
+  run: {
+    // Scripts stay uncached (the default); without a cache entry Vite+ 1.4 cannot depend on them.
+    cache: { scripts: false },
+    tasks: {
+      // The two knip passes read the same files and write nothing, so they run side by side.
+      // The `knip:check` script runs this task, so `vp run knip:check` and `pnpm run knip:check` both use it.
+      "knip:check:all": {
+        command: 'node -e ""',
+        dependsOn: ["knip:check:files", "knip:check:exports"],
+        cache: false,
+      },
+    },
+  },
   resolve: {
     alias: {
       "~": NodeURL.fileURLToPath(new URL("./apps/web/src", import.meta.url)),
@@ -167,6 +180,7 @@ export default defineConfig({
       // Vendored and generated C.
       "apps/mobile/modules/supaterm-highlights/Vendor/**",
       "apps/mobile/modules/supaterm-highlights/cpp/generated/**",
+      "apps/mobile/modules/supaterm-highlights/nitrogen/generated/**",
       "*.icon/**",
     ],
     sortPackageJson: {},
@@ -498,7 +512,7 @@ export default defineConfig({
         files: ["apps/mobile/src/**"],
         excludeFiles: [
           "apps/mobile/src/components/ui/AppSymbol.tsx",
-          "apps/mobile/src/components/ui/AppSymbol.ios.tsx",
+          "apps/mobile/src/components/ui/AppSymbol.android.tsx",
           "apps/mobile/src/features/pull-requests/pullRequestGlyphs.ts",
         ],
         rules: { "supaterm/no-mobile-pull-request-glyph-literals": "error" },
@@ -525,6 +539,10 @@ export default defineConfig({
       {
         files: ["apps/web/src/**"],
         rules: { "supaterm/no-outset-state-indicators": "error" },
+      },
+      {
+        files: ["apps/web/src/**"],
+        rules: { "supaterm/max-settings-description-length": "error" },
       },
       {
         files: ["apps/*/src/**", "packages/*/src/**"],
@@ -657,6 +675,7 @@ export default defineConfig({
           "apps/mobile/src/features/files/AttachmentFileScreen.tsx",
           "apps/mobile/src/features/files/ThreadFilesRouteScreen.tsx",
           "apps/mobile/src/features/files/thread-file-navigator-pane.tsx",
+          "apps/mobile/src/features/layout/nested-stacks.tsx",
           "apps/mobile/src/features/review/ReviewSheet.tsx",
           "apps/mobile/src/features/review/useNativeReviewDiffBridge.ts",
           "apps/mobile/src/features/settings/SettingsEnvironmentsRouteScreen.tsx",
@@ -664,8 +683,8 @@ export default defineConfig({
           "apps/mobile/src/features/threads/ThreadFeed.tsx",
           "apps/mobile/src/features/threads/ThreadQueueControl.tsx",
           "apps/mobile/src/features/review/ReviewCommentCard.tsx",
-          "apps/mobile/src/features/threads/ThreadSettingsSheet.tsx",
           "apps/mobile/src/features/threads/thread-list-v2-items.tsx",
+          "apps/mobile/src/components/ui/SecretTextInput.android.tsx",
           "apps/mobile/src/lib/useMobileNavigationTheme.ts",
           "apps/mobile/src/native/SupatermComposerEditor.ios.tsx",
           "apps/mobile/src/native/SupatermComposerEditor.native.tsx",

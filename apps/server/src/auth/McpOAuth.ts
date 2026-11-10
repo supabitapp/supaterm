@@ -17,7 +17,8 @@ import {
 import { encodeOAuthScope } from "@supaterm/shared/oauthScope";
 import * as Clock from "effect/Clock";
 import * as Context from "effect/Context";
-import * as Crypto from "effect/Crypto";
+import * as Digest from "effect/crypto/Digest";
+import * as SecureRandom from "effect/crypto/SecureRandom";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
@@ -29,15 +30,16 @@ import { HttpServerRequest } from "effect/http";
 import * as ServerEnvironment from "../environment/ServerEnvironment.ts";
 import * as McpHttpServer from "../mcp/McpHttpServer.ts";
 import type * as McpInvocationContext from "../mcp/McpInvocationContext.ts";
+import * as PayloadSigner from "./PayloadSigner.ts";
 import * as EnvironmentAuth from "./EnvironmentAuth.ts";
 import * as ServerSecretStore from "./ServerSecretStore.ts";
 import {
   base64UrlDecodeUtf8,
   base64UrlEncode,
   deriveAuthClientMetadata,
-  signPayload,
   timingSafeEqualBase64Url,
 } from "./utils.ts";
+import { requestUrl } from "../requestUrl.ts";
 
 // Request-derived origins support loopback, Tailscale and tunnels.
 // Signed client metadata keeps unauthenticated registration stateless.
@@ -60,7 +62,7 @@ export interface McpOAuthUrls {
 }
 
 export const requestUrls = (request: HttpServerRequest.HttpServerRequest): McpOAuthUrls => {
-  const origin = Option.match(HttpServerRequest.toURL(request), {
+  const origin = Option.match(requestUrl(request), {
     onNone: () => "http://localhost",
     onSome: (url) => url.origin,
   });
@@ -238,39 +240,40 @@ export const redirectForError = (error: McpOAuthRedirectError, issuer: string) =
 const make = Effect.gen(function* () {
   const environmentAuth = yield* EnvironmentAuth.EnvironmentAuth;
   const secretStore = yield* ServerSecretStore.ServerSecretStore;
-  const crypto = yield* Crypto.Crypto;
-  const signingKey = yield* secretStore
-    .getOrCreateRandom(SIGNING_SECRET_NAME, 32)
-    .pipe(Effect.orDie);
+  const random = yield* SecureRandom.SecureRandom;
+  const digester = yield* Digest.Digest;
+  const signer = yield* PayloadSigner.fromSecret(
+    yield* secretStore.getOrCreateRandom(SIGNING_SECRET_NAME, 32).pipe(Effect.orDie),
+  );
   const codes = yield* Ref.make<ReadonlyMap<string, PendingCode>>(new Map());
 
-  const sign = (domain: string, payload: string) => signPayload(`${domain}.${payload}`, signingKey);
+  const sign = (domain: string, payload: string) => signer.sign(`${domain}.${payload}`);
 
   const signClientId = (name: string, redirectUris: ReadonlyArray<string>) => {
     const body = base64UrlEncode(JSON.stringify({ v: 1, n: name, r: redirectUris }));
-    return `${body}.${sign("mcp-client-id", body)}`;
+    return sign("mcp-client-id", body).pipe(Effect.map((signature) => `${body}.${signature}`));
   };
 
-  const parseClientId = (clientId: string): McpOAuthClient | undefined => {
+  // Untraced: only called inside the traced McpOAuth methods below.
+  const parseClientId = Effect.fnUntraced(function* (
+    clientId: string,
+  ): Effect.fn.Return<McpOAuthClient | undefined> {
     const [body, signature, extra] = clientId.split(".");
     if (!body || !signature || extra !== undefined) return undefined;
-    if (!timingSafeEqualBase64Url(signature, sign("mcp-client-id", body))) return undefined;
-    let json: string;
-    try {
-      json = base64UrlDecodeUtf8(body);
-    } catch {
-      return undefined;
-    }
+    const verified = yield* signer.verify(`mcp-client-id.${body}`, signature);
+    if (!verified) return undefined;
+    const json = yield* Effect.try(() => base64UrlDecodeUtf8(body)).pipe(Effect.option);
+    if (Option.isNone(json)) return undefined;
     return Option.getOrUndefined(
-      decodeClientIdPayload(json).pipe(
+      decodeClientIdPayload(json.value).pipe(
         Option.map((payload) => ({ clientId, name: payload.n, redirectUris: payload.r })),
       ),
     );
-  };
+  });
 
   const pkceVerifies = (verifier: string, challenge: string) =>
     CODE_VERIFIER_PATTERN.test(verifier)
-      ? crypto.digest("SHA-256", new TextEncoder().encode(verifier)).pipe(
+      ? digester.digest(Digest.sha256, new TextEncoder().encode(verifier)).pipe(
           Effect.orDie,
           Effect.map((digest) => timingSafeEqualBase64Url(base64UrlEncode(digest), challenge)),
         )
@@ -309,14 +312,14 @@ const make = Effect.gen(function* () {
         });
       }
       // RFC 7591 allows ignoring unsupported registration options; all clients use public PKCE.
-      return { clientId: signClientId(name, redirectUris), name, redirectUris };
+      return { clientId: yield* signClientId(name, redirectUris), name, redirectUris };
     },
   );
 
   const validateAuthorization: McpOAuth["Service"]["validateAuthorization"] = Effect.fn(
     "McpOAuth.validateAuthorization",
   )(function* ({ urls, request }) {
-    const client = parseClientId(request.client_id ?? "");
+    const client = yield* parseClientId(request.client_id ?? "");
     if (client === undefined) {
       return yield* new McpOAuthPageError({
         description: "This sign-in link names an unknown app. Start the sign-in again from it.",
@@ -368,12 +371,14 @@ const make = Effect.gen(function* () {
     authorization,
   ) =>
     environmentAuth.authenticateBrowserSession(request).pipe(
-      Effect.map((session) =>
+      Effect.flatMap((session) =>
         // Approving manages access, and a session may only hand out scopes it holds.
         session.scopes.includes(AuthAccessWriteScope) &&
         session.scopes.includes(AuthOrchestrationReadScope)
-          ? { csrfToken: csrfToken(session.sessionId, authorization), scopes: session.scopes }
-          : undefined,
+          ? csrfToken(session.sessionId, authorization).pipe(
+              Effect.map((token) => ({ csrfToken: token, scopes: session.scopes })),
+            )
+          : Effect.undefined,
       ),
       Effect.orElseSucceed(() => undefined),
     );
@@ -383,9 +388,7 @@ const make = Effect.gen(function* () {
     access: AuthMcpClientAccess,
   ) {
     const now = yield* Clock.currentTimeMillis;
-    const code = Buffer.from(yield* crypto.randomBytes(32).pipe(Effect.orDie)).toString(
-      "base64url",
-    );
+    const code = Buffer.from(yield* random.randomBytes(32)).toString("base64url");
     yield* Ref.update(codes, (current) => {
       const next = new Map(Array.from(current).filter(([, pending]) => pending.expiresAtMs > now));
       next.set(code, {
@@ -404,8 +407,9 @@ const make = Effect.gen(function* () {
 
   const approve: McpOAuth["Service"]["approve"] = Effect.fn("McpOAuth.approve")(function* (input) {
     const { decision } = input;
+    let access = decision.access;
     if (decision._tag === "pairing-code") {
-      yield* environmentAuth.consumeMcpApprovalCode(decision.code, decision.access).pipe(
+      access = yield* environmentAuth.consumeMcpApprovalCode(decision.code, decision.access).pipe(
         Effect.catchIf(EnvironmentAuth.isServerAuthInternalError, (cause) =>
           Effect.logError("MCP approval code check failed.", { cause }).pipe(
             Effect.andThen(
@@ -432,10 +436,10 @@ const make = Effect.gen(function* () {
         });
       }
     }
-    const code = yield* mintCode(input.authorization, decision.access);
+    const code = yield* mintCode(input.authorization, access);
     yield* Effect.logInfo("Approved an MCP client sign-in.", {
       client: input.authorization.client.name,
-      access: decision.access,
+      access,
       method: decision._tag,
     });
     return redirectWith(input.authorization.redirectUri, {
@@ -468,7 +472,7 @@ const make = Effect.gen(function* () {
           "code, redirect_uri, client_id and code_verifier are required.",
         );
       }
-      if (parseClientId(clientId) === undefined) {
+      if ((yield* parseClientId(clientId)) === undefined) {
         return yield* fail("invalid_client", "The client is unknown.");
       }
       // A presented code is spent even when a later check fails (RFC 6749 §4.1.2).

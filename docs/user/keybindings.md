@@ -78,9 +78,15 @@ to show only actions.
 
 In a new thread, `Cmd+Shift+H` moves the draft to the next machine.
 
-In the composer, Return sends and `Shift+Return` inserts a new line. `Cmd+Return`
-also sends. To make Return insert a new line instead, change the Return key
-behavior in Settings → Keyboard.
+In the composer, Return sends and `Shift+Return` inserts a new line. While a
+turn is running, `Cmd+Return` sends with the other follow-up action. To make
+Return insert a new line instead, change the Return key behavior in Settings →
+Keyboard; `Cmd+Return` then sends.
+
+## Android
+
+With a hardware keyboard, the composer handles Return as on iPad, with `Ctrl` in
+place of `Cmd`. The on-screen keyboard's Return always inserts a new line.
 
 ## Edit the configuration file
 
@@ -116,9 +122,11 @@ Join modifiers and a key with `+`, such as `mod+shift+d` or `ctrl+l`.
 ## When conditions
 
 Available context keys are `terminalFocus`, `terminalOpen`, `previewFocus`,
-`previewOpen`, `modelPickerOpen`, `projectPickerOpen`, `hostPickerOpen`,
+`previewOpen`, `rightPanelOpen`, `modelPickerOpen`, `projectPickerOpen`, `hostPickerOpen`,
 `branchPickerOpen`, `usagePageOpen`, `composerFocus`, `draftThreadRoute`,
 `turnRunning`, `editableFocus`, `textSelected`, `paneClosable`, `isWeb`, and `isDesktop`.
+`rightPanelOpen` applies only to `rightPanel.new` and is true while the right panel is
+open; the default `mod+t` uses it to open the panel's new-tab menu.
 `paneClosable` is true while [threads are side by side](./thread-sidebar.md#open-threads-side-by-side)
 and the focused pane has no right panel open.
 `draftThreadRoute` is true on a draft thread, including a restored draft, until it is first sent.

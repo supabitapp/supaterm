@@ -22,10 +22,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { RUNTIME_MODE_CHOICES } from "../threads/thread-settings-options";
 import { SettingsScreen } from "./components/SettingsScreen";
-import {
-  AndroidSettingsEnvironmentFilter,
-  SettingsEnvironmentFilterHeader,
-} from "./components/SettingsEnvironmentFilterHeader";
+import { useSettingsEnvironmentMenu } from "./components/SettingsEnvironmentFilterHeader";
 import { BranchNamingSettings } from "./components/BranchNamingSettings";
 import { ThreadTitleInstructionsSettings } from "./components/ThreadTitleInstructionsSettings";
 import { DatabaseStorageNotice } from "./components/DatabaseStorageNotice";
@@ -149,6 +146,7 @@ export function SettingsEnvironmentMaintenanceRouteScreen() {
 }
 
 function ServerSettingsDetail(props: { readonly page: SettingsPage }) {
+  const environmentMenu = useSettingsEnvironmentMenu();
   const insets = useSafeAreaInsets();
   const navigation = useNavigation();
   const { selectedTargets, projectGroups, selectedProjectKey } = useSettingsEnvironmentFilter();
@@ -243,278 +241,298 @@ function ServerSettingsDetail(props: { readonly page: SettingsPage }) {
       ));
 
   return (
-    <>
-      <SettingsEnvironmentFilterHeader />
-      <SettingsScreen
-        title={PAGE_TITLES[props.page]}
-        trailing={<AndroidSettingsEnvironmentFilter />}
+    <SettingsScreen title={PAGE_TITLES[props.page]} menus={[environmentMenu]}>
+      <ScrollView
+        contentInsetAdjustmentBehavior="automatic"
+        showsVerticalScrollIndicator={false}
+        className="flex-1"
+        contentContainerClassName="gap-6 px-5 pt-4"
+        contentContainerStyle={{ paddingBottom: Math.max(insets.bottom, 18) + 18 }}
       >
-        <ScrollView
-          contentInsetAdjustmentBehavior="automatic"
-          showsVerticalScrollIndicator={false}
-          className="flex-1"
-          contentContainerClassName="gap-6 px-5 pt-4"
-          contentContainerStyle={{ paddingBottom: Math.max(insets.bottom, 18) + 18 }}
-        >
-          {!hasConnectedSelection || reference === null ? (
-            <Text className="px-2 text-base text-foreground-muted">
-              {projectSelected
-                ? "Select a project with a checkout on a connected environment."
-                : "Use the filter above to select a connected environment."}
-            </Text>
-          ) : (
-            <>
-              {projectSelected ? (
-                <SettingsProjectOverridesSection
-                  projectLabel={selectedProject?.label ?? "Unavailable project"}
-                  hasOverrides={targets.some((target) =>
-                    PAGE_PROJECT_KEYS[props.page].some((key) => target.sources[key] === "project"),
-                  )}
-                  pending={pendingWrites > 0}
-                  disabled={!canWriteSettings}
-                  onClear={clearProjectOverrides}
+        {!hasConnectedSelection || reference === null ? (
+          <Text className="px-2 text-base text-foreground-muted">
+            {projectSelected
+              ? "Select a project with a checkout on a connected environment."
+              : "Use the filter above to select a connected environment."}
+          </Text>
+        ) : (
+          <>
+            {projectSelected ? (
+              <SettingsProjectOverridesSection
+                projectLabel={selectedProject?.label ?? "Unavailable project"}
+                hasOverrides={targets.some((target) =>
+                  PAGE_PROJECT_KEYS[props.page].some((key) => target.sources[key] === "project"),
+                )}
+                pending={pendingWrites > 0}
+                disabled={!canWriteSettings}
+                onClear={clearProjectOverrides}
+              />
+            ) : null}
+            {props.page === "threads" ? (
+              <>
+                <SettingsSection
+                  title="Default workspace"
+                  trailing={
+                    pendingWrites === 0 && isMixed("defaultThreadEnvMode") ? (
+                      <MixedValuesLabel projectSelected={projectSelected} />
+                    ) : null
+                  }
+                >
+                  {WORKSPACE_CHOICES.flatMap((choice) =>
+                    choice.mode !== null || !projectSelected ? [choice] : [],
+                  ).map((choice, index) => (
+                    <SettingsChoiceRow
+                      key={choice.mode ?? "inherit"}
+                      label={choice.label}
+                      description={choice.description}
+                      selected={
+                        !isMixed("defaultThreadEnvMode") &&
+                        uniform("defaultThreadEnvMode") === choice.mode
+                      }
+                      separated={index > 0}
+                      disabled={disabledFor("defaultThreadEnvMode")}
+                      onPress={() => write({ defaultThreadEnvMode: choice.mode })}
+                    />
+                  ))}
+                </SettingsSection>
+                <SettingsSection
+                  title="Default permissions"
+                  trailing={
+                    pendingWrites === 0 && uniform("defaultRuntimeMode") === null ? (
+                      <MixedValuesLabel projectSelected={projectSelected} />
+                    ) : null
+                  }
+                >
+                  {RUNTIME_MODE_CHOICES.map((choice, index) => (
+                    <SettingsChoiceRow
+                      key={choice.mode}
+                      label={choice.label}
+                      description={choice.description}
+                      selected={uniform("defaultRuntimeMode") === choice.mode}
+                      separated={index > 0}
+                      disabled={disabledFor("defaultRuntimeMode")}
+                      onPress={() => write({ defaultRuntimeMode: choice.mode })}
+                    />
+                  ))}
+                </SettingsSection>
+                <ThreadTitleInstructionsSettings
+                  key={targetsKey}
+                  instructions={uniform("threadTitleInstructions")}
+                  disabled={disabledFor("threadTitleInstructions")}
+                  onChange={write}
                 />
-              ) : null}
-              {props.page === "threads" ? (
-                <>
-                  <SettingsSection
-                    title="Default workspace"
-                    trailing={
-                      pendingWrites === 0 && isMixed("defaultThreadEnvMode") ? (
-                        <MixedValuesLabel projectSelected={projectSelected} />
-                      ) : null
+                <SettingsSection
+                  title="Response streaming"
+                  trailing={
+                    pendingWrites === 0 && uniform("responseStreamingMode") === null ? (
+                      <MixedValuesLabel projectSelected={projectSelected} />
+                    ) : null
+                  }
+                >
+                  {STREAMING_CHOICES.map((choice, index) => (
+                    <SettingsChoiceRow
+                      key={choice.mode}
+                      label={choice.label}
+                      description={choice.description}
+                      selected={uniform("responseStreamingMode") === choice.mode}
+                      separated={index > 0}
+                      disabled={disabledFor("responseStreamingMode")}
+                      onPress={() => write({ responseStreamingMode: choice.mode })}
+                    />
+                  ))}
+                </SettingsSection>
+                <SettingsSection title="Composer">
+                  <SettingsSwitchRow
+                    icon="text.bubble"
+                    label="Next prompt suggestions"
+                    subtitle={
+                      projectSelected
+                        ? "Environment-wide setting. Select All projects to change it."
+                        : "After Claude or Codex replies, suggest what you might send next. Threads on other providers get no suggestions."
                     }
-                  >
-                    {WORKSPACE_CHOICES.flatMap((choice) =>
-                      choice.mode !== null || !projectSelected ? [choice] : [],
-                    ).map((choice, index) => (
-                      <SettingsChoiceRow
-                        key={choice.mode ?? "inherit"}
-                        label={choice.label}
-                        description={choice.description}
-                        selected={
-                          !isMixed("defaultThreadEnvMode") &&
-                          uniform("defaultThreadEnvMode") === choice.mode
-                        }
-                        separated={index > 0}
-                        disabled={disabledFor("defaultThreadEnvMode")}
-                        onPress={() => write({ defaultThreadEnvMode: choice.mode })}
-                      />
-                    ))}
-                  </SettingsSection>
-                  <SettingsSection
-                    title="Default permissions"
-                    trailing={
-                      pendingWrites === 0 && uniform("defaultRuntimeMode") === null ? (
-                        <MixedValuesLabel projectSelected={projectSelected} />
-                      ) : null
-                    }
-                  >
-                    {RUNTIME_MODE_CHOICES.map((choice, index) => (
-                      <SettingsChoiceRow
-                        key={choice.mode}
-                        label={choice.label}
-                        description={choice.description}
-                        selected={uniform("defaultRuntimeMode") === choice.mode}
-                        separated={index > 0}
-                        disabled={disabledFor("defaultRuntimeMode")}
-                        onPress={() => write({ defaultRuntimeMode: choice.mode })}
-                      />
-                    ))}
-                  </SettingsSection>
-                  <ThreadTitleInstructionsSettings
-                    key={targetsKey}
-                    instructions={uniform("threadTitleInstructions")}
-                    disabled={disabledFor("threadTitleInstructions")}
-                    onChange={write}
+                    value={uniform("nextPromptSuggestionsEnabled")}
+                    disabled={disabledFor("nextPromptSuggestionsEnabled")}
+                    onValueChange={(value) => write({ nextPromptSuggestionsEnabled: value })}
                   />
-                  <SettingsSection
-                    title="Response streaming"
-                    trailing={
-                      pendingWrites === 0 && uniform("responseStreamingMode") === null ? (
-                        <MixedValuesLabel projectSelected={projectSelected} />
-                      ) : null
-                    }
-                  >
-                    {STREAMING_CHOICES.map((choice, index) => (
-                      <SettingsChoiceRow
-                        key={choice.mode}
-                        label={choice.label}
-                        description={choice.description}
-                        selected={uniform("responseStreamingMode") === choice.mode}
-                        separated={index > 0}
-                        disabled={disabledFor("responseStreamingMode")}
-                        onPress={() => write({ responseStreamingMode: choice.mode })}
-                      />
-                    ))}
-                  </SettingsSection>
-                  <SettingsSection title="Composer">
+                </SettingsSection>
+                <OrchestrationSkillsSection
+                  key={selectedTargets
+                    .map((target) => target.environmentId)
+                    .sort()
+                    .join(",")}
+                  environments={selectedTargets}
+                />
+                <SettingsSection title="Preview browser">
+                  <SettingsSwitchRow
+                    icon="globe"
+                    label="Agent browser access"
+                    subtitle="Allow agents to use the in-app preview browser."
+                    value={uniform("enableAgentBrowserAccess")}
+                    disabled={disabledFor("enableAgentBrowserAccess")}
+                    onValueChange={(value) => write({ enableAgentBrowserAccess: value })}
+                  />
+                </SettingsSection>
+                <ThreadBehaviorSettingsRows
+                  targets={displayTargets}
+                  projectSelected={projectSelected}
+                  disabled={disabled}
+                  write={write}
+                />
+              </>
+            ) : null}
+
+            {props.page === "source-control" ? (
+              <>
+                <SettingsSection title="Pull requests">
+                  <SettingsSwitchRow
+                    icon={PullRequestGlyph.merged}
+                    label="Remove agent credits when merging"
+                    subtitle="Remove recognized agent credits from merge and squash messages on hosts that support it, keeping human co-authors. Includes auto-merge. Excludes merge queues, stack merges, and existing commits."
+                    value={uniform("removeAgentCreditsOnMerge")}
+                    disabled={disabledFor("removeAgentCreditsOnMerge")}
+                    onValueChange={(value) => write({ removeAgentCreditsOnMerge: value })}
+                  />
+                </SettingsSection>
+                <SettingsSection title="Default branch">
+                  <SettingsSwitchRow
+                    icon="arrow.down.circle"
+                    label="Automatically pull"
+                    subtitle="Keep the default branch current when there are no local changes."
+                    value={uniform("defaultAutoPull")}
+                    disabled={disabledFor("defaultAutoPull")}
+                    onValueChange={(value) => write({ defaultAutoPull: value })}
+                  />
+                </SettingsSection>
+                <SettingsSection title="Clones">
+                  <SettingsSwitchRow
+                    icon="folder"
+                    label="Clone into host folders"
+                    subtitle="Clones go to github.com/owner/repo under the Add project folder, like ghq."
+                    value={uniform("ghqCloneLayout")}
+                    disabled={disabledFor("ghqCloneLayout")}
+                    onValueChange={(value) => write({ ghqCloneLayout: value })}
+                  />
+                </SettingsSection>
+              </>
+            ) : null}
+
+            {props.page === "worktrees" ? (
+              <>
+                <SettingsSection title="New worktrees">
+                  <SettingsSwitchRow
+                    icon="arrow.triangle.branch"
+                    label="Start from remote"
+                    subtitle="Uses the latest commit of the base branch’s tracked remote branch, even if its name differs. Otherwise uses the same-named branch on origin. Uses your local branch if that remote branch is missing."
+                    value={uniform("newWorktreesStartFromOrigin")}
+                    disabled={disabledFor("newWorktreesStartFromOrigin")}
+                    onValueChange={(value) => write({ newWorktreesStartFromOrigin: value })}
+                  />
+                  {displayTargets.every(
+                    (target) =>
+                      target.environment.serverConfig.environment.capabilities
+                        .fastWorktreeCheckout === true,
+                  ) ? (
                     <SettingsSwitchRow
-                      icon="text.bubble"
-                      label="Next prompt suggestions"
+                      icon={{ ios: "bolt.circle", android: "bolt" }}
+                      label="Fast worktree checkout"
                       subtitle={
                         projectSelected
                           ? "Environment-wide setting. Select All projects to change it."
-                          : "After Claude or Codex replies, suggest what you might send next. Threads on other providers get no suggestions."
+                          : "On a Mac, clone new worktrees from a checkout cached in the Supaterm home folder instead of writing every file. Uses Git’s normal checkout when it can’t. Turning it off deletes the cache."
                       }
-                      value={uniform("nextPromptSuggestionsEnabled")}
-                      disabled={disabledFor("nextPromptSuggestionsEnabled")}
-                      onValueChange={(value) => write({ nextPromptSuggestionsEnabled: value })}
+                      value={uniform("fastWorktreeCheckout")}
+                      disabled={disabledFor("fastWorktreeCheckout")}
+                      onValueChange={(value) => write({ fastWorktreeCheckout: value })}
                     />
-                  </SettingsSection>
-                  <OrchestrationSkillsSection
-                    key={selectedTargets
-                      .map((target) => target.environmentId)
-                      .sort()
-                      .join(",")}
-                    environments={selectedTargets}
-                  />
-                  <SettingsSection title="Preview browser">
-                    <SettingsSwitchRow
-                      icon="globe"
-                      label="Agent browser access"
-                      subtitle="Allow agents to use the in-app preview browser."
-                      value={uniform("enableAgentBrowserAccess")}
-                      disabled={disabledFor("enableAgentBrowserAccess")}
-                      onValueChange={(value) => write({ enableAgentBrowserAccess: value })}
-                    />
-                  </SettingsSection>
-                  <ThreadBehaviorSettingsRows
-                    targets={displayTargets}
-                    projectSelected={projectSelected}
-                    disabled={disabled}
-                    write={write}
-                  />
-                </>
-              ) : null}
-
-              {props.page === "source-control" ? (
-                <>
-                  <SettingsSection title="Pull requests">
-                    <SettingsSwitchRow
-                      icon={PullRequestGlyph.merged}
-                      label="Remove agent credits when merging"
-                      subtitle="Remove recognized agent credits from merge and squash messages on hosts that support it, keeping human co-authors. Includes auto-merge. Excludes merge queues, stack merges, and existing commits."
-                      value={uniform("removeAgentCreditsOnMerge")}
-                      disabled={disabledFor("removeAgentCreditsOnMerge")}
-                      onValueChange={(value) => write({ removeAgentCreditsOnMerge: value })}
-                    />
-                  </SettingsSection>
-                  <SettingsSection title="Default branch">
-                    <SettingsSwitchRow
-                      icon="arrow.down.circle"
-                      label="Automatically pull"
-                      subtitle="Keep the default branch current when there are no local changes."
-                      value={uniform("defaultAutoPull")}
-                      disabled={disabledFor("defaultAutoPull")}
-                      onValueChange={(value) => write({ defaultAutoPull: value })}
-                    />
-                  </SettingsSection>
-                </>
-              ) : null}
-
-              {props.page === "worktrees" ? (
-                <>
-                  <SettingsSection title="New worktrees">
-                    <SettingsSwitchRow
-                      icon="arrow.triangle.branch"
-                      label="Start from remote"
-                      subtitle="Uses the latest commit of the base branch’s tracked remote branch, even if its name differs. Otherwise uses the same-named branch on origin. Uses your local branch if that remote branch is missing."
-                      value={uniform("newWorktreesStartFromOrigin")}
-                      disabled={disabledFor("newWorktreesStartFromOrigin")}
-                      onValueChange={(value) => write({ newWorktreesStartFromOrigin: value })}
-                    />
-                  </SettingsSection>
-                  <SettingsSection
-                    title="Worktree submodules"
-                    trailing={
-                      pendingWrites === 0 && isMixed("worktreeSubmodules") ? (
-                        <MixedValuesLabel projectSelected={projectSelected} />
-                      ) : null
-                    }
-                  >
-                    {SUBMODULE_CHOICES.flatMap((choice) =>
-                      choice.mode !== null || !projectSelected ? [choice] : [],
-                    ).map((choice, index) => (
-                      <SettingsChoiceRow
-                        key={choice.mode ?? "inherit"}
-                        label={choice.label}
-                        description={choice.description}
-                        selected={
-                          !isMixed("worktreeSubmodules") &&
-                          uniform("worktreeSubmodules") === choice.mode
-                        }
-                        separated={index > 0}
-                        disabled={disabledFor("worktreeSubmodules")}
-                        onPress={() => write({ worktreeSubmodules: choice.mode })}
-                      />
-                    ))}
-                  </SettingsSection>
-                  <BranchNamingSettings
-                    key={targetsKey}
-                    mode={uniform("branchNamingMode")}
-                    prefixFromRepository={uniform("branchNamePrefixFromRepository")}
-                    prefix={uniform("branchNamePrefix")}
-                    instructions={uniform("branchNameInstructions")}
-                    disabled={disabledFor("branchNamingMode")}
-                    onChange={write}
-                  />
-                </>
-              ) : null}
-
-              {props.page === "maintenance" ? (
-                <>
-                  {!projectSelected ? <DatabaseStorageNotice targets={selectedTargets} /> : null}
-                  {!projectSelected ? (
-                    <SettingsSection title="Manage environments">
-                      {selectedTargets.map((target) => (
-                        <SettingsRow
-                          key={target.environmentId}
-                          icon="server.rack"
-                          label={target.label}
-                          value="Server and provider updates"
-                          onPress={() =>
-                            navigation.navigate("SettingsEnvironmentDetail", {
-                              environmentId: target.environmentId,
-                            })
-                          }
-                        />
-                      ))}
-                    </SettingsSection>
                   ) : null}
-                  <SettingsSection title="Updates">
-                    <SettingsSwitchRow
-                      icon="arrow.clockwise"
-                      label="Check provider updates"
-                      subtitle={
-                        projectSelected
-                          ? "Environment-wide setting. Select All projects to change it."
-                          : "Check installed provider CLIs for newer versions and fetch model catalog updates. When off, new models may not appear."
+                </SettingsSection>
+                <SettingsSection
+                  title="Worktree submodules"
+                  trailing={
+                    pendingWrites === 0 && isMixed("worktreeSubmodules") ? (
+                      <MixedValuesLabel projectSelected={projectSelected} />
+                    ) : null
+                  }
+                >
+                  {SUBMODULE_CHOICES.flatMap((choice) =>
+                    choice.mode !== null || !projectSelected ? [choice] : [],
+                  ).map((choice, index) => (
+                    <SettingsChoiceRow
+                      key={choice.mode ?? "inherit"}
+                      label={choice.label}
+                      description={choice.description}
+                      selected={
+                        !isMixed("worktreeSubmodules") &&
+                        uniform("worktreeSubmodules") === choice.mode
                       }
-                      value={uniform("enableProviderUpdateChecks")}
-                      disabled={disabledFor("enableProviderUpdateChecks")}
-                      onValueChange={(value) => write({ enableProviderUpdateChecks: value })}
+                      separated={index > 0}
+                      disabled={disabledFor("worktreeSubmodules")}
+                      onPress={() => write({ worktreeSubmodules: choice.mode })}
                     />
-                    <View className="border-t border-border-subtle">
-                      <SettingsSwitchRow
-                        icon="arrow.uturn.forward"
-                        label="Continue after restart"
-                        subtitle="Resume interrupted threads after an update or restart."
-                        value={uniform("continueThreadsAfterServerUpdate")}
-                        disabled={disabledFor("continueThreadsAfterServerUpdate")}
-                        onValueChange={(value) =>
-                          write({ continueThreadsAfterServerUpdate: value })
+                  ))}
+                </SettingsSection>
+                <BranchNamingSettings
+                  key={targetsKey}
+                  mode={uniform("branchNamingMode")}
+                  prefixFromRepository={uniform("branchNamePrefixFromRepository")}
+                  prefix={uniform("branchNamePrefix")}
+                  instructions={uniform("branchNameInstructions")}
+                  disabled={disabledFor("branchNamingMode")}
+                  onChange={write}
+                />
+              </>
+            ) : null}
+
+            {props.page === "maintenance" ? (
+              <>
+                {!projectSelected ? <DatabaseStorageNotice targets={selectedTargets} /> : null}
+                {!projectSelected ? (
+                  <SettingsSection title="Manage environments">
+                    {selectedTargets.map((target) => (
+                      <SettingsRow
+                        key={target.environmentId}
+                        icon="server.rack"
+                        label={target.label}
+                        value="Server and provider updates"
+                        onPress={() =>
+                          navigation.navigate("SettingsEnvironmentDetail", {
+                            environmentId: target.environmentId,
+                          })
                         }
                       />
-                    </View>
+                    ))}
                   </SettingsSection>
-                </>
-              ) : null}
-            </>
-          )}
-        </ScrollView>
-      </SettingsScreen>
-    </>
+                ) : null}
+                <SettingsSection title="Updates">
+                  <SettingsSwitchRow
+                    icon="arrow.clockwise"
+                    label="Check provider updates"
+                    subtitle={
+                      projectSelected
+                        ? "Environment-wide setting. Select All projects to change it."
+                        : "Check installed provider CLIs for newer versions and fetch model catalog updates. When off, new models may not appear."
+                    }
+                    value={uniform("enableProviderUpdateChecks")}
+                    disabled={disabledFor("enableProviderUpdateChecks")}
+                    onValueChange={(value) => write({ enableProviderUpdateChecks: value })}
+                  />
+                  <View className="border-t border-border-subtle">
+                    <SettingsSwitchRow
+                      icon="arrow.uturn.forward"
+                      label="Continue after restart"
+                      subtitle="Resume interrupted threads after an update or restart."
+                      value={uniform("continueThreadsAfterServerUpdate")}
+                      disabled={disabledFor("continueThreadsAfterServerUpdate")}
+                      onValueChange={(value) => write({ continueThreadsAfterServerUpdate: value })}
+                    />
+                  </View>
+                </SettingsSection>
+              </>
+            ) : null}
+          </>
+        )}
+      </ScrollView>
+    </SettingsScreen>
   );
 }
 

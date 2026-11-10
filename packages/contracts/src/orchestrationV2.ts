@@ -250,6 +250,8 @@ export const OrchestrationV2TurnCapabilities = Schema.Struct({
   supportsActiveSteering: Schema.Boolean,
   // Some native steering mechanisms cancel pending tools before consuming the message.
   activeSteeringInterruptsTools: Schema.optional(Schema.Boolean),
+  // Some take text only, so a steer with attachments restarts the turn instead.
+  activeSteeringAcceptsAttachments: Schema.optional(Schema.Boolean),
   supportsSteeringByInterruptRestart: Schema.Boolean,
   supportsQueuedMessages: Schema.Boolean,
   terminalStatusQuality: Schema.Literals(["strong", "weak", "none"]),
@@ -653,6 +655,7 @@ export const OrchestrationV2Run = Schema.Struct({
   checkpointId: Schema.NullOr(CheckpointId),
   contextHandoffId: Schema.NullOr(ContextHandoffId),
   restartContinuationOfRunId: Schema.optional(RunId),
+  usageLimitContinuationOfRunId: Schema.optional(RunId),
   delegatedTaskId: Schema.optional(NodeId),
   workStartedAt: Schema.optional(Schema.DateTimeUtc),
   restartCancelledBackgroundWork: Schema.optional(
@@ -666,6 +669,8 @@ export const OrchestrationV2Run = Schema.Struct({
   ),
   delegatedCompletion: Schema.optional(OrchestrationV2DelegatedCompletionCohort),
   workspacePreparation: Schema.optional(OrchestrationV2ThreadLaunchWorkspaceStrategy),
+  /** Starts a new provider conversation; earlier runs stay visible but never reach the provider. */
+  freshContext: Schema.optional(Schema.Boolean),
 });
 export type OrchestrationV2Run = typeof OrchestrationV2Run.Type;
 
@@ -930,6 +935,14 @@ export const OrchestrationV2ProviderSession = Schema.Struct({
   cwd: TrimmedNonEmptyString,
   model: Schema.NullOr(TrimmedNonEmptyString),
   capabilities: OrchestrationV2ProviderCapabilities,
+  extensionStatuses: Schema.optional(
+    Schema.Array(
+      Schema.Struct({
+        key: Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(256)),
+        text: TrimmedNonEmptyString.check(Schema.isMaxLength(4096)),
+      }),
+    ).check(Schema.isMaxLength(32)),
+  ).pipe(Schema.withDecodingDefault(Effect.succeed([]))),
   createdAt: Schema.DateTimeUtc,
   updatedAt: Schema.DateTimeUtc,
   lastError: Schema.NullOr(Schema.String),
@@ -983,6 +996,9 @@ function kindUnionWithFallback<
 }
 
 const PendingBackgroundTaskFields = {
+  command: Schema.optional(Schema.String),
+  itemId: Schema.optional(TurnItemId),
+  sourceThreadId: Schema.optional(ThreadId),
   taskId: TrimmedNonEmptyString,
   description: Schema.optional(TrimmedNonEmptyString),
   /** The subagent task that started this work and waits on it. */
@@ -1164,6 +1180,8 @@ export const OrchestrationV2ProviderTurn = Schema.Struct({
   completedAt: Schema.NullOr(Schema.DateTimeUtc),
   tokenUsage: Schema.optional(OrchestrationV2ProviderTurnTokenUsage),
   turnTokenUsage: Schema.optional(TurnTokenUsage),
+  /** The model the provider reported running this turn's root agent, which can differ from the requested one. */
+  model: Schema.optional(TrimmedNonEmptyString),
 });
 export type OrchestrationV2ProviderTurn = typeof OrchestrationV2ProviderTurn.Type;
 
@@ -1472,6 +1490,13 @@ export const OrchestrationV2UserMessageInputIntent = Schema.Literals([
 export type OrchestrationV2UserMessageInputIntent =
   typeof OrchestrationV2UserMessageInputIntent.Type;
 
+/** A same-harness model or effort change that took effect with this message. */
+export const OrchestrationV2ModelSwitch = Schema.Struct({
+  from: ModelSelection,
+  to: ModelSelection,
+});
+export type OrchestrationV2ModelSwitch = typeof OrchestrationV2ModelSwitch.Type;
+
 const OrchestrationV2TurnItemBaseFields = {
   /** Wire-only cursor for collapsed work; persisted items keep their complete history. */
   deferredWork: Schema.optionalKey(
@@ -1528,6 +1553,7 @@ const OrchestrationV2SecretRequestFields = {
   type: Schema.Literal("secret_request"),
   label: TrimmedNonEmptyString,
   reason: Schema.String,
+  url: Schema.optional(Schema.String),
   placeholder: Schema.optional(Schema.String),
   secretStatus: OrchestrationV2SecretRequestStatus,
 } as const;
@@ -1546,12 +1572,14 @@ export const OrchestrationV2TurnItem = Schema.Union([
     scheduledTaskId: Schema.optional(ScheduledTaskId),
     senderThreadId: Schema.optional(ThreadId),
     workflowScript: OrchestrationV2ConversationMessage.fields.workflowScript,
+    freshContext: OrchestrationV2Run.fields.freshContext,
     inputIntent: OrchestrationV2UserMessageInputIntent,
     text: Schema.String,
     /** Same as the text of message `messageId`. */
     textOmitted: DedupedBodyMarker,
     context: Schema.optional(OrchestrationMessageContext),
     attachments: Schema.Array(ChatAttachment),
+    modelSwitch: Schema.optional(OrchestrationV2ModelSwitch),
   }),
   Schema.Struct({
     ...OrchestrationV2TurnItemBaseFields,
@@ -2166,6 +2194,13 @@ const OrchestrationV2KnownShellStreamItems = [
   Schema.Struct({
     kind: Schema.Literal("synchronized"),
   }),
+  /**
+   * The only item of a resume the server cannot replay when the client asked for
+   * `httpSnapshotFallback`: load the HTTP snapshot and subscribe again from its cursor.
+   */
+  Schema.Struct({
+    kind: Schema.Literal("snapshot-required"),
+  }),
   Schema.Struct({
     kind: Schema.Literal("snapshot"),
     snapshot: OrchestrationV2ShellSnapshot,
@@ -2415,10 +2450,12 @@ export const OrchestrationV2TurnItemJson = Schema.Union([
     scheduledTaskId: Schema.optional(ScheduledTaskId),
     senderThreadId: Schema.optional(ThreadId),
     workflowScript: OrchestrationV2ConversationMessage.fields.workflowScript,
+    freshContext: OrchestrationV2Run.fields.freshContext,
     inputIntent: OrchestrationV2UserMessageInputIntent,
     text: Schema.String,
     context: Schema.optional(OrchestrationMessageContext),
     attachments: Schema.Array(ChatAttachment),
+    modelSwitch: Schema.optional(OrchestrationV2ModelSwitch),
   }),
   Schema.Struct({
     ...OrchestrationV2TurnItemJsonBaseFields,
@@ -2914,6 +2951,7 @@ export const OrchestrationV2Command = Schema.Union([
     type: Schema.Literal("thread.mark-done"),
     commandId: CommandId,
     threadId: ThreadId,
+    expectedLatestRunId: Schema.optional(RunId),
     doneAt: Schema.optional(Schema.DateTimeUtc),
   }),
   /**
@@ -3116,6 +3154,8 @@ export const OrchestrationV2Command = Schema.Union([
     ...OrchestrationV2CreationFields,
     scheduledTaskId: Schema.optional(ScheduledTaskId),
     senderThreadId: Schema.optional(ThreadId),
+    /** Start a new provider session without the thread's earlier context. Never steers. */
+    freshContext: Schema.optional(Schema.Boolean),
     commandId: CommandId,
     threadId: ThreadId,
     messageId: MessageId,
@@ -3451,6 +3491,7 @@ const OrchestrationV2InternalCommand = Schema.Union([
     turnItemId: TurnItemId,
     label: TrimmedNonEmptyString,
     reason: Schema.String,
+    url: Schema.optional(Schema.String),
     placeholder: Schema.optional(Schema.String),
     secretStatus: OrchestrationV2SecretRequestStatus,
   }),
@@ -3468,10 +3509,13 @@ export const ORCHESTRATION_V2_WS_METHODS = {
   searchThreadStream: "orchestration.searchThreadStream",
   getArchivedShellSnapshot: "orchestration.getArchivedShellSnapshot",
   getThreadFamily: "orchestration.getThreadFamily",
+  getThreadTitles: "orchestration.getThreadTitles",
+  getThreadLinkMetadata: "orchestration.getThreadLinkMetadata",
   getWorktreeThreadIds: "orchestration.getWorktreeThreadIds",
   getOlderDoneThreads: "orchestration.getOlderDoneThreads",
   getThreadProjection: "orchestration.getThreadProjection",
   getWorkflowScript: "orchestration.getWorkflowScript",
+  getNativeChildWork: "orchestration.getNativeChildWork",
   stopWorkflow: "orchestration.stopWorkflow",
   suggestNextPrompt: "orchestration.suggestNextPrompt",
   forceStopThread: "orchestration.forceStopThread",
@@ -3575,6 +3619,11 @@ export type OrchestrationV2GetThreadProjectionInput =
 
 export const OrchestrationV2SubscribeShellInput = Schema.Struct({
   afterSequence: Schema.optionalKey(NonNegativeInt),
+  /**
+   * With `afterSequence`, a gap the server cannot replay answers `snapshot-required` instead of
+   * a socket snapshot, which clients without transport compression download over gzip HTTP.
+   */
+  httpSnapshotFallback: Schema.optionalKey(Schema.Literal(true)),
   requestCompletionMarker: Schema.optionalKey(Schema.Boolean),
   /**
    * Snapshots leave out idle subagent children; read them with `getThreadFamily`. Send only to
@@ -3604,6 +3653,19 @@ export const OrchestrationV2ThreadFamily = Schema.Struct({
   threads: Schema.Array(OrchestrationV2ThreadShell),
 });
 export type OrchestrationV2ThreadFamily = typeof OrchestrationV2ThreadFamily.Type;
+
+export const OrchestrationV2GetThreadTitlesInput = Schema.Struct({
+  threadIds: Schema.Array(ThreadId),
+});
+
+/** Titles of the requested threads that exist, archived ones included. Deleted and unknown ids are absent. */
+export const OrchestrationV2ThreadTitles = Schema.Record(ThreadId, Schema.String);
+
+export const OrchestrationV2ThreadLinkMetadata = Schema.Struct({
+  title: Schema.String,
+  projectId: Schema.NullOr(ProjectId),
+});
+export type OrchestrationV2ThreadLinkMetadata = typeof OrchestrationV2ThreadLinkMetadata.Type;
 
 export const OrchestrationV2GetWorktreeThreadIdsInput = Schema.Struct({
   worktreePath: TrimmedNonEmptyString,
@@ -3954,6 +4016,53 @@ export const OrchestrationV2GetWorkflowScriptResult = Schema.Struct({
 export type OrchestrationV2GetWorkflowScriptResult =
   typeof OrchestrationV2GetWorkflowScriptResult.Type;
 
+/** Names a provider-native subagent's child thread. */
+export const OrchestrationV2GetNativeChildWorkInput = Schema.Struct({
+  threadId: ThreadId,
+});
+export type OrchestrationV2GetNativeChildWorkInput =
+  typeof OrchestrationV2GetNativeChildWorkInput.Type;
+
+export const OrchestrationV2NativeChildStep = Schema.Struct({
+  index: NonNegativeInt,
+  type: Schema.String,
+  status: Schema.NullOr(Schema.String),
+  text: Schema.NullOr(Schema.String),
+  toolCalls: Schema.Array(Schema.Struct({ name: Schema.String, input: Schema.String })),
+});
+export type OrchestrationV2NativeChildStep = typeof OrchestrationV2NativeChildStep.Type;
+
+/** Read-only: native children cannot take messages. */
+export const OrchestrationV2NativeChildWork = Schema.Struct({
+  conversationId: TrimmedNonEmptyString,
+  role: Schema.String,
+  prompt: Schema.String,
+  /** Null when the provider has no readable transcript for this child. */
+  steps: Schema.NullOr(Schema.Array(OrchestrationV2NativeChildStep)),
+  /** Earlier steps were left out to keep the read bounded. */
+  truncated: Schema.Boolean,
+});
+export type OrchestrationV2NativeChildWork = typeof OrchestrationV2NativeChildWork.Type;
+
+/** Empty when the provider's records do not prove which children the subagent launched. */
+export const OrchestrationV2GetNativeChildWorkResult = Schema.Struct({
+  children: Schema.Array(OrchestrationV2NativeChildWork),
+});
+export type OrchestrationV2GetNativeChildWorkResult =
+  typeof OrchestrationV2GetNativeChildWorkResult.Type;
+
+export class OrchestrationV2GetNativeChildWorkError extends Schema.TaggedError<OrchestrationV2GetNativeChildWorkError>()(
+  "OrchestrationV2GetNativeChildWorkError",
+  {
+    threadId: ThreadId,
+    cause: Schema.optional(Schema.Defect()),
+  },
+) {
+  override get message(): string {
+    return "Failed to read the subagent's work.";
+  }
+}
+
 const WORKFLOW_FILE_ERROR_MESSAGES = {
   "invalid-path": "Workflow files must be absolute paths with the expected extension.",
   "root-unavailable": "Workflow file root unavailable.",
@@ -4112,6 +4221,14 @@ export const OrchestrationV2RpcSchemas = {
     input: OrchestrationV2GetThreadFamilyInput,
     output: OrchestrationV2ThreadFamily,
   },
+  getThreadTitles: {
+    input: OrchestrationV2GetThreadTitlesInput,
+    output: OrchestrationV2ThreadTitles,
+  },
+  getThreadLinkMetadata: {
+    input: OrchestrationV2GetThreadTitlesInput,
+    output: Schema.Record(ThreadId, OrchestrationV2ThreadLinkMetadata),
+  },
   getWorktreeThreadIds: {
     input: OrchestrationV2GetWorktreeThreadIdsInput,
     output: OrchestrationV2WorktreeThreadIds,
@@ -4139,6 +4256,10 @@ export const OrchestrationV2RpcSchemas = {
   getWorkflowScript: {
     input: OrchestrationV2GetWorkflowScriptInput,
     output: OrchestrationV2GetWorkflowScriptResult,
+  },
+  getNativeChildWork: {
+    input: OrchestrationV2GetNativeChildWorkInput,
+    output: OrchestrationV2GetNativeChildWorkResult,
   },
   getTurnItem: {
     input: OrchestrationV2GetTurnItemInput,

@@ -63,6 +63,11 @@ span spent waiting for that connection, behind other SQL. That wait does not blo
 so subtract it before you blame a slow span on the query. Statements inside a transaction use its
 connection and do not carry these attributes.
 
+An MCP request over HTTP has a `McpHttpServer.authenticateRequest` span that covers only admitting
+it: the credential check. The request runs after it, under the `McpServer.…/<method>` span, and each
+tool call has its own `mcp.tool.<name>` span that times it. That span's attributes name the tool,
+never its arguments.
+
 #### Summarize the trace file
 
 `supaterm trace summary` reads the trace file and its rotated backups directly, so it works while the
@@ -145,7 +150,7 @@ You do not need any extra env vars. Just run the app normally and inspect `serve
 Examples:
 
 ```bash
-npx supaterm
+supaterm
 ```
 
 ```bash
@@ -180,7 +185,7 @@ Default Grafana login:
 
 For endpoint settings and startup precedence, see the
 [user telemetry guide](../user/telemetry.md#export-diagnostics-to-your-own-receiver).
-In a worktree, use `vp run dev` instead of `npx supaterm` to keep state isolated.
+In a worktree, use `vp run dev` instead of `supaterm` to keep state isolated.
 
 ```bash
 export SUPATERM_OTLP_TRACES_URL=http://localhost:4318/v1/traces
@@ -201,7 +206,7 @@ export SUPATERM_TRACE_TIMING_ENABLED=true
 CLI:
 
 ```bash
-npx supaterm
+supaterm
 ```
 
 Monorepo web/server dev:

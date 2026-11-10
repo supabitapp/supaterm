@@ -36,7 +36,7 @@ vi.mock("../../state/use-composer-drafts", () => ({
   setComposerDraftText: vi.fn(),
   waitForComposerDraftsLoaded: () => harness.draftsLoaded,
 }));
-vi.mock("../workspace/useSelectWorkspaceDetail", () => ({
+vi.mock("../layout/workspace/useSelectWorkspaceDetail", () => ({
   useSelectWorkspaceDetail: () => harness.selectDetail,
 }));
 

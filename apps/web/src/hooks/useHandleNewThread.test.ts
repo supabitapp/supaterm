@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vite-plus/test";
-import type { RuntimeMode } from "@supaterm/contracts";
+import type { EnvironmentId, ProjectId, RuntimeMode } from "@supaterm/contracts";
 
 const testState = vi.hoisted(() => {
   let completeProjectFileRead: (value: null) => void = () => undefined;
@@ -138,7 +138,8 @@ vi.mock("@effect/atom-react", () => ({
       : testServerConfigs(),
 }));
 vi.mock("@supaterm/client-runtime/environment", () => ({
-  scopedProjectKey: () => "remote-project",
+  scopedProjectKey: (ref: { environmentId: string; projectId: string }) =>
+    `${ref.environmentId}:${ref.projectId}`,
   scopeProjectRef: (environmentId: string, projectId: string) => ({ environmentId, projectId }),
   scopeThreadRef: (environmentId: string, threadId: string) => ({ environmentId, threadId }),
 }));
@@ -176,7 +177,9 @@ vi.mock("react", () => ({
   useCallback: <T>(callback: T) => callback,
   useMemo: <T>(factory: () => T) => factory(),
 }));
-vi.mock("../components/Sidebar.logic", () => ({ orderItemsByPreferredIds: () => [] }));
+vi.mock("../components/Sidebar.logic", () => ({
+  orderItemsByPreferredIds: ({ items }: { items: unknown[] }) => items,
+}));
 vi.mock("../composerDraftStore", () => {
   const useComposerDraftStore = Object.assign(() => null, {
     getState: () => testState.draftStore,
@@ -223,6 +226,7 @@ vi.mock("../state/entities", () => {
     useThread: () => null,
   };
 });
+vi.mock("../state/projects", () => ({ defaultProjectFallbackReadyAtom: () => true }));
 vi.mock("../state/olderDoneShelf", () => ({ readUnloadedThreadCount: () => 0 }));
 vi.mock("../state/server", () => ({
   environmentServerConfigsAtom: {},
@@ -236,7 +240,7 @@ vi.mock("../uiStateStore", () => ({
 }));
 vi.mock("./useSettings", () => ({ getClientSettings: () => ({}) }));
 
-import { useNewThreadHandler } from "./useHandleNewThread";
+import { resolveDefaultProjectRef, useNewThreadHandler } from "./useHandleNewThread";
 
 describe.each([
   ["new", null],
@@ -339,5 +343,41 @@ describe("useNewThreadHandler", () => {
       "draft-open",
       "Read the playbook. ",
     );
+  });
+});
+
+describe("default project selection", () => {
+  it("prefers the last used project in its environment and falls back when unavailable", () => {
+    const projects = [
+      { id: "project", environmentId: "first", workspaceRoot: "/first" },
+      { id: "project", environmentId: "last-used", workspaceRoot: "/last-used" },
+    ].map((project) => ({
+      ...project,
+      id: project.id as ProjectId,
+      environmentId: project.environmentId as EnvironmentId,
+      title: project.environmentId,
+      defaultModelSelection: null,
+      scripts: [],
+      createdAt: "2026-11-09T00:00:00.000Z",
+      updatedAt: "2026-11-09T00:00:00.000Z",
+    }));
+    expect(resolveDefaultProjectRef(projects, [], "last-used:project")).toEqual({
+      environmentId: "last-used",
+      projectId: "project",
+    });
+    expect(
+      resolveDefaultProjectRef(projects.slice(0, 1), [], "last-used:project", false),
+    ).toBeNull();
+    expect(resolveDefaultProjectRef(projects.slice(0, 1), [], "last-used:project")).toEqual({
+      environmentId: "first",
+      projectId: "project",
+    });
+    expect(
+      resolveDefaultProjectRef(
+        [projects[0]!, { ...projects[1]!, archivedAt: "2026-11-09T00:00:00.000Z" }],
+        [],
+        "last-used:project",
+      ),
+    ).toEqual({ environmentId: "first", projectId: "project" });
   });
 });

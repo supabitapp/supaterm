@@ -11,7 +11,7 @@ import type {
 import { useRef, useState } from "react";
 import { composerPullRequests } from "../../state/pull-requests";
 import { useAtomCommand } from "../../state/use-atom-command";
-import { canPerformPullRequestAction } from "./pullRequestActions";
+import { canPerformPullRequestAction, pullRequestActionLabel } from "./pullRequestActions";
 import { pullRequestTarget, type PullRequestParams } from "./usePullRequestDiff";
 import { usePullRequestPermissions } from "./usePullRequestPermissions";
 import { playOutcomeHaptic } from "../../lib/outcomeHaptic";
@@ -21,7 +21,6 @@ export function usePullRequestAction(params: PullRequestParams, pr: PullRequestD
   const run = useAtomCommand(composerPullRequests.runAction, {
     reportFailure: false,
   });
-  const refreshDetail = useAtomRefresh(composerPullRequests.detail(target));
   const refreshActivity = useAtomRefresh(composerPullRequests.activity(target));
   const pending = useRef(false);
   const [busy, setBusy] = useState(false);
@@ -54,7 +53,6 @@ export function usePullRequestAction(params: PullRequestParams, pr: PullRequestD
       );
       return;
     }
-    refreshDetail();
     refreshActivity();
   };
   const confirm = (action: PullRequestAction, title: string, message: string) =>
@@ -69,10 +67,19 @@ export function usePullRequestAction(params: PullRequestParams, pr: PullRequestD
         onPress: () => void perform(action),
       },
     ]);
+  const confirmClose = () => {
+    const terminology = sourceControlClients.get(pr?.provider).changeRequest;
+    confirm(
+      "close",
+      pullRequestActionLabel("close", terminology),
+      `Close this ${terminology.singular} without merging its changes?`,
+    );
+  };
   return {
     available,
     perform,
     confirm,
+    confirmClose,
     busy,
   };
 }

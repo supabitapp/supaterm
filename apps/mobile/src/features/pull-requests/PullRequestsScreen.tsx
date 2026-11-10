@@ -1,28 +1,22 @@
+import { usePaneRole } from "../../components/ui/Pane";
 import { Button } from "../../components/ui/Button";
 import {
   applyPullRequestDraftFilterChange,
   parsePullRequestQuery,
 } from "@supaterm/client-runtime/pull-request-query";
-import { WorkspaceHeaderActions } from "../workspace/WorkspaceHeaderActions";
+import { WorkspaceHeaderActions } from "../layout/workspace/WorkspaceHeaderActions";
 import { LegendList, type LegendListRef } from "@legendapp/list/react-native";
 import { useNavigation } from "@react-navigation/native";
 import { use, useMemo, useRef, useState, type ReactNode } from "react";
 import { sortProjectsByGroupOrder } from "@supaterm/client-runtime/state/project-grouping";
 import { useAtomValue } from "@effect/atom-react";
-import {
-  Keyboard,
-  Platform,
-  Pressable,
-  RefreshControl,
-  ScrollView,
-  View,
-  type ScrollViewProps,
-} from "react-native";
+import { Keyboard, Platform, Pressable, RefreshControl, View } from "react-native";
 import { AppActivityIndicator } from "../../components/ui/AppActivityIndicator";
-import { NativeScrollViewMarker as ScrollViewMarker } from "../../native/NativeScrollViewMarker";
+import { NativeScrollView } from "../../native/NativeScrollViewMarker";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { AppText as Text } from "../../components/ui/AppText";
+import { useContentTopInset } from "../../components/ui/useBarInset";
 import { SymbolView } from "../../components/ui/AppSymbol";
 import { EmptyState } from "../../components/ui/EmptyState";
 import { NativePrimaryColumnContext } from "../../native/v5-workspace-context";
@@ -37,7 +31,7 @@ import { createPullRequestListFilterMenu } from "./pullRequestListFilterMenu";
 import { usePullRequestList } from "./usePullRequestList";
 import { usePullRequestListControls } from "./usePullRequestListControls";
 import { usePullRequestListActions } from "./usePullRequestListActions";
-import type { WorkspaceFilterMenu } from "../workspace/workspace-filter-menu";
+import type { WorkspaceFilterMenu } from "../layout/workspace/workspace-filter-menu";
 import {
   filterPullRequestList,
   pullRequestListFacets,
@@ -49,17 +43,9 @@ import {
   pullRequestProjectChoices,
 } from "./pullRequestList";
 import { useDebouncedValue } from "../../state/queries";
-import { useWorkspaceTabs } from "../workspace/WorkspaceTabsContext";
-import { useSearchScrollRestoration } from "../workspace/useSearchScrollRestoration";
-import { useSelectWorkspaceDetail } from "../workspace/useSelectWorkspaceDetail";
-
-function PullRequestScrollView(props: ScrollViewProps) {
-  return (
-    <ScrollViewMarker style={{ flex: 1 }}>
-      <ScrollView {...props} />
-    </ScrollViewMarker>
-  );
-}
+import { useWorkspaceTabs } from "../layout/workspace/WorkspaceTabsContext";
+import { useSearchScrollRestoration } from "../layout/workspace/useSearchScrollRestoration";
+import { useSelectWorkspaceDetail } from "../layout/workspace/useSelectWorkspaceDetail";
 
 function PullRequestListError(props: { readonly message: string }) {
   const [expanded, setExpanded] = useState(false);
@@ -110,6 +96,7 @@ export function PullRequestsScreen(
   const { environments } = useWorkspaceState();
   const configs = useAtomValue(environmentServerConfigsAtom);
   const insets = useSafeAreaInsets();
+  const contentTopInset = useContentTopInset();
   // UIKit insets the list by its column's safe area, which this context can report as 0.
   const columnSafeBottom = useNativeColumnLayoutMetrics()?.safeArea.bottom;
   const bottomSafeArea =
@@ -179,7 +166,8 @@ export function PullRequestsScreen(
     connectedTargets.map((target) => target.environmentId),
     result.updateEntry,
   );
-  const sidebar = props.sidebar === true || primaryColumn !== null;
+  const paneRole = usePaneRole();
+  const sidebar = props.sidebar === true || (primaryColumn !== null && paneRole === "sidebar");
   const selectedKey = props.selectedPullRequestKey ?? primaryColumn?.selectedPullRequestKey;
   const connectedKey = connectedTargets.map((target) => target.environmentId).join("\n");
   const entries = useMemo(
@@ -249,7 +237,7 @@ export function PullRequestsScreen(
   );
   useSearchScrollRestoration(tab.searchMode, () => {
     void listRef.current?.scrollToOffset({
-      offset: tab.scrollOffset - (Platform.OS === "ios" ? insets.top : 0),
+      offset: tab.scrollOffset - contentTopInset,
       animated: false,
     });
   });
@@ -292,7 +280,7 @@ export function PullRequestsScreen(
     onPressAction: (event: Parameters<typeof filterMenu.onPressAction>[0]) => {
       filterMenu.onPressAction(event);
       void listRef.current?.scrollToOffset({
-        offset: Platform.OS === "ios" ? -insets.top : 0,
+        offset: -contentTopInset,
         animated: false,
       });
     },
@@ -321,33 +309,24 @@ export function PullRequestsScreen(
         }
         alwaysBounceVertical
         recycleItems
-        renderScrollComponent={Platform.OS === "ios" ? PullRequestScrollView : undefined}
-        // UIKit owns the bar's inset, so a minimizing bar and a resized column move
-        // the list in the same frame as the bar.
-        contentInsetAdjustmentBehavior="automatic"
+        renderScrollComponent={Platform.OS === "ios" ? NativeScrollView : undefined}
+        contentInsetAdjustmentBehavior="never"
+        contentInset={Platform.OS === "ios" ? { top: contentTopInset } : undefined}
         initialScrollOffset={
-          !initialAnchor && initialOffset > 0
-            ? initialOffset - (Platform.OS === "ios" ? insets.top : 0)
-            : undefined
+          !initialAnchor && initialOffset > 0 ? initialOffset - contentTopInset : undefined
         }
         initialScrollIndex={
           initialIndex >= 0 && initialAnchor
             ? { index: initialIndex, viewOffset: initialAnchor.viewOffset, viewPosition: 0 }
             : undefined
         }
-        contentInsetStartAdjustment={Platform.OS === "ios" ? insets.top : 0}
         contentContainerStyle={{
-          paddingBottom:
-            Math.max(bottomSafeArea, workspace.bottomClearance) -
-            (Platform.OS === "ios" ? bottomSafeArea : 0),
+          paddingBottom: Math.max(bottomSafeArea, workspace.bottomClearance),
         }}
         onScroll={(event) => {
           workspace.recordScrollOffset(
             "pullRequests",
-            Math.max(
-              0,
-              event.nativeEvent.contentOffset.y + (Platform.OS === "ios" ? insets.top : 0),
-            ),
+            Math.max(0, event.nativeEvent.contentOffset.y + contentTopInset),
           );
           const list = listRef.current?.getState();
           const item = list ? entries[list.start] : undefined;

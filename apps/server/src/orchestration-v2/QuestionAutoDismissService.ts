@@ -1,6 +1,6 @@
 import { CommandId, USER_INPUT_AUTO_DISMISS_TIMEOUT_MS } from "@supaterm/contracts";
 import * as Context from "effect/Context";
-import * as Crypto from "effect/Crypto";
+import * as SecureRandom from "effect/crypto/SecureRandom";
 import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
@@ -18,7 +18,7 @@ export class QuestionAutoDismissService extends Context.Service<
 
 const make = Effect.gen(function* () {
   const projections = yield* ProjectionStore.ProjectionStoreV2;
-  const crypto = yield* Crypto.Crypto;
+  const random = yield* SecureRandom.SecureRandom;
   const threads = yield* ThreadManagement.ThreadManagementService;
 
   const sweep = Effect.gen(function* () {
@@ -29,7 +29,7 @@ const make = Effect.gen(function* () {
 
     for (const request of requests) {
       const { threadId, requestId, deadline } = request;
-      const attemptId = yield* crypto.randomUUIDv4().pipe(Effect.orDie);
+      const attemptId = yield* random.uuidV4();
       yield* threads
         .dispatch({
           type: "thread.user-input.auto-dismiss",

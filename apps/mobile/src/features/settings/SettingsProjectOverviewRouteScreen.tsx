@@ -19,6 +19,7 @@ import { useNavigation } from "@react-navigation/native";
 import { useRef, useState } from "react";
 import { Platform, Pressable, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+
 import { projectEnvironment } from "../../state/projects";
 import { useThreadShells } from "../../state/entities";
 import { appAtomRegistry } from "../../state/atom-registry";
@@ -38,16 +39,15 @@ import { SettingsScreen } from "./components/SettingsScreen";
 import { SettingsSection } from "./components/SettingsSection";
 import { ListActionRow as SettingsActionRow } from "../../components/ui/ListActionRow";
 import { SettingsSwitchRow } from "./components/SettingsSwitchRow";
-import {
-  AndroidSettingsEnvironmentFilter,
-  SettingsEnvironmentFilterHeader,
-} from "./components/SettingsEnvironmentFilterHeader";
+import { useSettingsEnvironmentMenu } from "./components/SettingsEnvironmentFilterHeader";
 import { useSettingsEnvironmentFilter, type SettingsTarget } from "./settings-environment-filter";
 import { leaveSettingsPage } from "./settings-navigation";
-import { workspaceHasColumns } from "../workspace/workspace-selection-store";
-import { DEFAULT_SETTINGS_PAGE } from "../workspace/workspace-tab-navigation";
+import { workspaceHasColumns } from "../layout/workspace/workspace-selection-store";
+import { DEFAULT_SETTINGS_PAGE } from "../layout/workspace/workspace-tab-navigation";
 import { readUnloadedThreadCount } from "../../state/olderDoneShelf";
+
 export function SettingsProjectOverviewRouteScreen() {
+  const environmentMenu = useSettingsEnvironmentMenu();
   const insets = useSafeAreaInsets();
   const [isRemoving, setIsRemoving] = useState(false);
   const removalPending = useRef(false);
@@ -83,50 +83,46 @@ export function SettingsProjectOverviewRouteScreen() {
     group?.members
       .map((entry) => entry.project)
       .filter((project) => selectedEnvironmentIds.has(project.environmentId)) ?? [];
+
   return (
-    <>
-      <SettingsEnvironmentFilterHeader />
-      <SettingsScreen title="Projects" trailing={<AndroidSettingsEnvironmentFilter />}>
-        <ScrollView
-          contentInsetAdjustmentBehavior="automatic"
-          showsVerticalScrollIndicator={false}
-          className="flex-1"
-          contentContainerClassName="gap-6 px-5 pt-4"
-          contentContainerStyle={{
-            paddingBottom: Math.max(insets.bottom, 18) + 18,
-          }}
-        >
-          {selectedProjectKey === null ? (
-            <Text className="px-2 text-base text-foreground-muted">
-              Choose a project with the filter above to manage its name, checkouts and removal.
-            </Text>
-          ) : !group || members.length === 0 ? (
-            <Text className="px-2 text-base text-foreground-muted">
-              {selectedProjectKey === null
-                ? "Choose a project in the filter above to manage its name and checkouts."
-                : "This project has no checkout on the selected connected environments. Change the filter above."}
-            </Text>
-          ) : (
-            <ProjectOverviewContent
-              key={`${selectedProjectKey}:${members.map((member) => member.id).join(",")}`}
-              members={members}
-              group={group}
-              connectedTargets={availableTargets}
-              environments={selectedTargets}
-              hasOtherMembers={members.length < (group?.members.length ?? 0)}
-              isRemoving={isRemoving}
-              setIsRemoving={setIsRemoving}
-              startRemoval={startRemoval}
-              finishRemoval={finishRemoval}
-              projectKey={selectedProjectKey}
-              onProjectRemoved={finishProjectRemoval}
-            />
-          )}
-        </ScrollView>
-      </SettingsScreen>
-    </>
+    <SettingsScreen title="Projects" menus={[environmentMenu]}>
+      <ScrollView
+        contentInsetAdjustmentBehavior="automatic"
+        showsVerticalScrollIndicator={false}
+        className="flex-1"
+        contentContainerClassName="gap-6 px-5 pt-4"
+        contentContainerStyle={{ paddingBottom: Math.max(insets.bottom, 18) + 18 }}
+      >
+        {selectedProjectKey === null ? (
+          <Text className="px-2 text-base text-foreground-muted">
+            Choose a project with the filter above to manage its name, checkouts and removal.
+          </Text>
+        ) : !group || members.length === 0 ? (
+          <Text className="px-2 text-base text-foreground-muted">
+            This project has no checkout on the selected connected environments. Change the filter
+            above.
+          </Text>
+        ) : (
+          <ProjectOverviewContent
+            key={`${selectedProjectKey}:${members.map((member) => member.id).join(",")}`}
+            members={members}
+            group={group}
+            connectedTargets={availableTargets}
+            environments={selectedTargets}
+            hasOtherMembers={members.length < (group?.members.length ?? 0)}
+            isRemoving={isRemoving}
+            setIsRemoving={setIsRemoving}
+            startRemoval={startRemoval}
+            finishRemoval={finishRemoval}
+            projectKey={selectedProjectKey}
+            onProjectRemoved={finishProjectRemoval}
+          />
+        )}
+      </ScrollView>
+    </SettingsScreen>
   );
 }
+
 function ProjectOverviewContent(props: {
   readonly members: readonly EnvironmentProject[];
   /** Pin and archive belong to the whole project, even when the filter picks one machine. */
@@ -143,10 +139,7 @@ function ProjectOverviewContent(props: {
 }) {
   const { isRemoving, setIsRemoving, startRemoval, finishRemoval } = props;
   const representative = props.members[0]!;
-  const displayName = deriveProjectGroupLabel({
-    representative,
-    members: props.members,
-  });
+  const displayName = deriveProjectGroupLabel({ representative, members: props.members });
   const [draftName, setDraftName] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const threads = useThreadShells();
@@ -297,10 +290,7 @@ function ProjectOverviewContent(props: {
         props.members.map((member) =>
           updateProject({
             environmentId: member.environmentId,
-            input: {
-              projectId: member.id,
-              title: nextName,
-            },
+            input: { projectId: member.id, title: nextName },
           }),
         ),
       );
@@ -308,6 +298,7 @@ function ProjectOverviewContent(props: {
       if (results.every((result) => result._tag !== "Failure")) setDraftName(null);
     })();
   };
+
   return (
     <>
       <View className="flex-row items-center gap-4 px-2">

@@ -947,7 +947,7 @@ export function shouldRefocusComposerOnWindowFocus(
   }
   return (
     activeElement.closest(
-      '[data-workspace-area]:focus-visible, [role="treeitem"]:focus-visible, [role="dialog"], [role="alertdialog"], [role="application"], [role="menu"], [role="listbox"], [data-slot$="-popup"], [data-terminal-owner]',
+      '[data-workspace-keyboard-focus], [data-sidebar-row]:focus-visible, [role="dialog"], [role="alertdialog"], [role="application"], [role="menu"], [role="listbox"], [data-slot$="-popup"], [data-terminal-owner]',
     ) === null
   );
 }
@@ -1212,31 +1212,6 @@ export function deriveAvailableRevertTurnCounts(projection: ThreadStructure | nu
   return available;
 }
 
-/**
- * Changes when the agent may have changed the workspace, so file views refresh. File tools are
- * explicit; completed commands are included because a shell command can mutate the workspace
- * without reporting the paths it touched.
- */
-export function deriveWorkspaceMutationId(
-  visibleTurnItems: ReadonlyArray<ThreadStructureRow>,
-  latestCheckpointCompletedAt: string | null,
-) {
-  let itemId: string | null = null;
-  for (let index = visibleTurnItems.length - 1; index >= 0; index -= 1) {
-    const item = visibleTurnItems[index]?.item;
-    if (!item) continue;
-    if (item.type !== "command_execution" && item.type !== "file_change") continue;
-    if (item.status === "pending" || item.status === "running" || item.status === "waiting") {
-      continue;
-    }
-    itemId = item.id;
-    break;
-  }
-  return itemId === null && latestCheckpointCompletedAt === null
-    ? null
-    : JSON.stringify([itemId, latestCheckpointCompletedAt]);
-}
-
 /** What the composer held when the user pressed send, after a direct annotation merged in. */
 export interface ComposerSendContents {
   readonly prompt: string;
@@ -1278,6 +1253,13 @@ export function snapshotComposerSend(contents: ComposerSendContents) {
 
 export type ComposerSendSnapshot = ReturnType<typeof snapshotComposerSend>;
 
+/** A turn that starts a new provider session cannot steer into or restart the running one. */
+export function freshTurnDispatchMode(dispatchMode: ComposerDispatchMode, freshContext: boolean) {
+  return freshContext && (dispatchMode === "steer" || dispatchMode === "restart")
+    ? "queue"
+    : dispatchMode;
+}
+
 /**
  * How a composer send dispatches: whether a new draft gets a worktree, and whether the
  * message waits behind other work. Only a local draft can create a worktree, and a missing
@@ -1293,9 +1275,12 @@ export function planComposerTurn(input: {
   readonly environmentUnavailable: boolean;
   readonly phase: SessionPhase;
   readonly dispatchMode: ComposerDispatchMode;
+  /** The turn starts a new provider session, so it cannot steer into the running one. */
+  readonly freshContext: boolean;
 }) {
   const shouldCreateWorktree =
     input.isLocalDraftThread && input.sendEnvMode === "worktree" && !input.worktreePath;
+  const dispatchMode = freshTurnDispatchMode(input.dispatchMode, input.freshContext);
   return {
     shouldCreateWorktree,
     missingWorktreeBaseBranch: shouldRequireWorktreeBaseBranch({
@@ -1305,9 +1290,9 @@ export function planComposerTurn(input: {
       environmentUnavailable: input.environmentUnavailable,
     }),
     baseBranchForWorktree: shouldCreateWorktree ? input.activeThreadBranch : null,
-    turnDispatchMode: input.sendQueuesBehindSetup ? ("queue" as const) : input.dispatchMode,
+    turnDispatchMode: input.sendQueuesBehindSetup ? ("queue" as const) : dispatchMode,
     shouldQueueBehindActiveRun:
-      input.sendQueuesBehindSetup || (input.phase === "running" && input.dispatchMode === "queue"),
+      input.sendQueuesBehindSetup || (input.phase === "running" && dispatchMode === "queue"),
   };
 }
 

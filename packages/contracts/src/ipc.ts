@@ -338,6 +338,8 @@ export const DesktopCliCommandStateSchema = Schema.Struct({
   onPath: Schema.Boolean,
 
   shadowedBy: Schema.optionalKey(Schema.String),
+  /** For an installed `supaterm` that is off PATH: the shell startup file that adds it, and whether it has. */
+  pathSetup: Schema.optionalKey(Schema.Struct({ file: Schema.String, added: Schema.Boolean })),
   /** The app's bundled `supaterm` launcher, which runs without Node or a PATH entry. */
   launcherPath: Schema.NullOr(Schema.String),
 });
@@ -982,6 +984,11 @@ export const DesktopPreviewSetAudioMutedInputSchema = Schema.Struct({
   audioMuted: Schema.Boolean,
 });
 
+export const DesktopPreviewSetShownInputSchema = Schema.Struct({
+  tabId: DesktopPreviewTabIdSchema,
+  shown: Schema.Boolean,
+});
+
 export const DesktopPreviewAnnotationThemeInputSchema = Schema.Struct({
   theme: DesktopPreviewAnnotationThemeSchema,
 });
@@ -1000,6 +1007,13 @@ export const DesktopPreviewRecordingSaveInputSchema = Schema.Struct({
   mimeType: Schema.String.check(Schema.isTrimmed()).check(Schema.isNonEmpty()),
   data: Schema.Uint8Array,
 });
+
+export const DesktopMediaReadSchema = Schema.Struct({
+  status: Schema.Number,
+  mimeType: Schema.String,
+  data: Schema.Uint8Array,
+});
+export type DesktopMediaRead = typeof DesktopMediaReadSchema.Type;
 
 export const SystemSettingsPaneSchema = Schema.Literals([
   "full-disk-access",
@@ -1044,6 +1058,8 @@ export interface DesktopBridge {
   getLocalEnvironmentBootstraps: () => readonly DesktopEnvironmentBootstrap[];
   getLocalEnvironmentEnabled: () => boolean;
   setLocalEnvironmentEnabled: (enabled: boolean) => Promise<void>;
+  /** The environment ID recorded in this app's Supaterm home, such as its own machine's background service. */
+  getHostEnvironmentId?: () => Promise<string | null>;
   getLocalEnvironmentBearerToken: () => Promise<string>;
   getClientSettings: () => Promise<ClientSettings | null>;
   setClientSettings: (settings: ClientSettings) => Promise<void>;
@@ -1111,6 +1127,8 @@ export interface DesktopBridge {
   receiveProviderAuthCallback: (authorizationUrl: string) => Promise<string>;
   cancelProviderAuthCallback: (authorizationUrl: string) => Promise<void>;
   openExternal: (url: string) => Promise<boolean>;
+  /** Reads http(s) media in the main process, outside renderer CORS and CSP; null on network failure. */
+  readMedia: (url: string) => Promise<DesktopMediaRead | null>;
   openSystemSettings: (pane: SystemSettingsPane) => Promise<boolean>;
   checkSystemPermission: (pane: SystemSettingsPane) => Promise<boolean>;
   probeRemoteEditors: () => Promise<readonly EditorId[]>;
@@ -1138,6 +1156,7 @@ export interface DesktopBridge {
     getState: () => Promise<DesktopCliCommandState>;
     install: () => Promise<DesktopCliCommandState>;
     uninstall: () => Promise<DesktopCliCommandState>;
+    addToPath: () => Promise<DesktopCliCommandState>;
   };
   appActivation: {
     setReady: (ready: boolean) => Promise<void>;
@@ -1168,6 +1187,8 @@ export interface DesktopPreviewBridge {
   hardReload: (tabId: string) => Promise<void>;
   setColorScheme: (tabId: string, colorScheme: DesktopPreviewColorScheme) => Promise<void>;
   setAudioMuted: (tabId: string, audioMuted: boolean) => Promise<void>;
+  /** Tells the tab's server whether its webview is on screen. */
+  setShown: (tabId: string, shown: boolean) => Promise<void>;
   openDevTools: (tabId: string) => Promise<void>;
   clearCookies: (environmentId: EnvironmentId, profileId?: string) => Promise<void>;
   clearCache: (environmentId: EnvironmentId, profileId?: string) => Promise<void>;

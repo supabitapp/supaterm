@@ -200,6 +200,17 @@ describe("ServerSettings usage price overrides", () => {
       expect(() => decodeServerSettingsPatch({ usagePriceOverrides })).toThrow();
     }
   });
+
+  it("ignores an invalid model filter without dropping the other settings", () => {
+    const valid = { include: [{ provider: "newer-provider", model: "orbit-1" }] };
+    expect(decodeServerSettings({ usageModelFilter: valid }).usageModelFilter).toEqual(valid);
+    const settings = decodeServerSettings({
+      usageModelFilter: { exclude: [{ model: "" }] },
+      usageModelAliases: { "drift-9": "orbit-1" },
+    });
+    expect(settings.usageModelFilter).toBeUndefined();
+    expect(settings.usageModelAliases).toEqual({ "drift-9": "orbit-1" });
+  });
 });
 
 describe("custom model settings", () => {
@@ -288,9 +299,9 @@ describe("ClientSettings follow-up behavior", () => {
 });
 
 describe("ServerSettings thread completion", () => {
-  it("defaults merge completion on and inactivity completion to three days", () => {
+  it("defaults merge completion on and inactivity completion to seven days", () => {
     const settings = decodeServerSettings({});
-    expect(settings.sidebarAutoMarkDoneAfterDays).toBe(3);
+    expect(settings.sidebarAutoMarkDoneAfterDays).toBe(7);
     expect(settings.sidebarAutoMarkDoneOnMerge).toBe(true);
   });
 

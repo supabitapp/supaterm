@@ -55,14 +55,16 @@ export interface McpInvocationScope {
 /**
  * Supaterm renders `supaterm-thread://` links as thread chips. Other MCP clients cannot open them, so
  * they get a web URL on the origin they reached instead.
+ * A known `title` labels the chip for clients that cannot load this environment's threads.
  */
 export const threadLinkFor = (
   scope: Pick<McpInvocationScope, "environmentId" | "client">,
   threadId: ThreadId,
+  title?: string,
 ): string => {
   const origin = scope.client?.webOrigin;
   return origin === undefined
-    ? formatThreadLink({ environmentId: scope.environmentId, threadId })
+    ? formatThreadLink({ environmentId: scope.environmentId, threadId }, title)
     : `${origin}/${encodeURIComponent(scope.environmentId)}/${encodeURIComponent(threadId)}`;
 };
 

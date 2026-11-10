@@ -85,7 +85,8 @@ function tool(
   return { displayName, labels, icon, summaryAction };
 }
 
-const SUPATERM_MCP_SERVER_NAME = "supaterm";
+// Codex registers "supaterm-direct" for Supaterm tools kept out of Code Mode.
+const SUPATERM_MCP_SERVER_ALIASES = new Set(["supaterm", "supaterm-direct", "supaterm_direct"]);
 
 const SUPATERM_MCP_TOOLS: Readonly<Record<string, SupatermMcpToolDefinition>> = {
   link_pull_request: tool(
@@ -416,20 +417,38 @@ function normalizeSupatermMcpToolLabel(value: string): string {
   return value.replace(/\s+(?:complete|completed)\s*$/i, "").trim();
 }
 
+// Timelines resolve every work row's tool name on each update; names repeat across updates.
+// ACP titles can carry whole commands, so long labels are parsed but not kept.
+const toolNameCache = new Map<string, string | null>();
+const TOOL_NAME_CACHE_LIMIT = 10_000;
+const TOOL_NAME_CACHE_MAX_KEY_LENGTH = 256;
+
+function resolveSupatermMcpToolName(value: string): string | null {
+  if (value.length > TOOL_NAME_CACHE_MAX_KEY_LENGTH) return parseSupatermMcpToolName(value);
+  const cached = toolNameCache.get(value);
+  if (cached !== undefined) return cached;
+  const name = parseSupatermMcpToolName(value);
+  if (toolNameCache.size >= TOOL_NAME_CACHE_LIMIT) toolNameCache.clear();
+  toolNameCache.set(value, name);
+  return name;
+}
+
 /**
  * Agents disagree on the Supaterm tool prefix (`mcp__supaterm__x`, `supaterm.x`, and
  * underscore, colon, slash, dash, or space separators). The match is loose because the
  * display-name inventory is the real gate; unknown tools stay on the generic renderer.
  */
-function resolveSupatermMcpToolName(value: string): string | null {
+function parseSupatermMcpToolName(value: string): string | null {
   const label = normalizeSupatermMcpToolLabel(value);
   const mcpMatch = /^mcp__(?<server>.+?)__(?<tool>.+)$/i.exec(label);
   if (mcpMatch?.groups) {
     const { server, tool } = mcpMatch.groups;
-    return tool !== undefined && server?.toLowerCase() === SUPATERM_MCP_SERVER_NAME ? tool : null;
+    return tool !== undefined && SUPATERM_MCP_SERVER_ALIASES.has(server?.toLowerCase() ?? "")
+      ? tool
+      : null;
   }
 
-  const namespaceMatch = /^supaterm(?:[.:/]|\s*·\s*)(?<tool>.+)$/i.exec(label);
+  const namespaceMatch = /^supaterm(?:[-_]direct)?(?:[.:/]|\s*·\s*)(?<tool>.+)$/i.exec(label);
   if (namespaceMatch?.groups) {
     return namespaceMatch.groups.tool ?? null;
   }

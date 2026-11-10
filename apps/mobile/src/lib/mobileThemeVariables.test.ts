@@ -5,12 +5,20 @@ import { getMobileThemeRuntimeVariables } from "./mobileThemeVariables";
 
 describe("mobile theme runtime variables", () => {
   it("uses the same shared palette source as generated custom themes", () => {
-    expect(getMobileThemeRuntimeVariables("one-light", "light", "ios")).toEqual(
-      getMobileThemeVariables("one-light", "light"),
-    );
-    expect(getMobileThemeRuntimeVariables("catppuccin-mocha", "dark", "ios")).toEqual(
-      getMobileThemeVariables("catppuccin-mocha", "dark"),
-    );
+    for (const [themeId, appearance] of [
+      ["one-light", "light"],
+      ["catppuccin-mocha", "dark"],
+    ] as const) {
+      const runtime = getMobileThemeRuntimeVariables(themeId, appearance, "ios");
+      // Only the sidebar selection is adjusted, so it stays visible on the drawer.
+      expect(runtime).toEqual({
+        ...getMobileThemeVariables(themeId, appearance),
+        "--color-thread-selected": runtime["--color-thread-selected"],
+        "--color-thread-selected-foreground": runtime["--color-thread-selected-foreground"],
+        "--color-thread-selected-foreground-muted":
+          runtime["--color-thread-selected-foreground-muted"],
+      });
+    }
   });
 
   it.each(["supaterm", "material-you"] as const)(
@@ -54,7 +62,8 @@ describe("mobile theme runtime variables", () => {
           "--color-thread-canvas",
           "--color-card",
           "--color-composer-surface",
-          "--color-grouped-card",
+          // Android lifts dark grouped cards off its lighter frame.
+          ...(appearance === "light" ? (["--color-grouped-card"] as const) : []),
         ] as const) {
           expect(ios[role]).toBe(android[role]);
         }

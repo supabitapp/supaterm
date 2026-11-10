@@ -1,4 +1,5 @@
 import * as NodeServices from "@effect/platform-node/NodeServices";
+import * as NodeCrypto from "@effect/platform-node/NodeCrypto";
 import { authScopeResponse, AuthStandardClientScopes } from "@supaterm/contracts";
 import { expect, it } from "@effect/vitest";
 import * as Effect from "effect/Effect";
@@ -72,7 +73,7 @@ const requestMetadata = {
   ipAddress: "192.168.1.23",
 };
 
-it.layer(NodeServices.layer)("EnvironmentAuth.layer", (it) => {
+it.layer(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer))("EnvironmentAuth.layer", (it) => {
   it.effect("uses the reusable dev cookie without overriding a normal scoped cookie", () =>
     Effect.gen(function* () {
       const serverAuth = yield* EnvironmentAuth.EnvironmentAuth;
@@ -151,7 +152,13 @@ it.layer(NodeServices.layer)("EnvironmentAuth.layer", (it) => {
       const serverAuth = yield* EnvironmentAuth.EnvironmentAuth;
       const token = "reusable-dev-auth-token-that-is-long-enough";
       const devExchange = yield* serverAuth.createBrowserSession(token, requestMetadata);
-      for (const authorization of ["Bearer invalid", ""] as const) {
+      for (const authorization of [
+        "Bearer invalid",
+        "bearer invalid",
+        "bEaReR invalid",
+        "Basic invalid",
+        "",
+      ] as const) {
         const request = {
           cookies: { [devExchange.cookieName ?? "missing"]: devExchange.sessionToken },
           headers: { authorization },
@@ -414,7 +421,7 @@ it.layer(NodeServices.layer)("EnvironmentAuth.layer", (it) => {
     Effect.gen(function* () {
       const serverAuth = yield* EnvironmentAuth.EnvironmentAuth;
       const token = yield* serverAuth.exchangeBootstrapCredentialForAccessToken(
-        currentDesktopBootstrapToken("desktop-secret", yield* Clock.currentTimeMillis),
+        yield* currentDesktopBootstrapToken("desktop-secret", yield* Clock.currentTimeMillis),
         ["orchestration:read"],
         requestMetadata,
       );
@@ -432,7 +439,7 @@ it.layer(NodeServices.layer)("EnvironmentAuth.layer", (it) => {
       const serverAuth = yield* EnvironmentAuth.EnvironmentAuth;
       const sessions = yield* SessionStore.SessionStore;
       const browser = yield* serverAuth.createBrowserSession(
-        currentDesktopBootstrapToken("desktop-secret", yield* Clock.currentTimeMillis),
+        yield* currentDesktopBootstrapToken("desktop-secret", yield* Clock.currentTimeMillis),
         requestMetadata,
       );
       const browserSession = yield* serverAuth.authenticateHttpRequest(
@@ -448,7 +455,7 @@ it.layer(NodeServices.layer)("EnvironmentAuth.layer", (it) => {
         { ...requestMetadata, label: "Supaterm Desktop" },
       );
       const first = yield* serverAuth.exchangeBootstrapCredentialForAccessToken(
-        currentDesktopBootstrapToken("desktop-secret", yield* Clock.currentTimeMillis),
+        yield* currentDesktopBootstrapToken("desktop-secret", yield* Clock.currentTimeMillis),
         undefined,
         requestMetadata,
       );
@@ -456,7 +463,7 @@ it.layer(NodeServices.layer)("EnvironmentAuth.layer", (it) => {
         makeBearerRequest(first.access_token),
       );
       const second = yield* serverAuth.exchangeBootstrapCredentialForAccessToken(
-        currentDesktopBootstrapToken("desktop-secret", yield* Clock.currentTimeMillis),
+        yield* currentDesktopBootstrapToken("desktop-secret", yield* Clock.currentTimeMillis),
         undefined,
         requestMetadata,
       );
@@ -545,7 +552,7 @@ it.layer(NodeServices.layer)("EnvironmentAuth.layer", (it) => {
         const sessions = yield* SessionStore.SessionStore;
 
         const administrativeExchange = yield* serverAuth.createBrowserSession(
-          currentDesktopBootstrapToken("desktop-secret", yield* Clock.currentTimeMillis),
+          yield* currentDesktopBootstrapToken("desktop-secret", yield* Clock.currentTimeMillis),
           requestMetadata,
         );
         const administrativeSession = yield* serverAuth.authenticateHttpRequest(
@@ -677,24 +684,27 @@ it.layer(NodeServices.layer)("EnvironmentAuth.layer", (it) => {
     }).pipe(Effect.provide(layerEnvironmentAuth({ mode: "web" }))),
   );
 
-  it.effect("keeps bearer socket upgrades independent of the page origin", () =>
-    Effect.gen(function* () {
-      const serverAuth = yield* EnvironmentAuth.EnvironmentAuth;
-      const bearer = yield* serverAuth.issueSession();
-      const verified = yield* serverAuth.authenticateWebSocketUpgrade(
-        {
+  it.effect.each(["Bearer", "bearer", "bEaReR"])(
+    "accepts %s for HTTP and socket upgrades regardless of page origin",
+    (scheme) =>
+      Effect.gen(function* () {
+        const serverAuth = yield* EnvironmentAuth.EnvironmentAuth;
+        const bearer = yield* serverAuth.issueSession();
+        const request = {
           url: "/ws",
           cookies: {},
           headers: {
             host: "192.168.1.50:3773",
             origin: "http://192.168.1.50:8080",
-            authorization: `Bearer ${bearer.token}`,
+            authorization: `${scheme} ${bearer.token}`,
           },
-        } as never,
-        "rpc",
-      );
-      expect(verified.sessionId).toBe(bearer.sessionId);
-    }).pipe(Effect.provide(layerEnvironmentAuth({ mode: "web", host: "192.168.1.50" }))),
+        } as never;
+        const verified = yield* serverAuth.authenticateWebSocketUpgrade(request, "rpc");
+        expect(verified.sessionId).toBe(bearer.sessionId);
+        expect((yield* serverAuth.authenticateHttpRequest(request)).sessionId).toBe(
+          bearer.sessionId,
+        );
+      }).pipe(Effect.provide(layerEnvironmentAuth({ mode: "web", host: "192.168.1.50" }))),
   );
 
   it.effect("opens only the route a websocket ticket was minted for", () =>

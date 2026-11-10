@@ -5,6 +5,7 @@ import {
   type AuthEnvironmentScope,
   type AuthPairingCredentialResult,
   type AdvertisedEndpoint,
+  type EnvironmentId,
   type RelayConnectionInfo,
   type ServerSettings,
 } from "@supaterm/contracts";
@@ -52,6 +53,8 @@ import {
   type ServerClientSessionRecord,
   type ServerPairingLinkRecord,
 } from "~/environments/primary";
+import type { EnvironmentPresentation } from "~/state/environments";
+import { UseInAnotherAppDialog } from "../mcp/UseInAnotherAppDialog";
 import { ConnectionStatusDot } from "../ConnectionStatusDot";
 import { ITEM_ROW_CLASSNAME, ITEM_ROW_INNER_CLASSNAME } from "./itemRows";
 
@@ -160,6 +163,8 @@ type PairingLinkListRowProps = {
   pairingLink: ServerPairingLinkRecord;
   credential: string | undefined;
   preparedRelay: RelayConnectionInfo | undefined;
+  /** Whether this page is served by the environment the link pairs with. */
+  servedByEnvironment: boolean;
   endpointUrl: string | null | undefined;
   endpoints: ReadonlyArray<AdvertisedEndpoint>;
   defaultEndpointKey: string | null;
@@ -174,6 +179,7 @@ const PairingLinkListRow = memo(function PairingLinkListRow({
   pairingLink,
   credential,
   preparedRelay,
+  servedByEnvironment,
   endpointUrl,
   endpoints: advertisedEndpoints,
   defaultEndpointKey,
@@ -237,7 +243,7 @@ const PairingLinkListRow = memo(function PairingLinkListRow({
     endpointPairingUrl ??
     (credential && endpointUrl != null && endpointUrl !== ""
       ? (hostedPairingUrl ?? resolveDesktopPairingUrl(endpointUrl, credential, pairingHints))
-      : isLoopbackHostname(window.location.hostname)
+      : !servedByEnvironment || isLoopbackHostname(window.location.hostname)
         ? null
         : currentOriginPairingUrl);
   const [failedCopyValue, setFailedCopyValue] = useState<string | null>(null);
@@ -617,6 +623,7 @@ const ConnectedClientListRow = memo(function ConnectedClientListRow({
 });
 
 type AuthorizedClientsHeaderActionProps = {
+  environmentId: EnvironmentId;
   triggerRef: RefObject<HTMLButtonElement | null>;
   relayEnabled: boolean;
   onPairingLinkCreated: (result: AuthPairingCredentialResult, relay?: RelayConnectionInfo) => void;
@@ -624,9 +631,12 @@ type AuthorizedClientsHeaderActionProps = {
   isRevokingOtherClients: boolean;
   onRevokeOtherClients: () => void;
   delegatableScopes: ReadonlyArray<AuthEnvironmentScope>;
+  /** Set when the environment mints level-bound MCP approval codes. */
+  mcpEnvironment: EnvironmentPresentation | null;
 };
 
 export const AuthorizedClientsHeaderAction = memo(function AuthorizedClientsHeaderAction({
+  environmentId,
   triggerRef,
   relayEnabled,
   onPairingLinkCreated,
@@ -634,10 +644,12 @@ export const AuthorizedClientsHeaderAction = memo(function AuthorizedClientsHead
   isRevokingOtherClients,
   onRevokeOtherClients,
   delegatableScopes,
+  mcpEnvironment,
 }: AuthorizedClientsHeaderActionProps) {
   const hasOtherClients = clientSessions?.some((clientSession) => !clientSession.current) ?? false;
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex flex-wrap items-center justify-end gap-2">
+      {mcpEnvironment ? <UseInAnotherAppDialog environment={mcpEnvironment} /> : null}
       <RevokeButton
         label="Revoke others"
         pending={isRevokingOtherClients}
@@ -651,6 +663,7 @@ export const AuthorizedClientsHeaderAction = memo(function AuthorizedClientsHead
         onRevoke={onRevokeOtherClients}
       />
       <CreatePairingLinkDialog
+        environmentId={environmentId}
         triggerRef={triggerRef}
         relayEnabled={relayEnabled}
         delegatableScopes={delegatableScopes}
@@ -663,6 +676,7 @@ export const AuthorizedClientsHeaderAction = memo(function AuthorizedClientsHead
 type PairingClientsListProps = {
   relaySettings: Pick<ServerSettings, "publicRelayEnabled" | "publicRelayUrl"> | undefined;
   pairingHints: PairingRouteHints;
+  servedByEnvironment: boolean;
   endpointUrl: string | null | undefined;
   endpoints: ReadonlyArray<AdvertisedEndpoint>;
   defaultEndpointKey: string | null;
@@ -680,6 +694,7 @@ type PairingClientsListProps = {
 export const PairingClientsList = memo(function PairingClientsList({
   relaySettings,
   pairingHints,
+  servedByEnvironment,
   endpointUrl,
   endpoints,
   defaultEndpointKey,
@@ -703,6 +718,7 @@ export const PairingClientsList = memo(function PairingClientsList({
           pairingLink={pairingLink}
           credential={createdPairingCredentials.get(pairingLink.id)?.credential}
           preparedRelay={createdPairingCredentials.get(pairingLink.id)?.relay}
+          servedByEnvironment={servedByEnvironment}
           endpointUrl={endpointUrl}
           endpoints={endpoints}
           defaultEndpointKey={defaultEndpointKey}
@@ -759,8 +775,8 @@ export const AdvertisedEndpointListRow = memo(function AdvertisedEndpointListRow
       {isDefault ? (
         <span className="absolute inset-y-2 left-0 w-1 rounded-r-full bg-primary" aria-hidden />
       ) : null}
-      <div className="flex min-h-6 min-w-0 flex-col gap-2 sm:-my-0.5 sm:flex-row sm:items-center">
-        <div className="flex min-w-0 items-baseline gap-3">
+      <div className="flex min-h-7 min-w-0 flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
+        <div className="flex min-h-7 min-w-0 flex-1 items-center gap-3">
           <h3 className="shrink-0 text-sm leading-5 font-medium text-foreground">
             {endpoint.label}
           </h3>
@@ -777,14 +793,14 @@ export const AdvertisedEndpointListRow = memo(function AdvertisedEndpointListRow
             </Tooltip>
           ) : null}
           {!isAvailable ? (
-            <span className="shrink-0 rounded-md border border-border/70 px-1 py-0.5 text-3xs text-muted-foreground">
+            <span className="inline-flex h-6 shrink-0 items-center rounded-md border border-border/70 px-1.5 text-3xs text-muted-foreground">
               Setup required
             </span>
           ) : null}
         </div>
-        <div className="ml-auto flex min-h-6 shrink-0 items-center justify-end gap-2">
+        <div className="ml-auto flex min-h-7 shrink-0 items-center justify-end gap-2">
           {isDefault ? (
-            <span className="rounded-md border border-primary/30 bg-primary/10 px-1 py-0.5 text-3xs text-primary">
+            <span className="inline-flex h-6 items-center rounded-md border border-primary/30 bg-primary/10 px-1.5 text-3xs text-primary">
               Default
             </span>
           ) : null}

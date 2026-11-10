@@ -364,6 +364,7 @@ const cachedConfigSnapshotEvent = (config: ServerConfig): ServerConfigStreamEven
 
 export interface ServerConfigSubscriptionOptions {
   readonly environmentThemes?: boolean;
+  readonly providerCatalogsOnDemand?: boolean;
 }
 
 // Configs are JSON-shaped. Missing and undefined object fields persist identically.
@@ -476,10 +477,10 @@ export const makeEnvironmentServerConfigState = Effect.fn("EnvironmentServerConf
 
     yield* runCachePersistence(persistence, persistPending).pipe(Effect.forkScoped);
 
-    yield* subscribe(
-      WS_METHODS.subscribeServerConfig,
-      subscription.environmentThemes === true ? { environmentThemes: true } : {},
-    ).pipe(
+    yield* subscribe(WS_METHODS.subscribeServerConfig, {
+      ...(subscription.environmentThemes === true ? { environmentThemes: true } : {}),
+      ...(subscription.providerCatalogsOnDemand === true ? { providerCatalogsOnDemand: true } : {}),
+    }).pipe(
       Stream.runForEach((event) =>
         Effect.gen(function* () {
           const next = applyServerConfigProjection(yield* SubscriptionRef.get(state), event);
@@ -740,6 +741,7 @@ export function createServerEnvironmentAtoms<R, E>(
       environmentId: EnvironmentId,
     ) => Atom.Atom<ServerConfig | null>;
     readonly environmentThemes?: boolean;
+    readonly providerCatalogsOnDemand?: boolean;
   },
 ) {
   const configScheduler = createAtomCommandScheduler();
@@ -751,10 +753,10 @@ export function createServerEnvironmentAtoms<R, E>(
   const configProjectionFamily = Atom.family((environmentId: EnvironmentId) =>
     runtime
       .atom(
-        serverConfigStateChanges(
-          environmentId,
-          options.environmentThemes === true ? { environmentThemes: true } : {},
-        ),
+        serverConfigStateChanges(environmentId, {
+          ...(options.environmentThemes === true ? { environmentThemes: true } : {}),
+          ...(options.providerCatalogsOnDemand === true ? { providerCatalogsOnDemand: true } : {}),
+        }),
       )
       .pipe(
         Atom.setIdleTTL(5 * 60_000),
@@ -1087,9 +1089,15 @@ export function createServerEnvironmentAtoms<R, E>(
         Object.keys(aliases)
           .sort()
           .map((model) => [model, aliases[model]]),
-        settings?.cursorKeychainUsageEnabled ?? false,
       ]);
     }).pipe(Atom.withLabel(`environment-data:server:usage-scan-settings:${environmentId}`)),
+  );
+  // Settings snapshots rebuild the filter object; only a changed filter should touch the Usage tab.
+  const usageModelFilterAtom = Atom.family((environmentId: EnvironmentId) =>
+    Atom.make((get) => get(settingsValueAtom(environmentId))?.usageModelFilter).pipe(
+      Atom.withEquality((a, b) => JSON.stringify(a) === JSON.stringify(b)),
+      Atom.withLabel(`environment-data:server:usage-model-filter:${environmentId}`),
+    ),
   );
   const providersValueAtom = Atom.family((environmentId: EnvironmentId) =>
     Atom.make((get) => get(configValueAtom(environmentId))?.providers ?? null).pipe(
@@ -1166,6 +1174,11 @@ export function createServerEnvironmentAtoms<R, E>(
     }),
     databaseStorage,
     databaseCompactionRecommendations,
+    reclaimDatabaseSpace: createEnvironmentRpcCommand(runtime, {
+      label: "environment-data:server:reclaim-database-space",
+      tag: WS_METHODS.serverReclaimDatabaseSpace,
+      concurrency: { mode: "singleFlight", key: ({ environmentId }) => environmentId },
+    }),
     storageCleanupReport: createEnvironmentRpcSubscriptionAtomFamily(runtime, {
       label: "environment-data:server:storage-cleanup-report",
       tag: WS_METHODS.serverGetStorageCleanupReport,
@@ -1173,6 +1186,7 @@ export function createServerEnvironmentAtoms<R, E>(
     }),
     updateStateAtom,
     settingsValueAtom,
+    usageModelFilterAtom,
     providersValueAtom,
     prepareRelay: createEnvironmentRpcCommand(runtime, {
       label: "environment-data:server:prepare-relay",
@@ -1224,6 +1238,10 @@ export function createServerEnvironmentAtoms<R, E>(
       label: "environment-data:provider:auth-cancel",
       tag: WS_METHODS.providerAuthCancel,
     }),
+    removeProviderAuthMethod: createEnvironmentRpcCommand(runtime, {
+      label: "environment-data:provider:auth-remove-method",
+      tag: WS_METHODS.providerAuthRemoveMethod,
+    }),
     logoutProviderAuth: createEnvironmentRpcCommand(runtime, {
       label: "environment-data:provider:auth-logout",
       tag: WS_METHODS.providerAuthLogout,
@@ -1250,7 +1268,7 @@ export function createServerEnvironmentAtoms<R, E>(
       tag: WS_METHODS.providerInstallStart,
       concurrency: {
         mode: "singleFlight",
-        key: ({ environmentId }) => environmentId,
+        key: ({ environmentId, input }) => JSON.stringify([environmentId, input]),
       },
     }),
     cancelProviderInstall: createEnvironmentRpcCommand(runtime, {
@@ -1326,6 +1344,8 @@ export function createServerEnvironmentAtoms<R, E>(
       label: "environment-data:server:resource-telemetry-history",
       tag: WS_METHODS.serverGetResourceTelemetryHistory,
       staleTimeMs: 5_000,
+      refreshIntervalMs: 5_000,
+      idleTtlMs: 0,
     }),
     searchAcpRegistry: createEnvironmentRpcQueryAtomFamily(runtime, {
       label: "environment-data:server:acp-registry:search",
@@ -1352,6 +1372,7 @@ export function createServerEnvironmentAtoms<R, E>(
         requestGuarded(WS_METHODS.serverRefreshProviders, {
           ...input,
           workspaceSnapshotsOnDemand: true,
+          ...(options.providerCatalogsOnDemand === true ? { providerCatalogsOnDemand: true } : {}),
         }),
       onSuccess: ({ environmentId, input }, registry, result) =>
         Effect.sync(() => {
@@ -1377,6 +1398,7 @@ export function createServerEnvironmentAtoms<R, E>(
             input.cwd ?? null,
             input.fresh ?? false,
             input.refreshModels ?? false,
+            input.modelCatalogOnly ?? false,
           ]),
       },
     }),

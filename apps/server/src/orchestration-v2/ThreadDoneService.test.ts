@@ -7,6 +7,7 @@ import {
   EventId,
   ProviderInstanceId,
   ProviderSessionId,
+  RuntimeRequestId,
   RunId,
   ThreadId,
   TurnItemId,
@@ -23,11 +24,13 @@ import {
 } from "@supaterm/contracts";
 import { applyServerSettingsPatch } from "@supaterm/shared/serverSettings";
 import * as KeyedLock from "@supaterm/shared/KeyedLock";
-import * as Crypto from "effect/Crypto";
+import * as SecureRandom from "effect/crypto/SecureRandom";
 import * as Deferred from "effect/Deferred";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
+import * as Path from "effect/Path";
+import * as PlatformError from "effect/PlatformError";
 import * as PubSub from "effect/PubSub";
 import * as Queue from "effect/Queue";
 import * as Ref from "effect/Ref";
@@ -537,10 +540,7 @@ type AutoMarkDoneCommand = Extract<
   { readonly type: "thread.auto-mark-done" }
 >;
 
-const testCrypto = Crypto.make({
-  randomBytes: (size) => new Uint8Array(size).fill(1),
-  digest: (_algorithm, data) => Effect.succeed(data),
-});
+const testCrypto = SecureRandom.make((size) => new Uint8Array(size).fill(1));
 
 function makeProject(
   id: ProjectId = PROJECT_ID,
@@ -650,6 +650,7 @@ interface HarnessOptions {
   readonly branchPullRequest?: GitManager.GitManager["Service"]["branchPullRequest"];
   readonly pullRequestSummary?: PullRequestService.PullRequestService["Service"]["summary"];
   readonly existingWorktreePaths?: ReadonlyArray<string>;
+  readonly unreadablePaths?: ReadonlyArray<string>;
   readonly onDispatch?: (command: AutoMarkDoneCommand) => Effect.Effect<void>;
   /** Runs before each done script start; a failure fails that start. */
   readonly onScriptRun?: (
@@ -805,7 +806,7 @@ const makeHarness = Effect.fn("makeThreadDoneHarness")(function* (options: Harne
       withThreadCommandLock: (threadId, effect) => threadCommandLock.withLock(threadId, effect),
     }),
     Layer.mock(TerminalManager.TerminalManager)({
-      closeIdle: (input) =>
+      closeOnDone: (input) =>
         Queue.offer(closedIdle, input).pipe(Effect.andThen(options.onCloseIdle?.() ?? Effect.void)),
     }),
     Layer.mock(ProjectSetupScriptRunner.ProjectSetupScriptRunner)({
@@ -823,10 +824,21 @@ const makeHarness = Effect.fn("makeThreadDoneHarness")(function* (options: Harne
     }),
     Layer.succeed(ServerSettings.ServerSettingsService, serverSettings),
     Layer.succeed(ServerActivation.ServerActivation, Deferred.await(activation)),
-    Layer.succeed(Crypto.Crypto, testCrypto),
+    Layer.succeed(SecureRandom.SecureRandom, testCrypto),
     FileSystem.layerNoop({
-      exists: (path) => Effect.succeed(options.existingWorktreePaths?.includes(path) ?? false),
+      exists: (path) =>
+        options.unreadablePaths?.includes(path)
+          ? Effect.fail(
+              PlatformError.systemError({
+                _tag: "PermissionDenied",
+                module: "FileSystem",
+                method: "exists",
+                pathOrDescriptor: path,
+              }),
+            )
+          : Effect.succeed(options.existingWorktreePaths?.includes(path) ?? false),
     }),
+    Path.layer,
   );
 
   return {
@@ -1081,6 +1093,117 @@ describe("ThreadDoneServiceV2 worker", () => {
           yield* startHarness(service, fixture.activation, fixture.snapshotReads);
           const marked = (yield* Ref.get(fixture.commands)).map((command) => command.threadId);
           expect(marked).not.toContain(threads[8]!.id);
+        }).pipe(Effect.provide(fixture.layer));
+      }),
+    ),
+  );
+
+  it.effect("looks up a branch in its worktree only while the worktree has .git", () =>
+    Effect.scoped(
+      Effect.gen(function* () {
+        yield* TestClock.setTime(Date.parse(NOW));
+        const fixture = yield* makeHarness({
+          snapshot: makeSnapshot([
+            makeThread("linked-worktree", {
+              branch: "linked",
+              worktreePath: "/worktrees/linked",
+              latestUserMessageAt: DateTime.makeUnsafe("2026-08-27T00:00:00.000Z"),
+            }),
+            // A folder that outlived its .git makes git fail with not_a_repository.
+            makeThread("emptied-worktree", {
+              branch: "emptied",
+              worktreePath: "/worktrees/emptied",
+              latestUserMessageAt: DateTime.makeUnsafe("2026-08-27T00:00:00.000Z"),
+            }),
+          ]),
+          existingWorktreePaths: [
+            "/worktrees/linked",
+            "/worktrees/linked/.git",
+            "/worktrees/emptied",
+          ],
+        });
+
+        yield* Effect.gen(function* () {
+          const reactor = yield* ThreadDoneService.ThreadDoneServiceV2;
+          yield* startHarness(reactor, fixture.activation, fixture.snapshotReads);
+          const cwdByBranch = Object.fromEntries(
+            (yield* Ref.get(fixture.branchCalls)).map((call) => [call.branch, call.cwd]),
+          );
+          expect(cwdByBranch).toEqual({
+            linked: "/worktrees/linked",
+            emptied: "/workspace/project",
+          });
+        }).pipe(Effect.provide(fixture.layer));
+      }),
+    ),
+  );
+
+  it.effect("does not mark done a thread whose worktree cannot be checked", () =>
+    Effect.scoped(
+      Effect.gen(function* () {
+        yield* TestClock.setTime(Date.parse(NOW));
+        const fixture = yield* makeHarness({
+          snapshot: makeSnapshot(
+            [
+              makeThread("unreadable-worktree", {
+                branch: "unreadable",
+                worktreePath: "/worktrees/unreadable",
+                latestUserMessageAt: DateTime.makeUnsafe("2026-08-27T00:00:00.000Z"),
+              }),
+              // A merged linked pull request still needs the branch recheck before marking done.
+              makeThread("unreadable-linked-worktree", {
+                branch: "feature",
+                worktreePath: "/worktrees/unreadable-linked",
+                latestUserMessageAt: DateTime.makeUnsafe("2026-08-27T00:00:00.000Z"),
+                linkedPullRequest: {
+                  projectId: PROJECT_ID,
+                  repository: "owner/repository",
+                  number: 41,
+                  url: "https://example.test/owner/repository/pull/41",
+                },
+              }),
+              makeThread("readable-worktree", {
+                branch: "readable",
+                worktreePath: "/worktrees/readable",
+                latestUserMessageAt: DateTime.makeUnsafe("2026-08-27T00:00:00.000Z"),
+              }),
+            ],
+            [
+              {
+                ...makeProject(),
+                repositoryIdentity: {
+                  canonicalKey: "example.test/owner/repository",
+                  locator: {
+                    source: "git-remote",
+                    remoteName: "origin",
+                    remoteUrl: "https://example.test/owner/repository.git",
+                  },
+                  provider: SourceControlProviderKind.make("github"),
+                  owner: "owner",
+                  name: "repository",
+                },
+              },
+            ],
+          ),
+          existingWorktreePaths: ["/worktrees/readable", "/worktrees/readable/.git"],
+          unreadablePaths: ["/worktrees/unreadable/.git", "/worktrees/unreadable-linked/.git"],
+          pullRequestSummary: (input) =>
+            Effect.succeed({
+              ...makePullRequestSummary({ ...input, state: "merged" }),
+              mergedAt: NOW,
+            }),
+          branchPullRequest: (input) =>
+            input.cwd.startsWith("/worktrees/unreadable")
+              ? Effect.die(new Error("git: permission denied"))
+              : Effect.succeed(makeBranchPullRequest("merged")),
+        });
+
+        yield* Effect.gen(function* () {
+          const reactor = yield* ThreadDoneService.ThreadDoneServiceV2;
+          yield* startHarness(reactor, fixture.activation, fixture.snapshotReads);
+          expect((yield* Ref.get(fixture.commands)).map((command) => command.threadId)).toEqual([
+            ThreadId.make("readable-worktree"),
+          ]);
         }).pipe(Effect.provide(fixture.layer));
       }),
     ),
@@ -1827,6 +1950,34 @@ describe("ThreadDoneServiceV2 single-thread sweeps", () => {
 
 describe("isSnoozed", () => {
   const snoozed = { snoozedAt: at(-2 * DAY_MS), snoozedUntil: at(DAY_MS) };
+  it("defers existing input while new questions and approvals wake the thread", () => {
+    const request = {
+      id: RuntimeRequestId.make("question"),
+      kind: "user_input" as const,
+      createdAt: snoozed.snoozedAt,
+    };
+    expect(
+      ThreadDoneService.isSnoozed(shell({ ...snoozed, pendingRuntimeRequest: request }), NOW_MS),
+    ).toBe(true);
+    expect(
+      ThreadDoneService.isSnoozed(
+        shell({ ...snoozed, pendingRuntimeRequest: { ...request, createdAt: at(-DAY_MS) } }),
+        NOW_MS,
+      ),
+    ).toBe(false);
+    expect(
+      ThreadDoneService.isSnoozed(
+        shell({ ...snoozed, pendingRuntimeRequest: { ...request, kind: "command" } }),
+        NOW_MS,
+      ),
+    ).toBe(false);
+    expect(
+      ThreadDoneService.isSnoozed(
+        shell({ ...snoozed, snoozedAt: null, pendingRuntimeRequest: request }),
+        NOW_MS,
+      ),
+    ).toBe(false);
+  });
   it("keeps a run requested and completed after snoozing parked until the timer", () => {
     const thread = shell({
       ...snoozed,

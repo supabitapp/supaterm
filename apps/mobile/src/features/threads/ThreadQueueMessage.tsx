@@ -4,7 +4,7 @@ import { resolveUserMessagePresentation } from "@supaterm/client-runtime/user-me
 import type { ChatAttachment, EnvironmentId } from "@supaterm/contracts";
 import { Image } from "expo-image";
 import { useRef } from "react";
-import { type AccessibilityActionEvent, Platform, Pressable, View } from "react-native";
+import { type AccessibilityActionEvent, Pressable, View } from "react-native";
 
 import { SymbolView } from "../../components/ui/AppSymbol";
 import { AppText as Text } from "../../components/ui/AppText";
@@ -39,7 +39,7 @@ export function ThreadQueueMessage(props: {
             id: "steer",
             title: "Send now",
             attributes: { disabled: !props.controls.canSend },
-            image: Platform.OS === "ios" ? "arrow.up" : "arrow_upward",
+            image: "arrow.up",
           },
         ]
       : []),
@@ -47,7 +47,7 @@ export function ThreadQueueMessage(props: {
       id: "edit",
       title: "Edit",
       attributes: { disabled: !props.controls.canEdit },
-      image: Platform.OS === "ios" ? "pencil" : "edit",
+      image: "pencil",
     },
     {
       id: "remove",

@@ -647,6 +647,9 @@ export const layerWithOptions = (
         const payload: OrchestrationV2ProviderSession = {
           ...input.entry.runtime.providerSession,
           status: releaseStatusFor(input.reason),
+          ...(input.entry.runtime.providerSession.extensionStatuses === undefined
+            ? {}
+            : { extensionStatuses: [] }),
           updatedAt: now,
           lastError:
             input.reason === "runtime_error" ? (input.detail ?? "Provider runtime failed.") : null,
@@ -659,12 +662,23 @@ export const layerWithOptions = (
         });
       });
 
+      // A detach removes its thread before releasing, but that thread's records still need releasing.
+      const releasedThreadIds = (input: {
+        readonly entry: LiveSessionEntry;
+        readonly detachedThreadId?: ThreadId;
+      }) => {
+        const threadIds = new Set(input.entry.attachedThreadIds);
+        if (input.detachedThreadId !== undefined) threadIds.add(input.detachedThreadId);
+        return threadIds;
+      };
+
       const writeReleasedRuntimeRequestEvents = Effect.fn(
         "ProviderSessionManager.writeReleasedRuntimeRequestEvents",
       )(function* (input: {
         readonly entry: LiveSessionEntry;
         readonly reason: ProviderSessionReleaseReason;
         readonly releasedAt: DateTime.Utc;
+        readonly detachedThreadId?: ThreadId;
       }) {
         const providerSessionId = input.entry.runtime.providerSessionId;
         const now = yield* DateTime.now;
@@ -675,11 +689,11 @@ export const layerWithOptions = (
             : "Provider session was closed before this runtime request was resolved.";
 
         const events: Array<OrchestrationV2DomainEvent> = [];
-        for (const threadId of input.entry.attachedThreadIds) {
+        for (const threadId of releasedThreadIds(input)) {
           const projection = yield* projectionStore.getThreadRecords(
             threadId,
-            ["runtimeRequests", "nodes", "turnItems"],
-            { turnItemTypes: ["approval_request", "user_input_request"] },
+            ["runtimeRequests"],
+            { runtimeRequestStatuses: ["pending"] },
           );
           const releasedRequests = projection.runtimeRequests.filter(
             (request) =>
@@ -691,6 +705,16 @@ export const layerWithOptions = (
               !(input.reason === "server_shutdown" && request.kind === "user_input"),
           );
 
+          if (releasedRequests.length === 0) continue;
+          const records = yield* projectionStore.getThreadRecords(
+            threadId,
+            ["nodes", "turnItems"],
+            {
+              nodeIds: releasedRequests.map((request) => request.nodeId),
+              turnItemRequestIds: releasedRequests.map((request) => request.id),
+              turnItemTypes: ["approval_request", "user_input_request"],
+            },
+          );
           for (const request of releasedRequests) {
             events.push({
               id: yield* idAllocator.allocate.event({
@@ -713,7 +737,7 @@ export const layerWithOptions = (
               },
             });
 
-            const requestNode = projection.nodes.find((node) => node.id === request.nodeId);
+            const requestNode = records.nodes.find((node) => node.id === request.nodeId);
             if (requestNode !== undefined) {
               events.push({
                 id: yield* idAllocator.allocate.event({
@@ -734,7 +758,7 @@ export const layerWithOptions = (
               });
             }
 
-            const turnItem = projection.turnItems.find(
+            const turnItem = records.turnItems.find(
               (item) =>
                 (item.type === "approval_request" || item.type === "user_input_request") &&
                 item.requestId === request.id,
@@ -785,10 +809,8 @@ export const layerWithOptions = (
             return [];
           }
           const providerSessionId = input.entry.runtime.providerSessionId;
-          const threadIds = new Set(input.entry.attachedThreadIds);
-          if (input.detachedThreadId !== undefined) threadIds.add(input.detachedThreadId);
           const released = [];
-          for (const threadId of threadIds) {
+          for (const threadId of releasedThreadIds(input)) {
             const projection = yield* projectionStore.getThreadRecords(threadId, [
               "providerThreads",
             ]);
@@ -878,6 +900,7 @@ export const layerWithOptions = (
         readonly detail?: string;
         readonly releasedBackgroundTasks: ReadonlyArray<ReleasedBackgroundTasks>;
         readonly releasedAt: DateTime.Utc;
+        readonly detachedThreadId?: ThreadId;
         readonly replaced: boolean;
       }) =>
         Effect.all(
@@ -1050,12 +1073,14 @@ export const layerWithOptions = (
               onNone: () => Effect.void,
               // The enclosing operation owns the span for this inline handler.
               onSome: Effect.fnUntraced(function* (entry) {
+                const detachedThread =
+                  input.detachedThreadId === undefined
+                    ? {}
+                    : { detachedThreadId: input.detachedThreadId };
                 const releasedBackgroundTasks = yield* readReleasedBackgroundTasks({
                   entry,
                   reason: input.reason,
-                  ...(input.detachedThreadId === undefined
-                    ? {}
-                    : { detachedThreadId: input.detachedThreadId }),
+                  ...detachedThread,
                 });
                 if (input.cancelIdleFiber !== false) {
                   yield* cancelIdleFiber(entry.idleFiber);
@@ -1080,6 +1105,7 @@ export const layerWithOptions = (
                   ...(input.detail === undefined ? {} : { detail: input.detail }),
                   releasedBackgroundTasks,
                   releasedAt,
+                  ...detachedThread,
                 };
                 const recorded = yield* Effect.exit(
                   writeReleaseRecords({ ...records, replaced: false }),
@@ -1235,8 +1261,8 @@ export const layerWithOptions = (
 
       // Provider activity restarts the pin budget, so background work that keeps
       // reporting progress (a long Claude workflow) is never cut off; only work
-      // that went silent for maxIdlePinMs is released. This runs for every
-      // provider event, so keep it untraced.
+      // that went silent for maxIdlePinMs is released. Progress events can be
+      // frequent, so keep this untraced.
       const scheduleIdleReleaseInternal = Effect.fnUntraced(function* (
         providerSessionId: ProviderSessionId,
         options?: { readonly providerActivity?: boolean },
@@ -1830,6 +1856,10 @@ export const layerWithOptions = (
                     ),
                 },
               }),
+          // Pi replaces its session snapshot as metadata changes.
+          get providerSession() {
+            return runtime.providerSession;
+          },
           subscribeEvents,
           events: Stream.unwrap(
             subscribeEvents.pipe(Effect.map((subscription) => subscription.events)),
@@ -2018,6 +2048,7 @@ export const layerWithOptions = (
 
       const startEventPump = (entry: LiveSessionEntry) => {
         let stoppedByProvider = false;
+        let lastSessionStatus = entry.runtime.providerSession.status;
         return entry.runtime.events.pipe(
           Stream.runForEach((event) => {
             if (shutdownSignal.received) return Effect.void;
@@ -2042,11 +2073,13 @@ export const layerWithOptions = (
                     itemId: event.turnItem.id,
                   })
                 : Effect.void;
-            if (
+            // Metadata can change while idle without extending the runtime's lifetime.
+            const metadataOnly =
               event.type === "provider_session.updated" &&
-              event.providerSession.status === "stopped"
-            ) {
-              stoppedByProvider = true;
+              event.providerSession.status === lastSessionStatus;
+            if (event.type === "provider_session.updated") {
+              lastSessionStatus = event.providerSession.status;
+              if (lastSessionStatus === "stopped") stoppedByProvider = true;
             }
             return observeActivity(
               entry.runtime.providerSessionId,
@@ -2056,7 +2089,9 @@ export const layerWithOptions = (
                     event.providerThreadId,
                     busyTurnKey(event.providerThreadId, event.runOrdinal),
                   )
-                : touchActivity(entry.runtime.providerSessionId, { providerActivity: true }),
+                : metadataOnly
+                  ? Effect.void
+                  : touchActivity(entry.runtime.providerSessionId, { providerActivity: true }),
             ).pipe(
               Effect.andThen(
                 event.type === "provider_session.updated"
@@ -2193,7 +2228,7 @@ export const layerWithOptions = (
             ),
           { concurrency: "unbounded", discard: true },
         );
-      });
+      }).pipe(Effect.withSpan("ProviderSessionManager.shutdown"));
       yield* Effect.addFinalizer(() =>
         shutdown.pipe(
           Effect.ensuring(closeScopeWithin(sessionScopes, { reason: "server_shutdown" })),
@@ -2597,40 +2632,38 @@ export const layerWithOptions = (
             }
             const unloadThread = detached.value.exposedRuntime.unloadThread;
             if (detached.value.supportsMultipleProviderThreads && unloadThread !== undefined) {
-              // Serialized with re-attachment: a thread whose next turn
-              // attaches first stays loaded, and one that attaches during the
-              // unload waits for it, so its resume reloads the native thread.
-              yield* threadAttachment.withLock(
-                threadAttachmentKey(input),
-                Effect.gen(function* () {
-                  const entry = (yield* Ref.get(sessions)).get(key);
-                  if (
-                    entry?.runtime !== detached.value.runtime ||
-                    entry.attachedThreadIds.has(input.threadId)
-                  ) {
-                    return;
-                  }
-                  yield* Effect.forEach(
-                    detachedProviderThreads.filter((thread) => thread.nativeThreadRef !== null),
-                    (providerThread) =>
-                      unloadThread({ providerThread }).pipe(
-                        Effect.timeout(UNLOAD_THREAD_TIMEOUT_MS),
-                        Effect.catchCause((cause) =>
-                          Effect.logWarning(
-                            "orchestration-v2.driver-session.detach-unload-failed",
-                            {
-                              providerSessionId: input.providerSessionId,
-                              threadId: input.threadId,
-                              providerThreadId: providerThread.id,
-                              cause,
-                            },
-                          ),
-                        ),
+              // The projection includes native children owned by other app threads;
+              // lock each owner so an attached child stays loaded and later attaches wait.
+              for (const providerThread of detachedProviderThreads) {
+                if (providerThread.nativeThreadRef === null) continue;
+                const ownerThreadId = providerThread.appThreadId ?? input.threadId;
+                yield* threadAttachment.withLock(
+                  threadAttachmentKey({
+                    providerSessionId: input.providerSessionId,
+                    threadId: ownerThreadId,
+                  }),
+                  Effect.gen(function* () {
+                    const entry = (yield* Ref.get(sessions)).get(key);
+                    if (
+                      entry?.runtime !== detached.value.runtime ||
+                      entry.attachedThreadIds.has(ownerThreadId)
+                    ) {
+                      return;
+                    }
+                    yield* unloadThread({ providerThread }).pipe(
+                      Effect.timeout(UNLOAD_THREAD_TIMEOUT_MS),
+                      Effect.catchCause((cause) =>
+                        Effect.logWarning("orchestration-v2.driver-session.detach-unload-failed", {
+                          providerSessionId: input.providerSessionId,
+                          threadId: ownerThreadId,
+                          providerThreadId: providerThread.id,
+                          cause,
+                        }),
                       ),
-                    { concurrency: 1, discard: true },
-                  );
-                }),
-              );
+                    );
+                  }),
+                );
+              }
             }
             yield* scheduleIdleRelease(input.providerSessionId);
           },

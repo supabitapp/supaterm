@@ -3,13 +3,17 @@ import {
   ORCHESTRATION_PROTOCOL_HEADER,
   ORCHESTRATION_PROTOCOL_VERSION_TEXT,
 } from "@supaterm/contracts";
+import * as Option from "effect/Option";
+import * as SubscriptionRef from "effect/SubscriptionRef";
 import { FetchHttpClient } from "effect/http";
 
 import type { PreparedConnection, PreparedHttpAuthorization } from "../connection/model.ts";
+import * as EnvironmentSupervisor from "../connection/supervisor.ts";
 import {
   executeEnvironmentHttpRequest,
   makeEnvironmentHttpApiGroupClient,
   makeEnvironmentHttpApiUrlBuilder,
+  RemoteEnvironmentAuthFetchError,
   RemoteEnvironmentAuthTimeoutError,
   type RemoteEnvironmentRequestError,
 } from "../rpc/http.ts";
@@ -47,15 +51,12 @@ const environmentAuthHeaders = (
 ): EnvironmentHttpAuthHeaders =>
   authorization === null ? {} : { authorization: `Bearer ${authorization.token}` };
 
-export const executeAuthenticatedEnvironmentHttpRequest = Effect.fn(
-  "clientRuntime.state.executeAuthenticatedEnvironmentHttpRequest",
-)(function* <
+interface EnvironmentHttpRequestInput<
   Group extends Parameters<typeof makeEnvironmentHttpApiGroupClient>[1],
   A,
   E,
   R,
->(input: {
-  readonly prepared: PreparedConnection;
+> {
   readonly url: (urls: ReturnType<typeof makeEnvironmentHttpApiUrlBuilder>[Group]) => string;
   readonly timeoutMs: number;
   readonly group: Group;
@@ -63,7 +64,13 @@ export const executeAuthenticatedEnvironmentHttpRequest = Effect.fn(
     readonly client: Effect.Success<ReturnType<typeof makeEnvironmentHttpApiGroupClient<Group>>>;
     readonly headers: EnvironmentHttpAuthHeaders;
   }) => Effect.Effect<A, E, R>;
-}): Effect.fn.Return<
+}
+
+export const executeAuthenticatedEnvironmentHttpRequest = Effect.fn(
+  "clientRuntime.state.executeAuthenticatedEnvironmentHttpRequest",
+)(function* <Group extends Parameters<typeof makeEnvironmentHttpApiGroupClient>[1], A, E, R>(
+  input: EnvironmentHttpRequestInput<Group, A, E, R> & { readonly prepared: PreparedConnection },
+): Effect.fn.Return<
   A,
   RemoteEnvironmentRequestError,
   Effect.Services<ReturnType<typeof makeEnvironmentHttpApiGroupClient<Group>>> | R
@@ -86,4 +93,21 @@ export const executeAuthenticatedEnvironmentHttpRequest = Effect.fn(
       orElse: () => Effect.fail(new RemoteEnvironmentAuthTimeoutError(requestUrl, input.timeoutMs)),
     }),
   );
+});
+
+/** Sends the request with this client's own credentials on the supervised environment. */
+export const executeConnectedEnvironmentHttpRequest = Effect.fn(
+  "clientRuntime.state.executeConnectedEnvironmentHttpRequest",
+)(function* <Group extends Parameters<typeof makeEnvironmentHttpApiGroupClient>[1], A, E, R>(
+  input: EnvironmentHttpRequestInput<Group, A, E, R>,
+) {
+  const supervisor = yield* EnvironmentSupervisor.EnvironmentSupervisor;
+  const prepared = yield* SubscriptionRef.get(supervisor.prepared);
+  if (Option.isNone(prepared)) {
+    return yield* new RemoteEnvironmentAuthFetchError({
+      message: "The environment is not connected.",
+      cause: supervisor.target._tag,
+    });
+  }
+  return yield* executeAuthenticatedEnvironmentHttpRequest({ ...input, prepared: prepared.value });
 });

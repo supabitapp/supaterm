@@ -187,7 +187,11 @@ when it is already Done. The shortcut skips terminals and can be changed in Sett
 Manually marking an idle thread as Done dismisses unanswered async questions without
 sending an answer or restarting the agent. Marking it as Done also closes the thread's
 terminals that wait at an idle prompt, and keeps their output. A terminal that
-runs a command, such as a dev server, stays open.
+runs a command, such as a dev server, stays open unless its action has **Stop this action
+when the thread is marked Done** enabled in Settings > Projects > Actions. You can also set
+`"stopOnDone": true` on a `supaterm.json` action and import it there. Start the command through
+that action so Supaterm can stop its terminal and child processes. Commands started through an
+agent's own shell tools are managed by the provider.
 
 To reclaim disk space from Done work, turn on **Run in the thread's worktree when the
 thread is marked Done** for one of the project's actions, or set `"runOnDone": true` on a
@@ -201,7 +205,7 @@ mark every thread in that section between it and the one you release on as Done.
 The **Reopen** and **Wake** buttons work the same way in their sections.
 Press `Escape` while dragging to cancel.
 
-By default, environments mark inactive threads as Done after three days and mark threads whose
+By default, environments mark inactive threads as Done after seven days and mark threads whose
 pull request merged as Done. Turn off **Automatically mark merged threads as Done** to keep merged
 threads in the active list. A closed pull request can also mark an idle thread as Done. An empty thread's inactivity counts from when it was created.
 Pins, work in progress, pending questions or approvals, and background work the agent is
@@ -211,9 +215,10 @@ resumed it after it closed. Only your own messages count as resuming. A turn tha
 finished background work or a pull request watch starts on its own does not.
 
 To keep one thread out of the Done shelf no matter how long it sits idle, open its menu,
-choose **Automatic completion**, and pick **Disabled**. The current option is checked. Pick
-**Enabled** to return to the usual rules. The **Mark as Done**, **Snooze**, and **Archive** actions still work while it
-is disabled.
+choose **Automatic completion**, and pick **Never**. The current option is checked. Pick
+**Follow settings** to return to the rules in **Settings → Threads**. While those rules are off,
+a thread on **Follow settings** is not marked as Done automatically either. The **Mark as Done**,
+**Snooze**, and **Archive** actions still work while it is set to **Never**.
 
 Change these rules in **Settings → Threads**.
 They continue to run when your apps are closed. On web and desktop, choose an environment at the
@@ -363,9 +368,9 @@ On mobile, type `/side` or `/btw` in the composer, or choose **Start side chat**
 the command palette. A thread lists its side chats above the composer; tap one to
 open it.
 
-A side chat starts with the thread's model and permission mode, and works in the
-same folder as the thread. Its agent cannot start or message other threads, and it
-cannot be forked.
+A side chat starts with the permissions, model, and reasoning level shown in the
+thread's composer, including for its first reply, and works in the same folder as the
+thread. Its agent cannot start or message other threads, and it cannot be forked.
 
 The side chat's actions sit at its top on web and desktop, and above its composer on
 mobile:
@@ -393,6 +398,8 @@ you confirm; one day means 24 hours. On web and desktop, you can also snooze
 several selected threads together. Choose **Wake thread** to bring a thread back early, or
 **Mark as Done** to move it straight to the Done shelf. On mobile, both appear when you swipe a
 snoozed thread or open its menu.
+
 A snoozed thread keeps working and stays hidden until its wake time, even while
-its agent wakes itself for background work. It comes back early only when it needs
-an approval or answer from you, when a run fails, or when you send it a message.
+its agent wakes itself for background work. It comes back early for an approval,
+a new question, a failed run, or a message or answer you send. You can snooze an existing
+question and answer when the thread wakes; the question stays unanswered.

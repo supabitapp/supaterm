@@ -61,7 +61,7 @@ export function assertGrokBackgroundSubagentOutput(
   assert.isAbove(rootCompletedAt, subagentCompletedAt, "run 1 completed before the subagent");
   assert.include(runAssistantTexts(projection, rootRun?.id), "ROOT_DONE");
 
-  const rootDoneCompletedAt = result.domainEvents.findIndex(
+  const rootSettledCompletedAt = result.domainEvents.findIndex(
     (event) =>
       event.type === "turn-item.updated" &&
       event.payload.runId === rootRun?.id &&
@@ -69,9 +69,9 @@ export function assertGrokBackgroundSubagentOutput(
       event.payload.text.trim() === "ROOT_DONE" &&
       event.payload.status === "completed",
   );
-  assert.isAtLeast(rootDoneCompletedAt, 0);
+  assert.isAtLeast(rootSettledCompletedAt, 0);
   assert.isBelow(
-    rootDoneCompletedAt,
+    rootSettledCompletedAt,
     subagentCompletedAt,
     "ROOT_DONE streamed until the subagent finished",
   );

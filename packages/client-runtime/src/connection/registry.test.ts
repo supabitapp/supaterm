@@ -108,6 +108,11 @@ const BEARER_PROFILE = new BearerConnectionProfile({
   httpBaseUrl: "https://bearer.example.test",
   wsBaseUrl: "wss://bearer.example.test",
 });
+const LAN_BEARER_PROFILE = new BearerConnectionProfile({
+  ...BEARER_PROFILE,
+  httpBaseUrl: "http://192.168.1.10:3773",
+  wsBaseUrl: "ws://192.168.1.10:3773",
+});
 const BEARER_CREDENTIAL = new BearerConnectionCredential({
   token: "bearer-token",
 });
@@ -782,9 +787,10 @@ describe("EnvironmentRegistry", () => {
           httpBaseUrl: "https://alternate.example.test/",
           wsBaseUrl: "wss://alternate.example.test/",
         });
+        // A LAN route outranks the public alternate, so registering the alternate leaves it unused.
         const harness = yield* makeHarness(
           [BEARER_TARGET],
-          [BEARER_PROFILE],
+          [LAN_BEARER_PROFILE],
           [[BEARER_TARGET.connectionId, BEARER_CREDENTIAL]],
         );
         yield* Effect.gen(function* () {
@@ -873,7 +879,7 @@ describe("EnvironmentRegistry", () => {
       });
       const harness = yield* makeHarness(
         [BEARER_TARGET],
-        [BEARER_PROFILE],
+        [LAN_BEARER_PROFILE],
         [[BEARER_TARGET.connectionId, BEARER_CREDENTIAL]],
       );
       yield* Effect.gen(function* () {

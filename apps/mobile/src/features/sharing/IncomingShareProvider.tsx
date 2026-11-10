@@ -32,7 +32,7 @@ import { makeIncomingShareImports } from "../threads/incomingShareImport";
 import { liveNewTaskFlowKeys } from "../threads/new-task-flow-state";
 import { appAtomRegistry } from "../../state/atom-registry";
 import { serverEnvironment } from "../../state/server";
-import { selectWorkspaceDetail } from "../workspace/workspace-detail-selection";
+import { selectWorkspaceDetail } from "../layout/workspace/workspace-detail-selection";
 import {
   getComposerDraftSnapshot,
   mergeComposerDraftContent,

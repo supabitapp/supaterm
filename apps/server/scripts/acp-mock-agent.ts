@@ -11,7 +11,7 @@ import * as NodeRuntime from "@effect/platform-node/NodeRuntime";
 
 import * as EffectAcpAgent from "effect-acp/agent";
 import * as AcpError from "effect-acp/errors";
-import type * as AcpSchema from "effect-acp/schema";
+import * as AcpSchema from "effect-acp/schema";
 import type * as AcpCompat from "effect-acp/compat";
 
 import { beginAcpMockPrompt } from "./acpMockCancellationState.ts";
@@ -36,6 +36,12 @@ const emitBackgroundToolDuringAnswer =
   process.env.SUPATERM_ACP_EMIT_BACKGROUND_TOOL_DURING_ANSWER === "1";
 const emitMcpToolApprovalElicitation =
   process.env.SUPATERM_ACP_EMIT_MCP_TOOL_APPROVAL_ELICITATION === "1";
+const emitElicitation = process.env.SUPATERM_ACP_EMIT_ELICITATION === "1";
+const elicitationSchema = process.env.SUPATERM_ACP_ELICITATION_SCHEMA;
+const decodeElicitationSchema = Schema.decodeUnknownSync(
+  Schema.fromJsonString(AcpSchema.ElicitationSchema),
+);
+const elicitationResponseLogPath = process.env.SUPATERM_ACP_ELICITATION_RESPONSE_LOG_PATH;
 const grokKillTaskShape = process.env.SUPATERM_ACP_GROK_KILL_TASK_SHAPE;
 const emitGrokBackgroundTaskPoll =
   process.env.SUPATERM_ACP_GROK_BACKGROUND_TASK_COMPLETION === "poll";
@@ -58,6 +64,14 @@ const failLoadSessionAfterConfigReplay =
   process.env.SUPATERM_ACP_FAIL_LOAD_SESSION_AFTER_CONFIG_REPLAY === "1";
 const emitLoadReplay = process.env.SUPATERM_ACP_EMIT_LOAD_REPLAY === "1";
 const failPrompt = process.env.SUPATERM_ACP_FAIL_PROMPT === "1";
+// JSON for the `data` of an "Internal error" response to `session/new`, as
+// Antigravity sends when its runtime cannot reach its local harness.
+const newSessionErrorData =
+  process.env.SUPATERM_ACP_NEW_SESSION_ERROR_DATA === undefined
+    ? undefined
+    : Schema.decodeSync(Schema.fromJsonString(Schema.Unknown))(
+        process.env.SUPATERM_ACP_NEW_SESSION_ERROR_DATA,
+      );
 const failPromptOrdinal = Number(process.env.SUPATERM_ACP_FAIL_PROMPT_ORDINAL);
 const compactionPromptOrdinals = new Set(
   (process.env.SUPATERM_ACP_COMPACTION_PROMPT_ORDINALS ?? "").split(",").map(Number),
@@ -84,7 +98,7 @@ const permissionOptionIds = {
 const sessionId = "mock-session-1";
 
 let currentModeId = antigravityProfile
-  ? "default"
+  ? (process.env.SUPATERM_ACP_INITIAL_MODE ?? "default")
   : copilotModesProfile
     ? copilotModeId("agent")
     : "ask";
@@ -516,7 +530,10 @@ const program = Effect.gen(function* () {
       parameterizedModelPicker = request.capabilities?._meta?.parameterizedModelPicker === true;
       return {
         protocolVersion: 2,
-        info: { name: "supaterm-acp-mock-agent", version: "0.0.0" },
+        info: {
+          name: "supaterm-acp-mock-agent",
+          version: process.env.SUPATERM_ACP_AGENT_VERSION ?? "0.0.0",
+        },
         ...(omitInitializeModelState ? {} : { _meta: { modelState: modelState() } }),
         capabilities: {
           session: {
@@ -589,6 +606,9 @@ const program = Effect.gen(function* () {
   yield* agent.handleCreateSession(() =>
     Effect.gen(function* () {
       yield* requireAuthentication();
+      if (newSessionErrorData !== undefined) {
+        return yield* AcpError.AcpRequestError.internalError("Internal error", newSessionErrorData);
+      }
       if (antigravityProfile) {
         yield* publishAntigravityCommands(sessionId);
       }
@@ -1543,21 +1563,25 @@ const program = Effect.gen(function* () {
         return yield* finishPrompt(requestedSessionId, "end_turn");
       }
 
-      if (emitMcpToolApprovalElicitation) {
-        yield* agent.client.elicit({
+      if (emitElicitation || emitMcpToolApprovalElicitation) {
+        const response = yield* agent.client.elicit({
           sessionId: requestedSessionId,
           message: "Approve this request?",
           mode: "form",
-          requestedSchema: {
-            type: "object",
-            properties: {
-              approved: { type: "boolean", title: "Approved" },
-            },
-          },
+          requestedSchema: elicitationSchema
+            ? decodeElicitationSchema(elicitationSchema)
+            : {
+                type: "object",
+                properties: {
+                  approved: { type: "boolean", title: "Approved" },
+                },
+              },
           ...(emitMcpToolApprovalElicitation
             ? { _meta: { codex_approval_kind: "mcp_tool_call" } }
             : {}),
         });
+        if (elicitationResponseLogPath)
+          NodeFS.appendFileSync(elicitationResponseLogPath, `${encodeJson(response)}\n`, "utf8");
         return yield* finishPrompt(requestedSessionId, "end_turn");
       }
 
@@ -1851,6 +1875,11 @@ const program = Effect.gen(function* () {
     }
     if (method === "_test/finish-cancel") {
       return Deferred.succeed(nativeCancelRelease, undefined).pipe(Effect.as({}));
+    }
+    if (method === "_test/emit-update") {
+      return agent.client
+        .sessionUpdate(params as AcpSchema.SessionNotification)
+        .pipe(Effect.as({}));
     }
     if (method === "_test/startup-metadata") {
       return Effect.gen(function* () {

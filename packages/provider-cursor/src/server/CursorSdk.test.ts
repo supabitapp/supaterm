@@ -74,6 +74,26 @@ if (mode === "cursor-shell") {
   }
   Promise.reject(new o("WritableIterable is closed"));
   setTimeout(() => process.exit(0), 500);
+} else if (mode === "write-after-end") {
+  // Shaped like \`ConnectError.from(e, Code.Aborted)\` from the SDK's connect-node body pump.
+  const cause = Object.assign(new Error("write after end"), { code: "ERR_STREAM_WRITE_AFTER_END" });
+  Promise.reject(
+    Object.assign(new Error("[aborted] write after end", { cause }), {
+      name: "ConnectError",
+      code: 10,
+      rawMessage: "write after end",
+    }),
+  );
+  setTimeout(() => process.exit(0), 500);
+} else if (mode === "aborted-other") {
+  const cause = Object.assign(new Error("socket hang up"), { code: "ECONNRESET" });
+  Promise.reject(
+    Object.assign(new Error("[aborted] socket hang up", { cause }), {
+      name: "ConnectError",
+      code: 10,
+    }),
+  );
+  setTimeout(() => process.exit(0), 500);
 } else if (mode === "closed-stream-message") {
   Promise.reject(new Error("WritableIterable is closed"));
   setTimeout(() => process.exit(0), 500);
@@ -125,11 +145,23 @@ describe("Cursor shell spawn guard", () => {
   it("keeps the process alive when the SDK writes to a closed exec stream", async () => {
     const result = await runProbe("closed-stream-write");
     expect(result.code).toBe(0);
-    expect(result.stderr).toContain("wrote to a closed exec stream");
+    expect(result.stderr).toContain("wrote to a closed stream");
+  });
+
+  it("keeps the process alive when the SDK writes after its request stream ended", async () => {
+    const result = await runProbe("write-after-end");
+    expect(result.code).toBe(0);
+    expect(result.stderr).toContain("wrote to a closed stream");
   });
 
   it("still exits when only the message looks like a closed-stream write", async () => {
     const result = await runProbe("closed-stream-message");
+    expect(result.code).toBe(1);
+    expect(result.stderr).not.toContain("The server will keep running.");
+  });
+
+  it("still exits on aborted requests other than a write after end", async () => {
+    const result = await runProbe("aborted-other");
     expect(result.code).toBe(1);
     expect(result.stderr).not.toContain("The server will keep running.");
   });

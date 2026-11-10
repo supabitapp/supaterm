@@ -4,6 +4,7 @@ import * as NodeFS from "node:fs";
 import * as NodeOS from "node:os";
 import * as NodePath from "node:path";
 
+import * as NodeCrypto from "@effect/platform-node/NodeCrypto";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import {
   AuthStandardClientScopes,
@@ -36,13 +37,14 @@ import {
   persistServerRuntimeState,
   type PersistedServerRuntimeState,
 } from "../serverRuntimeState.ts";
+import { resolveHostCliCommand } from "./invocation.ts";
 import { DevServerNotProxiableError, resolveTailscaleLocalTarget } from "./pair.ts";
 import { CliServerVersionMismatchError } from "./config.ts";
 
 import packageJson from "../../package.json" with { type: "json" };
 import { buildPairingAppLink } from "@supaterm/shared/remote";
 
-const layerCliRuntime = Layer.mergeAll(NodeServices.layer, NetService.layer);
+const layerCliRuntime = Layer.mergeAll(NodeServices.layer, NodeCrypto.layer, NetService.layer);
 
 const baseState = {
   version: 1,
@@ -149,7 +151,7 @@ describe("supaterm pair", () => {
               if (!ChildProcess.isStandardCommand(command))
                 return yield* Effect.die("Unexpected pipeline");
               if (command.args[0] === "serve") {
-                const target = command.args.at(-1)!;
+                const target = String(command.args.at(-1));
                 const descriptor = yield* Effect.promise(async () =>
                   (await fetch(new URL("/.well-known/supaterm/environment", target))).json(),
                 );
@@ -206,7 +208,7 @@ describe("supaterm pair", () => {
         }),
       undefined,
       "::1",
-    ).pipe(Effect.provide(NodeServices.layer)),
+    ).pipe(Effect.provide(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer))),
   );
 
   it.effect("activates an idle relay by default before printing its first pairing URL", () => {
@@ -314,7 +316,7 @@ describe("supaterm pair", () => {
         assert.deepEqual(credentials[0]?.scopes, AuthStandardClientScopes);
       }),
     ).pipe(
-      Effect.provide(NodeServices.layer),
+      Effect.provide(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer)),
       Effect.provideService(HostProcess.Environment, {
         ...process.env,
         [SERVICE_LAUNCHER_CONTEXT_ENV]: JSON.stringify({
@@ -391,7 +393,7 @@ describe("supaterm pair", () => {
 
         assert.include(output, "Pairing URL: http://localhost:5733/pair#token=");
       }),
-    ).pipe(Effect.provide(NodeServices.layer)),
+    ).pipe(Effect.provide(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer))),
   );
 
   it.effect.each([
@@ -412,7 +414,7 @@ describe("supaterm pair", () => {
         typeof error === "object" && error !== null && "cause" in error ? error.cause : error,
       );
       assert.include(rendered, "No running Supaterm server found.");
-      assert.include(rendered, "supaterm serve");
+      assert.include(rendered, `serve --base-dir ${baseDir}`);
     }).pipe(Effect.provide(NodeServices.layer)),
   );
 
@@ -463,7 +465,7 @@ describe("supaterm pair", () => {
     withDescriptorServer((origin) =>
       Effect.gen(function* () {
         const baseDir = NodeFS.mkdtempSync(
-          NodePath.join(NodeOS.tmpdir(), "supaterm-pair-pid-test-"),
+          NodePath.join(NodeOS.tmpdir(), "supaterm pair pid test-"),
         );
         const statePath = NodePath.join(baseDir, "userdata", "server-runtime.json");
         const state = yield* makePersistedServerRuntimeState({
@@ -483,8 +485,10 @@ describe("supaterm pair", () => {
           typeof error === "object" && error !== null && "cause" in error ? error.cause : error,
         );
         assert.include(rendered, "No running Supaterm server found.");
+        const { command } = yield* resolveHostCliCommand("serve", ["--base-dir", baseDir]);
+        assert.include(rendered, `Start one with \`${command}\`.`);
       }),
-    ).pipe(Effect.provide(NodeServices.layer)),
+    ).pipe(Effect.provide(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer))),
   );
 
   // regression: minting opens the target database with this checkout's
@@ -532,7 +536,7 @@ describe("supaterm pair", () => {
           "server-runtime.json",
         ]);
       }),
-    ).pipe(Effect.provide(NodeServices.layer)),
+    ).pipe(Effect.provide(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer))),
   );
 
   // Without the capability `tailscale serve` blocks on an enablement URL, so
@@ -586,7 +590,7 @@ describe("supaterm pair", () => {
         assert.include(String(error), "https://login.tailscale.com/admin/dns");
         assert.deepEqual(tailscaleCalls, [["status", "--json"]]);
       }),
-    ).pipe(Effect.provide(NodeServices.layer)),
+    ).pipe(Effect.provide(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer))),
   );
 });
 

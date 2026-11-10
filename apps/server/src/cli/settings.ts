@@ -63,7 +63,6 @@ const SETTABLE_SETTINGS = {
     kind: "string-or-null",
     expected: [...PullRequestMergeMethod.literals, "null"].join(" | "),
   },
-  cursorKeychainUsageEnabled: BOOLEAN_SETTING,
 } as const satisfies Partial<
   Record<
     keyof ServerSettingsPatch,

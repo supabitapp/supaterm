@@ -8,7 +8,7 @@ import {
 } from "@supaterm/contracts";
 import { isSvgAttachment } from "@supaterm/shared/image";
 import * as Clock from "effect/Clock";
-import * as Crypto from "effect/Crypto";
+import * as SecureRandom from "effect/crypto/SecureRandom";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
 import * as Option from "effect/Option";
@@ -27,20 +27,14 @@ import {
   sweepStalePendingAttachments,
 } from "../attachmentStore.ts";
 import { resolveAttachmentRelativePath } from "../attachmentPaths.ts";
-import {
-  base64UrlDecodeUtf8,
-  base64UrlEncode,
-  signPayload,
-  timingSafeEqualBase64Url,
-} from "../auth/utils.ts";
-import * as ServerSecretStore from "../auth/ServerSecretStore.ts";
+import { base64UrlDecodeUtf8, base64UrlEncode } from "../auth/utils.ts";
+import * as AssetSigner from "./AssetSigner.ts";
 import * as ServerConfig from "../config.ts";
 import { inferImageExtension } from "../imageMime.ts";
 import * as DocumentText from "../provider/DocumentText.ts";
 
 export const ATTACHMENT_UPLOAD_ROUTE_PREFIX = "/api/attachments/upload";
 
-const SIGNING_SECRET_NAME = "asset-access-signing-key";
 const PENDING_ATTACHMENT_SWEEP_INTERVAL_MS = 15 * 60_000;
 const lastPendingSweepByDirectory = new Map<string, number>();
 
@@ -62,19 +56,15 @@ const attachmentUploadClaimsJson = Schema.fromJsonString(AttachmentUploadClaims)
 const decodeAttachmentUploadClaims = Schema.decodeUnknownOption(attachmentUploadClaimsJson);
 const encodeAttachmentUploadClaims = Schema.encodeSync(attachmentUploadClaimsJson);
 
-const loadSigningSecret = Effect.gen(function* () {
-  const secretStore = yield* ServerSecretStore.ServerSecretStore;
-  return yield* secretStore.getOrCreateRandom(SIGNING_SECRET_NAME, 32);
-});
-
 export const signUploadToken = Effect.fn("AttachmentUpload.signToken")(function* (
   payloadJson: string,
 ) {
-  const secret = yield* loadSigningSecret.pipe(
-    Effect.mapError((cause) => new AttachmentUploadSigningKeyError({ cause })),
-  );
+  const signer = yield* AssetSigner.AssetSigner;
   const encodedPayload = base64UrlEncode(payloadJson);
-  return `${encodedPayload}.${signPayload(encodedPayload, secret)}`;
+  const signature = yield* signer
+    .sign(encodedPayload)
+    .pipe(Effect.mapError((cause) => new AttachmentUploadSigningKeyError({ cause })));
+  return `${encodedPayload}.${signature}`;
 });
 
 function decodePayload(encodedPayload: string): string | null {
@@ -94,13 +84,14 @@ export const verifyUploadToken = Effect.fn("AttachmentUpload.verifyToken")(funct
     return null;
   }
 
-  const secret = yield* loadSigningSecret.pipe(
+  const signer = yield* AssetSigner.AssetSigner;
+  const verified = yield* signer.verify(encodedPayload, signature).pipe(
     Effect.tapError((cause) =>
       Effect.logError("Failed to load the attachment upload signing key.", { cause }),
     ),
-    Effect.orElseSucceed(() => null),
+    Effect.orElseSucceed(() => false),
   );
-  if (!secret || !timingSafeEqualBase64Url(signature, signPayload(encodedPayload, secret))) {
+  if (!verified) {
     return null;
   }
   return decodePayload(encodedPayload);
@@ -214,8 +205,8 @@ export const storeAttachmentUpload = Effect.fn("AttachmentUpload.store")(functio
     attachmentsDir: config.attachmentsDir,
     relativePath,
   });
-  const crypto = yield* Crypto.Crypto;
-  const partId = yield* crypto.randomUUIDv4().pipe(Effect.orDie);
+  const random = yield* SecureRandom.SecureRandom;
+  const partId = yield* random.uuidV4();
   const partPath = resolveAttachmentRelativePath({
     attachmentsDir: config.attachmentsDir,
     relativePath: `${relativePath}.${partId}.part`,

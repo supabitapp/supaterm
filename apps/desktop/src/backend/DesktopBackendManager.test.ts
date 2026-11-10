@@ -193,6 +193,49 @@ function makeTestInstance(input: MakeInstanceInput) {
 }
 
 describe("DesktopBackendManager", () => {
+  it.effect("notifies readiness waiters on HTTP readiness and stop without clock advancement", () =>
+    Effect.scoped(
+      Effect.gen(function* () {
+        const probe = yield* Deferred.make<void>();
+        const ready = yield* Deferred.make<void>();
+        const exit = yield* Deferred.make<ChildProcessSpawner.ExitCode>();
+        const instance = yield* makeTestInstance({
+          spawnerLayer: Layer.succeed(
+            ChildProcessSpawner.ChildProcessSpawner,
+            ChildProcessSpawner.make(() =>
+              Effect.acquireRelease(
+                Effect.succeed(
+                  makeProcess({
+                    exitCode: Deferred.await(exit),
+                    kill: () =>
+                      Deferred.succeed(exit, ChildProcessSpawner.ExitCode(0)).pipe(Effect.asVoid),
+                  }),
+                ),
+                () => Deferred.succeed(exit, ChildProcessSpawner.ExitCode(0)),
+              ),
+            ),
+          ),
+          httpClientLayer: Layer.succeed(
+            HttpClient.HttpClient,
+            HttpClient.make((request) =>
+              Deferred.succeed(probe, undefined).pipe(
+                Effect.andThen(Deferred.await(ready)),
+                Effect.as(HttpClientResponse.fromWeb(request, new Response("{}"))),
+              ),
+            ),
+          ),
+        });
+        yield* instance.start;
+        yield* Deferred.await(probe);
+        const waiter = yield* instance.waitForReady(Duration.seconds(15)).pipe(Effect.forkChild);
+        yield* Deferred.succeed(ready, undefined);
+        assert.isTrue(yield* Fiber.join(waiter));
+        yield* instance.stop();
+        assert.isFalse(yield* instance.waitForReady(Duration.seconds(15)));
+      }),
+    ),
+  );
+
   it.effect("spawns the backend with fd3 bootstrap and fd4 telemetry", () =>
     Effect.scoped(
       Effect.gen(function* () {
@@ -667,6 +710,60 @@ describe("DesktopBackendManager", () => {
         yield* TestClock.adjust(Duration.seconds(1));
         const failure = yield* Queue.take(reports);
         assert.equal(failure.reason, "The server started but did not become ready in time.");
+      }).pipe(Effect.provide(TestClock.layer())),
+    ),
+  );
+
+  it.effect("the quit stop deadline waits for a backend that only exits at the force kill", () =>
+    Effect.scoped(
+      Effect.gen(function* () {
+        const spawned = yield* Deferred.make<void>();
+        const teardownStarted = yield* Deferred.make<void>();
+        const teardownFinished = yield* Deferred.make<void>();
+        // The real spawner sends SIGTERM, waits the grace, then SIGKILLs. A backend that
+        // ignores SIGTERM therefore finishes tearing down just after the grace.
+        const instance = yield* makeTestInstance({
+          spawnerLayer: Layer.succeed(
+            ChildProcessSpawner.ChildProcessSpawner,
+            ChildProcessSpawner.make(() =>
+              Effect.gen(function* () {
+                const scope = yield* Scope.Scope;
+                yield* Deferred.succeed(spawned, undefined);
+                yield* Scope.addFinalizer(
+                  scope,
+                  Deferred.succeed(teardownStarted, undefined).pipe(
+                    Effect.andThen(Effect.sleep(Duration.seconds(6))),
+                    Effect.andThen(Deferred.succeed(teardownFinished, undefined)),
+                    Effect.asVoid,
+                  ),
+                );
+                return makeProcess({
+                  exitCode: Deferred.await(teardownFinished).pipe(
+                    Effect.as(ChildProcessSpawner.ExitCode(0)),
+                  ),
+                });
+              }),
+            ),
+          ),
+          httpClientLayer: layerHttpClient(() => Effect.never),
+        });
+        yield* instance.start;
+        yield* Deferred.await(spawned);
+
+        // App quit and the updater stop every backend with this deadline.
+        const quitDone = yield* Deferred.make<void>();
+        const quitFiber = yield* instance
+          .stop({ timeout: DesktopBackendManager.BACKEND_QUIT_STOP_TIMEOUT })
+          .pipe(Effect.andThen(Deferred.succeed(quitDone, undefined)), Effect.forkChild);
+
+        yield* Deferred.await(teardownStarted);
+        // Past the SIGTERM grace but before the force kill lands: quit must still be waiting.
+        yield* TestClock.adjust(Duration.millis(5_500));
+        assert.isFalse(yield* Deferred.isDone(quitDone));
+
+        yield* TestClock.adjust(Duration.millis(500));
+        yield* Fiber.join(quitFiber);
+        assert.isTrue(yield* Deferred.isDone(teardownFinished));
       }).pipe(Effect.provide(TestClock.layer())),
     ),
   );

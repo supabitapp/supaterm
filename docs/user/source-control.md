@@ -149,6 +149,11 @@ toast or from the banner above the composer. When the host refuses the machine's
 clones over HTTPS with Git's credentials for that host instead, and the project's remote uses the
 HTTPS URL.
 
+To lay clones out like [ghq](https://github.com/x-motemen/ghq), turn on **Clone into host folders**
+under **Settings → Threads** (or **Source control** on mobile). Clones then default to
+`<host>/<owner>/<repo>` under **Add project starts in**, so set that to `~/ghq` to share ghq's
+folders. You can still change the destination before cloning.
+
 For a local Git repository without a remote, **Publish Repository** creates a hosted repository,
 adds it as `origin`, and pushes your commits. If there are no commits yet, it creates the remote;
 make your first commit before pushing.
@@ -163,13 +168,17 @@ An existing fork PR can appear beside the branch even if you pushed without sett
 If its badge is missing because several remotes hold that branch, set the branch's upstream to
 the intended remote with `git branch --set-upstream-to=<remote>/<branch>`.
 
-Choose the writing style and model in **Settings → Source control**. **Repository conventions**
-uses the project's instructions and recent commit subjects.
+Choose how commit messages and pull request titles and descriptions are written in
+**Settings → Source control → Commits & pull requests**. **Repository conventions** uses the
+project's instructions and recent commit subjects. **Custom instructions** applies your own
+instructions to commits and pull requests.
 
 ## Review and merge
 
 Open **Pull requests** to review changes and comments, request reviewers, check out a branch,
 or merge. You can edit review titles and descriptions and your own comments where the host allows it.
+Where you can edit a description, you can also tick its checkboxes from the Summary tab
+(the Overview tab on mobile).
 GitLab calls these merge requests.
 
 A GitHub checkout with an `upstream` remote lists the upstream repository's pull requests. To list
@@ -316,7 +325,7 @@ review is terminal. An open or unsynced link keeps it active.
 
 Ask the agent to watch, monitor, or babysit a pull request and it calls `watch_pull_request`. While
 the thread is active, the server checks the pull request every two minutes and wakes the agent when a
-check fails, the required checks pass, the checks still running at either of those finish, someone
+check fails or waits for a maintainer's approval, the required checks pass, the checks still running at either of those finish, someone
 else comments or reviews, or the branch conflicts after a push. Threads in a project that watch the same pull request share one check. On GitHub, a check
 first asks whether anything changed and reads the pull request only when it did, which keeps
 watching inside GitHub's rate limit. Comments from your own account do not wake it. Watching ends

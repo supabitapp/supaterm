@@ -219,6 +219,8 @@ it.effect(
           listOlderDoneThreads: () => Effect.die("unused listOlderDoneThreads"),
           readShellSnapshot: () => Effect.die("unused readShellSnapshot"),
           getThreadShell: () => Effect.die("unused getThreadShell"),
+          getThreadTitles: () => Effect.die("unused getThreadTitles"),
+          getThreadLinkMetadata: () => Effect.die("unused getThreadLinkMetadata"),
           getThread: () => Ref.get(projection).pipe(Effect.map((state) => state.thread)),
           getAutoMarkDoneCandidates: () => Effect.die("unused getAutoMarkDoneCandidates"),
           getThreadsWithPullRequests: () => Effect.die("unused getThreadsWithPullRequests"),
@@ -236,8 +238,10 @@ it.effect(
           getTimelinePage: () => Effect.die("Unused timeline read"),
           getMessageCount: () => Effect.die("unused message count"),
           getSubagentCount: () => Effect.die("unused subagent count"),
+          listAppOwnedChildThreadIds: () => Effect.die("unused listAppOwnedChildThreadIds"),
           getNextTurnItemOrdinal: () => Effect.die("unused ordinal read"),
           getTurnItem: () => Effect.die("unused turn item read"),
+          getMessagesById: () => Effect.die("unused getMessagesById"),
           getThreadRecords: () => Effect.die("unused record read"),
           getRuntimeRequest: () => Effect.die("unused getRuntimeRequest"),
           getRunningTurnContext: () => Effect.die("unused getRunningTurnContext"),
@@ -269,6 +273,7 @@ it.effect(
           getUnreadableThreadIds: () => Effect.die("unused getUnreadableThreadIds"),
           getThreadSnapshot: () => Effect.die("unused getThreadSnapshot"),
           getThreadSnapshotWindow: () => Effect.die("unused getThreadSnapshotWindow"),
+          getPullRequestSnapshot: () => Effect.die("unused getPullRequestSnapshot"),
         }),
       );
       const layerSessionManager = Layer.succeed(

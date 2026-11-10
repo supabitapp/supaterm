@@ -104,6 +104,7 @@ export function createCdpRelayConnection(
     close();
   };
   let attached = false;
+  let downloadEventsEnabled = false;
   /**
    * Sessions this relay invented. Extra page sessions (Playwright's
    * `newCDPSession`) all reach the one real debugger session, so each gets the
@@ -132,9 +133,15 @@ export function createCdpRelayConnection(
       case "Browser.setDownloadBehavior": {
         const directory = command.params?.["downloadPath"];
         const allowed = command.params?.["behavior"] !== "deny" && typeof directory === "string";
+        // Browser-scoped behavior targets Electron's app session; preview paths belong to will-download.
+        const result = await target.send(
+          "Page.setDownloadBehavior",
+          { behavior: command.params?.["behavior"] === "deny" ? "deny" : "default" },
+          undefined,
+        );
         target.setDownloadDirectory(allowed ? directory : null);
-        const { browserContextId: _ignored, ...params } = command.params ?? {};
-        return target.send("Browser.setDownloadBehavior", params, undefined);
+        downloadEventsEnabled = command.params?.["eventsEnabled"] === true;
+        return result;
       }
       case "Browser.getVersion":
         return {
@@ -242,9 +249,10 @@ export function createCdpRelayConnection(
     },
     event: (method, params, sessionId) => {
       if (!attached) return;
+      if (method.startsWith("Page.download")) method = method.replace("Page.", "Browser.");
       // Download events are the browser's; Playwright listens on its root session.
       if (method.startsWith("Browser.download")) {
-        send({ method, params });
+        if (downloadEventsEnabled) send({ method, params });
         return;
       }
       // Electron reports the page's own events with an empty session id.

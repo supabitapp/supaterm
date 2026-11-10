@@ -97,6 +97,69 @@ describe("compileClaudeModelSelection", () => {
     ).toEqual({ fastMode: false });
   });
 
+  it("runs Ultracode at the chosen effort and reads the old Ultracode effort as xhigh", () => {
+    expect(
+      compileClaudeModelSelection(
+        selection("claude-opus-5-5", [
+          { id: "effort", value: "high" },
+          { id: "ultracode", value: true },
+        ]),
+      ),
+    ).toMatchObject({ effort: "high", settings: { ultracode: true } });
+    expect(
+      compileClaudeModelSelection(
+        selection("claude-opus-5-5", [{ id: "effort", value: "ultracode" }]),
+      ),
+    ).toMatchObject({ effort: "xhigh", settings: { ultracode: true } });
+    const legacyTurnedOff = compileClaudeModelSelection(
+      selection("claude-opus-5-5", [
+        { id: "effort", value: "ultracode" },
+        { id: "ultracode", value: false },
+      ]),
+    );
+    expect(legacyTurnedOff.effort).toBe("xhigh");
+    expect(legacyTurnedOff.settings.ultracode).toBe(false);
+    expect(
+      compileClaudeModelSelection(selection("claude-opus-5-5", [{ id: "effort", value: "high" }]))
+        .settings,
+    ).not.toHaveProperty("ultracode");
+  });
+
+  it("keeps old Ultracode defaults and selections at Extra High on custom models", () => {
+    const customModel = (slug: string, choices: ReadonlyArray<string>) => ({
+      slug,
+      name: slug,
+      capabilities: {
+        optionDescriptors: [
+          {
+            id: "effort",
+            label: "Reasoning",
+            type: "select" as const,
+            currentValue: "ultracode",
+            options: choices.map((id) => ({ id, label: id, isDefault: id === "ultracode" })),
+          },
+        ],
+      },
+    });
+    const catalog = scopeClaudeModelCatalog(BUNDLED_CLAUDE_MODEL_CATALOG, [
+      customModel("claude-custom-tuned", ["high", "xhigh", "ultracode"]),
+      customModel("claude-custom-no-xhigh", ["high", "ultracode"]),
+    ]);
+
+    for (const model of ["claude-custom-tuned", "claude-custom-no-xhigh"]) {
+      expect(compileClaudeModelSelection(selection(model, []), catalog)).toMatchObject({
+        effort: "xhigh",
+        settings: { ultracode: true },
+      });
+      expect(
+        compileClaudeModelSelection(
+          selection(model, [{ id: "effort", value: "ultracode" }]),
+          catalog,
+        ),
+      ).toMatchObject({ effort: "xhigh", settings: { ultracode: true } });
+    }
+  });
+
   it("uses the model default SDK effort alongside prompt-injected effort", () => {
     expect(
       compileClaudeModelSelection(
@@ -109,19 +172,23 @@ describe("compileClaudeModelSelection", () => {
     BUNDLED_CLAUDE_MODEL_CATALOG.models
       .filter(({ model }) =>
         model.capabilities?.optionDescriptors?.some(
-          (descriptor) =>
-            descriptor.type === "select" &&
-            descriptor.id === "effort" &&
-            descriptor.options.some((option) => option.id === "ultracode"),
+          (descriptor) => descriptor.type === "boolean" && descriptor.id === "ultracode",
         ),
       )
       .map(({ model }) => model.slug),
   )("sends Ultracode on %s as a valid SDK effort", (model) => {
-    const compiled = compileClaudeModelSelection(
-      selection(model, [{ id: "effort", value: "ultracode" }]),
-    );
-    expect(["low", "medium", "high", "xhigh", "max"]).toContain(compiled.effort);
-    expect(compiled.settings).toMatchObject({ ultracode: true });
+    for (const options of [
+      [{ id: "ultracode", value: true }],
+      [
+        { id: "effort", value: "high" },
+        { id: "ultracode", value: true },
+      ],
+      [{ id: "effort", value: "ultracode" }],
+    ]) {
+      const compiled = compileClaudeModelSelection(selection(model, options));
+      expect(["low", "medium", "high", "xhigh", "max"]).toContain(compiled.effort);
+      expect(compiled.settings).toMatchObject({ ultracode: true });
+    }
   });
 
   it("keeps explicit effort for models missing from the local catalog", () => {

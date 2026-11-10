@@ -2,6 +2,8 @@ import { THREAD_GROUPING_OPTIONS } from "@supaterm/client-runtime/state/thread-g
 import type { SidebarThreadGrouping } from "@supaterm/contracts";
 import type { EnvironmentId } from "@supaterm/contracts";
 
+import type { AppBarMenuItem } from "../../components/ui/AppBar.types";
+
 export interface HomeListFilterMenuEnvironment {
   readonly environmentId: EnvironmentId;
   readonly label: string;
@@ -118,4 +120,29 @@ export function buildHomeListFilterMenu(props: HomeListFilterMenuInput): HomeLis
     title: "Thread list options",
     items,
   };
+}
+
+/** The thread list options as an `AppBar` menu, for the workspace list header. */
+export function buildHomeListFilterMenuItems(props: HomeListFilterMenuInput): AppBarMenuItem[] {
+  return buildHomeListFilterMenu(props).items.map((item, index) =>
+    item.type === "submenu"
+      ? {
+          id: `${item.kind}:${index}`,
+          title: item.title,
+          items: item.items.map((action, actionIndex) => ({
+            id: `${item.kind}:${index}:${actionIndex}`,
+            title: action.title,
+            subtitle: action.subtitle,
+            selected: action.state === "on",
+            onPress: action.onPress,
+          })),
+        }
+      : {
+          id: `action:${index}`,
+          title: item.title,
+          subtitle: item.subtitle,
+          selected: item.state === "on",
+          onPress: item.onPress,
+        },
+  );
 }

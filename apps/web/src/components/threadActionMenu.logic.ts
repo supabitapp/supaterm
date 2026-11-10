@@ -190,15 +190,19 @@ export function buildThreadActionMenuItems(
       : []),
     // A submenu with the current option checked, not a one-shot action:
     // this is a setting, and it sits with the other per-thread settings
-    // rather than the lifecycle verbs above. Disabled keeps long-running
+    // rather than the lifecycle verbs above. Never keeps long-running
     // threads out of the done shelf no matter how quiet they get.
     {
       id: "auto-mark-done",
       label: "Automatic completion",
       icon: "timer",
       children: [
-        { id: "auto-mark-done:enabled", label: "Enabled", checked: state.autoMarkDoneEnabled },
-        { id: "auto-mark-done:disabled", label: "Disabled", checked: !state.autoMarkDoneEnabled },
+        {
+          id: "auto-mark-done:enabled",
+          label: "Follow settings",
+          checked: state.autoMarkDoneEnabled,
+        },
+        { id: "auto-mark-done:disabled", label: "Never", checked: !state.autoMarkDoneEnabled },
       ],
     },
     {

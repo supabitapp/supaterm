@@ -1,6 +1,7 @@
-import type {
-  SubagentWorkflowGroup,
-  RuntimeSubagent,
+import {
+  workflowMemberModelSelection,
+  type SubagentWorkflowGroup,
+  type RuntimeSubagent,
 } from "@supaterm/client-runtime/state/subagentRuntime";
 import type { ProviderDriverKind, ProviderInstanceId, ServerProvider } from "@supaterm/contracts";
 import { SquareIcon } from "@supaterm/icons";
@@ -104,6 +105,7 @@ function WorkflowMemberRow({
             model={member.model}
             providerInstanceId={providerInstanceId}
             origin="provider_native"
+            modelSelection={workflowMemberModelSelection(member, providerInstanceId)}
             provider={provider}
             providers={providers}
             driver={driver}

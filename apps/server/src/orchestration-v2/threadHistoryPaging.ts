@@ -332,16 +332,16 @@ function selectOlderTimelinePage<Row extends HistoryRow>(input: {
     turnLimit === undefined ? policy.maxItems : (policy.maxTurnItems ?? policy.maxItems);
   for (let index = end - 1; index >= 0; index -= 1) {
     const row = input.items[index]!;
-    const rowBytes = rowCost(row);
     if (
       selected.length > 0 &&
       (selected.length >= maxItems ||
-        encodedBytes + rowBytes > policy.maxEncodedBytes ||
         (turnLimit !== undefined &&
           (userTurns >= turnLimit || rawTurns >= THREAD_HISTORY_MAX_RAW_TURNS)))
     ) {
       break;
     }
+    const rowBytes = rowCost(row);
+    if (selected.length > 0 && encodedBytes + rowBytes > policy.maxEncodedBytes) break;
     selected.push(row);
     encodedBytes += rowBytes;
     if (isThreadHistoryUserTurn(row.item)) userTurns += 1;
@@ -660,7 +660,7 @@ export function buildBoundedThreadProjection(input: {
   });
 
   const windowBudget = Math.max(
-    policy.maxEncodedBytes / 2,
+    Math.max(policy.maxEncodedBytes / 2 - dependencyReserve, 0),
     policy.maxEncodedBytes - dependencyReserve - controlBytes - 1_024,
   );
   const windowPolicy: ThreadHistoryPagePolicy = { ...policy, maxEncodedBytes: windowBudget };

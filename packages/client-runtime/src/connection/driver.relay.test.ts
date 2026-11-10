@@ -122,6 +122,7 @@ const connectWithRealResolver = Effect.fnUntraced(function* (
     Layer.succeed(
       RemoteEnvironmentAuthorization.RemoteEnvironmentAuthorization,
       RemoteEnvironmentAuthorization.RemoteEnvironmentAuthorization.of({
+        rememberCheckedDescriptor: () => Effect.void,
         authorizeBearer: (input) =>
           Effect.succeed({
             environmentId: input.expectedEnvironmentId,

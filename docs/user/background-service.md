@@ -145,8 +145,15 @@ and turns on automatic shrinking. Settings > Maintenance (web and desktop) or
 Settings > Maintenance (mobile) suggests the repair when at least 1 GiB can be
 reclaimed.
 
-Run `supaterm doctor` on the machine that hosts the environment. It reports the
-database size and the space it can reclaim, then asks which repairs to run;
+When the desktop app or the background service runs Supaterm on that machine,
+select **Reclaim** in Settings on web or desktop. Supaterm checks for free disk
+space, then stops, repairs the database, and starts again. It is offline while
+the repair runs, and running agents stop. If the repair fails, Settings shows
+why.
+
+In other cases, such as a server you started by hand, run `supaterm doctor` on the
+machine that hosts the environment. It reports the database size and the
+space it can reclaim, then asks which repairs to run;
 pass `--fix` to run the recommended ones without a prompt (for scripts), or
 `--dry-run` to only report. An installed background service for the same data
 directory is stopped for the repair and started again afterwards, also when
@@ -155,7 +162,7 @@ the repair refuses to touch a database that is in use. Use `--base-dir` for a
 different data directory.
 
 The repair can take several minutes on a large database. It rebuilds the
-database through a temporary copy, so it needs free space of about the
-database's size twice over: once in the system temporary directory (`TMPDIR`
-or `/tmp` on Linux and macOS) and once next to the database for its
-write-ahead log.
+database through a temporary copy, so it needs free space of about twice the
+data still in use (the database size minus the reclaimable space): once in the
+system temporary directory (on Linux and macOS, `TMPDIR`, or `/var/tmp` when it
+is not set) and once next to the database for its write-ahead log.

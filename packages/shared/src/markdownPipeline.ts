@@ -1,6 +1,7 @@
+import { isLocalEditorFileUrl, LOCAL_FILE_LINK_SCHEMES } from "@supaterm/contracts";
 import type { Paragraph, PhrasingContent, Root, RootContent } from "mdast";
 import { remarkKeepWindowsPathDestinations } from "./markdownWindowsPaths.ts";
-import type { PluggableList, Processor } from "unified";
+import type { PluggableList, Processor, Transformer } from "unified";
 import { find, html } from "property-information";
 import rehypeRaw from "rehype-raw";
 import rehypeSanitize, { defaultSchema } from "rehype-sanitize";
@@ -106,11 +107,44 @@ function rehypePreserveBareAnchorPlaceholders() {
   };
 }
 
+const COLOR_SCHEME_MEDIA = /^\(\s*prefers-color-scheme\s*:\s*(dark|light)\s*\)$/i;
+
+/**
+ * The renderer resolves an `<img>`'s `src` (workspace files, host media) but never a `<source>`'s
+ * `srcset`, which would load unresolved whenever its media matched. A color-scheme source moves
+ * onto the `<img>` for the renderer to pick by theme; every source is then dropped.
+ */
+function moveColorSchemeSourcesToImage(picture: MarkdownImageHastNode) {
+  if (!picture.children) return;
+  const image = picture.children.find((child) => child.tagName === "img");
+  for (const source of picture.children) {
+    if (source.tagName !== "source" || !image) continue;
+    const media = source.properties?.media;
+    const scheme = typeof media === "string" ? COLOR_SCHEME_MEDIA.exec(media)?.[1] : undefined;
+    const srcSet = source.properties?.srcSet;
+    const candidate = Array.isArray(srcSet) ? srcSet[0] : srcSet;
+    // A candidate's URL runs to the first space (a descriptor such as `2x` may follow).
+    const url =
+      typeof candidate === "string" ? candidate.trim().split(/\s/, 1)[0]?.replace(/,+$/, "") : "";
+    const key = scheme?.toLowerCase() === "dark" ? "dataDarkSrc" : "dataLightSrc";
+    // As in a browser, the first source that matches a scheme is the one shown.
+    if (scheme && url && image.properties?.[key] === undefined) {
+      // The sanitizer reads a drive letter as a protocol; as a file URL it resolves to the same path.
+      const value = isWindowsDrivePathHref(url) ? `file:///${url.replaceAll("\\", "/")}` : url;
+      image.properties = { ...image.properties, [key]: value };
+    }
+  }
+  picture.children = picture.children.filter((child) => child.tagName !== "source");
+}
+
 function rehypePreserveImageSourceMeta() {
   return (tree: MarkdownImageHastNode) => {
     const visit = (node: MarkdownImageHastNode) => {
       const src = node.properties?.src;
       const title = node.properties?.title;
+      if (node.type === "element" && node.tagName === "picture") {
+        moveColorSchemeSourcesToImage(node);
+      }
       if (node.type === "element" && node.tagName === "img") {
         node.properties = {
           ...node.properties,
@@ -123,6 +157,28 @@ function rehypePreserveImageSourceMeta() {
 
     visit(tree);
     markStandaloneImages(tree);
+  };
+}
+
+const IMAGE_SRC_PROTOCOLS = [...(defaultSchema.protocols?.src ?? []), "file", "supaterm-context"];
+
+// The sanitizer compares schemes case-sensitively, so lowercase accepted editor links first.
+function rehypeNormalizeLocalEditorLinks() {
+  return (tree: MarkdownImageHastNode) => {
+    const visit = (node: MarkdownImageHastNode) => {
+      const href = node.properties?.href;
+      if (node.type === "element" && node.tagName === "a" && typeof href === "string") {
+        try {
+          const url = new URL(href);
+          if (isLocalEditorFileUrl(url)) node.properties = { ...node.properties, href: url.href };
+        } catch {
+          // Not an absolute URL; the sanitizer decides.
+        }
+      }
+      node.children?.forEach(visit);
+    };
+
+    visit(tree);
   };
 }
 
@@ -142,6 +198,8 @@ const CHAT_MARKDOWN_SANITIZE_SCHEMA = {
     a: [...(defaultSchema.attributes?.a ?? []), "dataPullRequestAutolink"],
     img: [
       ...(defaultSchema.attributes?.img ?? []),
+      "dataDarkSrc",
+      "dataLightSrc",
       "dataLocalSrc",
       "dataMarkdownTitle",
       "dataStandalone",
@@ -155,13 +213,18 @@ const CHAT_MARKDOWN_SANITIZE_SCHEMA = {
       "supaterm-citation",
       "supaterm-context",
       THREAD_LINK_PROTOCOL,
+      // Scheme only: the renderer's URL transform checks the rest of the link shape.
+      ...LOCAL_FILE_LINK_SCHEMES,
     ],
-    src: [...(defaultSchema.protocols?.src ?? []), "file", "supaterm-context"],
+    src: IMAGE_SRC_PROTOCOLS,
+    dataDarkSrc: IMAGE_SRC_PROTOCOLS,
+    dataLightSrc: IMAGE_SRC_PROTOCOLS,
   },
 } satisfies Parameters<typeof rehypeSanitize>[0];
 
 export const CHAT_MARKDOWN_REMARK_PLUGINS: PluggableList = [
   remarkGfm,
+  remarkKeepAutolinkSuffixes,
   remarkKeepWindowsPathDestinations,
   remarkGithubAlerts,
   remarkNormalizeListItemIndentation,
@@ -173,6 +236,7 @@ export const CHAT_MARKDOWN_REMARK_PLUGINS: PluggableList = [
 
 export const CHAT_MARKDOWN_REMARK_PLUGINS_WITH_BREAKS: PluggableList = [
   remarkGfm,
+  remarkKeepAutolinkSuffixes,
   remarkKeepWindowsPathDestinations,
   remarkGithubAlerts,
   remarkNormalizeListItemIndentation,
@@ -257,6 +321,7 @@ export const CHAT_MARKDOWN_REHYPE_PLUGINS: PluggableList = [
   rehypePreserveBareAnchorPlaceholders,
   rehypeRawWhenPresent,
   rehypePreserveImageSourceMeta,
+  rehypeNormalizeLocalEditorLinks,
   [rehypeSanitize, CHAT_MARKDOWN_SANITIZE_SCHEMA],
 ];
 
@@ -325,6 +390,52 @@ type MarkdownAstNode = {
   };
   children?: MarkdownAstNode[];
 };
+
+function remarkKeepAutolinkSuffixes(): Transformer<Root> {
+  return (tree, file) => {
+    const source = String(file);
+    const visit = (node: Root | RootContent) => {
+      if (!("children" in node) || node.type === "link" || node.type === "linkReference") return;
+      for (let index = 0; index < node.children.length; index++) {
+        const child = node.children[index];
+        const next = node.children[index + 1];
+        if (child?.type === "link" && /^https?:\/\//i.test(child.url) && next?.type === "text") {
+          const suffix = /^[_~]+/.exec(next.value)?.[0];
+          if (!suffix) continue;
+          const label = child.children.length === 1 ? child.children[0] : undefined;
+          if (label?.type !== "text") continue;
+          if (label.value !== child.url && `http://${label.value}` !== child.url) continue;
+          const start = child.position?.start.offset;
+          const end = child.position?.end.offset;
+          const bare =
+            !child.position ||
+            (start !== undefined &&
+              end !== undefined &&
+              source.slice(start, end) === label.value &&
+              source.slice(end, end + suffix.length) === suffix);
+          if (bare) {
+            child.url += suffix;
+            label.value += suffix;
+            next.value = next.value.slice(suffix.length);
+            if (child.position && end !== undefined) {
+              const boundary = {
+                ...child.position.end,
+                column: child.position.end.column + suffix.length,
+                offset: end + suffix.length,
+              };
+              child.position.end = boundary;
+              if (label.position) label.position.end = boundary;
+              if (next.position) next.position.start = boundary;
+            }
+            if (!next.value) node.children.splice(index + 1, 1);
+          }
+        }
+        if (child) visit(child);
+      }
+    };
+    visit(tree);
+  };
+}
 
 function remarkPreserveCodeMeta() {
   return (tree: MarkdownAstNode) => {

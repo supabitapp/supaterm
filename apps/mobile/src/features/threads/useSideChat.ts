@@ -19,11 +19,18 @@ import { useRef } from "react";
 
 import * as Dialog from "../../components/ui/Dialog";
 import { makeQueuedMessageMetadata } from "../../lib/commandMetadata";
+import {
+  describeUnavailableModelSelection,
+  isModelSelectionUnavailable,
+} from "../../lib/modelOptions";
+import { scopedThreadKey } from "../../lib/scopedEntities";
 import { uuidv4 } from "../../lib/uuid";
 import { appAtomRegistry } from "../../state/atom-registry";
 import { useEnvironmentServerConfig } from "../../state/entities";
+import { serverEnvironment } from "../../state/server";
 import { useEnvironmentScope } from "../../state/session";
 import { enqueueThreadOutboxMessage } from "../../state/thread-outbox";
+import { getComposerDraftSnapshot } from "../../state/use-composer-drafts";
 import {
   environmentThreadDetails,
   environmentThreadShells,
@@ -66,7 +73,8 @@ export function useSideChatDisabledReason(
 /**
  * Sends a side chat's first message under `targetThreadId`, forking `parentThreadId` unless that
  * side chat exists. Resolves whether it has reached this device, or null after telling the user
- * why it did not start; a retry with the same id never forks twice.
+ * why it did not start; a retry with the same id never forks twice. The message carries the mode
+ * and model the parent's composer shows, which its thread gets only on its next send.
  */
 export async function startSideChat(input: {
   readonly environmentId: EnvironmentId;
@@ -77,12 +85,32 @@ export async function startSideChat(input: {
   const readThread = (ref: ScopedThreadRef) =>
     appAtomRegistry.get(environmentThreadShells.threadShellAtom(ref));
   const targetRef = scopeThreadRef(input.environmentId, input.targetThreadId);
+  const parentRef = scopeThreadRef(input.environmentId, input.parentThreadId);
+  const parent = readThread(parentRef);
+  const draft = getComposerDraftSnapshot(
+    scopedThreadKey(input.environmentId, input.parentThreadId),
+  );
+  const modelSelection = draft.modelSelection ?? parent?.modelSelection;
+  const serverConfig = appAtomRegistry.get(serverEnvironment.configValueAtom(input.environmentId));
+  if (
+    parent !== null &&
+    modelSelection !== undefined &&
+    isModelSelectionUnavailable(serverConfig, modelSelection, parent.projectId)
+  ) {
+    const { title, detail } = describeUnavailableModelSelection(
+      serverConfig,
+      modelSelection,
+      parent.projectId,
+    );
+    Dialog.alert(title, detail);
+    return null;
+  }
   const result = await sendSideChatFirstMessage({
     registry: appAtomRegistry,
     forkSideChat: threadEnvironment.forkSideChat,
     readThread,
     waitForThread: (ref) => waitForThreadShellReady({ read: () => readThread(ref) !== null }),
-    parentRef: scopeThreadRef(input.environmentId, input.parentThreadId),
+    parentRef,
     targetThreadId: input.targetThreadId,
     creationSource: "mobile",
     enqueue: () => {
@@ -94,6 +122,8 @@ export async function startSideChat(input: {
         commandId: CommandId.make(metadata.commandId),
         text: input.text,
         attachments: [],
+        ...(draft.modelSelection ? { modelSelection: draft.modelSelection } : {}),
+        ...(draft.runtimeMode ? { runtimeMode: draft.runtimeMode } : {}),
         createdAt: metadata.createdAt,
       });
     },

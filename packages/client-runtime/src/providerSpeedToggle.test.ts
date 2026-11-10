@@ -3,8 +3,6 @@ import { describe, expect, it } from "vite-plus/test";
 
 import { getSpeedToggle, getSpeedToggleNextValue } from "./providerSpeedToggle.ts";
 
-const CODEX = "codex";
-
 const EFFORT: ProviderOptionDescriptor = {
   id: "reasoningEffort",
   label: "Reasoning",
@@ -38,18 +36,18 @@ function serviceTierDescriptor(
 
 describe("getSpeedToggle", () => {
   it("toggles boolean fast mode on and off", () => {
-    expect(getSpeedToggle(CODEX, [EFFORT, fastModeDescriptor(false)])).toEqual({
+    expect(getSpeedToggle([EFFORT, fastModeDescriptor(false)])).toEqual({
       descriptorId: "fastMode",
       level: "off",
       onValue: true,
       offValue: false,
       coversDescriptor: true,
     });
-    expect(getSpeedToggle(CODEX, [fastModeDescriptor(true)])?.level).toBe("fast");
+    expect(getSpeedToggle([fastModeDescriptor(true)])?.level).toBe("fast");
   });
 
   it("toggles Codex between Standard and Fast and reports Ultrafast", () => {
-    expect(getSpeedToggle(CODEX, [EFFORT, serviceTierDescriptor("default")])).toEqual({
+    expect(getSpeedToggle([EFFORT, serviceTierDescriptor("default")])).toEqual({
       descriptorId: "serviceTier",
       level: "off",
       onValue: "priority",
@@ -57,9 +55,9 @@ describe("getSpeedToggle", () => {
       ultrafastValue: "ultrafast",
       coversDescriptor: false,
     });
-    expect(getSpeedToggle(CODEX, [serviceTierDescriptor("priority")])?.level).toBe("fast");
-    expect(getSpeedToggle(CODEX, [serviceTierDescriptor("ultrafast")])?.level).toBe("ultrafast");
-    expect(getSpeedToggle(CODEX, [serviceTierDescriptor("flex")])?.level).toBe("off");
+    expect(getSpeedToggle([serviceTierDescriptor("priority")])?.level).toBe("fast");
+    expect(getSpeedToggle([serviceTierDescriptor("ultrafast")])?.level).toBe("ultrafast");
+    expect(getSpeedToggle([serviceTierDescriptor("flex")])?.level).toBe("off");
   });
 
   it("covers the Codex tier when Standard and Fast are its only options", () => {
@@ -68,7 +66,7 @@ describe("getSpeedToggle", () => {
       ...descriptor,
       options: descriptor.options.filter(({ id }) => id === "default" || id === "priority"),
     };
-    expect(getSpeedToggle(CODEX, [standardAndFast])?.coversDescriptor).toBe(true);
+    expect(getSpeedToggle([standardAndFast])?.coversDescriptor).toBe(true);
   });
 
   it("turns on Ultrafast when the model has no Fast tier", () => {
@@ -77,13 +75,13 @@ describe("getSpeedToggle", () => {
       ...descriptor,
       options: descriptor.options.filter(({ id }) => id !== "priority"),
     };
-    expect(getSpeedToggle(CODEX, [withoutFast])?.onValue).toBe("ultrafast");
+    expect(getSpeedToggle([withoutFast])?.onValue).toBe("ultrafast");
   });
 
   it("turns Fast or Ultrafast off to Standard", () => {
-    const fast = getSpeedToggle(CODEX, [serviceTierDescriptor("priority")]);
-    const ultrafast = getSpeedToggle(CODEX, [serviceTierDescriptor("ultrafast")]);
-    const off = getSpeedToggle(CODEX, [serviceTierDescriptor("default")]);
+    const fast = getSpeedToggle([serviceTierDescriptor("priority")]);
+    const ultrafast = getSpeedToggle([serviceTierDescriptor("ultrafast")]);
+    const off = getSpeedToggle([serviceTierDescriptor("default")]);
     expect(fast && getSpeedToggleNextValue(fast)).toBe("default");
     expect(ultrafast && getSpeedToggleNextValue(ultrafast)).toBe("default");
     expect(off && getSpeedToggleNextValue(off)).toBe("priority");
@@ -92,7 +90,7 @@ describe("getSpeedToggle", () => {
   it.each(["default", "priority", "ultrafast", "flex"] as const)(
     "enables Ultrafast from %s when requested",
     (currentValue) => {
-      const toggle = getSpeedToggle(CODEX, [serviceTierDescriptor(currentValue)]);
+      const toggle = getSpeedToggle([serviceTierDescriptor(currentValue)]);
       expect(toggle && getSpeedToggleNextValue(toggle, true)).toBe("ultrafast");
     },
   );
@@ -101,7 +99,7 @@ describe("getSpeedToggle", () => {
     "keeps the normal toggle behavior from %s when Ultrafast is unavailable",
     (currentValue) => {
       const descriptor = serviceTierDescriptor(currentValue);
-      const toggle = getSpeedToggle(CODEX, [
+      const toggle = getSpeedToggle([
         { ...descriptor, options: descriptor.options.filter(({ id }) => id !== "ultrafast") },
       ]);
       expect(toggle?.ultrafastValue).toBeUndefined();
@@ -112,14 +110,14 @@ describe("getSpeedToggle", () => {
   );
 
   it.each([false, true])("keeps boolean Fast mode toggling from %s", (currentValue) => {
-    const toggle = getSpeedToggle("claudeAgent", [fastModeDescriptor(currentValue)]);
+    const toggle = getSpeedToggle([fastModeDescriptor(currentValue)]);
     expect(toggle?.ultrafastValue).toBeUndefined();
     expect(toggle && getSpeedToggleNextValue(toggle, true)).toBe(!currentValue);
   });
 
   it("selects the provider's Ultrafast tier ID", () => {
     const descriptor = serviceTierDescriptor("default");
-    const toggle = getSpeedToggle(CODEX, [
+    const toggle = getSpeedToggle([
       {
         ...descriptor,
         options: descriptor.options.map((option) =>
@@ -136,7 +134,6 @@ describe("getSpeedToggle", () => {
       ...descriptor,
       options: descriptor.options.filter(({ id }) => id === "default" || id === "flex"),
     };
-    expect(getSpeedToggle(CODEX, [EFFORT, standardAndFlex])).toBeNull();
-    expect(getSpeedToggle("opencode", [serviceTierDescriptor("priority")])).toBeNull();
+    expect(getSpeedToggle([EFFORT, standardAndFlex])).toBeNull();
   });
 });

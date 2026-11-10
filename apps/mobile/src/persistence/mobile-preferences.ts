@@ -97,7 +97,7 @@ export interface Preferences {
   readonly mathRenderingEnabled?: boolean;
   readonly collapsedProjectGroups?: readonly string[];
   readonly dismissedDatabaseStorageNotices?: readonly string[];
-  /** Hardware Return behavior is iOS-only. */
+  /** Hardware-keyboard Return behavior in the composer. */
   readonly composerEnterBehavior?: ComposerEnterBehavior;
   readonly showSkillsInSlashMenu?: boolean;
   readonly followUpBehavior?: FollowUpBehavior;

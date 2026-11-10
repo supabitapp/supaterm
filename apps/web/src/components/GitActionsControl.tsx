@@ -53,6 +53,7 @@ import {
   type DefaultBranchConfirmableAction,
   hasChangesToReview,
   requiresDefaultBranchConfirmation,
+  resolveChangesTotals,
   resolveDefaultBranchActionDialogCopy,
   resolveFeatureBranchUnavailableReason,
   resolveGitActionProgressPresentation,
@@ -988,7 +989,13 @@ export default function GitActionsControl({
   const isRepo = gitStatus?.isRepo ?? true;
   const hasPrimaryRemote = gitStatus?.hasPrimaryRemote ?? false;
   const gitStatusForActions = gitStatus;
-  const changesTotals = gitStatusForActions?.branchChanges ?? gitStatusForActions?.workingTree;
+  const resolvedChangesTotals = resolveChangesTotals(gitStatusForActions);
+  const changesTotals = resolvedChangesTotals ?? { insertions: 0, deletions: 0 };
+  const changesBaseLabel = resolvedChangesTotals
+    ? resolvedChangesTotals.baseRef === null
+      ? "Uncommitted"
+      : `vs ${resolvedChangesTotals.baseRef}`
+    : null;
 
   const allFiles = gitStatusForActions?.workingTree.files ?? [];
 
@@ -1573,23 +1580,35 @@ export default function GitActionsControl({
           onClick={onOpenChanges}
         >
           <DiffIcon className={THREAD_DETAILS_PANEL_ICON_CLASS} aria-hidden />
-          <span className="flex-1 text-left">Changes</span>
-          <span className="flex items-center gap-1.5 font-mono text-xs tabular-nums">
+          <span className="shrink-0">Changes</span>
+          {changesBaseLabel ? (
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <span className="pointer-events-auto min-w-0 truncate text-xs text-muted-foreground" />
+                }
+              >
+                {changesBaseLabel}
+              </TooltipTrigger>
+              <TooltipPopup side="top" className="max-w-96 break-words">
+                {changesBaseLabel}
+              </TooltipPopup>
+            </Tooltip>
+          ) : null}
+          <span className="ml-auto flex shrink-0 items-center gap-1.5 font-mono text-xs tabular-nums">
             <span
               className={
-                changesTotals?.insertions
-                  ? "text-diff-addition-foreground"
-                  : "text-muted-foreground"
+                changesTotals.insertions ? "text-diff-addition-foreground" : "text-muted-foreground"
               }
             >
-              +{formatDiffCount(changesTotals?.insertions ?? 0)}
+              +{formatDiffCount(changesTotals.insertions)}
             </span>
             <span
               className={
-                changesTotals?.deletions ? "text-diff-deletion-foreground" : "text-muted-foreground"
+                changesTotals.deletions ? "text-diff-deletion-foreground" : "text-muted-foreground"
               }
             >
-              -{formatDiffCount(changesTotals?.deletions ?? 0)}
+              -{formatDiffCount(changesTotals.deletions)}
             </span>
           </span>
         </ThreadDetailsControl>

@@ -18,6 +18,7 @@ import {
   TrimmedNonEmptyString,
   TrimmedString,
 } from "./baseSchemas.ts";
+import { UsageModelFilter } from "./usage.ts";
 import { EnvironmentMachineKind, ThreadEnvMode, WorktreeSubmodules } from "./environment.ts";
 import { KeybindingShortcut } from "./keybindings.ts";
 import { CodexMicroSettings } from "./codexMicro.ts";
@@ -85,7 +86,7 @@ export const SidebarAutoMarkDoneAfterDays = Schema.Number.check(
   }),
 );
 export type SidebarAutoMarkDoneAfterDays = typeof SidebarAutoMarkDoneAfterDays.Type;
-const DEFAULT_SIDEBAR_AUTO_MARK_DONE_AFTER_DAYS: SidebarAutoMarkDoneAfterDays = 3;
+const DEFAULT_SIDEBAR_AUTO_MARK_DONE_AFTER_DAYS: SidebarAutoMarkDoneAfterDays = 7;
 
 export const MAX_SNOOZE_PRESET_MINUTES = 30 * 24 * 60;
 export const MAX_SNOOZE_PRESETS = 8;
@@ -1110,8 +1111,21 @@ export const DatabaseStorageStatus = Schema.Struct({
   incrementalVacuumEnabled: Schema.Boolean,
   /** Command to run on the host to reclaim the space offline. */
   compactCommand: Schema.String,
+  /** The server can run the repair itself: the desktop app or background service restarts it. */
+  canReclaim: Schema.optionalKey(Schema.Boolean),
+  /** Why the last repair started from Settings failed. */
+  reclaimFailure: Schema.optionalKey(Schema.String),
 });
 export type DatabaseStorageStatus = typeof DatabaseStorageStatus.Type;
+
+export class DatabaseReclaimError extends Schema.TaggedError<DatabaseReclaimError>()(
+  "DatabaseReclaimError",
+  { reason: Schema.String },
+) {
+  override get message() {
+    return this.reason;
+  }
+}
 
 /** Only suggest the offline conversion when it can reclaim enough to matter. */
 export function shouldRecommendDatabaseCompaction(status: DatabaseStorageStatus): boolean {
@@ -1119,6 +1133,12 @@ export function shouldRecommendDatabaseCompaction(status: DatabaseStorageStatus)
     !status.incrementalVacuumEnabled &&
     status.reclaimableBytes >= DATABASE_COMPACTION_RECOMMENDED_BYTES
   );
+}
+
+/** Offline minutes the repair takes, at 30 s per GiB of live data (a BB-1 NVMe disk took 21 s). */
+export function databaseReclaimMinutes(status: DatabaseStorageStatus): number {
+  const liveGiB = (status.databaseBytes - status.reclaimableBytes) / 1024 ** 3;
+  return Math.max(1, Math.ceil(liveGiB / 2));
 }
 
 export const StorageCleanupReportEntry = Schema.Struct({
@@ -1177,6 +1197,8 @@ export const ServerSettings = Schema.Struct({
   ),
 
   worktreesDirectory: TrimmedString.pipe(Schema.withDecodingDefault(Effect.succeed(""))),
+  /** macOS only: clone new worktrees from a cached checkout instead of writing every file. */
+  fastWorktreeCheckout: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
   /**
    * Custom locations used before the current one. Server-maintained so
    * worktrees left there stay eligible for cleanup and review diffs.
@@ -1270,6 +1292,8 @@ export const ServerSettings = Schema.Struct({
     Schema.withDecodingDefault(Effect.succeed(null)),
   ),
   addProjectBaseDirectory: TrimmedString.pipe(Schema.withDecodingDefault(Effect.succeed(""))),
+  /** Clones default to `<addProjectBaseDirectory>/<host>/<owner>/<repo>`, like ghq. */
+  ghqCloneLayout: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
   textGenerationModelSelection: ModelSelection.pipe(
     Schema.withDecodingDefault(
       Effect.succeed({
@@ -1332,9 +1356,6 @@ export const ServerSettings = Schema.Struct({
   sourceControlHosts: Schema.Record(Schema.String, SourceControlHostSettings).pipe(
     Schema.withDecodingDefault(Effect.succeed({})),
   ),
-  cursorKeychainUsageEnabled: Schema.Boolean.pipe(
-    Schema.withDecodingDefault(Effect.succeed(false)),
-  ),
 
   usagePriceOverrides: Schema.Record(TrimmedNonEmptyString, UsageModelPriceOverride).pipe(
     Schema.withDecodingDefault(Effect.succeed({})),
@@ -1343,6 +1364,9 @@ export const ServerSettings = Schema.Struct({
   usageModelAliases: Schema.Record(TrimmedNonEmptyString, TrimmedNonEmptyString).pipe(
     Schema.withDecodingDefault(Effect.succeed({})),
   ),
+
+  /** Sent by the Usage tab with each summary request to this environment; edit in settings.json. Invalid values are ignored. */
+  usageModelFilter: ForwardCompatibleOptional(UsageModelFilter),
 });
 export type ServerSettings = typeof ServerSettings.Type;
 
@@ -1357,7 +1381,7 @@ export const providerInstanceConfigEnabledFlag = (config: unknown): boolean | un
 };
 
 const DEFAULT_DISABLED_PROVIDER_DRIVERS: ReadonlySet<ProviderDriverKind> = new Set(
-  ["cursor", "grok", "fx", "muse", "pi", "opencode", "antigravity"].map((driver) =>
+  ["cursor", "grok", "fx", "kiro", "muse", "pi", "opencode", "antigravity"].map((driver) =>
     ProviderDriverKind.make(driver),
   ),
 );
@@ -1493,6 +1517,7 @@ export const ServerSettingsPatch = Schema.Struct({
     }),
   ),
   worktreesDirectory: Schema.optionalKey(TrimmedString),
+  fastWorktreeCheckout: Schema.optionalKey(Schema.Boolean),
   responseStreamingMode: Schema.optionalKey(ResponseStreamingMode),
   enableProviderUpdateChecks: Schema.optionalKey(Schema.Boolean),
   continueThreadsAfterServerUpdate: Schema.optionalKey(Schema.Boolean),
@@ -1551,6 +1576,7 @@ export const ServerSettingsPatch = Schema.Struct({
   newWorktreesStartFromOrigin: Schema.optionalKey(Schema.Boolean),
   worktreeSubmodules: Schema.optionalKey(Schema.NullOr(WorktreeSubmodules)),
   addProjectBaseDirectory: Schema.optionalKey(TrimmedString),
+  ghqCloneLayout: Schema.optionalKey(Schema.Boolean),
   textGenerationModelSelection: Schema.optionalKey(ModelSelectionPatch),
   nextPromptSuggestionsEnabled: Schema.optionalKey(Schema.Boolean),
   threadTitleInstructions: Schema.optionalKey(TrimmedString),
@@ -1590,7 +1616,6 @@ export const ServerSettingsPatch = Schema.Struct({
   // entries is intentionally out of scope: the map is small, and partial
   // patches risk leaving driver-specific config in a half-merged state.
   providerInstances: Schema.optionalKey(Schema.Record(ProviderInstanceId, ProviderInstanceConfig)),
-  cursorKeychainUsageEnabled: Schema.optionalKey(Schema.Boolean),
 
   usagePriceOverrides: Schema.optionalKey(
     Schema.Record(TrimmedNonEmptyString, Schema.NullOr(UsageModelPriceOverride)),

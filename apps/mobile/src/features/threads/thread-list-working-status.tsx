@@ -1,7 +1,14 @@
 import { formatWorkingDurationLabel } from "@supaterm/client-runtime/state/thread-timing";
 import { memo, useEffect, useState } from "react";
-import { AppState } from "react-native";
+import { AppState, Platform, Text as RNText } from "react-native";
 import { AppText } from "../../components/ui/AppText";
+
+// DM Sans has no tabular figures, so a ticking timer in it reflows the row every second.
+const TABULAR_DURATION_STYLE = {
+  fontFamily: Platform.OS === "ios" ? "System" : "sans-serif",
+  fontWeight: "700",
+  fontVariant: ["tabular-nums"],
+} as const;
 
 /** The clock updates only this label, leaving the row and its subscriptions idle. */
 export const ThreadListWorkingStatus = memo(function ThreadListWorkingStatus(props: {
@@ -38,9 +45,14 @@ export const ThreadListWorkingStatus = memo(function ThreadListWorkingStatus(pro
   }, [startedMs]);
 
   return (
-    <AppText className={props.className} style={{ fontVariant: ["tabular-nums"] }}>
+    <AppText className={props.className}>
       {props.label}
-      {Number.isFinite(startedMs) && duration !== null ? ` ${duration}` : null}
+      {Number.isFinite(startedMs) && duration !== null ? (
+        <>
+          {" "}
+          <RNText style={TABULAR_DURATION_STYLE}>{duration}</RNText>
+        </>
+      ) : null}
     </AppText>
   );
 });

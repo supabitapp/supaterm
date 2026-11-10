@@ -95,13 +95,6 @@ describe("searchSettings", () => {
     expect(searchSettings("encrypted tunnel")[0]?.id).toBe("public-relay");
   });
 
-  it("finds usage providers", () => {
-    expect(searchSettings("usage providers")[0]).toMatchObject({
-      id: "usage-providers",
-      to: "/settings/providers",
-    });
-  });
-
   it("hides desktop-only settings from browser search", () => {
     expect(SETTINGS_SEARCH_ITEMS.some((item) => item.id === "cli-command")).toBe(true);
     expect(searchSettings("cli shell path")).toEqual([]);
@@ -113,7 +106,6 @@ describe("searchSettings", () => {
     const available = filterAvailableSettingsSearchItems({
       hasEnvironment: false,
       hasProviderSettingsEnvironment: false,
-      hasMacProviderSettingsEnvironment: false,
       canManageLocalBackend: false,
       isWslSettingsRowVisible: false,
       hasThreadAutoMarkDone: false,
@@ -124,7 +116,6 @@ describe("searchSettings", () => {
       "git-fetch-interval",
       "network-access",
       "provider-health-check-interval",
-      "cursor-keychain-usage",
       "source-control-writer-model",
       "review-guide-model",
       "review-guide-instructions",
@@ -135,6 +126,7 @@ describe("searchSettings", () => {
       "auto-mark-done-merged-threads",
       "auto-mark-done-keep-pull-requests",
       "days-before-auto-mark-done",
+      "worktree-fast-checkout",
     ]);
     expect(available.map((item) => item.id).filter((id) => gatedIds.has(id))).toEqual([]);
   });
@@ -156,6 +148,21 @@ describe("searchSettings", () => {
     });
     expect(searchSettings("thread.stop")[0]?.targetId).toBeUndefined();
     expect(searchSettings("sidebar.toggle")[0]?.targetId).toBeUndefined();
+  });
+
+  it("finds rows by the titles shown on their pages", () => {
+    for (const [title, id] of [
+      ["Automatic worktree cleanup", "storage-worktrees"],
+      ["Delete done worktrees", "storage-worktrees"],
+      ["Delete old browser artifacts", "storage-artifacts"],
+      ["Delete old rotated logs", "storage-artifacts"],
+      ["Custom search URL", "browser-search-engine"],
+      ["Native sessions", "providers"],
+      ["CODEX_HOME path", "providers"],
+      ["Shadow home path", "providers"],
+    ] as const) {
+      expect(searchSettings(title)[0]?.id, title).toBe(id);
+    }
   });
 
   it("keeps catalog result ids unique", () => {
@@ -227,7 +234,6 @@ describe("auto-mark-done search availability", () => {
     const items = filterAvailableSettingsSearchItems({
       hasEnvironment: true,
       hasProviderSettingsEnvironment: true,
-      hasMacProviderSettingsEnvironment: false,
       canManageLocalBackend: false,
       isWslSettingsRowVisible: false,
       hasThreadAutoMarkDone: availability.eligibleEnvironmentIds.length > 0,

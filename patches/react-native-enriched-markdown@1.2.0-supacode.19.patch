@@ -185,6 +185,45 @@ index a44d084..f2a2ebd 100644
   */
  object SegmentHeightMeasurer {
    /** The host's root stack: outermost quotes carry their margins and the widest line is tracked. */
+diff --git a/android/src/main/java/com/swmansion/enriched/markdown/segments/TableContainerView.kt b/android/src/main/java/com/swmansion/enriched/markdown/segments/TableContainerView.kt
+index 9a98add..fd47882 100644
+--- a/android/src/main/java/com/swmansion/enriched/markdown/segments/TableContainerView.kt
++++ b/android/src/main/java/com/swmansion/enriched/markdown/segments/TableContainerView.kt
+@@ -131,7 +131,7 @@ class TableContainerView(
+             TableCellData(
+               attributedText = renderCellNode(cell, isHeader, align),
+               plainText = extractPlainText(cell),
+-              markdownText = MarkdownASTSerializer.serializeChildren(cell),
++              markdownText = MarkdownASTSerializer.serializeTableCell(cell),
+               isHeader = isHeader,
+               alignment = align,
+             )
+diff --git a/android/src/main/java/com/swmansion/enriched/markdown/utils/common/serialization/MarkdownASTSerializer.kt b/android/src/main/java/com/swmansion/enriched/markdown/utils/common/serialization/MarkdownASTSerializer.kt
+index 66ea56c..e7ad2da 100644
+--- a/android/src/main/java/com/swmansion/enriched/markdown/utils/common/serialization/MarkdownASTSerializer.kt
++++ b/android/src/main/java/com/swmansion/enriched/markdown/utils/common/serialization/MarkdownASTSerializer.kt
+@@ -20,6 +20,12 @@ object MarkdownASTSerializer {
+     return buffer.toString()
+   }
+ 
++  private val tableCellLineBreak = Regex("""(?<!\\)(\\*)\n""")
++
++  /** Serializes a table cell's content; a newline inside it becomes `<br>` so the row stays on one line. */
++  fun serializeTableCell(cell: MarkdownASTNode): String =
++    serializeChildren(cell).replace(tableCellLineBreak, "$1$1<br>")
++
+   /**
+    * Serializes a Blockquote or Admonition node back to markdown, including
+    * the `> ` prefix on every line and `> [!TYPE]` header for admonitions.
+@@ -179,7 +185,7 @@ object MarkdownASTSerializer {
+     for (section in node.children) {
+       for (row in section.children) {
+         if (row.type != NodeType.TableRow) continue
+-        val cells = row.children.map { serializeChildren(it) }
++        val cells = row.children.map { serializeTableCell(it) }
+         buffer.append("| ")
+         buffer.append(cells.joinToString(" | "))
+         buffer.append(" |\n")
 diff --git a/docs/API_REFERENCE.md b/docs/API_REFERENCE.md
 index 6f13b42..3dd04e2 100644
 --- a/docs/API_REFERENCE.md
@@ -457,6 +496,19 @@ index 5bac650..a6b2cd7 100644
   * height from slotMeasurer, which also records where each slot lands: origin is
   * the content area's top-left in the host's content box, so nested quotes report
   * absolute positions.
+diff --git a/ios/segments/TableContainerView.m b/ios/segments/TableContainerView.m
+index 987eb21..87ab126 100644
+--- a/ios/segments/TableContainerView.m
++++ b/ios/segments/TableContainerView.m
+@@ -163,7 +163,7 @@ static NSArray<NSArray<TableCellData *> *> *ENRMTableBuildRows(MarkdownASTNode *
+         cell.isHeader = isSectionHead || (cellNode.type == MarkdownNodeTypeTableHeaderCell);
+         cell.alignment = ENRMTableTextAlignmentFromString(cellNode.attributes[@"align"]);
+         cell.plainText = ENRMTablePlainTextFromNode(cellNode);
+-        cell.markdownText = markdownFromASTNodeChildren(cellNode);
++        cell.markdownText = markdownFromTableCellNode(cellNode);
+ 
+         StyleConfig *cellConfig = cell.isHeader ? headerCellConfig : bodyCellConfig;
+         cell.attributedText =
 diff --git a/ios/utils/ENRMCodeBlockWrapState.h b/ios/utils/ENRMCodeBlockWrapState.h
 index ca99ded..53cab06 100644
 --- a/ios/utils/ENRMCodeBlockWrapState.h
@@ -612,6 +664,51 @@ index 451f273..b9f4dd3 100644
    [self sync];
    _onHeightChanged();
  }
+diff --git a/ios/utils/MarkdownASTSerializer.h b/ios/utils/MarkdownASTSerializer.h
+index b9519a3..4c8e998 100644
+--- a/ios/utils/MarkdownASTSerializer.h
++++ b/ios/utils/MarkdownASTSerializer.h
+@@ -17,6 +17,9 @@ NSString *markdownFromASTNode(MarkdownASTNode *node);
+ /// Useful for extracting the markdown content of a container node (e.g. a table cell).
+ NSString *markdownFromASTNodeChildren(MarkdownASTNode *node);
+ 
++/// Serializes a table cell's content; a newline inside it becomes `<br>` so the row stays on one line.
++NSString *markdownFromTableCellNode(MarkdownASTNode *node);
++
+ /// Serializes a Blockquote or Admonition node to full markdown, including `> ` line
+ /// prefixes and `> [!TYPE]` header for admonitions.
+ NSString *markdownFromBlockquoteNode(MarkdownASTNode *node);
+diff --git a/ios/utils/MarkdownASTSerializer.m b/ios/utils/MarkdownASTSerializer.m
+index ffdee1a..eae0f76 100644
+--- a/ios/utils/MarkdownASTSerializer.m
++++ b/ios/utils/MarkdownASTSerializer.m
+@@ -148,7 +148,7 @@ static void appendTableMarkdown(MarkdownASTNode *node, NSMutableString *buffer)
+         continue;
+       NSMutableArray<NSString *> *cells = [NSMutableArray arrayWithCapacity:row.children.count];
+       for (MarkdownASTNode *cell in row.children) {
+-        [cells addObject:markdownFromASTNodeChildren(cell)];
++        [cells addObject:markdownFromTableCellNode(cell)];
+       }
+       [buffer appendFormat:@"| %@ |\n", [cells componentsJoinedByString:@" | "]];
+       if (!headerDone) {
+@@ -333,6 +333,17 @@ NSString *markdownFromASTNodeChildren(MarkdownASTNode *node)
+   return [buffer copy];
+ }
+ 
++NSString *markdownFromTableCellNode(MarkdownASTNode *node)
++{
++  NSString *markdown = markdownFromASTNodeChildren(node);
++  if (![markdown containsString:@"\n"])
++    return markdown;
++  return [markdown stringByReplacingOccurrencesOfString:@"(?<!\\\\)(\\\\*)\n"
++                                            withString:@"$1$1<br>"
++                                               options:NSRegularExpressionSearch
++                                                 range:NSMakeRange(0, markdown.length)];
++}
++
+ NSString *markdownFromBlockquoteNode(MarkdownASTNode *node)
+ {
+   if (!node)
 diff --git a/lib/module/EnrichedMarkdownNativeComponent.ts b/lib/module/EnrichedMarkdownNativeComponent.ts
 index 309c3f2..f834a03 100644
 --- a/lib/module/EnrichedMarkdownNativeComponent.ts

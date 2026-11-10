@@ -1,7 +1,7 @@
 import type { Session, WebContents } from "electron";
 import { BrowserWindow, session } from "electron";
 import * as Context from "effect/Context";
-import * as Crypto from "effect/Crypto";
+import * as Digest from "effect/crypto/Digest";
 import * as Effect from "effect/Effect";
 import * as Hex from "effect/encoding/Hex";
 import * as Layer from "effect/Layer";
@@ -31,6 +31,7 @@ const ALLOWED_PREVIEW_PERMISSIONS: ReadonlySet<string> = new Set([
   "geolocation",
 
   "fullscreen",
+  "pointerLock",
   // Loopback requests already succeed in Electron 44; permission-aware sign-in widgets query first.
   "loopback-network",
   // Deliberately NOT local-fonts: preview sessions run untrusted web content,
@@ -61,6 +62,9 @@ const externalProtocolPromptUrl = (rawUrl: string | undefined): string | null =>
     return null;
   }
 };
+
+// Teams sends Electron User-Agents to an error page before sign-in. Electron allows one listener per session.
+const TEAMS_URL_PATTERNS = ["https://teams.cloud.microsoft/*", "https://teams.microsoft.com/*"];
 
 const MAX_PROMPT_URL_LENGTH = 300;
 
@@ -197,7 +201,7 @@ const previewHostWindow = (guest: WebContents | null): BrowserWindow | undefined
 
 /** @public */
 export const make = Effect.gen(function* BrowserSessionMake() {
-  const crypto = yield* Crypto.Crypto;
+  const crypto = yield* Digest.Digest;
   const electronDialog = yield* ElectronDialog.ElectronDialog;
   const runFork = Effect.runForkWith(yield* Effect.context<never>());
   // One prompt at a time, so a page cannot stack dialogs by looping a deep link.
@@ -272,7 +276,7 @@ export const make = Effect.gen(function* BrowserSessionMake() {
     persistent = true,
     namespace?: BrowserSessionPartitionNamespace,
   ) {
-    const digest = yield* crypto.digest("SHA-256", encodeScopeForDigest(scope)).pipe(
+    const digest = yield* crypto.digest(Digest.sha256, encodeScopeForDigest(scope)).pipe(
       Effect.mapError(
         (cause) =>
           new BrowserSessionPartitionDerivationError({
@@ -354,6 +358,22 @@ export const make = Effect.gen(function* BrowserSessionMake() {
             permission === "clipboard-read"
               ? clipboardReadDecisions.get(permissionOrigin(requestingOrigin) ?? "") === true
               : ALLOWED_PREVIEW_PERMISSIONS.has(permission),
+          );
+          browserSession.webRequest.onBeforeSendHeaders(
+            { urls: TEAMS_URL_PATTERNS },
+            ({ requestHeaders }, callback) => {
+              const userAgent = Object.entries(requestHeaders).find(
+                ([name]) => name.toLowerCase() === "user-agent",
+              );
+              if (userAgent === undefined) {
+                callback({});
+                return;
+              }
+              const [name, value] = userAgent;
+              callback({
+                requestHeaders: { ...requestHeaders, [name]: value.replace(/ Electron\/\S+/, "") },
+              });
+            },
           );
           const next = new Map(sessions);
           next.set(partition, browserSession);
