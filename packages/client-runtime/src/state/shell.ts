@@ -482,11 +482,10 @@ export const makeEnvironmentShellState = Effect.fn("EnvironmentShellState.make")
         yield* Ref.set(awaitingCompletion, true);
         yield* setSynchronizing;
 
-        // A resubscription on the same live session, or a new session to the
-        // same server run after this shell (in memory or cached) synchronized from
-        // a recent snapshot with the same omissions, resumes from its cursor.
-        // Otherwise reload the authoritative HTTP snapshot so a valid cursor
-        // cannot preserve incomplete cached data.
+        // The same live session, or a new session to the same server run after these rows (in
+        // memory or cached) synchronized from a recent snapshot with the same omissions, resumes
+        // from the cursor. Otherwise reload the HTTP snapshot so a valid cursor cannot preserve
+        // incomplete cached data.
         const resumable = yield* Ref.get(origin);
         const snapshotAge =
           resumable === undefined ? null : (yield* Clock.currentTimeMillis) - resumable.snapshotAt;
