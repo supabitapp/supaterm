@@ -10,6 +10,7 @@ import {
   MessageId,
   type ModelSelection,
   type OrchestrationV2ProviderThread,
+  type OrchestrationV2Run,
   type OrchestrationV2TurnItem,
   type OrchestrationV2ThreadHistoryPage,
   type OrchestrationV2ThreadShellSnapshot,
@@ -1498,6 +1499,46 @@ const subagentRecordsSelectById = Effect.gen(function* () {
   assert.deepEqual(yield* read(), ids);
   assert.deepEqual(yield* read([ids[1]!]), [ids[1]]);
   assert.deepEqual(yield* read([]), []);
+
+  const sql = yield* SqlClient.SqlClient;
+  const planOf = (statements: ReadonlyArray<string>, table: string) =>
+    Effect.gen(function* () {
+      const query = statements.find((statement) =>
+        statement.includes(`FROM orchestration_v2_projection_${table}`),
+      );
+      assert.isDefined(query);
+      return (yield* sql.unsafe<{ readonly detail: string }>(`EXPLAIN QUERY PLAN ${query}`))
+        .map((row) => row.detail)
+        .join("\n");
+    });
+  const readRuns = (runStatuses: ReadonlyArray<OrchestrationV2Run["status"]>) =>
+    store
+      .getThreadRecords(threadId, ["runs"], { runStatuses })
+      .pipe(Effect.map(({ runs }) => runs.map((run) => run.status)));
+  assert.deepEqual(yield* readRuns(["preparing", "starting", "running", "waiting"]), []);
+  assert.deepEqual(yield* readRuns([]), []);
+  const byStatus = traceSqlStatements();
+  assert.deepEqual(
+    yield* readRuns(["running", "rolled_back"]).pipe(Effect.withTracer(byStatus.tracer)),
+    ["rolled_back"],
+  );
+  // Read only the matching runs, not every run in ordinal order.
+  const statusPlan = yield* planOf(byStatus.statements, "runs");
+  assert.notInclude(statusPlan, "orchestration_v2_projection_runs_thread_ordinal_idx");
+  assert.match(statusPlan, /SEARCH orchestration_v2_projection_runs USING INDEX \w*status\w*/);
+
+  // An id filter reads by primary key, not every row of the thread.
+  const runId = (yield* store.getThreadRecords(threadId, ["runs"])).runs[0]!.id;
+  const byId = traceSqlStatements();
+  yield* store
+    .getThreadRecords(threadId, ["runs", "subagents"], { runIds: [runId], subagentIds: ids })
+    .pipe(Effect.withTracer(byId.tracer));
+  for (const table of ["runs", "subagents"]) {
+    assert.include(
+      yield* planOf(byId.statements, table),
+      `USING INDEX sqlite_autoindex_orchestration_v2_projection_${table}_1`,
+    );
+  }
 });
 
 const assertProjectScopedShells = Effect.fn("assertProjectScopedShells")(function* (
@@ -2306,7 +2347,10 @@ it.layer(layerTest)("ProjectionStoreV2", (it) => {
       assert.deepEqual(recovery?.restartCancelledBackgroundWork, work);
     }),
   );
-  it.effect("record reads select subagents by id", () => subagentRecordsSelectById);
+  it.effect(
+    "record reads select runs by status and runs and subagents by id",
+    () => subagentRecordsSelectById,
+  );
   it.effect(
     "command reads skip finished leaf nodes of finished runs",
     () => commandReadsSkipSettledLeafNodes,
