@@ -32,6 +32,7 @@ export function ComposerInlineControl(props: {
   readonly renderIcon?: (size: number) => ReactNode;
   readonly label: string;
   readonly secondaryLabel?: string;
+  readonly secondaryLabelWidth?: number;
   readonly ellipsizeMode?: "middle" | "tail";
   readonly maxWidth?: ViewStyle["maxWidth"];
   readonly onPress?: () => void;
@@ -85,7 +86,11 @@ export function ComposerInlineControl(props: {
         {props.label}
       </Text>
       {props.secondaryLabel ? (
-        <Text className="-ml-1 shrink-0 text-sm font-supaterm-medium text-foreground-muted">
+        <Text
+          className="-ml-1 shrink-0 text-sm font-supaterm-medium text-foreground-muted"
+          numberOfLines={props.secondaryLabelWidth === undefined ? undefined : 1}
+          style={{ width: props.secondaryLabelWidth }}
+        >
           {props.secondaryLabel}
         </Text>
       ) : null}

@@ -6,7 +6,11 @@ import {
 } from "@supaterm/shared/model";
 
 import { ComposerInlineControl } from "../../components/ComposerToolbar";
-import { ProviderIcon, ProviderInstanceIcon } from "../../components/ProviderIcon";
+import {
+  ProviderIcon,
+  ProviderInstanceIcon,
+  providerInstanceNameLabel,
+} from "../../components/ProviderIcon";
 import type { ModelOption } from "../../lib/modelOptions";
 import { getReasoningOptionDescriptor } from "../../lib/providerOptions";
 import { useAppearancePreferences } from "../settings/appearance/AppearancePreferencesProvider";
@@ -47,6 +51,15 @@ export function ComposerModelControl(props: {
             ) ?? "Default")
         : undefined;
   const badge = props.modelOption?.providerBadge;
+  const providerNameLabel = badge
+    ? providerInstanceNameLabel({
+        provider: props.modelOption?.providerDriver,
+        iconUrl: props.modelOption?.providerIconUrl,
+        displayName: badge.displayName,
+        showBadge: badge.showBadge,
+      })
+    : null;
+  const shortLabel = props.modelOption?.shortName ?? props.label;
 
   return (
     <ComposerInlineControl
@@ -80,8 +93,14 @@ export function ComposerModelControl(props: {
           />
         )
       }
-      label={props.modelOption?.shortName ?? props.label}
-      secondaryLabel={reasoningLabel}
+      label={providerNameLabel ?? shortLabel}
+      ellipsizeMode={providerNameLabel ? "middle" : undefined}
+      secondaryLabel={
+        providerNameLabel
+          ? [shortLabel, reasoningLabel].filter(Boolean).join(" · ")
+          : reasoningLabel
+      }
+      secondaryLabelWidth={providerNameLabel ? 96 : undefined}
       maxWidth="100%"
       onPress={props.onPress}
     />
