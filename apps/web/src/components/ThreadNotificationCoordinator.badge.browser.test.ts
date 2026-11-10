@@ -259,6 +259,69 @@ it("holds a completion through a continuation gap and notifies once it completes
   expect(TestNotification.sent.map((sent) => sent.title)).toEqual(["Thread completed"]);
 });
 
+it.each([false, true])(
+  "presents one completion when a monitor ends with a final wake (disconnected: %s)",
+  async (disconnect) => {
+    await using app = setup();
+    app.start();
+    using _timers = fakeTimers();
+    const watching = (
+      turnId: string,
+      turnState: string,
+      completedAt: string | null,
+      latestRunBackgroundWake: boolean,
+      pendingBackgroundTasks: ReadonlyArray<{ taskId: string; kind: "monitor" }>,
+    ) => ({
+      status: "live",
+      snapshot: Option.some({
+        threads: [
+          {
+            ...toV2ThreadShell({
+              ...thread,
+              latestTurn: { turnId, state: turnState, completedAt },
+            }),
+            latestRunBackgroundWake,
+            pendingBackgroundTasks,
+          },
+        ],
+      }),
+    });
+    const monitor = [{ taskId: "watch", kind: "monitor" as const }];
+    const titles = () => TestNotification.sent.map(({ title }) => title);
+    state.shells.set(
+      "one",
+      watching("turn", "completed", "2026-09-13T07:00:01.000Z", false, monitor),
+    );
+    await vi.advanceTimersByTimeAsync(WORKING_EXIT_GRACE_MS);
+    expect(titles()).toEqual(["Thread completed"]);
+
+    state.shells.set("one", watching("wake", "running", null, true, monitor));
+    state.shells.set(
+      "one",
+      watching("wake", "completed", "2026-09-13T07:00:09.000Z", true, monitor),
+    );
+    await vi.advanceTimersByTimeAsync(WORKING_EXIT_GRACE_MS);
+    expect(titles()).toEqual(["Thread completed"]);
+
+    // The adapter drains the roster before the final wake starts.
+    state.shells.set("one", watching("wake", "completed", "2026-09-13T07:00:09.000Z", true, []));
+    if (disconnect) {
+      state.shells.set("one", {
+        ...watching("wake", "completed", "2026-09-13T07:00:09.000Z", true, []),
+        status: "cached",
+      });
+      await vi.advanceTimersByTimeAsync(WORKING_EXIT_GRACE_MS);
+      expect(titles()).toEqual(["Thread completed"]);
+    }
+
+    state.shells.set("one", watching("final", "running", null, false, []));
+    await vi.advanceTimersByTimeAsync(WORKING_EXIT_GRACE_MS);
+    state.shells.set("one", watching("final", "completed", "2026-09-13T07:00:11.000Z", false, []));
+    await vi.advanceTimersByTimeAsync(WORKING_EXIT_GRACE_MS);
+    expect(titles()).toEqual(["Thread completed", "Thread completed"]);
+  },
+);
+
 it.each(["hasPendingApprovals", "hasPendingUserInput"] as const)(
   "notifies for offline completion and %s once across reconnects",
   async (flag) => {

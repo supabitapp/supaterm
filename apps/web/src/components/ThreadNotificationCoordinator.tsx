@@ -11,6 +11,7 @@ import {
   type OrchestrationV2ThreadShell,
   type ThreadId,
 } from "@supaterm/contracts";
+import { monitorHoldsWakeCompletion } from "@supaterm/shared/orchestrationV2PendingBackgroundWork";
 import type { ClientSettings } from "@supaterm/contracts/settings";
 import * as Option from "effect/Option";
 import type { AtomRegistry } from "effect/reactivity";
@@ -204,7 +205,10 @@ export function startThreadNotifications(
         ? `${thread.latestRun?.runId ?? ""}:${status}:${requestId ?? ""}`
         : null;
       const completedAt = Date.parse(thread.latestRun?.completedAt ?? "");
-      const settled = status === "ready" && thread.latestRun?.status === "completed";
+      const settled =
+        status === "ready" &&
+        thread.latestRun?.status === "completed" &&
+        !monitorHoldsWakeCompletion(rawThread);
       const state = {
         raw: rawThread,
         subagentRequest,
