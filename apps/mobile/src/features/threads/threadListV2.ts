@@ -569,9 +569,7 @@ function resolveThreadListV2ItemTimeLabel(
   )
     return "";
   const doneTimestamp = variant === "slim" && !snoozed ? resolveDoneThreadTimestamp(thread) : null;
-  return relativeTime(
-    doneTimestamp ?? resolveThreadActivityTimestamp(thread) ?? thread.createdAt,
-  );
+  return relativeTime(doneTimestamp ?? resolveThreadActivityTimestamp(thread) ?? thread.createdAt);
 }
 
 interface ThreadListV2ListOptions {

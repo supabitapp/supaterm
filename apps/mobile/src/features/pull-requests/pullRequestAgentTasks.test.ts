@@ -46,9 +46,9 @@ describe("PR agent tasks", () => {
     expect(pullRequestAgentThreadActions([thread], "ask", false)).toMatchObject([
       { id: `ask:${thread.id}`, subtitle: "Continue thread" },
     ]);
-    expect(
-      pullRequestAgentThreadActions([done], "feedback", false)[0]?.subactions,
-    ).toMatchObject([{ id: `feedback:${done.id}`, attributes: { disabled: false } }]);
+    expect(pullRequestAgentThreadActions([done], "feedback", false)[0]?.subactions).toMatchObject([
+      { id: `feedback:${done.id}`, attributes: { disabled: false } },
+    ]);
     expect(pullRequestAgentThreadActions([archived], "feedback", true)[1]).toMatchObject({
       attributes: { disabled: true },
     });

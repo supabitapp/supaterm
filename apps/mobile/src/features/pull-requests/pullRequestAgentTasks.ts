@@ -41,9 +41,7 @@ export function pullRequestAgentThreadActions(
   return [
     ...(canAsk ? [{ id: `${task}:new`, title: "Start a new thread", image: "plus" }] : []),
     ...active,
-    ...(done.length
-      ? [{ id: `${task}:done`, title: "Done threads", subactions: done }]
-      : []),
+    ...(done.length ? [{ id: `${task}:done`, title: "Done threads", subactions: done }] : []),
   ];
 }
 
