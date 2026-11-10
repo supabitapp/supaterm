@@ -8,7 +8,7 @@ import {
   EMPTY_ASSET_URL_ATOM,
   makeRevisionedAssetUrlFamily,
 } from "@supaterm/client-runtime/state/assets";
-import { executeAtomQuery } from "@supaterm/client-runtime/state/runtime";
+import { executeAtomQuery, squashAtomCommandFailure } from "@supaterm/client-runtime/state/runtime";
 import type { AssetResource, EnvironmentId } from "@supaterm/contracts";
 import * as Effect from "effect/Effect";
 import { Atom, AsyncResult } from "effect/reactivity";
@@ -106,7 +106,10 @@ export function useRefreshAssetUrl(
   };
 }
 
-/** {@link useRefreshAssetUrl} for async tasks that resolve several resources at once. */
+/**
+ * {@link useRefreshAssetUrl} for async tasks that resolve several resources at once. Resolves
+ * null without a connection and rejects with the server's error when it refuses the URL.
+ */
 export async function refreshAssetUrl(
   environmentId: EnvironmentId,
   resource: AssetResource,
@@ -121,6 +124,7 @@ export async function refreshAssetUrl(
     reportFailure: false,
     ...(signal ? { signal } : {}),
   });
+  if (result._tag === "Failure") throw squashAtomCommandFailure(result);
   // The query can wait through a reconnect; resolve against the connection that answered it.
   const connection = appAtomRegistry.get(connectionAtom);
   if (connection._tag === "None") return null;
@@ -150,7 +154,7 @@ const freshAssetUrlFamily = Atom.family((key: FreshAssetUrlKey) =>
         const url =
           key.environmentId === null
             ? null
-            : await refreshAssetUrl(key.environmentId, key.resource, signal);
+            : await refreshAssetUrl(key.environmentId, key.resource, signal).catch(() => null);
         if (!url) throw new Error("Reconnect to this environment and try again.");
         return { url, authorizedAt: Date.now() };
       },

@@ -1,3 +1,5 @@
+import { AssetWorkspaceAssetNotFoundError } from "@supaterm/contracts";
+import * as Schema from "effect/Schema";
 import * as Dialog from "./Dialog";
 import { useContext, useEffect, useEffectEvent, useState, type ComponentType } from "react";
 
@@ -34,6 +36,16 @@ class PreviewResolutionError extends Error {
   }
 }
 
+const isAssetNotFoundError = Schema.is(AssetWorkspaceAssetNotFoundError);
+
+function remotePreviewFailureMessage(error: unknown): string {
+  if (!isAssetNotFoundError(error)) {
+    return "Reconnect to this environment and try again. The file may have been moved or deleted.";
+  }
+  const path = error.checkedPath ?? ("path" in error.resource ? error.resource.path : undefined);
+  return path ? `The file was not found at ${path}.` : error.message;
+}
+
 interface ResolvedPreviewUri {
   readonly uri: string;
   readonly dispose?: () => void;
@@ -56,10 +68,7 @@ async function resolvePreviewUri(
       return value;
     })
     .catch((error: unknown) => {
-      throw new PreviewResolutionError(
-        error,
-        "Reconnect to this environment and try again. The file may have been moved or deleted.",
-      );
+      throw new PreviewResolutionError(error, remotePreviewFailureMessage(error));
     });
   return { uri: url + (item.srcFragment ?? "") };
 }
