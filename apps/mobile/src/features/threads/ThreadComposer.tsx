@@ -1191,7 +1191,6 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
                       />
                     </View>
                     <ComposerSpeedToggle
-                      provider={currentModelOption?.providerDriver}
                       descriptors={providerOptionDescriptors}
                       onChange={(options) =>
                         props.onUpdateModelSelection({ ...currentModelSelection, options })
