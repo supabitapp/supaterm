@@ -219,6 +219,7 @@ it.effect(
           listOlderDoneThreads: () => Effect.die("unused listOlderDoneThreads"),
           readShellSnapshot: () => Effect.die("unused readShellSnapshot"),
           getThreadShell: () => Effect.die("unused getThreadShell"),
+          getThreadTitles: () => Effect.die("unused getThreadTitles"),
           getThread: () => Ref.get(projection).pipe(Effect.map((state) => state.thread)),
           getAutoMarkDoneCandidates: () => Effect.die("unused getAutoMarkDoneCandidates"),
           getThreadsWithPullRequests: () => Effect.die("unused getThreadsWithPullRequests"),

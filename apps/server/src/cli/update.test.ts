@@ -275,6 +275,7 @@ it.layer(NodeServices.layer)("supaterm update launcher", (it) => {
     Effect.gen(function* () {
       const fs = yield* FileSystem.FileSystem;
       const path = yield* Path.Path;
+      const delimiter = (yield* HostProcess.Platform) === "win32" ? ";" : ":";
       const root = yield* fs.makeTempDirectoryScoped({ prefix: "supaterm-update-" });
       const launcher = path.join(root, "bin/supaterm");
       yield* fs.makeDirectory(path.dirname(launcher), { recursive: true });
@@ -283,7 +284,7 @@ it.layer(NodeServices.layer)("supaterm update launcher", (it) => {
       const bare = yield* resolveLauncherPath.pipe(
         Effect.provideService(HostProcess.InvokedAs, "supaterm"),
         Effect.provideService(HostProcess.Environment, {
-          PATH: `${path.join(root, "missing")}:${path.join(root, "bin")}`,
+          PATH: [path.join(root, "missing"), path.join(root, "bin")].join(delimiter),
         }),
         Effect.provideService(HostProcess.WorkingDirectory, root),
       );
@@ -301,7 +302,7 @@ it.layer(NodeServices.layer)("supaterm update launcher", (it) => {
       assert.equal(bare, launcher);
       assert.equal(relative, launcher);
       assert.equal(absent, undefined);
-    }).pipe(Effect.scoped, Effect.provideService(HostProcess.Platform, "linux")),
+    }).pipe(Effect.scoped),
   );
 });
 

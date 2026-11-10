@@ -176,6 +176,7 @@ export const ClaudeDriver: ProviderDriver<ClaudeSettings, ClaudeDriverEnv, Path.
               Effect.orElseSucceed(() => false),
             ),
         }),
+        modelCatalog,
       },
     ).pipe(
       Effect.mapError(
