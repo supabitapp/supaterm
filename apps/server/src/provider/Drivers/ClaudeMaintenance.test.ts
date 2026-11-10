@@ -81,9 +81,9 @@ const fixture = Effect.fn("ClaudeMaintenance.test.fixture")(function* (
     readDirectory: (file) =>
       file.replaceAll("\\", "/") === `${managedDirectory}/managed-settings.d`
         ? Effect.succeed(
-            [...managed.keys()]
-              .filter((key) => key.includes("/managed-settings.d/"))
-              .map((key) => path.basename(key)),
+            [...managed.keys()].flatMap((key) =>
+              key.includes("/managed-settings.d/") ? [path.basename(key)] : [],
+            ),
           )
         : fs.readDirectory(file),
   });

@@ -26,9 +26,13 @@ describe.skipIf(HostProcess.Platform.defaultValue() !== "linux")("installer home
     try {
       await NodeFSP.mkdir(target, { recursive: true });
       await NodeFSP.writeFile(NodePath.join(target, ".install-complete"), `${version}\n`);
-      await NodeFSP.writeFile(NodePath.join(target, "supaterm"), "#!/bin/sh\necho 'supaterm v1.2.3'\n", {
-        mode: 0o755,
-      });
+      await NodeFSP.writeFile(
+        NodePath.join(target, "supaterm"),
+        "#!/bin/sh\necho 'supaterm v1.2.3'\n",
+        {
+          mode: 0o755,
+        },
+      );
       const { status, stdout, stderr } = NodeChildProcess.spawnSync(
         "sh",
         [NodePath.resolve(import.meta.dirname, "install.sh")],

@@ -5549,7 +5549,7 @@ it.layer(layerTest)("ProjectionStoreV2", (it) => {
         assert.deepEqual(
           armed,
           [activeParentChild],
-          `only the child of the unsettled parent is armed (${JSON.stringify(options)})`,
+          `only the child of the parent that is not done is armed (${JSON.stringify(options)})`,
         );
       }
       // A recovery armed before the parent done still resumes at its reset.

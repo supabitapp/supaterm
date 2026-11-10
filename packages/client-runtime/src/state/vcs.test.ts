@@ -387,7 +387,7 @@ describe("cached VCS refs", () => {
         );
 
         expect(AsyncResult.isSuccess(prepareResult)).toBe(true);
-        expect(yield* Ref.get(clears)).toBe(3);
+        expect(yield* Ref.get(clears)).toBe(2);
         expect(registry.get(vcsRefsCacheStateAtom(TARGET)).revision).toBe(3);
       }),
     ),
