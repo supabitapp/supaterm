@@ -26,19 +26,6 @@ export const OPENCODE_2_RESPONSES = {
   },
 } satisfies Record<string, RecordedResponse>;
 
-export const OPENCODE_2_WORKSPACE_RESPONSES = {
-  "/api/command": {
-    status: 200,
-    contentType: "application/json",
-    body: '{"location":{"directory":"/work"},"data":[{"name":"init","description":"guided AGENTS.md setup"},{"name":"review","description":"review changes [commit|branch|pr], defaults to uncommitted"},{"name":"bee","description":"B command"}]}',
-  },
-  "/api/skill": {
-    status: 200,
-    contentType: "application/json",
-    body: '{"location":{"directory":"/work"},"data":[{"id":"opencode","name":"OpenCode","description":"Use this skill for any question about OpenCode itself.","path":"/builtin/opencode.md","content":"# OpenCode"},{"id":"report","name":"Report","description":"Use when the user wants to report an opencode issue or bug.","path":"/builtin/report.md","content":"<!-- Built-in skill. -->"},{"id":"plum","name":"plum","description":"plum skill","path":"/work/.opencode/skills/plum/SKILL.md","content":"Say PLUM."}]}',
-  },
-} satisfies Record<string, RecordedResponse>;
-
 export const OPENCODE_1_RESPONSES = {
   "/api/info": { status: 200, contentType: "text/html", body: SPA_HTML },
   "/global/health": {
@@ -51,10 +38,7 @@ export const OPENCODE_1_RESPONSES = {
 } satisfies Record<string, RecordedResponse>;
 
 export function replayOpenCodeServer(
-  responses:
-    | typeof OPENCODE_1_RESPONSES
-    | typeof OPENCODE_2_RESPONSES
-    | (typeof OPENCODE_2_RESPONSES & typeof OPENCODE_2_WORKSPACE_RESPONSES),
+  responses: typeof OPENCODE_1_RESPONSES | typeof OPENCODE_2_RESPONSES,
   password: string,
   requestedPaths: Array<string> = [],
 ) {

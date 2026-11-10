@@ -604,7 +604,7 @@ describe("checkOpenCodeProviderStatus", () => {
       NodeAssert.equal(snapshot.status, "error");
       NodeAssert.equal(
         snapshot.message,
-        "OpenCode 1.x is no longer supported. Install OpenCode 2 with `npm install -g @opencode/cli`, then refresh provider status.",
+        "OpenCode 1.x is no longer supported. Run `npm uninstall -g opencode-ai`, then `npm install -g @opencode/cli`, and refresh provider status.",
       );
       NodeAssert.deepEqual(snapshot.models, []);
     }),

@@ -175,15 +175,6 @@ export class OpenCodeReplayController {
     }
   }
 
-  async untilEventsDelivered(): Promise<void> {
-    while (true) {
-      this.throwFailure();
-      const entry = this.transcript.entries[this.cursor];
-      if (entry?.type !== "emit_inbound" || frameRecord(entry.frame)?.type !== "sdk.event") return;
-      await this.changed();
-    }
-  }
-
   /** Waits for events and responses to be consumed so concurrent HTTP requests cannot match earlier answers. */
   async untilInboundDelivered(): Promise<void> {
     while (true) {

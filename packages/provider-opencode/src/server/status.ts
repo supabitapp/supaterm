@@ -206,16 +206,6 @@ const DEFAULT_OPENCODE_MODEL_CAPABILITIES: ModelCapabilities = createModelCapabi
       ],
       currentValue: "medium",
     },
-    {
-      id: "agent",
-      label: "Agent",
-      type: "select",
-      options: [
-        { id: "build", label: "Build", isDefault: true },
-        { id: "plan", label: "Plan" },
-      ],
-      currentValue: "build",
-    },
   ],
 });
 

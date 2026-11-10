@@ -17,7 +17,7 @@ export interface ProbedOpenCode {
 }
 
 export const OPENCODE_1_UNSUPPORTED_MESSAGE =
-  "OpenCode 1.x is no longer supported. Install OpenCode 2 with `npm install -g @opencode/cli`, then refresh provider status.";
+  "OpenCode 1.x is no longer supported. Run `npm uninstall -g opencode-ai`, then `npm install -g @opencode/cli`, and refresh provider status.";
 
 export const isOpenCode1 = (probed: ProbedOpenCode) => probed.generation === "v1";
 
@@ -188,6 +188,5 @@ export const makeOpenCodeRuntimeProbe = <E>(probe: Effect.Effect<ProbedOpenCode,
     (cache) => ({
       get: Cache.get(cache, undefined),
       refresh: Cache.refresh(cache, undefined),
-      lastSuccess: Cache.getSuccess(cache, undefined),
     }),
   );

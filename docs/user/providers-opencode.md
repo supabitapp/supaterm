@@ -3,7 +3,7 @@
 Install OpenCode 2 on the machine running your environment, for example with
 `npm install -g @opencode/cli`. Authenticate it, then enable it in
 **Settings > Providers**. See [provider setup](./install.md#providers). Supaterm
-requires OpenCode 2.0.18 or newer, including when you connect an existing OpenCode
+supports OpenCode 2.0.18 and newer, including when you connect an existing OpenCode
 server.
 
 Plan mode uses OpenCode's `plan` agent.
@@ -14,10 +14,12 @@ Supaterm no longer runs OpenCode 1.x. When it finds a 1.x install or server, the
 provider reports that 1.x is no longer supported, and OpenCode threads cannot run
 until you move to OpenCode 2.
 
-OpenCode 2 is a separate package, `@opencode/cli`. Install it yourself, then refresh
-provider status. Supaterm offers no update for a 1.x install, because it never moves
-one to 2.x for you. If Supaterm still finds 1.x afterwards, set **Binary path** in
-provider settings to the OpenCode 2 executable.
+OpenCode 2 is a separate package, `@opencode/cli`. Both packages install a command
+named `opencode`, so npm refuses to install one over the other. Remove the old
+package with `npm uninstall -g opencode-ai`, run `npm install -g @opencode/cli`, then
+refresh provider status. Supaterm offers no update for a 1.x install, because it
+never moves one to 2.x for you. If Supaterm still finds 1.x afterwards, set
+**Binary path** in provider settings to the OpenCode 2 executable.
 
 OpenCode 2 converts the shared OpenCode database to its own format the first time it
 runs. Don't run OpenCode 1.x and 2.x side by side on the same machine. Threads you
@@ -58,8 +60,8 @@ does not stop the whole turn.
 
 After changing an OpenCode login or configuration, use **Refresh provider status**
 in **Settings > Providers** for that environment. On mobile, use **Refresh models**
-in the thread settings. Reconnecting also refreshes the catalog; periodic provider
-health checks do not.
+in the thread settings. Reconnecting also refreshes the catalog. Periodic health
+checks refresh it only while the provider has not come up healthy.
 
 Native OpenCode configuration can remain cached while the local OpenCode server is
 running. Supaterm stops that server after 30 seconds without use, and a thread with

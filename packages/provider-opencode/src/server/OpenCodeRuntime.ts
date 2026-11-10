@@ -113,8 +113,6 @@ export class OpenCodeRuntime extends Context.Service<
       readonly directory: string;
       readonly environment?: NodeJS.ProcessEnv;
       readonly port?: number;
-      readonly hostname?: string;
-      readonly timeoutMs?: number;
       readonly verify: (url: string) => Effect.Effect<string, OpenCodeRuntimeError>;
     }) => Effect.Effect<OpenCodeServerProcess, OpenCodeRuntimeError, Scope.Scope>;
 
@@ -122,7 +120,6 @@ export class OpenCodeRuntime extends Context.Service<
       readonly binaryPath: string;
       readonly args: ReadonlyArray<string>;
       readonly environment?: NodeJS.ProcessEnv;
-      readonly cwd?: string;
     }) => Effect.Effect<OpenCodeCommandResult, OpenCodeRuntimeError>;
   }
 >()("@supaterm/provider-opencode/server/OpenCodeRuntime") {}
@@ -183,7 +180,6 @@ const makeOpenCodeRuntime = Effect.gen(function* () {
         ChildProcess.make(spawnCommand.command, spawnCommand.args, {
           detached: hostPlatform !== "win32",
           shell: spawnCommand.shell,
-          ...(input.cwd ? { cwd: input.cwd } : {}),
           ...(input.environment ? { env: input.environment } : { extendEnv: true }),
         }),
       );
@@ -231,7 +227,6 @@ const makeOpenCodeRuntime = Effect.gen(function* () {
   )(function* (input) {
     const runtimeScope = yield* Scope.Scope;
 
-    const hostname = input.hostname ?? DEFAULT_HOSTNAME;
     const port =
       input.port ??
       (yield* netService.findAvailablePort(0).pipe(
@@ -244,8 +239,7 @@ const makeOpenCodeRuntime = Effect.gen(function* () {
             }),
         ),
       ));
-    const timeoutMs = input.timeoutMs ?? DEFAULT_OPENCODE_SERVER_TIMEOUT_MS;
-    const args = ["serve", `--hostname=${hostname}`, `--port=${port}`];
+    const args = ["serve", `--hostname=${DEFAULT_HOSTNAME}`, `--port=${port}`];
     const launch = yield* agentScope.wrap({
       command: input.binaryPath,
       args,
@@ -377,7 +371,7 @@ const makeOpenCodeRuntime = Effect.gen(function* () {
     );
 
     const readyExit = yield* Effect.exit(
-      Deferred.await(readyDeferred).pipe(Effect.timeoutOption(timeoutMs)),
+      Deferred.await(readyDeferred).pipe(Effect.timeoutOption(DEFAULT_OPENCODE_SERVER_TIMEOUT_MS)),
     );
 
     if (Exit.isFailure(readyExit) || Option.isNone(readyExit.value)) {
@@ -397,7 +391,7 @@ const makeOpenCodeRuntime = Effect.gen(function* () {
     if (Option.isNone(readyOption)) {
       return yield* new OpenCodeRuntimeError({
         operation: "startOpenCodeServerProcess",
-        detail: `Timed out waiting for OpenCode server start after ${timeoutMs}ms.`,
+        detail: `Timed out waiting for OpenCode server start after ${DEFAULT_OPENCODE_SERVER_TIMEOUT_MS}ms.`,
       });
     }
 

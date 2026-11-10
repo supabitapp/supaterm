@@ -42,7 +42,7 @@ import { OpenCodeDriver, openCode2Update } from "./driver.ts";
 import * as TestProviderHost from "@supaterm/provider-testing/TestProviderHost";
 
 const OPENCODE_1_GUIDANCE =
-  "OpenCode 1.x is no longer supported. Install OpenCode 2 with `npm install -g @opencode/cli`, then refresh provider status.";
+  "OpenCode 1.x is no longer supported. Run `npm uninstall -g opencode-ai`, then `npm install -g @opencode/cli`, and refresh provider status.";
 
 const serverStarts: Array<string> = [];
 const reachedServer = (operation: string) =>
@@ -587,21 +587,16 @@ it.effect.skipIf(HostProcess.Platform.defaultValue() === "win32")(
 );
 
 const versionOutput: { current: string | undefined } = { current: undefined };
-const versionProbes: Array<string> = [];
 const changingRuntime: OpenCodeRuntime.OpenCodeRuntime["Service"] = {
-  runOpenCodeCommand: ({ binaryPath }) =>
-    Effect.sync(() => versionProbes.push(binaryPath)).pipe(
-      Effect.andThen(
-        versionOutput.current === undefined
-          ? Effect.fail(
-              new OpenCodeRuntime.OpenCodeRuntimeError({
-                operation: "version",
-                detail: "no version",
-              }),
-            )
-          : Effect.succeed({ stdout: versionOutput.current, stderr: "", code: 0 }),
-      ),
-    ),
+  runOpenCodeCommand: () =>
+    versionOutput.current === undefined
+      ? Effect.fail(
+          new OpenCodeRuntime.OpenCodeRuntimeError({
+            operation: "version",
+            detail: "no version",
+          }),
+        )
+      : Effect.succeed({ stdout: versionOutput.current, stderr: "", code: 0 }),
   startOpenCodeServerProcess: () => reachedServer("start"),
 };
 const layerUpdate = Layer.mergeAll(
