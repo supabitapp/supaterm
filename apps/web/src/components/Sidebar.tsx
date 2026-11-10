@@ -22,7 +22,6 @@ import { publishThreadJumpTargets } from "./sidebar/threadJumpTargets";
 import { useThreadOutbox } from "../state/threadOutbox";
 import { type EnvironmentId, type ScopedProjectRef } from "@supaterm/contracts";
 import type { EnvironmentServerConfig } from "@supaterm/client-runtime/connection";
-import { ThreadContextDragGhost } from "./chat/ThreadContextDragGhost";
 import {
   dropThreadContext,
   endThreadContextDrag,
@@ -2803,7 +2802,6 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
 
   return (
     <>
-      <ThreadContextDragGhost />
       <SidebarChromeHeader isElectron={isElectron} />
       <SidebarContent
         ref={sidebarContentRef}
