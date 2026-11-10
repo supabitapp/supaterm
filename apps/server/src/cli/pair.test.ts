@@ -414,7 +414,7 @@ describe("supaterm pair", () => {
         typeof error === "object" && error !== null && "cause" in error ? error.cause : error,
       );
       assert.include(rendered, "No running Supaterm server found.");
-      assert.include(rendered, "supaterm serve");
+      assert.include(rendered, `serve --base-dir ${baseDir}`);
     }).pipe(Effect.provide(NodeServices.layer)),
   );
 

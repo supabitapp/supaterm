@@ -244,7 +244,7 @@ describe.skipIf(HostProcess.Platform.defaultValue() !== "linux")(
           env: { HOME: root, PATH: `${binDir}/:/usr/bin:/bin` },
         });
         expect(slashed.code, slashed.output).toBe(0);
-        expect(slashed.output).toContain("Run supaterm to use Supaterm here");
+        expect(slashed.output).toContain("Run supaterm to get started");
 
         // A relative folder is made absolute, so the PATH command never follows the working directory.
         const relative = await installOver({
@@ -344,7 +344,7 @@ describe.skipIf(HostProcess.Platform.defaultValue() !== "win32")(
           env: { [pathKey]: `${binDir}\\;${process.env[pathKey] ?? ""}` },
         });
         expect(slashed.code, slashed.output).toBe(0);
-        expect(slashed.output).toContain("to use Supaterm here");
+        expect(slashed.output).toContain("to get started");
         // The same when the install folder itself is given with a trailing separator.
         const bothSlashed = await installOver({
           script: "install.ps1",
@@ -353,7 +353,7 @@ describe.skipIf(HostProcess.Platform.defaultValue() !== "win32")(
           env: { [pathKey]: `${binDir}\\;${process.env[pathKey] ?? ""}` },
         });
         expect(bothSlashed.code, bothSlashed.output).toBe(0);
-        expect(bothSlashed.output).toContain("to use Supaterm here");
+        expect(bothSlashed.output).toContain("to get started");
       } finally {
         await NodeFSP.rm(root, { recursive: true, force: true });
       }
