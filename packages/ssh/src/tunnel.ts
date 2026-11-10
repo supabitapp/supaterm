@@ -477,17 +477,14 @@ if ! supaterm_runtime_ready; then
   trap 'rm -rf "$SUPATERM_LOCK"' EXIT
 fi
 if ! supaterm_runtime_ready; then
-  case "$(uname -s)" in
-    Darwin) SUPATERM_PLATFORM="darwin" ;;
-    Linux) SUPATERM_PLATFORM="linux" ;;
-    *) printf 'Remote host %s has no Supaterm release archive.\\n' "$(uname -s)" >&2; exit 1 ;;
+  # Keep aligned with CLI_ARCHIVE_PLATFORM_KEYS in packages/shared/src/cliRelease.ts.
+  case "$(uname -s) $(uname -m)" in
+    "Darwin arm64") SUPATERM_PLATFORM_KEY="darwin-arm64" ;;
+    "Linux arm64" | "Linux aarch64") SUPATERM_PLATFORM_KEY="linux-arm64" ;;
+    "Linux x86_64" | "Linux amd64") SUPATERM_PLATFORM_KEY="linux-x64" ;;
+    *) printf 'Remote host %s has no Supaterm release archive.\\n' "$(uname -s) $(uname -m)" >&2; exit 1 ;;
   esac
-  case "$(uname -m)" in
-    arm64 | aarch64) SUPATERM_ARCH="arm64" ;;
-    x86_64 | amd64) SUPATERM_ARCH="x64" ;;
-    *) printf 'Remote host %s has no Supaterm release archive.\\n' "$(uname -m)" >&2; exit 1 ;;
-  esac
-  SUPATERM_ARCHIVE="supaterm-$SUPATERM_ARCHIVE_VERSION-$SUPATERM_PLATFORM-$SUPATERM_ARCH.tar.gz"
+  SUPATERM_ARCHIVE="supaterm-$SUPATERM_ARCHIVE_VERSION-$SUPATERM_PLATFORM_KEY.tar.gz"
   SUPATERM_STAGING="$(mktemp -d "$HOME/.supaterm/runtime/versions/.staging-XXXXXX")"
   trap 'rm -rf "$SUPATERM_STAGING" "$SUPATERM_LOCK"' EXIT
   supaterm_fetch() {
