@@ -1,7 +1,4 @@
 import { createInboxReturnTracker } from "@supaterm/client-runtime/state/thread-inbox";
-import { presentThreadShell } from "@supaterm/client-runtime/state/models";
-import * as DateTime from "effect/DateTime";
-import * as Schema from "effect/Schema";
 import { planPinnedReorder } from "@supaterm/client-runtime/state/thread-sort";
 import {
   createPendingThreadOrder,
@@ -18,7 +15,6 @@ import {
   CommandId,
   EnvironmentId,
   MessageId,
-  OrchestrationV2ThreadShell,
   ProjectId,
   ProviderInstanceId,
   RunId,
@@ -27,23 +23,20 @@ import {
 import { describe, expect, it, vi } from "vite-plus/test";
 
 import type { PendingNewTask } from "../../state/use-pending-new-tasks";
-import { makeRawThreadShell, makeThreadShellFixture } from "../../test-fixtures";
+import { makeThreadShellFixture } from "../../test-fixtures";
 import { threadJumpTarget } from "../keyboard/threadKeyboardShortcuts";
 import {
   buildThreadListV2Items,
   buildThreadListV2ListItems,
   getThreadListV2OrderedSection,
   resolveThreadListV2SnoozeMenuSelection,
-  resolveThreadListV2Status,
   resolveThreadListV2WokeAt,
   resolveThreadListV2SwipeActions,
   threadListV2ListItemsAreEqual,
-  threadHasUnseenCompletion,
   type ThreadListV2ListItem,
 } from "./threadListV2";
 
 const environmentId = EnvironmentId.make("environment-1");
-const decodeThreadShell = Schema.decodeUnknownSync(OrchestrationV2ThreadShell);
 
 function makeThread(
   input: Partial<EnvironmentThreadShell> & Pick<EnvironmentThreadShell, "id" | "title">,
@@ -106,55 +99,6 @@ describe("resolveThreadListV2SnoozeMenuSelection", () => {
       }),
     });
   });
-});
-
-describe("resolveThreadListV2Status", () => {
-  it("presents decoded thread waits as Waiting while preserving requests and older servers", () => {
-    const raw = makeRawThreadShell({
-      status: "running",
-      activeRunId: RunId.make("run-wait"),
-      latestRunId: RunId.make("run-wait"),
-    });
-    const present = (shell: unknown) => presentThreadShell(environmentId, decodeThreadShell(shell));
-
-    expect(resolveThreadListV2Status(present(raw))).toBe("working");
-    const blocked = present({ ...raw, blockedOnThreadWait: true });
-    expect(
-      resolveThreadListV2Status({
-        ...blocked,
-        hasPendingApprovals: true,
-        hasPendingUserInput: true,
-      }),
-    ).toBe("approval");
-    expect(resolveThreadListV2Status({ ...blocked, hasPendingUserInput: true })).toBe("input");
-    expect(resolveThreadListV2Status(blocked)).toBe("waiting");
-    expect(resolveThreadListV2Status(present({ ...raw, blockedOnThreadWait: false }))).toBe(
-      "working",
-    );
-  });
-
-  it.each([
-    { roster: "dev server", task: { kind: "command" }, status: "ready" },
-    { roster: "dev server watchdog", task: { kind: "monitor" }, status: "ready" },
-    { roster: "awaited command", task: { kind: "command", awaited: true }, status: "waiting" },
-  ] as const)(
-    "presents an unseen completion with a $roster roster as $status",
-    ({ task, status }) => {
-      const thread = presentThreadShell(
-        environmentId,
-        makeRawThreadShell({
-          latestRunId: RunId.make("run-background-completion"),
-          status: "completed",
-          latestRunCompletedAt: DateTime.makeUnsafe(NOW),
-          lastVisitedAt: DateTime.makeUnsafe("2026-06-01T23:59:00.000Z"),
-          pendingBackgroundTasks: [{ taskId: "background-work", ...task }],
-        }),
-      );
-
-      expect(resolveThreadListV2Status(thread)).toBe(status);
-      expect(threadHasUnseenCompletion(thread)).toBe(true);
-    },
-  );
 });
 
 describe("queued messages keep a done thread active", () => {

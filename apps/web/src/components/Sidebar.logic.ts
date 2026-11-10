@@ -7,10 +7,10 @@ import { defaultAnimateLayoutChanges, type AnimateLayoutChanges } from "@dnd-kit
 import {
   isListedThreadLineage,
   type ContextMenuItem,
-  isOrchestrationV2RunUnsettled,
   isOrchestrationV2RunAwaitingTurn,
 } from "@supaterm/contracts";
 import type { SidebarProjectSortOrder, SidebarThreadSortOrder } from "@supaterm/contracts/settings";
+import type { ThreadRowStatus } from "@supaterm/client-runtime/state/thread-row-status";
 import {
   effectiveSnoozed,
   type ThreadSnoozeShell,
@@ -749,17 +749,8 @@ export function resolveAdjacentThreadId<T>(input: {
   return currentIndex < threadIds.length - 1 ? (threadIds[currentIndex + 1] ?? null) : null;
 }
 
-export type SidebarThreadStatus =
-  | "approval"
-  | "input"
-  | "working"
-  | "waiting"
-  | "failed"
-  | "limited"
-  | "ready";
-
 export function shouldRecedeSidebarThread(input: {
-  status: SidebarThreadStatus;
+  status: ThreadRowStatus;
   isUnread: boolean;
   isWoke: boolean;
   isActive: boolean;
@@ -771,37 +762,6 @@ export function shouldRecedeSidebarThread(input: {
     return !input.isUnread && !input.isWoke;
   }
   return false;
-}
-
-type SidebarThreadStatusInput = Pick<
-  SidebarThreadSummary,
-  | "hasPendingApprovals"
-  | "hasPendingUserInput"
-  | "pendingSubagentRequest"
-  | "runtime"
-  | "blockedOnThreadWait"
->;
-
-export function resolveSidebarThreadStatus(thread: SidebarThreadStatusInput): SidebarThreadStatus {
-  if (thread.hasPendingApprovals || thread.pendingSubagentRequest === "approval") {
-    return "approval";
-  }
-  if (thread.hasPendingUserInput || thread.pendingSubagentRequest === "user_input") {
-    return "input";
-  }
-  if (thread.runtime?.status === "running" && thread.blockedOnThreadWait === true) {
-    return "waiting";
-  }
-  if (isOrchestrationV2RunUnsettled(thread.runtime?.status)) {
-    return "working";
-  }
-  if (thread.runtime?.status === "idle") {
-    return "waiting";
-  }
-  if (thread.runtime?.status === "failed") {
-    return thread.runtime.lastErrorClass === "usage_limit" ? "limited" : "failed";
-  }
-  return "ready";
 }
 
 export type SidebarV2TopStatusKind =
@@ -817,7 +777,7 @@ export type SidebarV2TopStatusKind =
 
 export function resolveSidebarV2TopStatus(input: {
   readonly environmentConnected: boolean;
-  readonly status: SidebarThreadStatus;
+  readonly status: ThreadRowStatus;
   readonly isUnread: boolean;
   readonly isWoke: boolean;
 }): SidebarV2TopStatusKind | null {
@@ -843,7 +803,7 @@ export function resolveSidebarV2TopStatus(input: {
   return input.isUnread ? "ready" : null;
 }
 
-export function shouldShowSidebarV2Duration(status: SidebarThreadStatus): boolean {
+export function shouldShowSidebarV2Duration(status: ThreadRowStatus): boolean {
   return status === "working" || status === "waiting";
 }
 

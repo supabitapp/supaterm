@@ -33,7 +33,10 @@ import {
   threadNotificationTag,
   unlockNotificationAudio,
 } from "../threadNotifications";
-import { resolveSidebarThreadStatus, type SidebarThreadStatus } from "./Sidebar.logic";
+import {
+  resolveThreadRowStatus,
+  type ThreadRowStatus,
+} from "@supaterm/client-runtime/state/thread-row-status";
 import {
   createThreadNotificationGate,
   type ThreadNotificationKind,
@@ -45,7 +48,7 @@ interface NotificationState extends ThreadNotificationObservation {
   readonly raw: OrchestrationV2ThreadShell;
   readonly subagentRequest: PendingSubagentRequest | null;
   readonly thread: EnvironmentThreadShell;
-  readonly status: SidebarThreadStatus;
+  readonly status: ThreadRowStatus;
 }
 
 interface WatchedEnvironment {
@@ -194,7 +197,7 @@ export function startThreadNotifications(
         continue;
       }
       const thread = presentThreadShell(environmentId, rawThread, subagentRequest);
-      let status = resolveSidebarThreadStatus(thread);
+      let status = resolveThreadRowStatus(thread);
       if (status === "ready" && thread.latestRun?.status === "failed") status = "failed";
       const attention =
         status === "input" || status === "approval" || status === "failed" || status === "limited"

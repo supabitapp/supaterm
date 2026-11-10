@@ -12,9 +12,10 @@ import { parseScopedThreadKey, scopedThreadKey } from "@supaterm/client-runtime/
 import type { EnvironmentThreadShell } from "@supaterm/client-runtime/state/models";
 import { effectiveSnoozed } from "@supaterm/client-runtime/state/thread-snooze";
 import { sortInboxThreadsByReturn } from "@supaterm/client-runtime/state/thread-inbox";
+import { resolveThreadRowStatus } from "@supaterm/client-runtime/state/thread-row-status";
 import { sortPinnedThreadsByOrderKey } from "@supaterm/client-runtime/state/thread-sort";
 
-import { hasUnseenCompletion, resolveSidebarThreadStatus } from "../Sidebar.logic";
+import { hasUnseenCompletion } from "../Sidebar.logic";
 import type { CodexMicroSlotView } from "./codexMicroStore";
 
 export type CodexMicroSlotBinding =
@@ -47,7 +48,7 @@ function isOpenWork(thread: EnvironmentThreadShell, now: string): boolean {
 }
 
 function attentionRank(thread: EnvironmentThreadShell): number {
-  const status = resolveSidebarThreadStatus(thread);
+  const status = resolveThreadRowStatus(thread);
   if (status === "approval" || status === "input") return 0;
   if (hasUnseenCompletion(thread)) return 1;
   if (status === "working") return 2;
@@ -115,7 +116,7 @@ function codexMicroSlotStatus(
   options: { readonly connected: boolean; readonly viewing: boolean },
 ): CodexMicroSlotStatus {
   if (!options.connected) return "idle";
-  switch (resolveSidebarThreadStatus(thread)) {
+  switch (resolveThreadRowStatus(thread)) {
     case "failed":
       return "error";
     case "approval":

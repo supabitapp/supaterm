@@ -19,6 +19,7 @@ import {
 } from "@supaterm/client-runtime/state/thread-snooze";
 import { resolveDoneThreadTimestamp } from "@supaterm/client-runtime/state/thread-sort";
 import { resolveThreadProviderStack } from "@supaterm/client-runtime/state/models";
+import { resolveThreadRowStatus } from "@supaterm/client-runtime/state/thread-row-status";
 import { scopeThreadRef, scopedThreadKey } from "@supaterm/client-runtime/environment";
 import {
   AuthOrchestrationOperateScope,
@@ -79,7 +80,6 @@ import {
   resolveSidebarRowAccessibility,
   type SidebarDropVerb,
   type SidebarSweepAction,
-  resolveSidebarThreadStatus,
   resolveSidebarV2DurationStartedAt,
   resolveSidebarV2TopStatus,
   resolveThreadTotalWorkMs,
@@ -730,7 +730,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
   // Never-visited threads count as read so historical threads do not light up
   // as unread on first load.
   const isUnread = hasUnseenCompletion({ ...thread, lastVisitedAt });
-  const status = resolveSidebarThreadStatus(thread);
+  const status = resolveThreadRowStatus(thread);
   const showDuration = environmentConnected && shouldShowSidebarV2Duration(status);
   // A woken thread keeps its static sort position, so the pill carries the signal and clears only
   // when the user re-engages; timer wakes survive a mere visit. An unparseable visit timestamp

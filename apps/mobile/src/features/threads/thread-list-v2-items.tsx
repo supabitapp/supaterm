@@ -25,6 +25,10 @@ import type {
 import type { EnvironmentThreadSearchMatch } from "@supaterm/client-runtime/state/thread-search";
 import { AuthOrchestrationOperateScope, type EnvironmentMachineKind } from "@supaterm/contracts";
 import { resolveThreadListDurationStartedAt } from "@supaterm/client-runtime/state/thread-timing";
+import {
+  resolveThreadRowStatus,
+  type ThreadRowStatus,
+} from "@supaterm/client-runtime/state/thread-row-status";
 import { canSnooze, resolveSnoozePresets } from "@supaterm/client-runtime/state/thread-snooze";
 import { withOccurrenceKeys } from "@supaterm/shared/occurrenceKeys";
 import type { SnoozePresetSetting } from "@supaterm/contracts/settings";
@@ -68,12 +72,10 @@ import { buildThreadTitleRegenerationMenuItems } from "./thread-title-regenerati
 import { canTurnThreadIntoProject, turnThreadIntoProject } from "./turnThreadIntoProject";
 import { threadCanArchive } from "../home/threadArchive";
 import {
-  type ThreadListV2Status,
   THREAD_LIST_V2_DONE_PAGE_COUNT,
   resolveThreadListV2SnoozeGateExpiryMs,
   resolveThreadListV2SnoozeMenuSelection,
   threadHasUnseenCompletion,
-  resolveThreadListV2Status,
   resolveThreadListV2ProviderDrivers,
   resolveThreadListV2SwipeActions,
 } from "./threadListV2";
@@ -102,7 +104,7 @@ interface StatusLabel {
   readonly className: string;
   readonly iconTintClassName: string;
 }
-const STATUS_LABEL_BY_STATUS: Partial<Record<ThreadListV2Status, StatusLabel>> = {
+const STATUS_LABEL_BY_STATUS: Partial<Record<ThreadRowStatus, StatusLabel>> = {
   approval: {
     label: "Approval",
     icon: "exclamationmark.shield",
@@ -778,7 +780,7 @@ export const ThreadListV2Row = memo(function ThreadListV2Row(props: {
     .filter((part) => part !== null)
     .join(", ");
 
-  const status = resolveThreadListV2Status(thread);
+  const status = resolveThreadRowStatus(thread);
   const isUnread = status === "ready" && threadHasUnseenCompletion(thread);
   const showsWoke = environmentConnected && status === "ready" && props.wokeAt !== null;
   const rowStatusLabel = resolveThreadListV2RowStatusLabel({

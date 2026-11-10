@@ -347,6 +347,10 @@
       "types": "./src/state/threadInbox.ts",
       "default": "./src/state/threadInbox.ts"
     },
+    "./state/thread-row-status": {
+      "types": "./src/state/threadRowStatus.ts",
+      "default": "./src/state/threadRowStatus.ts"
+    },
     "./state/thread-creation": {
       "types": "./src/state/threadCreation.ts",
       "default": "./src/state/threadCreation.ts"

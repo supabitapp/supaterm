@@ -1,5 +1,6 @@
 import { presentThreadShell } from "@supaterm/client-runtime/state/models";
 import { isThreadWorking as isSidebarThreadWorking } from "@supaterm/client-runtime/state/thread-inbox";
+import { resolveThreadRowStatus } from "@supaterm/client-runtime/state/thread-row-status";
 import * as DateTime from "effect/DateTime";
 import { describe, expect, it, vi } from "vite-plus/test";
 import {
@@ -10,7 +11,6 @@ import {
   resolveSidebarRowThreadId,
   pinOrderKeyBetween,
   resolveSidebarSweepKeys,
-  resolveSidebarThreadStatus,
   resolveSidebarV2DurationStartedAt,
   resolveSidebarV2TopStatus,
   resolveThreadStatusPill,
@@ -141,52 +141,8 @@ function makeLatestRun(overrides?: {
   };
 }
 
-describe("resolveSidebarThreadStatus", () => {
-  const runtime = {
-    status: "running" as const,
-    activeRunId: null,
-    providerInstanceId: ProviderInstanceId.make("codex"),
-    providerName: "Codex",
-    lastError: null,
-    updatedAt: "2026-03-09T10:00:00.000Z",
-  };
-
-  const idle = { hasPendingApprovals: false, hasPendingUserInput: false, runtime: null };
-
-  it("prioritizes awaiting input over a running runtime, below approval", () => {
-    expect(
-      resolveSidebarThreadStatus({
-        ...idle,
-        hasPendingUserInput: true,
-        runtime,
-        blockedOnThreadWait: true,
-      }),
-    ).toBe("input");
-    expect(
-      resolveSidebarThreadStatus({
-        ...idle,
-        hasPendingApprovals: true,
-        hasPendingUserInput: true,
-        blockedOnThreadWait: true,
-        runtime,
-      }),
-    ).toBe("approval");
-  });
-
-  it("keeps usage-limit stops Limited and visible until the thread recovers", () => {
-    const limited = {
-      ...runtime,
-      status: "failed" as const,
-      lastError: "Plan limit reached",
-      lastErrorClass: "usage_limit" as const,
-    };
-    expect(resolveSidebarThreadStatus({ ...idle, runtime: limited })).toBe("limited");
-    expect(
-      resolveSidebarThreadStatus({ ...idle, runtime: { ...limited, status: "running" } }),
-    ).toBe("working");
-    expect(
-      resolveSidebarThreadStatus({ ...idle, runtime: { ...limited, status: "completed" } }),
-    ).toBe("ready");
+describe("sidebar row status presentation", () => {
+  it("keeps usage-limit stops Limited and visible", () => {
     expect(
       resolveSidebarV2TopStatus({
         environmentConnected: true,
@@ -204,27 +160,6 @@ describe("resolveSidebarThreadStatus", () => {
         isSelected: false,
       }),
     ).toBe(false);
-  });
-
-  it("reports failed only while the latest run failed", () => {
-    expect(
-      resolveSidebarThreadStatus({
-        ...idle,
-        runtime: { ...runtime, status: "failed" as const, lastError: "boom" },
-      }),
-    ).toBe("failed");
-    expect(
-      resolveSidebarThreadStatus({
-        ...idle,
-        runtime: { ...runtime, status: "completed" as const, lastError: "persisted" },
-      }),
-    ).toBe("ready");
-    expect(
-      resolveSidebarThreadStatus({
-        ...idle,
-        runtime: { ...runtime, status: "idle" as const, lastError: "persisted" },
-      }),
-    ).toBe("waiting");
   });
 
   it("keeps a waiting runtime visible ahead of unread and woke presentation", () => {
@@ -429,14 +364,14 @@ describe("resolveThreadStatusPill", () => {
 
   it("shows an active thread wait without a pulse and resumes Working when it ends", () => {
     const blocked = { ...baseThread, blockedOnThreadWait: true };
-    expect(resolveSidebarThreadStatus(blocked)).toBe("waiting");
+    expect(resolveThreadRowStatus(blocked)).toBe("waiting");
     expect(resolveThreadStatusPill({ thread: blocked })).toMatchObject({
       label: "Waiting",
       pulse: false,
     });
 
     const resumed = { ...blocked, blockedOnThreadWait: false };
-    expect(resolveSidebarThreadStatus(resumed)).toBe("working");
+    expect(resolveThreadRowStatus(resumed)).toBe("working");
     expect(resolveThreadStatusPill({ thread: resumed })).toMatchObject({
       label: "Working",
       pulse: true,
@@ -941,7 +876,7 @@ describe("unseen completion with background work", () => {
       lastVisitedAt: DateTime.makeUnsafe("2026-06-20T00:59:00.000Z"),
       pendingBackgroundTasks: [{ taskId: "background-work", ...expected.task }],
     });
-    const status = resolveSidebarThreadStatus(thread);
+    const status = resolveThreadRowStatus(thread);
     const isUnread = hasUnseenCompletion(thread);
 
     expect(isUnread).toBe(true);
