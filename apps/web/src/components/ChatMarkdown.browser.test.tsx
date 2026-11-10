@@ -9,6 +9,7 @@ import "../index.css";
 
 import { filesystemEnvironment } from "../state/filesystem";
 import { useRightPanelStore } from "../rightPanelStore";
+import { remarkEnableOrderedListNumbers } from "@supaterm/shared/markdownPipeline";
 import { setMarkdownTaskChecked } from "@supaterm/shared/markdownTaskList";
 import { getSyntaxHighlighterPromise } from "../lib/syntaxHighlighting";
 import { MarkdownFindContext } from "./chat/markdownFindContext";
@@ -150,6 +151,38 @@ function buttonsLabelled(container: HTMLElement, label: string | RegExp) {
     return typeof label === "string" ? ariaLabel === label : label.test(ariaLabel);
   });
 }
+
+const SOURCE_NUMBER_PLUGINS = [remarkEnableOrderedListNumbers];
+
+it("keeps decimal markers in nested user lists while documents keep their counter styles", async () => {
+  setup();
+  const text = "1. Outer\n   1. Nested\n   7. Skipped\n      1. Deeper\n      4. Fourth";
+  await using screen = await render(
+    <div className="grid grid-cols-2 gap-8 p-8">
+      <section>
+        <h2>User message</h2>
+        <ChatMarkdown
+          cwd={undefined}
+          text={text}
+          className="user-message-markdown"
+          extraRemarkPlugins={SOURCE_NUMBER_PLUGINS}
+        />
+      </section>
+      <section>
+        <h2>Markdown preview</h2>
+        <ChatMarkdown cwd={undefined} text={text} />
+      </section>
+    </div>,
+  );
+  await expect.element(screen.getByText("User message", { exact: true })).toBeVisible();
+  const [message, preview] = screen.container.querySelectorAll(".chat-markdown");
+  expect(
+    [...message!.querySelectorAll("ol")].map((list) => getComputedStyle(list).listStyleType),
+  ).toEqual(["decimal", "decimal", "decimal"]);
+  expect(
+    [...preview!.querySelectorAll("ol")].map((list) => getComputedStyle(list).listStyleType),
+  ).toEqual(["decimal", "lower-alpha", "lower-roman"]);
+});
 
 it("shows unavailable audio when a workspace embed has no thread", async () => {
   setup();
