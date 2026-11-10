@@ -476,6 +476,7 @@ export const PullRequestLinkedThreadsResult = Schema.Struct({
       projectId: ProjectId,
       title: Schema.String,
       archivedAt: Schema.NullOr(IsoDateTime),
+      done: Schema.optionalKey(Schema.Boolean),
     }),
   ),
 });

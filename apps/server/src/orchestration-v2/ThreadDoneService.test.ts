@@ -806,7 +806,7 @@ const makeHarness = Effect.fn("makeThreadDoneHarness")(function* (options: Harne
       withThreadCommandLock: (threadId, effect) => threadCommandLock.withLock(threadId, effect),
     }),
     Layer.mock(TerminalManager.TerminalManager)({
-      closeIdle: (input) =>
+      closeOnDone: (input) =>
         Queue.offer(closedIdle, input).pipe(Effect.andThen(options.onCloseIdle?.() ?? Effect.void)),
     }),
     Layer.mock(ProjectSetupScriptRunner.ProjectSetupScriptRunner)({

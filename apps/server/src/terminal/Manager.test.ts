@@ -729,7 +729,7 @@ it.layer(
     }),
   );
 
-  it.effect("closes only a thread's idle shells, ignoring a helper forked from the shell", () =>
+  it.effect("closes idle shells and opted-in actions on done without stopping other commands", () =>
     Effect.gen(function* () {
       const { manager, ptyAdapter } = yield* createManager(5, {
         processTable: Effect.succeed([
@@ -741,12 +741,15 @@ it.layer(
           { pid: 300, ppid: 9002, name: "zsh" },
           { pid: 301, ppid: 300, name: "sleep" },
           { pid: 9003, ppid: 1, name: "zsh" },
+          { pid: 9004, ppid: 1, name: "zsh" },
+          { pid: 400, ppid: 9004, name: "node" },
         ]),
       }).pipe(Effect.provide(layerWithHostPlatform("linux")));
       yield* manager.open(openInput({ terminalId: "idle" }));
       yield* manager.open(openInput({ terminalId: "dev-server" }));
       yield* manager.open(openInput({ terminalId: "subshell" }));
-      yield* manager.open(openInput({ threadId: "thread-2" }));
+      yield* manager.open(openInput({ threadId: "thread-2", stopOnDone: true }));
+      yield* manager.open(openInput({ terminalId: "managed-dev", stopOnDone: true }));
 
       yield* manager.closeIdle({ threadId: "thread-1" });
 
@@ -755,6 +758,19 @@ it.layer(
         false,
         false,
         false,
+        false,
+      ]);
+      yield* manager.open(openInput({ terminalId: "managed-dev", stopOnDone: false }));
+      yield* manager.closeOnDone({ threadId: "thread-1" });
+      expect(ptyAdapter.processes[4]?.killed).toBe(false);
+      yield* manager.open(openInput({ terminalId: "managed-dev", stopOnDone: true }));
+      yield* manager.closeOnDone({ threadId: "thread-1" });
+      expect(ptyAdapter.processes.map((process) => process.killed)).toEqual([
+        true,
+        false,
+        false,
+        false,
+        true,
       ]);
     }),
   );

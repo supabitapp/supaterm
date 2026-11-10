@@ -86,7 +86,7 @@ export const SidebarAutoMarkDoneAfterDays = Schema.Number.check(
   }),
 );
 export type SidebarAutoMarkDoneAfterDays = typeof SidebarAutoMarkDoneAfterDays.Type;
-const DEFAULT_SIDEBAR_AUTO_MARK_DONE_AFTER_DAYS: SidebarAutoMarkDoneAfterDays = 3;
+const DEFAULT_SIDEBAR_AUTO_MARK_DONE_AFTER_DAYS: SidebarAutoMarkDoneAfterDays = 7;
 
 export const MAX_SNOOZE_PRESET_MINUTES = 30 * 24 * 60;
 export const MAX_SNOOZE_PRESETS = 8;
@@ -1342,9 +1342,6 @@ export const ServerSettings = Schema.Struct({
   sourceControlHosts: Schema.Record(Schema.String, SourceControlHostSettings).pipe(
     Schema.withDecodingDefault(Effect.succeed({})),
   ),
-  cursorKeychainUsageEnabled: Schema.Boolean.pipe(
-    Schema.withDecodingDefault(Effect.succeed(false)),
-  ),
 
   usagePriceOverrides: Schema.Record(TrimmedNonEmptyString, UsageModelPriceOverride).pipe(
     Schema.withDecodingDefault(Effect.succeed({})),
@@ -1604,7 +1601,6 @@ export const ServerSettingsPatch = Schema.Struct({
   // entries is intentionally out of scope: the map is small, and partial
   // patches risk leaving driver-specific config in a half-merged state.
   providerInstances: Schema.optionalKey(Schema.Record(ProviderInstanceId, ProviderInstanceConfig)),
-  cursorKeychainUsageEnabled: Schema.optionalKey(Schema.Boolean),
 
   usagePriceOverrides: Schema.optionalKey(
     Schema.Record(TrimmedNonEmptyString, Schema.NullOr(UsageModelPriceOverride)),

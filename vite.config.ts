@@ -562,6 +562,10 @@ export default defineConfig({
         rules: { "supaterm/no-outset-state-indicators": "error" },
       },
       {
+        files: ["apps/web/src/**"],
+        rules: { "supaterm/max-settings-description-length": "error" },
+      },
+      {
         files: ["apps/*/src/**", "packages/*/src/**"],
         excludeFiles: [
           "**/*.{test,spec}.{ts,tsx,js,jsx,mts,cts,mjs,cjs}",

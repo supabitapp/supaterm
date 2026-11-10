@@ -140,11 +140,11 @@ export function buildTraitsTriggerLabel(input: {
         ? "Ultrathink"
         : descriptor.type === "boolean"
           ? `${descriptor.label} ${descriptor.currentValue === true ? "On" : "Off"}`
-          : getProviderOptionCurrentLabel(
+          : (getProviderOptionCurrentLabel(
               descriptor,
               input.modelSelection,
               input.reportedModelSelection,
-            );
+            ) ?? (descriptor.id === "thinking" ? descriptor.label : null));
     if (typeof label === "string" && label.length > 0) {
       labels.push(label);
     }

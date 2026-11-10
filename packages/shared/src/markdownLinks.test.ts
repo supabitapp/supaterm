@@ -22,6 +22,7 @@ describe("isMarkdownFileLinkLabel", () => {
 describe("inlineCodeFilePathCandidate", () => {
   it.each([
     ["src\\main.ts", "src/main.ts"],
+    ["allocator.cc:217", "allocator.cc:217"],
     ["origin/main", null],
     ["z-ai/glm-5.3", null],
     ["share/man/ls.1", "share/man/ls.1"],

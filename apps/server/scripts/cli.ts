@@ -15,6 +15,7 @@ import { injectLinuxArm64Sea } from "../../../scripts/lib/linux-arm64-sea.ts";
 import * as HostProcess from "@supaterm/shared/HostProcess";
 import { resolveSpawnCommand } from "@supaterm/shared/shell";
 import {
+  ServerCliBootstrapTooLargeError,
   ServerCliBuildAssetMissingError,
   ServerCliCommandExitError,
   ServerCliDevelopmentIconSourceMissingError,
@@ -137,25 +138,42 @@ const buildExeCmd = Command.make(
         "vp",
         "pack",
       ]);
-      yield* runCommand(
-        ChildProcess.make(spawnCommand.command, spawnCommand.args, {
-          cwd: serverDir,
-          env: {
-            ...process.env,
-            SUPATERM_PACK_EXE: linuxArm64 ? "bundle" : "1",
-            SUPATERM_PACK_EXE_TARGET: target ?? "",
-          },
-          stdout: config.verbose ? "inherit" : "ignore",
-          stderr: "inherit",
-          shell: spawnCommand.shell,
-        }),
-      );
+      const cliAssetDir = yield* fs.makeTempDirectoryScoped({ prefix: "supaterm-cli-asset-" });
+      const pack = (packMode: "bundle" | "bootstrap" | "1") =>
+        runCommand(
+          ChildProcess.make(spawnCommand.command, spawnCommand.args, {
+            cwd: serverDir,
+            env: {
+              ...process.env,
+              SUPATERM_PACK_EXE: packMode,
+              SUPATERM_CLI_ASSET_DIR: cliAssetDir,
+              SUPATERM_PACK_EXE_TARGET: target ?? "",
+            },
+            stdout: config.verbose ? "inherit" : "ignore",
+            stderr: "inherit",
+            shell: spawnCommand.shell,
+          }),
+        );
+
+      yield* pack("bundle");
+      const cliMainPath = path.join(cliAssetDir, "binMain.mjs");
+      yield* pack(linuxArm64 ? "bootstrap" : "1");
 
       // Executables reject non-builtin imports even when bundling succeeds; inspect the emitted graph.
-      const bundlePath = path.join(serverDir, "dist-exe/bin.mjs");
-      const specifiers = findEsmImportsOfExternalPackages(yield* fs.readFileString(bundlePath));
-      if (specifiers.length > 0) {
-        return yield* new ServerCliExecutableImportError({ bundlePath, specifiers });
+      const bootstrapPath = path.join(serverDir, "dist-exe/bin.mjs");
+      for (const bundlePath of [bootstrapPath, cliMainPath]) {
+        const specifiers = findEsmImportsOfExternalPackages(yield* fs.readFileString(bundlePath));
+        if (specifiers.length > 0) {
+          return yield* new ServerCliExecutableImportError({ bundlePath, specifiers });
+        }
+      }
+      // The service launcher's memory win depends on the CLI staying out of the bootstrap.
+      const bootstrapBytes = (yield* fs.stat(bootstrapPath)).size;
+      if (bootstrapBytes > 1024 * 1024) {
+        return yield* new ServerCliBootstrapTooLargeError({
+          bootstrapPath,
+          bytes: Number(bootstrapBytes),
+        });
       }
       // TEMPORARY one-time Node fix. Remove when fixed: https://github.com/nodejs/node/issues/67048
       if (linuxArm64) {
@@ -174,7 +192,8 @@ const buildExeCmd = Command.make(
           ChildProcess.make(seaNode.command, seaNode.args, { shell: seaNode.shell }),
         );
         yield* injectLinuxArm64Sea({
-          bundlePath,
+          bundlePath: bootstrapPath,
+          cliAssetPath: cliMainPath,
           outputPath: path.join(serverDir, "dist-exe/supaterm"),
           nodePath: nodePath.trim(),
           verbose: config.verbose,

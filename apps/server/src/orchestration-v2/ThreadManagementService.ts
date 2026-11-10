@@ -888,11 +888,74 @@ const make = Effect.gen(function* () {
   )(function* (input) {
     const { run } = yield* waitForThread({ ...input, timeoutMs: MARK_DONE_AFTER_RUN_WAIT_MS });
     if (run?.status !== "completed") return;
-    yield* dispatch({
-      type: "thread.mark-done",
-      commandId: CommandId.make(`server:mark-done-after-run:${input.runId}`),
-      threadId: input.threadId,
+    const afterSequence = yield* orchestrator.getThreadEventSequence(input.threadId);
+    const tryMarkDone = Effect.gen(function* () {
+      const sequence = yield* orchestrator.getThreadEventSequence(input.threadId);
+      const records = yield* getProjectThreadRecords(input, ["runs"]);
+      const following = records.runs.filter((candidate) => candidate.ordinal > run.ordinal);
+      if (following.length > 0) {
+        const { messages } = yield* getProjectThreadRecords(input, ["messages"], {
+          messageRunIds: following.map((candidate) => candidate.id),
+          messageRoles: ["user"],
+        });
+        const automaticMessageIds = new Set(
+          messages
+            .filter(
+              (message) =>
+                message.role === "user" &&
+                (message.notification !== undefined || message.delegatedCompletion !== undefined),
+            )
+            .map((message) => message.id),
+        );
+        if (
+          messages.some((message) => !automaticMessageIds.has(message.id)) ||
+          following.some((candidate) => !automaticMessageIds.has(candidate.userMessageId))
+        ) {
+          return true;
+        }
+        if (
+          following.some(
+            (candidate) => candidate.status !== "queued" && !isTerminalRunStatus(candidate.status),
+          )
+        )
+          return false;
+        if (
+          following.some(
+            (candidate) => candidate.status !== "queued" && candidate.status !== "completed",
+          )
+        )
+          return true;
+      }
+      const latest = latestRun(records);
+      if (latest === undefined) return true;
+      return yield* dispatch({
+        type: "thread.mark-done",
+        commandId: CommandId.make(`server:mark-done-after-run:${input.runId}:${sequence}`),
+        threadId: input.threadId,
+        expectedLatestRunId: latest.id,
+      }).pipe(
+        Effect.as(true),
+        // A notification can start between the projection read and the guarded dispatch.
+        Effect.catchTags({
+          OrchestratorDispatchError: () => Effect.succeed(false),
+          OrchestratorCommandPreviouslyRejectedError: () => Effect.succeed(false),
+        }),
+      );
     });
+    yield* Stream.fromEffect(tryMarkDone).pipe(
+      Stream.concat(
+        orchestrator
+          .streamStoredEventsFrom({
+            threadId: input.threadId,
+            afterSequence,
+            eventType: "run.updated",
+          })
+          .pipe(Stream.mapEffect(() => tryMarkDone)),
+      ),
+      Stream.filter((done) => done),
+      Stream.runHead,
+      Effect.timeoutOption(Duration.millis(MARK_DONE_AFTER_RUN_WAIT_MS)),
+    );
   });
 
   const markThreadDone: ThreadManagementServiceShape["markThreadDone"] = Effect.fn(
