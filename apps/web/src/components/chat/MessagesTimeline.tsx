@@ -774,6 +774,7 @@ const ConversationTimeline = memo(function ConversationTimeline({
   // must land before paint, after LegendList's own layout effects applied the
   // new data. A citation request that arrives mid-restore takes over.
   const [minimapCurrentIndex, setMinimapCurrentIndex] = useState<number | null>(null);
+  const [minimapAtEnd, setMinimapAtEnd] = useState(false);
   const refreshMinimap = useStableCallback(() => {
     const state = listRef.current?.getState?.();
     if (restoringThreadPosition || state?.data !== rows) return;
@@ -816,17 +817,27 @@ const ConversationTimeline = memo(function ConversationTimeline({
     setMinimapCurrentIndex((current) =>
       current === nextCurrentIndex ? current : nextCurrentIndex,
     );
+    // The exact bottom, not the follow re-arm zone: Next can still scroll inside that zone.
+    setMinimapAtEnd(
+      viewport !== undefined &&
+        viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight <= 1,
+    );
   });
 
   const minimapRefreshFrameRef = useRef<number | null>(null);
-  const scheduleMinimapRefresh = () => {
+  const scheduleMinimapRefresh = useStableCallback(() => {
     if (minimapRefreshFrameRef.current !== null) return;
     // LegendList recycles row containers before React commits their positions.
     minimapRefreshFrameRef.current = requestAnimationFrame(() => {
       minimapRefreshFrameRef.current = null;
       refreshMinimap();
     });
-  };
+  });
+
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- the minimap skips refreshes until the restore commits, and the restore can land without a scroll event
+  useLayoutEffect(() => {
+    if (!restoringThreadPosition) scheduleMinimapRefresh();
+  }, [restoringThreadPosition, scheduleMinimapRefresh]);
 
   const onTimelinePositioned = useStableCallback((threadKey: string) => {
     setPositionedThreadKey(threadKey);
@@ -1108,6 +1119,7 @@ const ConversationTimeline = memo(function ConversationTimeline({
     const stopObserving = observeResize(viewportElement, () => {
       measureTimelineGutter(viewportElement);
       reportContentOverflow();
+      scheduleMinimapRefresh();
     });
     return () => {
       stopObserving();
@@ -1492,6 +1504,7 @@ const ConversationTimeline = memo(function ConversationTimeline({
                 onStartReached={handleHistoryPrefetch}
                 onStartReachedThreshold={THREAD_HISTORY_PREFETCH_VIEWPORTS}
                 onItemSizeChanged={handleItemSizeChanged}
+                onMetricsChange={scheduleMinimapRefresh}
                 className={cn(
                   "messages-timeline-scroll scrollbar-gutter-both h-full min-h-0 overflow-x-hidden overscroll-y-contain [overflow-anchor:none]",
                   topFadeEnabled && "topbar-scroll-fade",
@@ -1504,6 +1517,7 @@ const ConversationTimeline = memo(function ConversationTimeline({
                 hasPersistentGutter={minimapHasPersistentGutter}
                 hitStripWidth={minimapHitStripWidth}
                 currentIndex={minimapCurrentIndex}
+                atEnd={minimapAtEnd}
                 stripMap={minimapStripMap}
                 onWheel={forwardMinimapWheel}
                 onSelect={(item) => {
