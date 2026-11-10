@@ -1364,7 +1364,11 @@ it.layer(McpProviderSessions.layer)("OpenCode2 adapter", (it) => {
       yield* TestClock.adjust("11 seconds");
       yield* Fiber.join(interrupt);
     });
-  const terminals = (runtime: ProviderAdapter.ProviderAdapterV2SessionRuntime, count: number) =>
+  const terminals = (
+    runtime: ProviderAdapter.ProviderAdapterV2SessionRuntime,
+    count: number,
+    first?: Deferred.Deferred<void>,
+  ) =>
     runtime.events.pipe(
       Stream.filter(
         (
@@ -1372,6 +1376,7 @@ it.layer(McpProviderSessions.layer)("OpenCode2 adapter", (it) => {
         ): event is Extract<ProviderAdapter.ProviderAdapterV2Event, { type: "turn.terminal" }> =>
           event.type === "turn.terminal",
       ),
+      Stream.tap(() => (first === undefined ? Effect.void : Deferred.succeed(first, undefined))),
       Stream.take(count),
       Stream.runCollect,
       Effect.forkScoped,
@@ -1395,6 +1400,41 @@ it.layer(McpProviderSessions.layer)("OpenCode2 adapter", (it) => {
       const ended = yield* terminals(runtime, 2);
       yield* stopFirstTurn(runtime, thread);
       yield* runtime.startTurn(secondTurn(thread));
+      const [first, second] = yield* Fiber.join(ended);
+      assert.equal(first?.status, "interrupted");
+      assert.equal(second?.status, "failed");
+      assert.equal(second?.failure?.message, "second turn failed");
+    }).pipe(Effect.scoped, Effect.provide(TestClock.layer())),
+  );
+
+  it.effect("leaves the next turn running when a Stop times out after its own turn ended", () =>
+    Effect.gen(function* () {
+      const gate = makeProviderReplayGate(["second"]);
+      const { runtime, thread } = yield* resumed(
+        [
+          ...stopTimedOut,
+          event("session.execution.succeeded", { sessionID: SESSION }),
+          out("session.prompt", { sessionID: SESSION, text: "<any>" }),
+          promptAccepted,
+          event("session.execution.started", { sessionID: SESSION }, "second"),
+          event("session.execution.failed", {
+            sessionID: SESSION,
+            error: { type: "provider", message: "second turn failed" },
+          }),
+        ],
+        { replayGate: gate },
+      );
+      const firstEnded = yield* Deferred.make<void>();
+      const ended = yield* terminals(runtime, 2, firstEnded);
+      yield* runtime.startTurn(turnInput(thread));
+      const interrupt = yield* runtime
+        .interruptTurn({ providerThread: thread, providerTurnId: yield* providerTurnId })
+        .pipe(Effect.forkScoped);
+      yield* Deferred.await(firstEnded);
+      yield* runtime.startTurn(secondTurn(thread));
+      yield* TestClock.adjust("11 seconds");
+      yield* Fiber.join(interrupt);
+      gate.release("second");
       const [first, second] = yield* Fiber.join(ended);
       assert.equal(first?.status, "interrupted");
       assert.equal(second?.status, "failed");
