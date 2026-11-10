@@ -9,7 +9,7 @@ import * as Fiber from "effect/Fiber";
 import * as Path from "effect/Path";
 import * as Stream from "effect/Stream";
 import * as TestClock from "effect/testing/TestClock";
-import { HttpClient, HttpClientResponse } from "effect/http";
+import { HttpClient, HttpClientRequest, HttpClientResponse } from "effect/http";
 import * as ChildProcessSpawner from "effect/process/ChildProcessSpawner";
 
 import packageJson from "../../package.json" with { type: "json" };
@@ -27,6 +27,7 @@ interface HarnessOptions {
   readonly preflightDuration?: Duration.Input;
   readonly preflightStarted?: Deferred.Deferred<void>;
   readonly beforeDownload?: Effect.Effect<void>;
+  readonly httpClient?: HttpClient.HttpClient;
   readonly requestUpdate?: ServiceLauncherClient.ServiceLauncherClient["Service"]["requestUpdate"];
   readonly desktopAppUpdate?: DesktopAppUpdate.DesktopAppUpdate["Service"];
 }
@@ -142,15 +143,53 @@ const makeHarness = Effect.fn("test.make_self_update_harness")(function* (
         run: () => Effect.die("unexpected desktop app update run"),
       },
     ),
-    Effect.provideService(HttpClient.HttpClient, releaseHttpClient(order, options.beforeDownload)),
+    Effect.provideService(
+      HttpClient.HttpClient,
+      options.httpClient ?? releaseHttpClient(order, options.beforeDownload),
+    ),
     Effect.provideService(HostProcess.Platform, "linux"),
     Effect.provideService(HostProcess.Architecture, "x64"),
     Effect.provide(ServerConfig.layer({ ...config, mode: options.mode ?? "web" })),
   );
-  return { selfUpdate, order };
+  return { selfUpdate, order, baseDir };
 });
 
 it.layer(NodeServices.layer)("server self update", (it) => {
+  it.effect.each([
+    { asset: "checksums", status: 504 },
+    { asset: "archive", status: 503 },
+    { asset: "checksums", status: 403 },
+  ])("reports an HTTP $status downloading $asset and allows retry", ({ asset, status }) =>
+    Effect.gen(function* () {
+      let failDownload = true;
+      const { selfUpdate, order, baseDir } = yield* makeHarness({
+        httpClient: releaseHttpClient([]).pipe(
+          HttpClient.transform((response, request) =>
+            failDownload && request.url.endsWith("/SHA256SUMS") === (asset === "checksums")
+              ? Effect.succeed(
+                  HttpClientResponse.fromWeb(
+                    HttpClientRequest.get("https://user:password@cdn.example/private?token=secret"),
+                    new Response("private response body", { status }),
+                  ),
+                )
+              : response,
+          ),
+        ),
+      });
+      const error = yield* selfUpdate.update({ targetVersion: "1.1.0" }).pipe(Effect.flip);
+      expect(error.reason).toBe(
+        `Could not prepare supaterm@1.1.0 while downloading the Supaterm release ${asset} (HTTP ${status} from cdn.example).`,
+      );
+      expect(order).toEqual([]);
+      const fs = yield* FileSystem.FileSystem;
+      const path = yield* Path.Path;
+      expect(yield* fs.readDirectory(path.join(baseDir, "runtime", "versions"))).toEqual([]);
+      failDownload = false;
+      expect((yield* selfUpdate.update({ targetVersion: "1.1.0" })).updateId).toBe("launcher-id");
+      expect(order).toEqual(["extract", "preflight", "accept"]);
+    }),
+  );
+
   it.effect("rejects invalid versions and desktop-managed servers before staging", () =>
     Effect.gen(function* () {
       const web = yield* makeHarness();
