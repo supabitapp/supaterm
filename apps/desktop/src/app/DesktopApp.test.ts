@@ -73,6 +73,7 @@ import * as MacInputMonitoring from "../permissions/MacInputMonitoring.ts";
 import * as MacPermissions from "../permissions/MacPermissions.ts";
 import * as PreviewManager from "../preview/Manager.ts";
 import * as SidePulse from "../sidePulse/SidePulse.ts";
+import * as SidePulseEjectGuard from "../sidePulse/SidePulseEjectGuard.ts";
 
 it.effect.each([false, true])(
   "stops backends together and cancels Linux registration, stop defect=%s",
@@ -236,6 +237,7 @@ it.effect.each([false, true])(
               },
             }),
             Layer.mock(SidePulse.SidePulse, {}),
+            Layer.mock(SidePulseEjectGuard.SidePulseEjectGuard, {}),
             FileSystem.layerNoop({}),
             Layer.mock(NetService.NetService, {}),
             Path.layer,
