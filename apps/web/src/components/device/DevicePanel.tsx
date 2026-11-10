@@ -422,7 +422,7 @@ function DeviceDiscoveryWarning(props: {
       className="flex flex-wrap items-center gap-x-2 gap-y-0.5 border-b px-3 py-1 text-xs text-muted-foreground"
     >
       <span className="flex min-w-0 flex-1 basis-56 items-start gap-2">
-        <CircleAlert className="mt-px size-3.5 shrink-0 text-warning-foreground" />
+        <CircleAlertIcon className="mt-px size-3.5 shrink-0 text-warning-foreground" />
         <span className="min-w-0">
           {platforms.length > 0
             ? `${platforms.join(" and ")} ${platforms.length > 1 ? "lists" : "list"} on ${props.label} may be incomplete.`
@@ -466,7 +466,7 @@ function DeviceDiscoveryWarning(props: {
             setDismissedCause(cause);
           }}
         >
-          <X />
+          <XIcon />
         </Button>
       </span>
     </div>
