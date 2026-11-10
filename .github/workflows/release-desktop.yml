@@ -542,6 +542,8 @@ jobs:
           name: desktop-${{ inputs.platform }}-${{ inputs.arch }}
           path: release-publish/*
           if-no-files-found: error
+          # Installers, zips and blockmaps are already compressed; deflating them again saves under 0.3%.
+          compression-level: 0
 
       - name: Upload resource monitor
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
@@ -695,6 +697,7 @@ jobs:
         run: command -v patchelf || { sudo apt-get update && sudo apt-get install -y patchelf; }
 
       - name: Build CLI archive
+        id: build_cli
         if: inputs.cli_archive
         shell: bash
         env:
@@ -706,25 +709,38 @@ jobs:
           AZURE_TRUSTED_SIGNING_CERTIFICATE_PROFILE_NAME: ${{ secrets.AZURE_TRUSTED_SIGNING_CERTIFICATE_PROFILE_NAME }}
         run: |
           set -euo pipefail
+          extra_args=()
+          if [[ "${INPUTS_PLATFORM}" == "mac" ]]; then
+            # Older release refs lack deferred notarization and still wait here.
+            cli_help="$(node scripts/build-cli-archive.ts --help)"
+            if [[ "$cli_help" == *--notary-submission-file* ]]; then
+              extra_args=(--notary-submission-file "$RUNNER_TEMP/supaterm-cli-notary-submission")
+              echo "deferred_notarization=true" >> "$GITHUB_OUTPUT"
+            fi
+          fi
           node scripts/build-cli-archive.ts \
             --platform "${INPUTS_PLATFORM}" \
             --arch "${INPUTS_ARCH}" \
             --version "${INPUTS_VERSION}" \
             --resource-monitor-dir "$RUNNER_TEMP/cli-resource-monitor" \
-            --output-dir release-cli
+            --output-dir release-cli \
+            ${extra_args[@]+"${extra_args[@]}"}
 
       - name: Smoke-test CLI archive
         if: inputs.cli_archive && inputs.verify_runner == ''
         shell: bash
         run: node scripts/smoke-cli-archive.ts --archive release-cli/* --expect-version "${INPUTS_VERSION}"
 
+      # macOS uploads its archive after "Await CLI notarization" instead.
       - name: Upload CLI archive
-        if: inputs.cli_archive
+        if: inputs.cli_archive && inputs.platform != 'mac'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: cli-${{ inputs.platform }}-${{ inputs.arch }}
           path: release-cli/*
           if-no-files-found: error
+          # The archive is already gzip or zip; deflating it again saves under 2%.
+          compression-level: 0
 
       # Nightly builds it too, so a broken installer build fails a nightly
       # before it can fail a stable release, but only stable publishes it.
@@ -732,6 +748,27 @@ jobs:
         if: inputs.mac_installer
         shell: bash
         run: node scripts/build-mac-installer.ts --version "${INPUTS_VERSION}" --output-dir release-installer
+
+      # The CLI was submitted without waiting so Apple reviews it while the
+      # installer builds. Notarization does not change the archive bytes, but
+      # nothing uploads them, so nothing publishes them, until Apple accepts.
+      # With signing configured, a missing submission id fails this step.
+      - name: Await CLI notarization
+        if: inputs.cli_archive && inputs.platform == 'mac' && steps.build_cli.outputs.deferred_notarization == 'true'
+        shell: bash
+        run: |
+          node scripts/build-cli-archive.ts await-notarization \
+            --submission-file "$RUNNER_TEMP/supaterm-cli-notary-submission"
+
+      - name: Upload notarized CLI archive
+        if: inputs.cli_archive && inputs.platform == 'mac'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: cli-${{ inputs.platform }}-${{ inputs.arch }}
+          path: release-cli/*
+          if-no-files-found: error
+          # The archive is already gzip or zip; deflating it again saves under 2%.
+          compression-level: 0
 
       - name: Upload macOS installer
         if: inputs.mac_installer && inputs.release_channel == 'stable'

@@ -31,6 +31,7 @@ import * as PullRequestService from "../pullRequest/PullRequestService.ts";
 import * as ServerSettings from "../serverSettings.ts";
 import { forkParked } from "../serverActivation.ts";
 import * as TerminalManager from "../terminal/Manager.ts";
+import * as GitVcsDriver from "../vcs/GitVcsDriver.ts";
 import * as ProjectStore from "./ProjectStore.ts";
 import { sourceControlDefinitions } from "../sourceControl/sourceControlDefinitions.ts";
 import * as Orchestrator from "./Orchestrator.ts";
@@ -573,6 +574,7 @@ export const make = Effect.gen(function* () {
     threadId?: ThreadId,
   ) =>
     sweep(mergedPullRequest, threadId).pipe(
+      Effect.provideService(GitVcsDriver.BackgroundGitWork, true),
       Effect.catchCauseIf(
         (cause) => !Cause.hasInterruptsOnly(cause),
         (cause) =>
@@ -618,7 +620,7 @@ export const make = Effect.gen(function* () {
     function* (threadId: ThreadId) {
       const done = yield* projections.getThread(threadId);
       if (done.doneOverride !== "done") return;
-      yield* terminals.closeIdle({ threadId });
+      yield* terminals.closeOnDone({ threadId });
       const worktreePath = done.worktreePath;
       if (worktreePath === null || !(yield* fileSystem.exists(worktreePath))) return;
       // Closing and the worktree check wait on I/O. A thread re-engaged

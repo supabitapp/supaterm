@@ -2,6 +2,7 @@ import { PullRequestProviderError } from "@supaterm/source-control-core/server/P
 import { SourceControlProviderKind } from "@supaterm/contracts";
 import { ATTACHMENT_ONLY_BOOTSTRAP_PROMPT } from "@supaterm/shared/composerContextReferences";
 import { limitRecoveryCommand } from "./UsageLimitRecoveryWorker.ts";
+import { createOrchestrationV2TurnItemVisibility } from "@supaterm/shared/orchestrationV2Timeline";
 import * as McpProviderSessions from "@supaterm/provider-core/server/McpProviderSessions";
 import * as SourceControlProviderRegistry from "../sourceControl/SourceControlProviderRegistry.ts";
 import * as NodeCrypto from "@effect/platform-node/NodeCrypto";
@@ -4705,11 +4706,29 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
           });
         });
       yield* holdQueueAfterRestart("mark-done-automatic-restart");
+      const beforeMarkDone = yield* orchestrator.getThreadProjection(threadId);
+      const oldestRun = beforeMarkDone.runs.reduce((oldest, run) =>
+        run.ordinal < oldest.ordinal ? run : oldest,
+      );
+      const latestRun = beforeMarkDone.runs.reduce((latest, run) =>
+        run.ordinal > latest.ordinal ? run : latest,
+      );
+      const staleMarkDone = yield* orchestrator
+        .dispatch({
+          type: "thread.mark-done",
+          commandId: CommandId.make("mark-done-automatic-stale"),
+          threadId,
+          expectedLatestRunId: oldestRun.id,
+        })
+        .pipe(Effect.flip);
+      assert.equal(staleMarkDone._tag, "OrchestratorDispatchError");
+      assert.isNull((yield* orchestrator.getThreadProjection(threadId)).thread.doneAt);
 
       yield* orchestrator.dispatch({
         type: "thread.mark-done",
         commandId: CommandId.make("mark-done-automatic-settle"),
         threadId,
+        expectedLatestRunId: latestRun.id,
       });
       const done = yield* orchestrator.getThreadProjection(threadId);
       assert.isNotNull(done.thread.doneAt);
@@ -8155,6 +8174,8 @@ it.layer(layerTest)("usage-limit recovery", (it) => {
 
   it.effect.each([
     "resume",
+    "resume-started",
+    "resume-untagged",
     "queued-resume",
     "cancel",
     "rearm",
@@ -8671,17 +8692,97 @@ it.layer(layerTest)("usage-limit recovery", (it) => {
         yield* orchestrator.dispatch(resume);
       }
       const after = yield* orchestrator.getThreadProjection(threadId);
-      if (scenario === "resume") {
+      if (
+        scenario === "resume" ||
+        scenario === "resume-started" ||
+        scenario === "resume-untagged"
+      ) {
         assert.deepInclude(after.messages.at(-1), {
           text: "Continue where you left off.",
           createdBy: "agent",
           creationSource: "server",
         });
+        const continuation = after.runs.at(-1)!;
+        assert.equal(continuation.status, "starting");
+        if (scenario === "resume-started") {
+          const startedAt = yield* DateTime.now;
+          yield* events.write({
+            events: [
+              {
+                id: EventId.make("recovery:continuation-started:resume-started"),
+                type: "run.updated",
+                threadId,
+                runId: continuation.id,
+                occurredAt: startedAt,
+                payload: { ...continuation, status: "running", startedAt },
+              },
+            ],
+          });
+        }
+        if (scenario === "resume-untagged") {
+          // A server older than the run tag stored the resume run without it.
+          const { usageLimitContinuationOfRunId: _, ...untagged } = continuation;
+          yield* events.write({
+            events: [
+              {
+                id: EventId.make("recovery:continuation-untagged"),
+                type: "run.updated",
+                threadId,
+                runId: continuation.id,
+                occurredAt: yield* DateTime.now,
+                payload: untagged,
+              },
+            ],
+          });
+        }
+        yield* (yield* ProviderRuntimeRecoveryService.ProviderRuntimeRecoveryService).reconcile(
+          "startup",
+        );
+        const restartedShell = (yield* orchestrator.getShellSnapshot()).threads.find(
+          (thread) => thread.id === threadId,
+        )!;
+        const retry = limitRecoveryCommand(
+          restartedShell,
+          true,
+          DateTime.toEpochMillis(yield* DateTime.now),
+        );
+        if (scenario === "resume-started") assert.isNull(retry);
+        else assert(retry?.type === "message.dispatch");
+        if (scenario === "resume") {
+          assert.notEqual(retry!.commandId, resume!.commandId);
+        } else {
+          assert.equal(
+            restartedShell.limitRecovery?.requestId,
+            after.thread.limitRecovery?.requestId,
+          );
+        }
+        if (retry !== null) {
+          yield* orchestrator.dispatch(retry);
+          yield* orchestrator.dispatch(retry);
+        }
+        const resumed = yield* orchestrator.getThreadProjection(threadId);
+        const visible = createOrchestrationV2TurnItemVisibility({
+          runs: resumed.runs,
+          attempts: resumed.attempts,
+          items: resumed.turnItems,
+        });
+        assert.deepEqual(
+          resumed.turnItems.flatMap((item) =>
+            item.type === "user_message" && visible(item) ? [item.runId] : [],
+          ),
+          [run.id, resumed.runs.at(-1)!.id],
+        );
+        assert.deepEqual(
+          resumed.runs.map((row) => row.status),
+          scenario === "resume" ? ["failed", "cancelled", "starting"] : ["failed", "cancelled"],
+        );
       }
       assert.lengthOf(
         after.runs,
         before.runs.length +
           (scenario === "resume" ||
+          scenario === "resume-started" ||
+          scenario === "resume-untagged" ||
           stopBeforeArm ||
           scenario === "queued-resume" ||
           scenario === "snooze-resume" ||
@@ -8695,6 +8796,8 @@ it.layer(layerTest)("usage-limit recovery", (it) => {
         after.messages,
         before.messages.length +
           (scenario === "resume" ||
+          scenario === "resume-started" ||
+          scenario === "resume-untagged" ||
           stopBeforeArm ||
           scenario === "queued-resume" ||
           scenario === "snooze-resume" ||

@@ -1049,6 +1049,17 @@ describe("/usage-limits", () => {
     expect(withUsageLimitsCommands([ownCommand])[0]?.slashCommands).toEqual([
       { name: "usage-limits", description: "Provider's own" },
     ]);
+    const unrelated = provider({ driver: ProviderDriverKind.make("claudeAgent") });
+    const disabled = provider({ ...unrelated, enabled: false, usageLimits: limits });
+    const mixed = withUsageLimitsCommands([selected, withWorkspace, unrelated, disabled]);
+    expect(mixed.map((entry) => entry.slashCommands.map((command) => command.name))).toEqual([
+      ["usage-limits"],
+      ["usage-limits"],
+      [],
+      [],
+    ]);
+    expect(mixed[2]).toBe(unrelated);
+    expect(mixed[3]).toBe(disabled);
   });
 });
 

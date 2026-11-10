@@ -187,7 +187,11 @@ when it is already Done. The shortcut skips terminals and can be changed in Sett
 Manually marking an idle thread as Done dismisses unanswered async questions without
 sending an answer or restarting the agent. Marking it as Done also closes the thread's
 terminals that wait at an idle prompt, and keeps their output. A terminal that
-runs a command, such as a dev server, stays open.
+runs a command, such as a dev server, stays open unless its action has **Stop this action
+when the thread is marked Done** enabled in Settings > Projects > Actions. You can also set
+`"stopOnDone": true` on a `supaterm.json` action and import it there. Start the command through
+that action so Supaterm can stop its terminal and child processes. Commands started through an
+agent's own shell tools are managed by the provider.
 
 To reclaim disk space from Done work, turn on **Run in the thread's worktree when the
 thread is marked Done** for one of the project's actions, or set `"runOnDone": true` on a
@@ -201,7 +205,7 @@ mark every thread in that section between it and the one you release on as Done.
 The **Reopen** and **Wake** buttons work the same way in their sections.
 Press `Escape` while dragging to cancel.
 
-By default, environments mark inactive threads as Done after three days and mark threads whose
+By default, environments mark inactive threads as Done after seven days and mark threads whose
 pull request merged as Done. Turn off **Automatically mark merged threads as Done** to keep merged
 threads in the active list. A closed pull request can also mark an idle thread as Done. An empty thread's inactivity counts from when it was created.
 Pins, work in progress, pending questions or approvals, and background work the agent is
@@ -363,9 +367,9 @@ On mobile, type `/side` or `/btw` in the composer, or choose **Start side chat**
 the command palette. A thread lists its side chats above the composer; tap one to
 open it.
 
-A side chat starts with the thread's model and permission mode, and works in the
-same folder as the thread. Its agent cannot start or message other threads, and it
-cannot be forked.
+A side chat starts with the permissions, model, and reasoning level shown in the
+thread's composer, including for its first reply, and works in the same folder as the
+thread. Its agent cannot start or message other threads, and it cannot be forked.
 
 The side chat's actions sit at its top on web and desktop, and above its composer on
 mobile:

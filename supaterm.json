@@ -19,7 +19,8 @@
     {
       "name": "Start Development",
       "command": "vp run dev",
-      "icon": "play"
+      "icon": "play",
+      "stopOnDone": true
     },
     {
       "name": "Start Desktop Development",

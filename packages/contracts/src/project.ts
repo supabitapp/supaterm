@@ -39,6 +39,7 @@ export const ProjectScript = Schema.Struct({
   runOnWorktreeCreate: Schema.Boolean,
   /** Run in the thread's worktree each time the thread is marked done. */
   runOnDone: Schema.optional(Schema.Boolean),
+  stopOnDone: Schema.optional(Schema.Boolean),
   async: Schema.optional(Schema.Boolean),
   previewUrl: Schema.optional(TrimmedNonEmptyString),
   autoOpenPreview: Schema.optional(Schema.Boolean),

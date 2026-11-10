@@ -83,6 +83,8 @@ export const TranscriptionUploadSubmit = Schema.Struct({
   /** How the prompt meets a running turn, resolved once the transcript is ready. Defaults to auto. */
   delivery: Schema.optionalKey(Schema.Literals(["auto", "queue", "steer", "restart"])),
   creationSource: Schema.optionalKey(Schema.Literals(["web", "mobile"])),
+  /** Starts a new provider session, like a typed send with `freshContext`. */
+  freshContext: Schema.optionalKey(Schema.Boolean),
 });
 export type TranscriptionUploadSubmit = typeof TranscriptionUploadSubmit.Type;
 

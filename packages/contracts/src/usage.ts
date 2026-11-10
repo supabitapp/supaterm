@@ -110,8 +110,6 @@ export const UsageSource = Schema.Struct({
    */
   distinctSessions: NonNegativeInt,
   message: Schema.NullOr(TrimmedNonEmptyString),
-  action: Schema.optionalKey(Schema.Literal("enableCursorKeychain")),
-
   refreshing: Schema.optionalKey(Schema.Literal(true)),
 });
 export type UsageSource = typeof UsageSource.Type;
