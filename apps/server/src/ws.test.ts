@@ -36,6 +36,7 @@ import { Headers } from "effect/http";
 import { RpcGroup, RpcMessage, RpcServer } from "effect/rpc";
 import * as SqlClient from "effect/sql/SqlClient";
 
+import * as AssetSigner from "./assets/AssetSigner.ts";
 import * as PreviewAutomationBroker from "./mcp/PreviewAutomationBroker.ts";
 import * as ServerBrowser from "./preview/ServerBrowser.ts";
 import * as AcpRegistryRuntimeCoordinator from "@supaterm/provider-acp-registry/server/AcpRegistryRuntimeCoordinator";
@@ -718,6 +719,7 @@ const layerUnusedConfigRpcServices = Layer.mergeAll(
 
 const layerConfigSources = Layer.mergeAll(
   Keybindings.layer,
+  AssetSigner.layer.pipe(Layer.provide(ServerSecretStore.layer)),
   ServerSettings.layer.pipe(Layer.provide(ServerSecretStore.layer)),
 ).pipe(
   Layer.provideMerge(Layer.fresh(SqlitePersistence.layerMemory)),

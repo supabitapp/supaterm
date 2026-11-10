@@ -421,7 +421,7 @@ it.layer(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer))("EnvironmentAuth.
     Effect.gen(function* () {
       const serverAuth = yield* EnvironmentAuth.EnvironmentAuth;
       const token = yield* serverAuth.exchangeBootstrapCredentialForAccessToken(
-        currentDesktopBootstrapToken("desktop-secret", yield* Clock.currentTimeMillis),
+        yield* currentDesktopBootstrapToken("desktop-secret", yield* Clock.currentTimeMillis),
         ["orchestration:read"],
         requestMetadata,
       );
@@ -439,7 +439,7 @@ it.layer(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer))("EnvironmentAuth.
       const serverAuth = yield* EnvironmentAuth.EnvironmentAuth;
       const sessions = yield* SessionStore.SessionStore;
       const browser = yield* serverAuth.createBrowserSession(
-        currentDesktopBootstrapToken("desktop-secret", yield* Clock.currentTimeMillis),
+        yield* currentDesktopBootstrapToken("desktop-secret", yield* Clock.currentTimeMillis),
         requestMetadata,
       );
       const browserSession = yield* serverAuth.authenticateHttpRequest(
@@ -455,7 +455,7 @@ it.layer(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer))("EnvironmentAuth.
         { ...requestMetadata, label: "Supaterm Desktop" },
       );
       const first = yield* serverAuth.exchangeBootstrapCredentialForAccessToken(
-        currentDesktopBootstrapToken("desktop-secret", yield* Clock.currentTimeMillis),
+        yield* currentDesktopBootstrapToken("desktop-secret", yield* Clock.currentTimeMillis),
         undefined,
         requestMetadata,
       );
@@ -463,7 +463,7 @@ it.layer(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer))("EnvironmentAuth.
         makeBearerRequest(first.access_token),
       );
       const second = yield* serverAuth.exchangeBootstrapCredentialForAccessToken(
-        currentDesktopBootstrapToken("desktop-secret", yield* Clock.currentTimeMillis),
+        yield* currentDesktopBootstrapToken("desktop-secret", yield* Clock.currentTimeMillis),
         undefined,
         requestMetadata,
       );
@@ -552,7 +552,7 @@ it.layer(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer))("EnvironmentAuth.
         const sessions = yield* SessionStore.SessionStore;
 
         const administrativeExchange = yield* serverAuth.createBrowserSession(
-          currentDesktopBootstrapToken("desktop-secret", yield* Clock.currentTimeMillis),
+          yield* currentDesktopBootstrapToken("desktop-secret", yield* Clock.currentTimeMillis),
           requestMetadata,
         );
         const administrativeSession = yield* serverAuth.authenticateHttpRequest(

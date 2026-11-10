@@ -793,12 +793,27 @@ const make = Effect.gen(function* () {
   };
 
   const createTab = async (snapshot: PreviewSessionSnapshot): Promise<ServerTab> => {
+    const opened: Array<() => Promise<void>> = [];
+    try {
+      return await setUpTab(snapshot, opened);
+    } catch (cause) {
+      // An unpublished tab is in no list, so nothing else would ever close it.
+      for (const close of opened.reverse()) await close().catch(constVoid);
+      throw cause;
+    }
+  };
+
+  const setUpTab = async (
+    snapshot: PreviewSessionSnapshot,
+    opened: Array<() => Promise<void>>,
+  ): Promise<ServerTab> => {
     const adopted = adoptedPages.get(tabKey(snapshot.threadId, snapshot.tabId));
     adoptedPages.delete(tabKey(snapshot.threadId, snapshot.tabId));
     const desktop =
       adopted === undefined && (await desktopRenders(snapshot))
         ? await connectDesktop(snapshot)
         : null;
+    if (desktop) opened.push(desktop.close);
     const opener =
       adopted?.openerTabId === undefined
         ? undefined
@@ -819,9 +834,11 @@ const make = Effect.gen(function* () {
         snapshot.profileId ?? "default",
         isolatedContext ? tabKey(snapshot.threadId, snapshot.tabId) : undefined,
       ));
+    if (isolatedContext) opened.push(() => context.close());
     if (adopted?.page.isClosed()) throw new Error("The popup closed before it opened.");
     if (!desktop) await prepareContext(context);
     const page = adopted?.page ?? desktop?.page ?? (await context.newPage());
+    if (!desktop) opened.push(() => page.close());
     const cdp = await context.newCDPSession(page);
     await installPdfDocumentNavigation(cdp);
     if (!desktop) await presentAsChrome(cdp, host);
@@ -993,9 +1010,6 @@ const make = Effect.gen(function* () {
     const key = tabKey(tab.threadId, tab.tabId);
     if (closedPendingTabs.delete(key)) {
       await control.close().catch(constVoid);
-      if (desktop) await desktop.close().catch(constVoid);
-      else await page.close().catch(constVoid);
-      if (isolatedContext) await context.close().catch(constVoid);
       throw new ServerBrowserTabNotFoundError({ threadId: tab.threadId, tabId: tab.tabId });
     }
     page.on("close", () => dropTab(tab, true));
@@ -1412,15 +1426,15 @@ const make = Effect.gen(function* () {
     });
   });
 
-  const atTabLimit = (agentSessionId: string) => {
-    const opening = [...pendingTabs.entries()].filter(([key]) => !tabs.has(key));
-    return (
-      tabs.size + opening.length >= SERVER_TAB_LIMIT ||
-      [...tabs.values()].filter((tab) => tab.control.agentId === agentSessionId).length +
-        opening.filter(([, pending]) => pending.agentId === agentSessionId).length >=
-        AGENT_TAB_LIMIT
-    );
-  };
+  const openingReservations = () =>
+    [...pendingTabs.entries()].flatMap(([key, pending]) => (tabs.has(key) ? [] : [pending]));
+  const serverAtTabLimit = () => tabs.size + openingReservations().length >= SERVER_TAB_LIMIT;
+  const agentAtTabLimit = (agentSessionId: string) =>
+    [...tabs.values()].filter((tab) => tab.control.agentId === agentSessionId).length +
+      openingReservations().filter((pending) => pending.agentId === agentSessionId).length >=
+    AGENT_TAB_LIMIT;
+  const atTabLimit = (agentSessionId: string) =>
+    serverAtTabLimit() || agentAtTabLimit(agentSessionId);
 
   const assertTabCapacity = (agentSessionId: string) => {
     if (atTabLimit(agentSessionId))
@@ -1430,16 +1444,40 @@ const make = Effect.gen(function* () {
       );
   };
 
+  // The desktop draws its tabs in its own webview, so they never get a streamed viewer.
+  const isVisible = (tab: ServerTab) =>
+    tab.viewers.size > 0 || (tab.desktop !== null && desktopChannel.isShown(tab));
+
+  const idleAgentTabs = () => {
+    const cutoff = Date.now() - AGENT_TAB_IDLE_MS;
+    return [...tabs.values()].filter(
+      (tab) => tab.control.agentId !== null && !isVisible(tab) && tab.usedAt < cutoff,
+    );
+  };
+
+  // The desktop app renders every server tab, so idle desktop agent tabs would otherwise
+  // hold the server's budget forever. Hidden ones give up their slots, longest idle first,
+  // only when an agent needs one and has room for it.
+  const freeIdleAgentSlot = (agentSessionId: string) => {
+    if (!serverAtTabLimit() || agentAtTabLimit(agentSessionId)) return;
+    const longestIdle = idleAgentTabs().sort((left, right) => left.usedAt - right.usedAt)[0];
+    if (longestIdle) dropTab(longestIdle, true);
+  };
+
   // A Playwright launch must settle before its capacity can be released.
   const openTab = Effect.fn("ServerBrowser.openTab")(function* (
     input: Parameters<typeof manager.open>[0],
+    options: { readonly reclaimIdleSlot?: boolean } = {},
   ) {
     let key: string = NodeCrypto.randomUUID();
     const reservation = { agentId: input.automationOwner ?? null };
     return yield* Effect.acquireUseRelease(
       Effect.try({
         try: () => {
-          if (input.automationOwner !== undefined) assertTabCapacity(input.automationOwner);
+          if (input.automationOwner !== undefined) {
+            if (options.reclaimIdleSlot) freeIdleAgentSlot(input.automationOwner);
+            assertTabCapacity(input.automationOwner);
+          }
           pendingTabs.set(key, reservation);
         },
         catch: ServerBrowserPage.toOperationError,
@@ -1477,16 +1515,7 @@ const make = Effect.gen(function* () {
   }, Effect.uninterruptible);
 
   const closeIdleAgentTabs = () => {
-    const cutoff = Date.now() - AGENT_TAB_IDLE_MS;
-    for (const tab of tabs.values()) {
-      if (
-        tab.control.agentId !== null &&
-        tab.desktop === null &&
-        tab.viewers.size === 0 &&
-        tab.usedAt < cutoff
-      )
-        dropTab(tab, true);
-    }
+    for (const tab of idleAgentTabs()) if (tab.desktop === null) dropTab(tab, true);
   };
 
   const latestThreadTab = (threadId: string, agentSessionId?: string) => {
@@ -2026,14 +2055,17 @@ const make = Effect.gen(function* () {
         const tab =
           existing ??
           (await runPromise(
-            openTab({
-              threadId: request.threadId,
-              ...(url ? { url } : {}),
-              ...(profileId === undefined ? {} : { profileId }),
-              runtime: "server",
-              reveal: false,
-              automationOwner: request.agentSessionId,
-            }),
+            openTab(
+              {
+                threadId: request.threadId,
+                ...(url ? { url } : {}),
+                ...(profileId === undefined ? {} : { profileId }),
+                runtime: "server",
+                reveal: false,
+                automationOwner: request.agentSessionId,
+              },
+              { reclaimIdleSlot: true },
+            ),
           ));
         if (existing?.dialog)
           throw new BrowserControlInterrupted(

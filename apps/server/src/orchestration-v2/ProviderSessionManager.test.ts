@@ -3947,7 +3947,7 @@ const mcpAppMethods = {
 };
 
 const mcpAppRuntime: ProviderAdapter.ProviderAdapterV2McpApps = {
-  listTools: () => Effect.succeed([{ name: "refresh" }]),
+  listTools: () => Effect.succeed([{ name: "refresh", inputSchema: { type: "object" } }]),
   callTool: () => Effect.succeed({ content: [] }),
   readResource: () => Effect.succeed({ contents: [] }),
 };

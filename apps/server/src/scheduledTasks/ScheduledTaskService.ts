@@ -162,9 +162,8 @@ function requireFutureOnce(
 }
 
 function errorMessage(error: unknown): string {
-  if (Cause.isCause(error)) return Cause.pretty(error);
-  if (error instanceof Error) return error.message;
-  return String(error);
+  const failure = Cause.isCause(error) ? Cause.squash(error) : error;
+  return failure instanceof Error ? failure.message : String(failure);
 }
 
 // Runs per task row; list and lookup operations already own the span.

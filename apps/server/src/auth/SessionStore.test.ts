@@ -19,7 +19,8 @@ import * as ServerEnvironment from "../environment/ServerEnvironment.ts";
 import * as SqlitePersistence from "../persistence/Sqlite.ts";
 import * as SessionStore from "./SessionStore.ts";
 import * as ServerSecretStore from "./ServerSecretStore.ts";
-import { base64UrlDecodeUtf8, base64UrlEncode, signPayload } from "./utils.ts";
+import { base64UrlDecodeUtf8, base64UrlEncode } from "./utils.ts";
+import * as PayloadSigner from "./PayloadSigner.ts";
 
 const layerServerConfig = (overrides?: Partial<ServerConfig.ServerConfig["Service"]>) =>
   Layer.effect(
@@ -279,11 +280,13 @@ it.layer(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer))("SessionStore.lay
       const issued = yield* sessions.issue({ subject: "one-time-token", scopes: recordedScopes });
       const [encodedPayload] = issued.token.split(".");
       const currentClaims = base64UrlDecodeUtf8(encodedPayload!);
-      const secret = yield* secrets.getOrCreateRandom("server-signing-key", 32);
+      const signer = yield* PayloadSigner.fromSecret(
+        yield* secrets.getOrCreateRandom("server-signing-key", 32),
+      );
       const editedPayload = base64UrlEncode(
         currentClaims.replace(/"scopes":\[[^\]]*\]/, '"scopes":["access:write"]'),
       );
-      const editedToken = `${editedPayload}.${signPayload(editedPayload, secret)}`;
+      const editedToken = `${editedPayload}.${yield* signer.sign(editedPayload)}`;
 
       expect((yield* sessions.verify(issued.token)).scopes).toEqual(recordedScopes);
       expect((yield* sessions.verify(editedToken)).scopes).toEqual(recordedScopes);

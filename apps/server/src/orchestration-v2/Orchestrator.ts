@@ -2338,7 +2338,8 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
             },
           })),
           {
-            id: `effect:${commandId}:provider-turn.start:${queuedRun.id}`,
+            // A restart can return this run to the queue after its previous start effect was cancelled.
+            id: `effect:${commandId}:provider-turn.start:${queuedRun.id}:${yield* idAllocator.allocate.event({ threadId, commandId })}`,
             commandId,
             threadId,
             request: { type: "provider-turn.start", runId: queuedRun.id },
@@ -3186,18 +3187,20 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
       }
     }
     if (command.type === "thread.mark-done") {
-      const projection = yield* loadProjectionForCommand(
-        command,
-        ["runs", "runtimeRequests", "messages"],
-        { turnItemTypes: [], messageRoles: ["user"] },
-      );
+      const projection = yield* loadProjectionForCommand(command, ["runs", "runtimeRequests"]);
+      const queuedMessages = yield* projectionStore
+        .getMessagesById(
+          command.threadId,
+          projection.runs.filter((run) => run.status === "queued").map((run) => run.userMessageId),
+        )
+        .pipe(mapDispatchError(command));
       const automaticMessageIds = new Set(
-        projection.messages
-          .filter(
-            (message) =>
-              message.notification !== undefined || message.delegatedCompletion !== undefined,
-          )
-          .map((message) => message.id),
+        [...queuedMessages.values()].flatMap((message) =>
+          message.role === "user" &&
+          (message.notification !== undefined || message.delegatedCompletion !== undefined)
+            ? [message.id]
+            : [],
+        ),
       );
       const automaticQueuedRuns = projection.runs.filter(
         (run) => run.status === "queued" && automaticMessageIds.has(run.userMessageId),
