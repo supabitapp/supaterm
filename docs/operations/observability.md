@@ -63,6 +63,11 @@ span spent waiting for that connection, behind other SQL. That wait does not blo
 so subtract it before you blame a slow span on the query. Statements inside a transaction use its
 connection and do not carry these attributes.
 
+An MCP request over HTTP has a `McpHttpServer.authenticateRequest` span that covers only admitting
+it: the credential check. The request runs after it, under the `McpServer.…/<method>` span, and each
+tool call has its own `mcp.tool.<name>` span that times it. That span's attributes name the tool,
+never its arguments.
+
 #### Summarize the trace file
 
 `supaterm trace summary` reads the trace file and its rotated backups directly, so it works while the

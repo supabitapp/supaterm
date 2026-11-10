@@ -102,15 +102,6 @@ export class PullRequestThreadRequiredError extends Schema.TaggedError<PullReque
   }
 }
 
-export class PullRequestThreadNotFoundError extends Schema.TaggedError<PullRequestThreadNotFoundError>()(
-  "PullRequestThreadNotFoundError",
-  { threadId: Schema.String },
-) {
-  override get message(): string {
-    return `Thread ${this.threadId} was not found.`;
-  }
-}
-
 export class PullRequestLinkFailedError extends Schema.TaggedError<PullRequestLinkFailedError>()(
   "PullRequestLinkFailedError",
   { cause: Schema.Defect() },
@@ -191,7 +182,6 @@ export const PullRequestToolError = Schema.Union([
   PullRequestHostRequiredError,
   PullRequestUrlUnavailableError,
   PullRequestThreadRequiredError,
-  PullRequestThreadNotFoundError,
   PullRequestLinkFailedError,
   PullRequestUnlinkFailedError,
   PullRequestListFailedError,

@@ -42,7 +42,7 @@ import * as HostProcess from "@supaterm/shared/HostProcess";
 import * as KeyedLock from "@supaterm/shared/KeyedLock";
 import { compactTraceAttributes } from "@supaterm/shared/observability";
 import { decodeJsonResult } from "@supaterm/shared/schemaJson";
-import { resolveSpawnCommand } from "@supaterm/shared/shell";
+import { resolveSpawnCommand, runsGitWithoutConsole } from "@supaterm/shared/shell";
 import { parseSupatermProjectFile } from "@supaterm/shared/supatermProjectFile";
 import { resolveProjectFileBackedSetting } from "@supaterm/shared/projectSettings";
 import { gitCommandDuration, gitCommandsTotal, withMetrics } from "../observability/Metrics.ts";
@@ -1034,6 +1034,9 @@ export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(function* 
               cwd: commandInput.cwd,
               env: spawnEnv,
               forceKillAfter: input.forceKillAfterMs,
+              ...(runsGitWithoutConsole(hostPlatform, executable, commandInput.args)
+                ? { detached: true, windowsHide: true }
+                : {}),
             }),
           )
           .pipe(
