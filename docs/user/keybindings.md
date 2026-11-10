@@ -78,9 +78,15 @@ to show only actions.
 
 In a new thread, `Cmd+Shift+H` moves the draft to the next machine.
 
-In the composer, Return sends and `Shift+Return` inserts a new line. `Cmd+Return`
-also sends. To make Return insert a new line instead, change the Return key
-behavior in Settings → Keyboard.
+In the composer, Return sends and `Shift+Return` inserts a new line. While a
+turn is running, `Cmd+Return` sends with the other follow-up action. To make
+Return insert a new line instead, change the Return key behavior in Settings →
+Keyboard; `Cmd+Return` then sends.
+
+## Android
+
+With a hardware keyboard, the composer handles Return as on iPad, with `Ctrl` in
+place of `Cmd`. The on-screen keyboard's Return always inserts a new line.
 
 ## Edit the configuration file
 
@@ -116,9 +122,11 @@ Join modifiers and a key with `+`, such as `mod+shift+d` or `ctrl+l`.
 ## When conditions
 
 Available context keys are `terminalFocus`, `terminalOpen`, `previewFocus`,
-`previewOpen`, `modelPickerOpen`, `projectPickerOpen`, `hostPickerOpen`,
+`previewOpen`, `rightPanelOpen`, `modelPickerOpen`, `projectPickerOpen`, `hostPickerOpen`,
 `branchPickerOpen`, `usagePageOpen`, `composerFocus`, `draftThreadRoute`,
 `turnRunning`, `editableFocus`, `textSelected`, `paneClosable`, `isWeb`, and `isDesktop`.
+`rightPanelOpen` applies only to `rightPanel.new` and is true while the right panel is
+open; the default `mod+t` uses it to open the panel's new-tab menu.
 `paneClosable` is true while [threads are side by side](./thread-sidebar.md#open-threads-side-by-side)
 and the focused pane has no right panel open.
 `draftThreadRoute` is true on a draft thread, including a restored draft, until it is first sent.
@@ -186,6 +194,11 @@ Fast mode on or off for the selected model. `conversation.scrollUp`, `conversati
 and `conversation.scrollToEnd` scroll the focused thread. These are unbound by default; a
 [Codex Micro](./codex-micro.md) keyboard uses them.
 
+`conversation.previousTurn` (`alt+arrowup` by default) and `conversation.nextTurn`
+(`alt+arrowdown`) jump between your messages in the focused thread, like the arrows on the
+timeline's left edge. Hold the keys to keep stepping. They work while focus is outside a text
+field, so they leave caret movement in the composer alone.
+
 `pane.focus.1` through `pane.focus.4` (`mod+alt+1` to `mod+alt+4`) focus a pane
 when [threads are side by side](./thread-sidebar.md#open-threads-side-by-side),
 numbered top to bottom, then left to right. `pane.close` closes the focused pane
@@ -216,13 +229,3 @@ if the browser takes it first.
 
 Many defaults include `!terminalFocus` so they do not intercept terminal input.
 Keep that condition when remapping them if you want the same behavior.
-
-## Desktop quit shortcut
-
-Use `Cmd+Q` on macOS or `Ctrl+Q` on Windows and Linux. In the default **Hold** mode,
-hold for 1.2 seconds or press twice within 500 milliseconds. Holding requires
-keyboard repeat; if repeat is disabled, use two presses or the application menu.
-
-Change **Settings → General → Confirmations → Quit shortcut** to **Direct** for a
-single press or **Double press** for two presses only. Choosing **Quit** from the
-application menu always quits immediately.

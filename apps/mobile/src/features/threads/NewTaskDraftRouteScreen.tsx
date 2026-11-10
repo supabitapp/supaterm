@@ -31,7 +31,8 @@ import {
 } from "./new-task-branch-checkout";
 import { draftFlowRoute, liveNewTaskFlowKeys } from "./new-task-flow-state";
 import { NewTaskFlowProvider } from "./new-task-flow-provider";
-import { NativeStackScreenOptions } from "../../native/StackHeader";
+import { AppBar } from "../../components/ui/AppBar";
+import { useWorkspaceBackNavigation } from "../layout/workspace/useAndroidWorkspaceNavigation";
 
 import { ThreadScreenFallback } from "./ThreadScreenHost";
 import { NewTaskDraftScreen } from "./NewTaskDraftScreen";
@@ -90,6 +91,7 @@ const idleBranchCheckoutAtom = Atom.make(AsyncResult.initial<BranchCheckoutResul
 
 export function NewTaskDraftRouteScreen({ route }: StaticScreenProps<NewTaskDraftRouteParams>) {
   const currentRoute = useRoute();
+  const goBack = useWorkspaceBackNavigation("threads");
   const params = route.params ?? {};
   const flowRoute = draftFlowRoute(currentRoute.key, params);
   const { pendingTaskId, draftId } = flowRoute;
@@ -193,8 +195,7 @@ export function NewTaskDraftRouteScreen({ route }: StaticScreenProps<NewTaskDraf
   return (
     <NewTaskFlowProvider route={flowRoute}>
       {preparingBranch ? (
-        <ThreadScreenFallback>
-          <NativeStackScreenOptions options={{ title: "New thread" }} />
+        <ThreadScreenFallback header={<AppBar title="New thread" onBack={goBack} />}>
           <View className="flex-1 items-center justify-center bg-screen">
             <Text className="text-foreground">Switching branch...</Text>
           </View>

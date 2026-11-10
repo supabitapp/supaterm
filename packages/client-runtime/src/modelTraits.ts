@@ -121,6 +121,10 @@ export function buildTraitsTriggerLabel(input: {
   let speedFallbackLabel: string | null = null;
   const labels: Array<string> = [];
   for (const descriptor of input.descriptors) {
+    if (descriptor.id === "ultracode" && descriptor.type === "boolean") {
+      if (descriptor.currentValue === true) labels.push(descriptor.label);
+      continue;
+    }
     if (input.speedToggle && descriptor.id === input.speedToggle.descriptorId) {
       const currentValue = getProviderOptionCurrentValue(descriptor) ?? input.speedToggle.offValue;
       if (input.speedToggle.level !== "off" || currentValue === input.speedToggle.offValue) {
@@ -136,11 +140,11 @@ export function buildTraitsTriggerLabel(input: {
         ? "Ultrathink"
         : descriptor.type === "boolean"
           ? `${descriptor.label} ${descriptor.currentValue === true ? "On" : "Off"}`
-          : getProviderOptionCurrentLabel(
+          : (getProviderOptionCurrentLabel(
               descriptor,
               input.modelSelection,
               input.reportedModelSelection,
-            );
+            ) ?? (descriptor.id === "thinking" ? descriptor.label : null));
     if (typeof label === "string" && label.length > 0) {
       labels.push(label);
     }

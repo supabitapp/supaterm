@@ -1,4 +1,3 @@
-import { Toolbar } from "../../components/ui/Toolbar";
 import { AppActivityIndicator } from "../../components/ui/AppActivityIndicator";
 import { useAtomRefresh } from "@effect/atom-react";
 import { useFocusEffect, useNavigation, type StaticScreenProps } from "@react-navigation/native";
@@ -9,15 +8,14 @@ import {
 import { AsyncResult } from "effect/reactivity";
 import type { PullRequestThreadComment } from "@supaterm/contracts";
 import { useRef, useState } from "react";
-import { Platform, ScrollView, View } from "react-native";
+import { ScrollView, View } from "react-native";
 import { KeyboardAvoidingView, useKeyboardState } from "react-native-keyboard-controller";
 import { NativeScrollViewMarker as ScrollViewMarker } from "../../native/NativeScrollViewMarker";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { AppText as Text, AppTextInput as TextInput } from "../../components/ui/AppText";
-import { AndroidScreenHeader } from "../../components/ui/AndroidScreenHeader";
+import { AppBar } from "../../components/ui/AppBar";
 import { Button } from "../../components/ui/Button";
 import { GlassSurface } from "../../components/ui/GlassSurface";
-import { NativeStackScreenOptions } from "../../native/StackHeader";
 import { relativeTime } from "../../lib/time";
 import { composerPullRequests } from "../../state/pull-requests";
 import { useAtomCommand } from "../../state/use-atom-command";
@@ -29,13 +27,12 @@ import { pullRequestTarget, type PullRequestParams } from "./usePullRequestDiff"
 import { usePullRequestPermissions } from "./usePullRequestPermissions";
 import { pullRequestReviewKey } from "./pullRequestReviewDrafts";
 import { playOutcomeHaptic } from "../../lib/outcomeHaptic";
+import { PullRequestCompletionSuggestions } from "./PullRequestCompletionSuggestions";
+import { usePullRequestCompletions } from "./usePullRequestCompletions";
+
 export function PullRequestDiscussionScreen({
   route,
-}: StaticScreenProps<
-  PullRequestParams & {
-    readonly discussionId: string;
-  }
->) {
+}: StaticScreenProps<PullRequestParams & { readonly discussionId: string }>) {
   return (
     <Discussion
       key={`${pullRequestReviewKey(route.params)}:${route.params.discussionId}`}
@@ -43,13 +40,8 @@ export function PullRequestDiscussionScreen({
     />
   );
 }
-function Discussion({
-  params,
-}: {
-  params: PullRequestParams & {
-    readonly discussionId: string;
-  };
-}) {
+
+function Discussion({ params }: { params: PullRequestParams & { readonly discussionId: string } }) {
   const target = pullRequestTarget(params);
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
@@ -59,17 +51,20 @@ function Discussion({
   const detail = useEnvironmentQuery(composerPullRequests.detail(target));
   const permissions = usePullRequestPermissions(params, detail.data);
   const refresh = useAtomRefresh(composerPullRequests.activity(target));
-  const reply = useAtomCommand(composerPullRequests.replyToThread, {
-    reportFailure: false,
-  });
+  const reply = useAtomCommand(composerPullRequests.replyToThread, { reportFailure: false });
   const resolve = useAtomCommand(composerPullRequests.setThreadResolution, {
     reportFailure: false,
   });
-  const loadMore = useAtomCommand(composerPullRequests.threadComments, {
-    reportFailure: false,
-  });
+  const loadMore = useAtomCommand(composerPullRequests.threadComments, { reportFailure: false });
   const thread = activity.data?.reviewThreads.find((thread) => thread.id === params.discussionId);
   const [body, setBody] = useState("");
+  const completions = usePullRequestCompletions({
+    environmentId: params.environmentId,
+    projectId: params.projectId,
+    value: body,
+    onChangeValue: setBody,
+    support: detail.data?.capabilities ?? null,
+  });
   const [extra, setExtra] = useState<readonly PullRequestThreadComment[]>([]);
   const [cursor, setCursor] = useState<string | null | undefined>();
   const [busy, setBusy] = useState(false);
@@ -108,11 +103,7 @@ function Discussion({
       const submitted = body;
       const response = await reply({
         ...target,
-        input: {
-          ...target.input,
-          threadId: thread.id,
-          body: submitted,
-        },
+        input: { ...target.input, threadId: thread.id, body: submitted },
       });
       playOutcomeHaptic(AsyncResult.isSuccess(response));
       if (AsyncResult.isFailure(response)) return response;
@@ -126,11 +117,7 @@ function Discussion({
       if (!thread || !permissions.canResolve) return undefined;
       const response = await resolve({
         ...target,
-        input: {
-          ...target.input,
-          threadId: thread.id,
-          resolved: !thread.isResolved,
-        },
+        input: { ...target.input, threadId: thread.id, resolved: !thread.isResolved },
       });
       playOutcomeHaptic(AsyncResult.isSuccess(response));
       if (AsyncResult.isSuccess(response)) refresh();
@@ -142,11 +129,7 @@ function Discussion({
       if (!thread || !nextCursor) return undefined;
       const response = await loadMore({
         ...target,
-        input: {
-          ...target.input,
-          threadId: thread.id,
-          cursor: nextCursor,
-        },
+        input: { ...target.input, threadId: thread.id, cursor: nextCursor },
       });
       if (AsyncResult.isFailure(response)) return response;
       setExtra((comments) => [...comments, ...response.value.comments]);
@@ -163,45 +146,24 @@ function Discussion({
   return (
     <PullRequestMarkdownRepository params={params} changeRequest={detail.data}>
       <KeyboardAvoidingView automaticOffset behavior="height" className="flex-1 bg-screen">
-        <NativeStackScreenOptions
-          options={{
-            title: "Discussion",
-            unstable_headerSubtitle: `#${params.number}`,
-          }}
+        <AppBar
+          title="Discussion"
+          subtitle={`#${params.number}`}
+          onBack={() => navigation.goBack()}
+          actions={
+            permissions.canResolve && thread
+              ? [
+                  {
+                    accessibilityLabel: resolveLabel,
+                    icon: thread.isResolved ? "arrow.uturn.backward" : "checkmark",
+                    disabled: busy || activity.isPending,
+                    onPress: () => void toggleResolved(),
+                  },
+                ]
+              : []
+          }
         />
-        {Platform.OS === "android" ? (
-          <AndroidScreenHeader
-            title="Discussion"
-            subtitle={`#${params.number}`}
-            onBack={() => navigation.goBack()}
-            actions={
-              permissions.canResolve && thread
-                ? [
-                    {
-                      accessibilityLabel: resolveLabel,
-                      icon: thread.isResolved ? "arrow.uturn.backward" : "checkmark",
-                      disabled: busy || activity.isPending,
-                      onPress: () => void toggleResolved(),
-                    },
-                  ]
-                : []
-            }
-          />
-        ) : null}
-        {permissions.canResolve && thread ? (
-          <Toolbar placement="right">
-            <Toolbar.Button
-              label={resolveLabel}
-              disabled={busy || activity.isPending}
-              onPress={() => void toggleResolved()}
-            />
-          </Toolbar>
-        ) : null}
-        <ScrollViewMarker
-          style={{
-            flex: 1,
-          }}
-        >
+        <ScrollViewMarker style={{ flex: 1 }}>
           <ScrollView
             className="flex-1"
             contentInsetAdjustmentBehavior="automatic"
@@ -225,10 +187,7 @@ function Discussion({
                 <Button
                   label="View file diff"
                   onPress={() =>
-                    navigation.navigate("PullRequestFile", {
-                      ...params,
-                      path: thread.path,
-                    })
+                    navigation.navigate("PullRequestFile", { ...params, path: thread.path })
                   }
                 />
               </View>
@@ -276,11 +235,10 @@ function Discussion({
         </ScrollViewMarker>
         {canReply ? (
           <View
-            className="absolute inset-x-4 bottom-0"
-            style={{
-              paddingBottom: bottomInset,
-            }}
+            className="absolute inset-x-4 bottom-0 gap-2"
+            style={{ paddingBottom: bottomInset }}
           >
+            <PullRequestCompletionSuggestions completions={completions} />
             <GlassSurface
               chrome="none"
               onLayout={(event) => setComposerHeight(event.nativeEvent.layout.height)}
@@ -288,6 +246,9 @@ function Discussion({
             >
               <TextInput
                 accessibilityLabel="Discussion reply"
+                selection={completions.selection}
+                onSelectionChange={completions.onSelectionChange}
+                onBlur={completions.onBlur}
                 multiline
                 maxLength={65536}
                 placeholder="Reply…"

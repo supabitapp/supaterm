@@ -1,8 +1,13 @@
-import { EnvironmentId, ORCHESTRATION_PROTOCOL_VERSION } from "@supaterm/contracts";
+import {
+  EnvironmentId,
+  ORCHESTRATION_PROTOCOL_VERSION,
+  type ExecutionEnvironmentDescriptor,
+} from "@supaterm/contracts";
 import { describe, expect, it } from "@effect/vitest";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
+import * as TestClock from "effect/testing/TestClock";
 
 import { layerRemoteHttpClient } from "../rpc/http.ts";
 import * as ClientCapabilities from "../platform/capabilities.ts";
@@ -134,6 +139,61 @@ describe("RemoteEnvironmentAuthorization", () => {
       expect(harness.fetch.calls.map(([url]) => new URL(String(url)).pathname)).toEqual([
         "/.well-known/supaterm/environment",
         "/api/auth/websocket-ticket/rpc",
+      ]);
+    }),
+  );
+
+  it.effect("reuses a matching descriptor a check just read, once, while fresh, over HTTPS", () =>
+    Effect.gen(function* () {
+      const descriptor = DESCRIPTOR as ExecutionEnvironmentDescriptor;
+      const harness = makeHarness([
+        websocketTicket("reused"),
+        ...Array.from({ length: 5 }, () => [
+          Response.json(descriptor),
+          websocketTicket("fresh"),
+        ]).flat(),
+      ]);
+
+      yield* Effect.gen(function* () {
+        const remote = yield* RemoteEnvironmentAuthorization.RemoteEnvironmentAuthorization;
+        const authorizeAt = (httpBaseUrl: string) =>
+          remote.authorizeBearer({
+            expectedEnvironmentId: ENVIRONMENT_ID,
+            httpBaseUrl,
+            wsBaseUrl: httpBaseUrl.replace(/^http/, "ws"),
+            bearerToken: "bearer-token",
+            connectionMethod: "direct",
+          });
+        const authorize = authorizeAt(ENDPOINT.httpBaseUrl);
+        const remember = (value: Option.Option<ExecutionEnvironmentDescriptor>) =>
+          remote.rememberCheckedDescriptor(ENDPOINT.httpBaseUrl, value);
+
+        yield* remember(Option.some(descriptor));
+        yield* authorize;
+        // Used once.
+        yield* authorize;
+        // Stale.
+        yield* remember(Option.some(descriptor));
+        yield* TestClock.adjust("6 seconds");
+        yield* authorize;
+        // A mismatch reads again, so a host back on the right environment is not blocked.
+        yield* remember(Option.some({ ...descriptor, environmentId: "other" as never }));
+        yield* authorize;
+        // A failed check drops an older match.
+        yield* remember(Option.some(descriptor));
+        yield* remember(Option.none());
+        yield* authorize;
+        // After a network change, a plain LAN address can belong to another machine.
+        yield* remote.rememberCheckedDescriptor("http://192.168.1.2:3773", Option.some(descriptor));
+        yield* authorizeAt("http://192.168.1.2:3773");
+      }).pipe(Effect.provide(harness.layer));
+
+      expect(harness.fetch.calls.map(([url]) => new URL(String(url)).pathname)).toEqual([
+        "/api/auth/websocket-ticket/rpc",
+        ...Array.from({ length: 5 }, () => [
+          "/.well-known/supaterm/environment",
+          "/api/auth/websocket-ticket/rpc",
+        ]).flat(),
       ]);
     }),
   );

@@ -65,9 +65,9 @@ export interface SettingsSearchItem {
   readonly releaseChannelOnly?: boolean;
   readonly environmentOnly?: boolean;
   readonly providerSettingsOnly?: boolean;
-  readonly macProviderSettingsOnly?: boolean;
   readonly localBackendManagementOnly?: boolean;
   readonly wslAvailableOnly?: boolean;
+  readonly fastWorktreeCheckoutOnly?: boolean;
   readonly secondary?: boolean;
   readonly requiresThreadAutoMarkDone?: boolean;
 }
@@ -75,10 +75,10 @@ export interface SettingsSearchItem {
 export interface SettingsSearchAvailability {
   readonly hasEnvironment: boolean;
   readonly hasProviderSettingsEnvironment: boolean;
-  readonly hasMacProviderSettingsEnvironment: boolean;
   readonly canManageLocalBackend: boolean;
   readonly isWslSettingsRowVisible: boolean;
   readonly hasThreadAutoMarkDone: boolean;
+  readonly hasFastWorktreeCheckoutEnvironment?: boolean;
 }
 
 export const SETTINGS_SECTION_LABELS: Readonly<Record<SettingsPath, string>> = {
@@ -261,7 +261,7 @@ export const SETTINGS_SEARCH_ITEMS = [
     to: "/settings/worktrees",
     scope: "project-defaults",
     searchTerms: [
-      "disk storage delete deleted archived threads old inactive merged unchanged worktrees retention days project inherit off custom",
+      "disk storage automatic delete deleted archived threads old inactive merged done unchanged worktrees retention days project inherit off custom",
     ],
   },
   {
@@ -272,11 +272,21 @@ export const SETTINGS_SEARCH_ITEMS = [
     searchTerms: ["worktree location folder directory path drive external disk"],
   },
   {
+    id: "worktree-fast-checkout",
+    title: "Fast worktree checkout",
+    to: "/settings/worktrees",
+    scope: "environment-defaults",
+    fastWorktreeCheckoutOnly: true,
+    searchTerms: ["fast worktree checkout clone apfs copy-on-write cache macos speed"],
+  },
+  {
     id: "storage-artifacts",
     title: "Artifacts and logs",
     to: "/settings/maintenance",
     scope: "environment-defaults",
-    searchTerms: ["disk storage browser screenshots captures rotated logs cleanup retention"],
+    searchTerms: [
+      "disk storage delete old browser artifacts screenshots captures rotated logs cleanup retention",
+    ],
   },
   {
     id: "project-defaults",
@@ -480,6 +490,13 @@ export const SETTINGS_SEARCH_ITEMS = [
     searchTerms: ["base directory folder browser path home"],
   },
   {
+    id: "ghq-clone-layout",
+    title: "Clone into host folders",
+    to: "/settings/threads",
+    scope: "environment-defaults",
+    searchTerms: ["ghq clone destination host owner repository root layout"],
+  },
+  {
     id: "unpin-confirmation",
     title: "Unpin confirmation",
     to: "/settings/general",
@@ -496,13 +513,6 @@ export const SETTINGS_SEARCH_ITEMS = [
     title: "Delete confirmation",
     to: "/settings/general",
     searchTerms: ["ask before thread chat history"],
-  },
-  {
-    id: "quit-confirmation",
-    title: "Quit shortcut",
-    to: "/settings/general",
-    searchTerms: ["confirmation desktop app exit direct hold double click press twice"],
-    desktopOnly: true,
   },
   {
     id: "time-format",
@@ -578,7 +588,9 @@ export const SETTINGS_SEARCH_ITEMS = [
     id: "provider-update-checks",
     title: "Provider update checks",
     to: "/settings/maintenance",
-    searchTerms: ["installed cli versions newer available codex claude cursor grok fx opencode"],
+    searchTerms: [
+      "installed cli versions newer available codex claude cursor grok fx kiro opencode",
+    ],
     scope: "environment-defaults",
   },
   {
@@ -781,24 +793,8 @@ export const SETTINGS_SEARCH_ITEMS = [
     title: "Providers",
     to: "/settings/providers",
     searchTerms: [
-      "agents cli codex claude cursor grok fx opencode antigravity google sign in sign out install subscription instances authentication api key models configuration binary path config directory endpoint arguments environment variables display name accent color custom favorite hidden auto compact",
+      "agents cli codex claude cursor grok fx kiro opencode antigravity google sign in sign out install subscription instances authentication api key models configuration binary path config directory codex_home shadow home endpoint arguments environment variables display name accent color custom favorite hidden auto compact native sessions import resume",
     ],
-  },
-  {
-    id: "usage-providers",
-    title: "Usage providers",
-    to: "/settings/providers",
-    searchTerms: ["usage sources quota subscription limits cursor"],
-    providerSettingsOnly: true,
-    macProviderSettingsOnly: true,
-  },
-  {
-    id: "cursor-keychain-usage",
-    title: "Cursor account usage",
-    to: "/settings/providers",
-    searchTerms: ["cursor macOS keychain usage tokens cost limits permission"],
-    providerSettingsOnly: true,
-    macProviderSettingsOnly: true,
   },
   {
     id: "provider-health-check-interval",
@@ -902,7 +898,7 @@ export const SETTINGS_SEARCH_ITEMS = [
     id: "browser-search-engine",
     title: "Search engine",
     to: "/settings/browser",
-    searchTerms: ["address bar duckduckgo google bing brave kagi ecosia custom"],
+    searchTerms: ["address bar duckduckgo google bing brave kagi ecosia custom url"],
   },
   {
     id: "pull-request-links-open-in-app",
@@ -973,18 +969,18 @@ export const SETTINGS_SEARCH_ITEMS = [
   ...sourceControlHostSearchItems(sourceControlClients.definitions),
   {
     id: "source-control-writing-style",
-    title: "Source control writing style",
+    title: "Commit and pull request writing",
     to: "/settings/source-control",
     searchTerms: [
-      "repository conventions conventional commits custom instructions change descriptions request titles",
+      "repository conventions conventional commits custom instructions commit messages change pr pull request merge request titles descriptions body style prompt write my own",
     ],
     environmentOnly: true,
   },
   {
     id: "follow-change-request-templates",
-    title: "Follow change request templates",
+    title: "Follow pull request templates",
     to: "/settings/source-control",
-    searchTerms: ["repository pr pull request description structure"],
+    searchTerms: ["repository pr pull request merge request change request description structure"],
     environmentOnly: true,
   },
   {
@@ -1073,7 +1069,7 @@ export const SETTINGS_SEARCH_ITEMS = [
     title: "WSL backend",
     to: "/settings/access",
     searchTerms: [
-      "windows subsystem linux distro second server projects stop windows backend restart",
+      "windows subsystem linux distro second server projects stop windows backend restart wsl only",
     ],
     desktopOnly: true,
     windowsOnly: true,
@@ -1262,10 +1258,10 @@ export function filterAvailableSettingsSearchItems(
     (item) =>
       (!item.environmentOnly || availability.hasEnvironment) &&
       (!item.providerSettingsOnly || availability.hasProviderSettingsEnvironment) &&
-      (!item.macProviderSettingsOnly || availability.hasMacProviderSettingsEnvironment) &&
       (!item.localBackendManagementOnly || availability.canManageLocalBackend) &&
       (!item.wslAvailableOnly || availability.isWslSettingsRowVisible) &&
-      (!item.requiresThreadAutoMarkDone || availability.hasThreadAutoMarkDone),
+      (!item.requiresThreadAutoMarkDone || availability.hasThreadAutoMarkDone) &&
+      (!item.fastWorktreeCheckoutOnly || availability.hasFastWorktreeCheckoutEnvironment === true),
   );
 }
 

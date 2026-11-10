@@ -4,7 +4,7 @@ import * as NodeFSP from "node:fs/promises";
 import type { AntigravityAuthMethod, ProviderInstanceId } from "@supaterm/contracts";
 import * as HostProcess from "@supaterm/shared/HostProcess";
 import { resolveNodeExecutable, nodeRuntimeUnavailableMessage } from "@supaterm/shared/nodeRuntime";
-import * as Crypto from "effect/Crypto";
+import * as Digest from "effect/crypto/Digest";
 import * as Effect from "effect/Effect";
 import * as Hex from "effect/encoding/Hex";
 import * as FileSystem from "effect/FileSystem";
@@ -76,6 +76,8 @@ const removedEnvironmentKeys = new Set([
   "BROWSER",
   "PYTHONUNBUFFERED",
   "ELECTRON_RUN_AS_NODE",
+  // An inherited pipe whose owner exited makes Electron-as-Node print Crashpad errors to stderr.
+  "CHROME_CRASHPAD_PIPE_NAME",
 ]);
 
 export interface AntigravityProfile {
@@ -178,9 +180,9 @@ export interface AntigravityInstanceDirectories {
 export const resolveAntigravityInstanceDirectories = Effect.fn(
   "resolveAntigravityInstanceDirectories",
 )(function* (stateDir: string, instanceId: ProviderInstanceId) {
-  const crypto = yield* Crypto.Crypto;
+  const digest = yield* Digest.Digest;
   const path = yield* Path.Path;
-  const key = Hex.encode(yield* crypto.digest("SHA-256", new TextEncoder().encode(instanceId)));
+  const key = Hex.encode(yield* digest.digest(Digest.sha256, new TextEncoder().encode(instanceId)));
   return {
     profile: path.join(stateDir, "providers", "antigravity", key),
     runtimeTemp: path.join(stateDir, "antigravity-tmp", key.slice(0, 12)),
@@ -396,7 +398,7 @@ export const prepareAntigravityProfile = Effect.fn("prepareAntigravityProfile")(
   }).pipe(
     Effect.scoped,
     Effect.timeoutOrElse({
-      duration: "5 seconds",
+      duration: "30 seconds",
       orElse: () =>
         Effect.fail(authSupportError("Antigravity browser suppression verification timed out.")),
     }),
@@ -439,7 +441,7 @@ export const prepareAntigravityProfile = Effect.fn("prepareAntigravityProfile")(
 export function buildAntigravityAcpSpawnInput(input: {
   readonly installation: {
     readonly executablePath: string;
-    readonly harnessPath: string;
+    readonly harnessPath: string | null;
   };
   readonly profile: AntigravityProfile;
   readonly cwd: string;
@@ -449,7 +451,13 @@ export function buildAntigravityAcpSpawnInput(input: {
 }): AcpSessionRuntime.AcpSpawnInput {
   return {
     command: input.installation.executablePath,
-    args: input.profile.platform === "linux" ? ["--uid="] : [],
+    // The agy CLI has no harness sibling and serves ACP through its `acp` subcommand.
+    args:
+      input.installation.harnessPath === null
+        ? ["acp"]
+        : input.profile.platform === "linux"
+          ? ["--uid="]
+          : [],
     cwd: input.cwd,
     env: {
       ...antigravityEnvironment(
@@ -458,7 +466,9 @@ export function buildAntigravityAcpSpawnInput(input: {
         input.auth ?? ANTIGRAVITY_PERSONAL_AUTH,
         input.runtimeTempDirectory,
       ),
-      ANTIGRAVITY_HARNESS_PATH: input.installation.harnessPath,
+      ...(input.installation.harnessPath === null
+        ? {}
+        : { ANTIGRAVITY_HARNESS_PATH: input.installation.harnessPath }),
     },
     extendEnv: false,
   };

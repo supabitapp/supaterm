@@ -1,4 +1,4 @@
-import { assert, describe, it } from "@effect/vitest";
+import { assert, describe, expect, it } from "@effect/vitest";
 import { EnvironmentId, ProviderInstanceId, ThreadId } from "@supaterm/contracts";
 
 import {
@@ -7,7 +7,18 @@ import {
   SUPATERM_PI_RUNTIME_MODE_ENV,
   SUPATERM_PI_MCP_EXTENSION_PATH_ENV,
 } from "./mcpExtensionSource.ts";
-import { buildPiRpcLaunch, resolvePiLaunchArgs } from "./mcpInjection.ts";
+import * as Effect from "effect/Effect";
+import * as Fiber from "effect/Fiber";
+import * as Option from "effect/Option";
+import * as NodePath from "effect/Path";
+import * as NodeFS from "effect/FileSystem";
+import * as NodeServices from "@effect/platform-node/NodeServices";
+import {
+  buildPiRpcLaunch,
+  materializePiSupatermMcpExtension,
+  resolvePiLaunchArgs,
+} from "./mcpInjection.ts";
+import { PI_SUPATERM_MCP_EXTENSION_SOURCE } from "./mcpExtensionSource.ts";
 
 const threadId = ThreadId.make("thread-pi-supaterm-mcp");
 
@@ -105,6 +116,7 @@ describe("pi Supaterm MCP injection", () => {
       extensionPath: "/tmp/cache/pi-supaterm-mcp-extension.ts",
       sessionPath: "/fake/persisted.jsonl",
       ephemeral: true,
+      shortLived: true,
       disableExtensions: true,
       disableTools: true,
     });
@@ -114,9 +126,19 @@ describe("pi Supaterm MCP injection", () => {
       "--no-session",
       "--provider",
       "anthropic",
+      "--offline",
       "--no-extensions",
       "--no-tools",
     ]);
+    const alreadyOffline = buildPiRpcLaunch({
+      launchArgs: ["--offline"],
+      environment: {},
+      mcpSession: undefined,
+      extensionPath: undefined,
+      ephemeral: true,
+      shortLived: true,
+    });
+    assert.deepEqual(alreadyOffline.args, ["--mode", "rpc", "--no-session", "--offline"]);
     assert.deepInclude(resolvePiLaunchArgs("--mode text"), {
       ok: false,
       message: "Pi launch argument '--mode' is controlled by Supaterm and cannot be overridden.",
@@ -136,4 +158,57 @@ describe("pi Supaterm MCP injection", () => {
     assert.isTrue(resolvePiLaunchArgs("--provider openrouter --model=deepseek/v4").ok);
     assert.isTrue(resolvePiLaunchArgs("--model deepseek/v4").ok);
   });
+});
+
+describe("materializePiSupatermMcpExtension", () => {
+  // A pi launch concurrent with the materialize reads the extension file from
+  // disk; a truncate-then-write exposes an empty or partial file mid-write and
+  // the launch loads a broken extension.
+  it.live("never exposes a torn extension file to a concurrent reader", () =>
+    Effect.gen(function* () {
+      const fs = yield* NodeFS.FileSystem;
+      const path = yield* NodePath.Path;
+      const directory = yield* fs.makeTempDirectoryScoped({ prefix: "supaterm-pi-atomic-" });
+      const anomalies: Array<string> = [];
+      const stopAfter = 120;
+      const writer = yield* Effect.forkChild(
+        Effect.gen(function* () {
+          for (let index = 0; index < stopAfter; index += 1) {
+            yield* fs
+              .remove(path.join(directory, "pi-supaterm-mcp-extension.ts"), { force: true })
+              .pipe(Effect.ignore);
+            yield* Effect.all(
+              [
+                materializePiSupatermMcpExtension(directory),
+                materializePiSupatermMcpExtension(directory),
+              ],
+              { concurrency: "unbounded" },
+            );
+          }
+        }).pipe(Effect.scoped, Effect.provide(NodeServices.layer)),
+      );
+      const reader = yield* Effect.forkChild(
+        Effect.forever(
+          Effect.gen(function* () {
+            const text = yield* fs
+              .readFileString(path.join(directory, "pi-supaterm-mcp-extension.ts"))
+              .pipe(Effect.option);
+            if (Option.isNone(text)) return; // Missing between writes: legitimate.
+            // A read that SUCCEEDS must return the full extension: an empty or
+            // partial read means the writer truncated the file mid-write.
+            if (text.value.length === 0) {
+              anomalies.push("empty: truncated mid-write");
+            } else if (text.value.length !== PI_SUPATERM_MCP_EXTENSION_SOURCE.length) {
+              anomalies.push(
+                `partial: ${text.value.length} of ${PI_SUPATERM_MCP_EXTENSION_SOURCE.length} chars`,
+              );
+            }
+          }),
+        ),
+      );
+      yield* Fiber.join(writer);
+      yield* Fiber.interrupt(reader);
+      expect(anomalies).toEqual([]);
+    }).pipe(Effect.provide(NodeServices.layer)),
+  );
 });

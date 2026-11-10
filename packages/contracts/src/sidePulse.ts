@@ -94,6 +94,14 @@ export const SidePulseDeviceState = Schema.Struct({
 });
 export type SidePulseDeviceState = typeof SidePulseDeviceState.Type;
 
+/** The macOS helper that keeps SidePulse mounted when the Mac wakes from hibernation while locked. */
+export const SidePulseEjectGuardStatus = Schema.Literals([
+  "unavailable",
+  "not-installed",
+  "installed",
+]);
+export type SidePulseEjectGuardStatus = typeof SidePulseEjectGuardStatus.Type;
+
 export interface DesktopSidePulseBridge {
   getState: () => Promise<SidePulseDeviceState>;
   onStateChange: (listener: (state: SidePulseDeviceState) => void) => () => void;
@@ -101,4 +109,7 @@ export interface DesktopSidePulseBridge {
   setLedState: (state: SidePulseLedState | null) => Promise<void>;
   /** Plays a light on the LEDs long enough to see its effect, then returns to the agent state. */
   preview: (light: SidePulseLedState) => Promise<void>;
+  getEjectGuardStatus: () => Promise<SidePulseEjectGuardStatus>;
+  /** Asks macOS for an administrator password, then resolves with the resulting status. */
+  setEjectGuardInstalled: (installed: boolean) => Promise<SidePulseEjectGuardStatus>;
 }

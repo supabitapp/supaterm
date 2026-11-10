@@ -7,7 +7,10 @@ import {
 } from "@supaterm/contracts";
 
 export function isBufferedProviderNotification(
-  message: OrchestrationV2ConversationMessage,
+  message: Pick<
+    OrchestrationV2ConversationMessage,
+    "createdBy" | "creationSource" | "notification" | "delegatedCompletion"
+  >,
 ): boolean {
   return (
     message.createdBy === "agent" &&

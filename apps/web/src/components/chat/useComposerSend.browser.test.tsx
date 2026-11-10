@@ -12,6 +12,7 @@ import { describe, expect, it, vi } from "vite-plus/test";
 
 import { act, render } from "../../../test/render";
 import type { ChatComposerHandle } from "./ChatComposer";
+import { disarmFreshSession, readFreshSessionArm } from "./freshSessionArms";
 import { useComposerSend } from "./useComposerSend";
 
 const send = vi.hoisted(() => ({
@@ -134,6 +135,7 @@ function sendInput(
     isDraftHeroState: false,
     panelAnimationsActive: false,
     panelAnimationDurationMs: 0,
+    freshSessionAvailable: false,
     usageLimitsKey: null,
     usageLimitsOffered: false,
     openUsageLimits: () => false,
@@ -233,6 +235,51 @@ describe("useComposerSend from a side chat draft", () => {
 
     expect(send.events).toEqual([`fork:parent->${threadId}`]);
     expect(errors).toContain("Thread parent has no worktree yet.");
+  });
+});
+
+describe("useComposerSend with /clear", () => {
+  it("arms a fresh session that only the next message carries", async () => {
+    send.events = [];
+    send.enqueued = [];
+    disarmFreshSession(routeThreadKey);
+    const promptRef = { current: "/clear" };
+    let onSend: ReturnType<typeof useComposerSend>["onSend"] | undefined;
+    function Probe() {
+      const current = useComposerSend({
+        ...sendInput(async () => AsyncResult.success({ sequence: 1 })),
+        pendingApprovals: [],
+        promptRef,
+        freshSessionAvailable: true,
+      });
+      useLayoutEffect(() => {
+        onSend = current.onSend;
+      });
+      return null;
+    }
+    await using _screen = await render(<Probe />);
+
+    await act(async () => {
+      await onSend?.();
+    });
+    expect(send.events).toEqual([]);
+    expect(readFreshSessionArm(routeThreadKey)).toBeDefined();
+
+    promptRef.current = prompt;
+    await act(async () => {
+      await onSend?.(undefined, "steer");
+    });
+    promptRef.current = prompt;
+    await act(async () => {
+      await onSend?.(undefined, "steer");
+    });
+
+    expect(send.enqueued).toMatchObject([
+      { input: { message: { text: prompt }, dispatchMode: "queue", freshContext: true } },
+      { input: { message: { text: prompt }, dispatchMode: "auto" } },
+    ]);
+    expect(send.enqueued[1]).not.toHaveProperty("input.freshContext");
+    expect(readFreshSessionArm(routeThreadKey)).toBeUndefined();
   });
 });
 

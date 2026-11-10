@@ -16,11 +16,11 @@ import {
   MAX_SIDEBAR_AUTO_MARK_DONE_AFTER_DAYS,
   MIN_SIDEBAR_AUTO_MARK_DONE_AFTER_DAYS,
   type ResponseStreamingMode,
-  type QuitConfirmationMode,
   SidebarProjectSortOrder,
 } from "@supaterm/contracts/settings";
 import { desktopUpdateChannelOf } from "@supaterm/shared/cliRelease";
 import { createModelSelection } from "@supaterm/shared/model";
+import { resolvePastedPath } from "@supaterm/shared/path";
 import * as Equal from "effect/Equal";
 import * as Schema from "effect/Schema";
 import { APP_VERSION, HOSTED_APP_CHANNEL, HOSTED_APP_CHANNEL_LABEL } from "../../branding";
@@ -98,6 +98,7 @@ import { StorageCleanupSections } from "./StorageSettings";
 import { UpdateTrackSwitchDialog } from "./UpdateTrackSwitchDialog";
 import { environmentIdsKey } from "~/state/environmentAtomList";
 import { environmentSessionStatesAtom } from "~/state/session";
+import { useCheckProviderUpdates } from "../ProviderUpdatesAction";
 import { canUpdateServer } from "../ServerUpdateAction";
 import { useUpdateEverythingRun } from "../sidebar/updateEverythingRun";
 import { awaitsTrackSwitch, channelSwitchLabel } from "../sidebar/updateEverything.logic";
@@ -121,12 +122,6 @@ const TIMESTAMP_FORMAT_LABELS = {
   "24-hour": "24-hour",
 } as const;
 
-const QUIT_CONFIRMATION_MODE_LABELS: Record<QuitConfirmationMode, string> = {
-  direct: "Direct",
-  hold: "Hold",
-  "double-click": "Double press",
-};
-
 const DEFAULT_DRIVER_KIND = ProviderDriverKind.make("codex");
 function AboutVersionSection() {
   const updateState = useDesktopUpdateState();
@@ -140,6 +135,7 @@ function AboutVersionSection() {
   );
   // A second run would replace the first run's progress and local download.
   const updateRun = useUpdateEverythingRun();
+  const checkProviderUpdates = useCheckProviderUpdates();
 
   const hasDesktopBridge = typeof window !== "undefined" && Boolean(window.desktopBridge);
   const selectedUpdateChannel = updateState?.channel ?? "latest";
@@ -223,6 +219,7 @@ function AboutVersionSection() {
     }
 
     if (typeof bridge.checkForUpdate !== "function") return;
+    void checkProviderUpdates();
     void bridge
       .checkForUpdate()
       .then((result) => {
@@ -513,6 +510,9 @@ export function useSettingsRestore(onRestored?: () => void) {
     ...(settings.addProjectBaseDirectory !== DEFAULT_UNIFIED_SETTINGS.addProjectBaseDirectory
       ? ["Add project base directory"]
       : []),
+    ...(settings.ghqCloneLayout !== DEFAULT_UNIFIED_SETTINGS.ghqCloneLayout
+      ? ["Clone into host folders"]
+      : []),
     ...(settings.confirmThreadUnpin !== DEFAULT_UNIFIED_SETTINGS.confirmThreadUnpin
       ? ["Unpin confirmation"]
       : []),
@@ -522,7 +522,6 @@ export function useSettingsRestore(onRestored?: () => void) {
     ...(settings.confirmThreadDelete !== DEFAULT_UNIFIED_SETTINGS.confirmThreadDelete
       ? ["Delete confirmation"]
       : []),
-    ...(settings.confirmQuit !== DEFAULT_UNIFIED_SETTINGS.confirmQuit ? ["Quit shortcut"] : []),
     ...(isTextGenerationModelDirty ? ["Text generation model"] : []),
     ...(settings.threadTitleInstructions !== DEFAULT_UNIFIED_SETTINGS.threadTitleInstructions
       ? ["Thread title instructions"]
@@ -624,10 +623,10 @@ export function useSettingsRestore(onRestored?: () => void) {
       defaultThreadEnvMode: DEFAULT_UNIFIED_SETTINGS.defaultThreadEnvMode,
       newWorktreesStartFromOrigin: DEFAULT_UNIFIED_SETTINGS.newWorktreesStartFromOrigin,
       addProjectBaseDirectory: DEFAULT_UNIFIED_SETTINGS.addProjectBaseDirectory,
+      ghqCloneLayout: DEFAULT_UNIFIED_SETTINGS.ghqCloneLayout,
       confirmThreadArchive: DEFAULT_UNIFIED_SETTINGS.confirmThreadArchive,
       confirmThreadDelete: DEFAULT_UNIFIED_SETTINGS.confirmThreadDelete,
       confirmThreadUnpin: DEFAULT_UNIFIED_SETTINGS.confirmThreadUnpin,
-      confirmQuit: DEFAULT_UNIFIED_SETTINGS.confirmQuit,
       textGenerationModelSelection: DEFAULT_UNIFIED_SETTINGS.textGenerationModelSelection,
       threadTitleInstructions: DEFAULT_UNIFIED_SETTINGS.threadTitleInstructions,
       fontFamilySans: DEFAULT_UNIFIED_SETTINGS.fontFamilySans,
@@ -660,7 +659,7 @@ export function useSettingsRestore(onRestored?: () => void) {
   };
 }
 
-const AUTO_MARK_DONE_DEFAULT_DAYS = DEFAULT_UNIFIED_SETTINGS.sidebarAutoMarkDoneAfterDays ?? 3;
+const AUTO_MARK_DONE_DEFAULT_DAYS = DEFAULT_UNIFIED_SETTINGS.sidebarAutoMarkDoneAfterDays ?? 7;
 
 export function GeneralSettingsPanel() {
   const settings = useScopedSettings();
@@ -877,46 +876,6 @@ export function GeneralSettingsPanel() {
             />
           }
         />
-        {isElectron ? (
-          <SettingsRow
-            {...searchableSetting("quit-confirmation")}
-            resetAction={
-              settings.confirmQuit !== DEFAULT_UNIFIED_SETTINGS.confirmQuit ? (
-                <SettingResetButton
-                  label="quit shortcut behavior"
-                  onClick={() =>
-                    updateSettings({ confirmQuit: DEFAULT_UNIFIED_SETTINGS.confirmQuit })
-                  }
-                />
-              ) : null
-            }
-            control={
-              <Select
-                value={settings.confirmQuit}
-                onValueChange={(value) => {
-                  if (value === "direct" || value === "hold" || value === "double-click") {
-                    updateSettings({ confirmQuit: value });
-                  }
-                }}
-              >
-                <SelectTrigger
-                  size="sm"
-                  className="w-full sm:w-40"
-                  aria-label="Quit shortcut behavior"
-                >
-                  <SelectValue>{QUIT_CONFIRMATION_MODE_LABELS[settings.confirmQuit]}</SelectValue>
-                </SelectTrigger>
-                <SelectPopup align="end" alignItemWithTrigger={false}>
-                  {Object.entries(QUIT_CONFIRMATION_MODE_LABELS).map(([value, label]) => (
-                    <SelectItem hideIndicator key={value} value={value}>
-                      {label}
-                    </SelectItem>
-                  ))}
-                </SelectPopup>
-              </Select>
-            }
-          />
-        ) : null}
       </SettingsSection>
 
       <SettingsSection id="display" title="Display">
@@ -1345,9 +1304,34 @@ export function ThreadsSettingsPanel() {
               className="w-full sm:w-72"
               value={mixedAddProjectBaseDirectory ? "" : settings.addProjectBaseDirectory}
               onCommit={(next) => updateSettings({ addProjectBaseDirectory: next })}
+              normalizeDraft={resolvePastedPath}
               placeholder={mixedAddProjectBaseDirectory ? "Mixed" : "~/"}
               spellCheck={false}
               aria-label="Add project base directory"
+            />
+          }
+        />
+        <SettingsRow
+          serverScoped
+          settingKeys={["ghqCloneLayout"]}
+          {...searchableSetting("ghq-clone-layout")}
+          description="Clones go to github.com/owner/repo under the folder above, like ghq."
+          resetAction={
+            settings.ghqCloneLayout !== DEFAULT_UNIFIED_SETTINGS.ghqCloneLayout ? (
+              <SettingResetButton
+                label="clone into host folders"
+                onClick={() =>
+                  updateSettings({ ghqCloneLayout: DEFAULT_UNIFIED_SETTINGS.ghqCloneLayout })
+                }
+              />
+            ) : null
+          }
+          control={
+            <ScopedSwitch
+              settingKeys={["ghqCloneLayout"]}
+              checked={settings.ghqCloneLayout}
+              onCheckedChange={(checked) => updateSettings({ ghqCloneLayout: Boolean(checked) })}
+              aria-label="Clone into host folders"
             />
           }
         />

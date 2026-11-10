@@ -9,7 +9,7 @@ import {
   ProjectId,
 } from "@supaterm/contracts";
 import * as Console from "effect/Console";
-import * as Crypto from "effect/Crypto";
+import * as SecureRandom from "effect/crypto/SecureRandom";
 import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
@@ -29,7 +29,7 @@ import * as ServerConfig from "../config.ts";
 import * as SqlitePersistence from "../persistence/Sqlite.ts";
 import * as ProcessRunner from "../processRunner.ts";
 import * as ServerOwnership from "../serverOwnership.ts";
-import * as RuntimeLayer from "../orchestration-v2/runtimeLayer.ts";
+import type * as RuntimeLayer from "../orchestration-v2/runtimeLayer.ts";
 import * as ProjectEnrichmentService from "../project/ProjectEnrichmentService.ts";
 import * as ProjectFaviconResolver from "../project/ProjectFaviconResolver.ts";
 import * as RepositoryIdentityResolver from "../project/RepositoryIdentityResolver.ts";
@@ -207,8 +207,8 @@ function projectCommandErrorFromLiveServerRequest(cause: unknown): ProjectComman
   return new ProjectLiveServerRequestError({ operation: "callLiveServer", cause });
 }
 
-const projectCommandUuid = Crypto.Crypto.pipe(
-  Effect.flatMap((crypto) => crypto.randomUUIDv4()),
+const projectCommandUuid = SecureRandom.SecureRandom.pipe(
+  Effect.flatMap((random) => random.uuidV4()),
   Effect.mapError(
     (cause) =>
       new ProjectCommandIdGenerationError({
@@ -218,19 +218,20 @@ const projectCommandUuid = Crypto.Crypto.pipe(
   ),
 );
 
-const layerProjectCliRuntime = RuntimeLayer.layerProjectService.pipe(
-  Layer.provideMerge(ProjectEnrichmentService.layer),
-  Layer.provideMerge(RepositoryIdentityResolver.layer),
-  Layer.provideMerge(
-    ProjectFaviconResolver.layer.pipe(
-      Layer.provide(WorkspacePaths.layer),
-      Layer.provide(SupatermProjectFileLoader.layer),
+const makeProjectCliRuntimeLayer = (layerProjectService: typeof RuntimeLayer.layerProjectService) =>
+  layerProjectService.pipe(
+    Layer.provideMerge(ProjectEnrichmentService.layer),
+    Layer.provideMerge(RepositoryIdentityResolver.layer),
+    Layer.provideMerge(
+      ProjectFaviconResolver.layer.pipe(
+        Layer.provide(WorkspacePaths.layer),
+        Layer.provide(SupatermProjectFileLoader.layer),
+      ),
     ),
-  ),
-  Layer.provideMerge(WorkspacePaths.layer),
-  Layer.provideMerge(ServerSettings.layer.pipe(Layer.provide(ServerSecretStore.layer))),
-  Layer.provideMerge(SqlitePersistence.layerConfig),
-);
+    Layer.provideMerge(WorkspacePaths.layer),
+    Layer.provideMerge(ServerSettings.layer.pipe(Layer.provide(ServerSecretStore.layer))),
+    Layer.provideMerge(SqlitePersistence.layerConfig),
+  );
 
 const PROJECT_CLI_LIVE_SERVER_PROBE_TIMEOUT = Duration.seconds(1);
 const PROJECT_CLI_LIVE_SERVER_REQUEST_TIMEOUT = Duration.seconds(10);
@@ -304,12 +305,15 @@ const findActiveProjectTarget = Effect.fn("findActiveProjectTarget")(function* (
   const normalizedWorkspaceRootResult = yield* Effect.result(
     normalizeWorkspaceRootForProjectCommand(trimmedIdentifier),
   );
+  // A stored workspace path still identifies its project after the directory is gone, so a
+  // relative or trailing-slash path resolves the same way it would while the directory exists.
   const normalizedWorkspaceRoot =
-    normalizedWorkspaceRootResult._tag === "Success" ? normalizedWorkspaceRootResult.success : null;
+    normalizedWorkspaceRootResult._tag === "Success"
+      ? normalizedWorkspaceRootResult.success
+      : normalizedWorkspaceRootResult.failure.normalizedWorkspaceRoot;
 
-  // A stored workspace path still identifies its project after the directory is gone.
   const exactWorkspaceMatch = activeProjects.find(
-    (project) => project.workspaceRoot === (normalizedWorkspaceRoot ?? trimmedIdentifier),
+    (project) => project.workspaceRoot === normalizedWorkspaceRoot,
   );
 
   const resolved = exactWorkspaceMatch;
@@ -318,7 +322,7 @@ const findActiveProjectTarget = Effect.fn("findActiveProjectTarget")(function* (
       operation: "resolveProjectTarget",
       identifier: trimmedIdentifier,
       activeProjectCount: activeProjects.length,
-      ...(normalizedWorkspaceRoot === null ? {} : { normalizedWorkspaceRoot }),
+      normalizedWorkspaceRoot,
       ...(normalizedWorkspaceRootResult._tag === "Failure"
         ? { cause: normalizedWorkspaceRootResult.failure }
         : {}),
@@ -413,7 +417,7 @@ const runProjectMutation = Effect.fn("runProjectMutation")(function* (
   }) => Effect.Effect<
     string,
     Error,
-    | Crypto.Crypto
+    | SecureRandom.SecureRandom
     | FileSystem.FileSystem
     | HttpClient.HttpClient
     | Path.Path
@@ -443,7 +447,11 @@ const runProjectMutation = Effect.fn("runProjectMutation")(function* (
       );
     }
 
-    const layerOfflineRuntime = layerProjectCliRuntime.pipe(
+    // Before ownership and clearing, so a failed import leaves server state alone.
+    const { layerProjectService } = yield* Effect.promise(
+      () => import("../orchestration-v2/runtimeLayer.ts"),
+    );
+    const layerOfflineRuntime = makeProjectCliRuntimeLayer(layerProjectService).pipe(
       Layer.provide(ServerConfig.layer(config)),
       Layer.provide(Layer.succeed(References.MinimumLogLevel, minimumLogLevel)),
     );

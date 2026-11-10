@@ -1,5 +1,6 @@
 import * as OrchestrationSkills from "./provider/OrchestrationSkills.ts";
 import * as ProviderEventLoggers from "@supaterm/provider-core/server/ProviderEventLoggers";
+import * as AssetSigner from "./assets/AssetSigner.ts";
 import * as DatabaseStorage from "./persistence/DatabaseStorage.ts";
 import * as StorageCleanup from "./storageCleanup.ts";
 import * as PullRequestSyncReactor from "./orchestration-v2/PullRequestSyncReactor.ts";
@@ -10,6 +11,7 @@ import * as DelegatedTaskQuestionReactor from "./orchestration-v2/DelegatedTaskQ
 import * as NodeHttp from "node:http";
 
 import * as NodeHttpServer from "@effect/platform-node/NodeHttpServer";
+import * as NodeCrypto from "@effect/platform-node/NodeCrypto";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { EnvironmentHttpApi, type RepositoryIdentity } from "@supaterm/contracts";
 import * as Deferred from "effect/Deferred";
@@ -54,6 +56,7 @@ import * as ProviderHostLive from "./provider/ProviderHostLive.ts";
 import * as DocumentText from "./provider/DocumentText.ts";
 import * as AcpRegistrySupport from "@supaterm/provider-acp-registry/server/AcpRegistrySupport";
 import * as CheckpointDiffQuery from "./checkpointing/CheckpointDiffQuery.ts";
+import * as NativeChildWorkQuery from "./orchestration-v2/NativeChildWorkQuery.ts";
 import * as CheckpointStore from "./checkpointing/CheckpointStore.ts";
 import * as SourceControlBuiltInDrivers from "./sourceControl/builtInDrivers.ts";
 import { BUILT_IN_SOURCE_CONTROL_DRIVER_LIST } from "./sourceControl/sourceControlDefinitions.ts";
@@ -83,6 +86,7 @@ import * as ServerSettings from "./serverSettings.ts";
 import * as ProjectEnrichmentService from "./project/ProjectEnrichmentService.ts";
 import * as NativeAppIconResolver from "./assets/NativeAppIconResolver.ts";
 import * as AntigravityInstallation from "./provider/AntigravityInstallation.ts";
+import * as ProviderInstallation from "./provider/providerInstallation.ts";
 import * as CodexInstallation from "./provider/CodexInstallation.ts";
 import * as ProviderInstanceRegistry from "./provider/ProviderInstanceRegistry.ts";
 import * as ProviderAdapterRegistry from "./orchestration-v2/ProviderAdapterRegistry.ts";
@@ -144,7 +148,6 @@ import * as ResourceTelemetry from "./resourceTelemetry/ResourceTelemetry.ts";
 import * as AntigravityUsage from "./provider/Drivers/AntigravityUsage.ts";
 import { MuseUsageHome } from "@supaterm/provider-muse/server";
 import * as CursorAccountReader from "@supaterm/provider-cursor/server/CursorAccountReader";
-import * as CursorKeychain from "@supaterm/provider-cursor/server/CursorKeychain";
 import * as CursorUsageAccounts from "@supaterm/provider-cursor/server/CursorUsageAccounts";
 import * as UsageService from "./usage/UsageService.ts";
 import * as CodexUsageHistory from "./usage/CodexUsageHistory.ts";
@@ -243,9 +246,7 @@ const layerUsage = UsageService.layer.pipe(
       AntigravityUsage.layer,
       MuseUsageHome.layer,
       CodexUsageHistory.layer,
-      CursorUsageAccounts.layer.pipe(
-        Layer.provide(CursorAccountReader.layer.pipe(Layer.provide(CursorKeychain.layer))),
-      ),
+      CursorUsageAccounts.layer.pipe(Layer.provide(CursorAccountReader.layer)),
     ).pipe(Layer.provide(ProviderHostLive.layer.pipe(Layer.provide(ServerSecretStore.layer)))),
   ),
   Layer.provide(layerServerSettings),
@@ -276,7 +277,9 @@ const layerHttpServer = Layer.unwrap(
   }),
 );
 
-const layerPlatformServices = DocumentText.layer.pipe(Layer.provideMerge(NodeServices.layer));
+const layerPlatformServices = DocumentText.layer.pipe(
+  Layer.provideMerge(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer)),
+);
 
 const layerPersistence = Layer.empty.pipe(Layer.provideMerge(SqlitePersistence.layerConfig));
 
@@ -459,10 +462,10 @@ const layerOrchestrationV2Runtime = RuntimeLayer.layerProduction.pipe(
   ),
 );
 
-const layerOrchestrationApplication = CheckpointDiffQuery.layer.pipe(
-  Layer.provideMerge(layerCheckpointStore),
-  Layer.provideMerge(layerOrchestrationV2Runtime),
-);
+const layerOrchestrationApplication = Layer.merge(
+  CheckpointDiffQuery.layer,
+  NativeChildWorkQuery.layer,
+).pipe(Layer.provideMerge(layerCheckpointStore), Layer.provideMerge(layerOrchestrationV2Runtime));
 
 // Automatic thread completion: a server-owned sweep evaluates
 // inactivity and merged pull requests, then marks done through the orchestrator
@@ -507,6 +510,20 @@ const layerProviderInstallationRefresh = Layer.effectDiscard(
   }),
 );
 
+// The desktop app and the background service start the server again after it exits.
+const layerServerRestart = Layer.effect(
+  DatabaseStorage.ServerRestart,
+  Effect.gen(function* () {
+    const config = yield* ServerConfig.ServerConfig;
+    const launcher = yield* ServiceLauncherClient.ServiceLauncherClient;
+    // As in runServerCommand, only the desktop app passes a bootstrap token; `serve --mode desktop` by hand has no supervisor.
+    const desktopLaunched = config.mode === "desktop" && config.desktopBootstrapToken !== undefined;
+    if (!desktopLaunched && !launcher.managed) return null;
+    // Stop as a SIGTERM would: runMain's listener interrupts the server, so its shutdown path runs.
+    return Effect.sync(() => void process.emit("SIGTERM"));
+  }),
+);
+
 const layerRuntimeCoreDependenciesBase = Layer.mergeAll(
   layerThreadDoneWorker,
   StorageCleanup.layer.pipe(Layer.provide(ProjectionStoreV2.layer)),
@@ -515,6 +532,7 @@ const layerRuntimeCoreDependenciesBase = Layer.mergeAll(
     Layer.provide(
       Layer.merge(EventStoreV2.layerFromOrchestrationEventStore, ProjectionStoreV2.layer),
     ),
+    Layer.provide(layerServerRestart),
   ),
   layerThreadPullRequestWorker,
   Layer.effectDiscard(
@@ -545,6 +563,7 @@ const layerRuntimeCoreDependenciesBase = Layer.mergeAll(
   ).pipe(Layer.provide(DelegatedTaskQuestionReactor.layer), Layer.provide(ProjectionStoreV2.layer)),
   ProviderUsageLimitsIngestion.layer,
   layerProviderInstallationRefresh,
+  ProviderInstallation.layer,
   Layer.effectDiscard(ProjectSettingsOverrideSweep.sweep),
 ).pipe(
   Layer.provideMerge(layerOrchestrationApplication),
@@ -604,6 +623,7 @@ const layerRuntimeCoreDependencies = layerRuntimeCoreDependenciesBase.pipe(
   Layer.provideMerge(CodexManagedTokenBroker.layer),
   Layer.provideMerge(layerServerEnvironment),
   Layer.provideMerge(layerAuth),
+  Layer.provideMerge(AssetSigner.layer),
   Layer.provideMerge(ServerSecretStore.layer),
 );
 

@@ -1,7 +1,7 @@
 import type {
   AdvertisedEndpoint,
   DesktopBridge,
-  DesktopServerExposureState,
+  DesktopServerExposureStatus,
 } from "@supaterm/contracts";
 import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
@@ -18,7 +18,7 @@ type DesktopNetworkAccessBridge = Pick<
 
 export interface DesktopNetworkAccessSnapshot {
   readonly advertisedEndpoints: ReadonlyArray<AdvertisedEndpoint>;
-  readonly serverExposureState: DesktopServerExposureState;
+  readonly serverExposureState: DesktopServerExposureStatus;
 }
 
 class DesktopNetworkAccessUnavailableError extends Schema.TaggedError<DesktopNetworkAccessUnavailableError>()(

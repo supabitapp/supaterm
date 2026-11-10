@@ -4,6 +4,7 @@ import {
   AuthMcpApprovalError,
   AuthMcpClientAccess,
   AuthMcpAuthorizationRequest,
+  parseMcpApprovalCode,
 } from "@supaterm/contracts";
 import { Radio as RadioPrimitive } from "@base-ui/react/radio";
 import { isLoopbackHost } from "@supaterm/shared/preview";
@@ -16,6 +17,7 @@ import { type ReactNode, useEffect, useState } from "react";
 import { PrimaryEnvironmentHttpClient } from "~/environments/primary/httpClient";
 import { runPrimaryHttp } from "~/lib/runtime";
 import { cn } from "~/lib/utils";
+import { resolveApprovalDecision } from "./ConnectAgentSurface.logic";
 import { runtimeModeConfig } from "../chat/runtimeModeConfig";
 import { Alert, AlertDescription } from "../ui/alert";
 import { Button } from "../ui/button";
@@ -24,7 +26,7 @@ import { RadioGroup } from "../ui/radio-group";
 import { Spinner } from "../ui/spinner";
 import { StandalonePage, StandalonePageHeader } from "../ui/standalone-page";
 
-const accessConfig: Record<
+export const accessConfig: Record<
   AuthMcpClientAccess,
   { readonly label: string; readonly description: string; readonly icon: IconComponent }
 > = {
@@ -82,11 +84,6 @@ function readAuthorizationRequest(): AuthMcpAuthorizationRequest {
   return decodeAuthorizationRequest(Object.fromEntries(new URL(window.location.href).searchParams));
 }
 
-/** Sessions can grant only scopes they hold. */
-function oneClickApproves(details: AuthMcpApprovalDetails, access: AuthMcpClientAccess) {
-  return details.csrfToken !== undefined && (details.oneClickAccess ?? []).includes(access);
-}
-
 export function ConnectAgentSurface() {
   const [authorization] = useState(readAuthorizationRequest);
   const [loaded, setLoaded] = useState<Loaded>({ status: "loading" });
@@ -119,15 +116,13 @@ export function ConnectAgentSurface() {
 
   const decide = async (choice: "approve" | "deny") => {
     if (loaded.status !== "ready") return;
-    setPending(choice);
-    setErrorMessage("");
-    const { csrfToken } = loaded.details;
-    const decision: AuthMcpApprovalDecision =
+    const decision: AuthMcpApprovalDecision | null =
       choice === "deny"
         ? { _tag: "deny" }
-        : csrfToken !== undefined && oneClickApproves(loaded.details, access)
-          ? { _tag: "browser-session", access, csrfToken }
-          : { _tag: "pairing-code", access, code: pairingCode.trim() };
+        : resolveApprovalDecision({ code: pairingCode, access, details: loaded.details });
+    if (decision === null) return;
+    setPending(choice);
+    setErrorMessage("");
     const answer = await runApproval((client) =>
       client.mcpOAuth.decision({ payload: { authorization, decision } }),
     );
@@ -163,8 +158,10 @@ export function ConnectAgentSurface() {
   }
 
   const { details } = loaded;
-  const oneClick = oneClickApproves(details, access);
-  const canApprove = pending === null && (oneClick || pairingCode.trim().length > 0);
+  const canApprove =
+    pending === null && resolveApprovalDecision({ code: pairingCode, access, details }) !== null;
+  // A code from "Use Supaterm in another app (MCP)" names its level, so the page does not ask again.
+  const codeAccess = parseMcpApprovalCode(pairingCode)?.access;
 
   return (
     <StandalonePage>
@@ -200,44 +197,49 @@ export function ConnectAgentSurface() {
         }}
       >
         <div className="space-y-2">
-          <span id="connect-agent-access-label" className="text-sm font-medium">
-            What it may do
-          </span>
-          <RadioGroup
-            aria-labelledby="connect-agent-access-label"
-            value={access}
-            onValueChange={(value) => setAccess(value as AuthMcpClientAccess)}
-          >
-            {AuthMcpClientAccess.literals.map((option) => (
-              <AccessOption key={option} access={option} selected={option === access} />
-            ))}
-          </RadioGroup>
+          <label className="text-sm font-medium" htmlFor="connect-agent-pairing-code">
+            Sign-in code
+          </label>
+          <Input
+            id="connect-agent-pairing-code"
+            autoCapitalize="none"
+            autoComplete="one-time-code"
+            autoCorrect="off"
+            disabled={pending !== null}
+            nativeInput
+            onChange={(event) => setPairingCode(event.currentTarget.value)}
+            placeholder="Paste a code"
+            spellCheck={false}
+            value={pairingCode}
+          />
           <p className="text-xs text-muted-foreground">
-            Beyond read only, it can start, message and stop threads, and none of them can run with
-            more than the mode you pick.
+            Get one from Use Supaterm in another app (MCP) in Settings → Sharing & access, create a
+            pairing code there, or run <code>supaterm auth pairing create</code> on this machine.
           </p>
         </div>
 
-        {oneClick ? null : (
+        {codeAccess ? (
+          <p className="text-sm">
+            <span className="text-muted-foreground">Access</span>{" "}
+            <span className="font-medium">{accessConfig[codeAccess].label}</span>
+          </p>
+        ) : (
           <div className="space-y-2">
-            <label className="text-sm font-medium" htmlFor="connect-agent-pairing-code">
-              Pairing code
-            </label>
-            <Input
-              id="connect-agent-pairing-code"
-              autoCapitalize="none"
-              autoComplete="one-time-code"
-              autoCorrect="off"
-              disabled={pending !== null}
-              nativeInput
-              onChange={(event) => setPairingCode(event.currentTarget.value)}
-              placeholder="Paste a one-time pairing code"
-              spellCheck={false}
-              value={pairingCode}
-            />
+            <span id="connect-agent-access-label" className="text-sm font-medium">
+              What it may do
+            </span>
+            <RadioGroup
+              aria-labelledby="connect-agent-access-label"
+              value={access}
+              onValueChange={(value) => setAccess(value as AuthMcpClientAccess)}
+            >
+              {AuthMcpClientAccess.literals.map((option) => (
+                <AccessOption key={option} access={option} selected={option === access} />
+              ))}
+            </RadioGroup>
             <p className="text-xs text-muted-foreground">
-              Create one in Settings → Sharing & access, or run{" "}
-              <code>supaterm auth pairing create</code> on this machine.
+              Beyond read only, it can start, message and stop threads, and none of them can run
+              with more than the mode you pick.
             </p>
           </div>
         )}
@@ -250,7 +252,11 @@ export function ConnectAgentSurface() {
 
         <div className="flex flex-wrap gap-2">
           <Button disabled={!canApprove} type="submit">
-            {pending === "approve" ? "Approving…" : "Approve"}
+            {pending === "approve"
+              ? "Approving…"
+              : codeAccess
+                ? `Approve ${accessConfig[codeAccess].label}`
+                : "Approve"}
           </Button>
           <Button
             disabled={pending !== null}
@@ -276,7 +282,7 @@ function ConnectAgentHeading({
   return <StandalonePageHeader context="Agent sign-in" title={title} description={description} />;
 }
 
-function AccessOption({
+export function AccessOption({
   access,
   selected,
 }: {

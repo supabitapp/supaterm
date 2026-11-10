@@ -37,7 +37,10 @@ update it through that manager instead. For example, a Nix profile installation 
 
 Supaterm discovers the models reported by Pi and exposes their supported thinking levels. The
 thinking picker marks the discovered active model's configured level as its default without
-overriding it. Other models keep their Pi defaults when no level is selected. Threads
+overriding it. Other models keep their Pi defaults when no level is selected. A model that lists
+`serviceTiers` (for example `[{ "id": "priority", "name": "Fast" }]`) in its Pi definition gets
+a speed picker with Standard plus those tiers. A chosen tier is sent as the request's
+`service_tier`; Standard sends none and leaves the endpoint's default. Threads
 use Pi's native session files for resume, rollback, and forks within the same Pi instance. Forks
 preserve the native conversation through the selected turn in the destination workspace.
 Switching providers uses portable conversation context. Extension
@@ -49,8 +52,8 @@ loads for the current workspace; selecting one uses Pi's native skill expansion.
 
 Pi loads its normal user extensions, and project extensions once the folder is trusted in Pi.
 Blocking `select`, `confirm`, `input`, and `editor` dialogs work in Supaterm. Notifications appear in
-the work log. Pi terminal decoration such as titles, status lines, and widgets does not have a
-Supaterm equivalent.
+the work log. Extensions can publish status text near the composer. Terminal titles and generic
+widgets do not have a Supaterm equivalent.
 
 ## Permission Modes
 

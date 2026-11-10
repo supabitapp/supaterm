@@ -263,6 +263,10 @@
       "types": "./src/state/deviceHubAccess.ts",
       "default": "./src/state/deviceHubAccess.ts"
     },
+    "./state/environmentHttpAuth": {
+      "types": "./src/state/environmentHttpAuth.ts",
+      "default": "./src/state/environmentHttpAuth.ts"
+    },
     "./state/preview": {
       "types": "./src/state/preview.ts",
       "default": "./src/state/preview.ts"
@@ -563,13 +567,25 @@
       "types": "./src/pullRequestReactions.ts",
       "default": "./src/pullRequestReactions.ts"
     },
+    "./pull-request-reply": {
+      "types": "./src/pullRequestReply.ts",
+      "default": "./src/pullRequestReply.ts"
+    },
     "./pull-request-query": {
       "types": "./src/pullRequestQuery.ts",
       "default": "./src/pullRequestQuery.ts"
     },
+    "./pull-request-reviewers": {
+      "types": "./src/pullRequestReviewers.ts",
+      "default": "./src/pullRequestReviewers.ts"
+    },
     "./provider-clients": {
       "types": "./src/providerClients.ts",
       "default": "./src/providerClients.ts"
+    },
+    "./provider-instance-ids": {
+      "types": "./src/providerInstanceIds.ts",
+      "default": "./src/providerInstanceIds.ts"
     }
   },
   "scripts": {
@@ -585,6 +601,7 @@
     "@supaterm/provider-cursor": "workspace:*",
     "@supaterm/provider-fx": "workspace:*",
     "@supaterm/provider-grok": "workspace:*",
+    "@supaterm/provider-kiro": "workspace:*",
     "@supaterm/provider-muse": "workspace:*",
     "@supaterm/provider-opencode": "workspace:*",
     "@supaterm/provider-pi": "workspace:*",

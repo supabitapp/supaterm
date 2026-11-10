@@ -1,14 +1,8 @@
-import type { NativeStackNavigationOptions } from "@react-navigation/native-stack";
 import { useEffect, useState, type ReactNode } from "react";
 import { Animated, Pressable, View } from "react-native";
 
 import { AppText as Text } from "../../components/ui/AppText";
 import { useAndroidControlSizing } from "../../components/ui/useAndroidControlSizing";
-import {
-  brandTitleOffset,
-  CompactBrandTitle,
-  getCompactBrandHeaderOptions,
-} from "../../components/CompactBrandTitle";
 import { useWorkspaceState } from "../../state/workspace";
 import { useReducedMotionPreference } from "../../lib/useReducedMotionPreference";
 import { useConnectionStatusVisibility } from "../../connection/useConnectionStatusVisibility";
@@ -124,30 +118,4 @@ export function WorkspaceConnectionTitle(props: {
       ) : null}
     </View>
   );
-}
-
-/**
- * getCompactBrandHeaderOptions with the brand slot upgraded to the
- * connection subtitle. Screens with an environment-settings callback apply
- * this over the static brand options at mount.
- */
-export function getConnectionAwareBrandHeaderOptions(opts: {
-  readonly headerWidth: number;
-  readonly trailingItemCount?: number;
-  readonly onOpenEnvironments: () => void;
-  readonly fallbackTitleStyle?: NativeStackNavigationOptions["headerTitleStyle"];
-}): NativeStackNavigationOptions {
-  const maxWidth = Math.max(0, opts.headerWidth - 64 - 44 * (opts.trailingItemCount ?? 1));
-
-  return {
-    ...getCompactBrandHeaderOptions(opts.fallbackTitleStyle),
-    headerTitle: () => (
-      <WorkspaceConnectionTitle
-        brand={<CompactBrandTitle />}
-        maxWidth={maxWidth}
-        onPress={opts.onOpenEnvironments}
-        statusOffset={brandTitleOffset()}
-      />
-    ),
-  };
 }

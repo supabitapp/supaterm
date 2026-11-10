@@ -63,6 +63,12 @@ const make = Effect.gen(function* () {
 
   const fail = (threadId: ThreadId, reason: McpAppRequestError["reason"], cause?: unknown) =>
     new McpAppRequestError({ threadId, reason, ...(cause === undefined ? {} : { cause }) });
+  const adapterFailure = (threadId: ThreadId) => (cause: ProviderAdapter.ProviderAdapterV2Error) =>
+    fail(
+      threadId,
+      cause._tag === "ProviderAdapterSessionStoppedError" ? "session-stopped" : "request-failed",
+      cause,
+    );
 
   const resolveApp = Effect.fn("McpAppRequests.resolveApp")(function* (input: {
     readonly threadId: ThreadId;
@@ -115,7 +121,7 @@ const make = Effect.gen(function* () {
         providerThread: resolved.providerThread,
         server: resolved.app.server,
       })
-      .pipe(Effect.mapError((cause) => fail(threadId, "request-failed", cause)));
+      .pipe(Effect.mapError(adapterFailure(threadId)));
     return tools.find((tool) => tool.name === name);
   });
 
@@ -146,7 +152,7 @@ const make = Effect.gen(function* () {
         tool: input.name,
         arguments: input.arguments,
       })
-      .pipe(Effect.mapError((cause) => fail(input.threadId, "request-failed", cause)));
+      .pipe(Effect.mapError(adapterFailure(input.threadId)));
   });
 
   const readResource = Effect.fn("McpAppRequests.readResource")(function* (
@@ -160,7 +166,7 @@ const make = Effect.gen(function* () {
         server: resolved.app.server,
         uri: input.uri,
       })
-      .pipe(Effect.mapError((cause) => fail(input.threadId, "request-failed", cause)));
+      .pipe(Effect.mapError(adapterFailure(input.threadId)));
   });
 
   const descendsFrom = Effect.fn("McpAppRequests.descendsFrom")(function* (

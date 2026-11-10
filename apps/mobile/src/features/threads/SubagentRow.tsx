@@ -1,5 +1,6 @@
 import { scopeProjectRef, scopeThreadRef } from "@supaterm/client-runtime/environment";
 import { resolveSubagentMetadata } from "@supaterm/client-runtime/state/subagent-display";
+import { formatSubagentEffort } from "@supaterm/client-runtime/state/thread-execution";
 import type { EnvironmentId, OrchestrationV2Subagent } from "@supaterm/contracts";
 import type { ReactNode } from "react";
 import { View } from "react-native";
@@ -22,6 +23,7 @@ type SubagentRowSubagent = Pick<
   | "threadId"
   | "childThreadId"
   | "model"
+  | "modelSelection"
   | "driver"
   | "providerInstanceId"
   | "title"
@@ -95,8 +97,10 @@ function SubagentMetadata(props: {
     parent ? scopeProjectRef(environmentId, parent.projectId) : null,
   );
   const childProject = useProject(child ? scopeProjectRef(environmentId, child.projectId) : null);
-  const { modelLabel, workspace } = resolveSubagentMetadata({
+  const selection = subagent.modelSelection;
+  const { modelLabel, modelSlug, workspace } = resolveSubagentMetadata({
     model: subagent.model,
+    modelSelection: selection,
     provider,
     parentThread: parent,
     childThread: child,
@@ -104,6 +108,8 @@ function SubagentMetadata(props: {
     childProject,
   });
   const instance = provider ? describeProviderInstance(provider, providers) : null;
+  const effort = formatSubagentEffort({ modelSlug, modelSelection: selection, provider });
+  const modelText = effort ? `${modelLabel} · ${effort}` : modelLabel;
   return (
     <View className="min-w-0 flex-row items-center gap-1.5">
       <Text
@@ -128,11 +134,11 @@ function SubagentMetadata(props: {
       />
       <Text
         // The provider icon is unlabeled, so spoken output always names the instance.
-        accessibilityLabel={instance ? `${modelLabel}, ${instance.displayName}` : modelLabel}
+        accessibilityLabel={instance ? `${modelText}, ${instance.displayName}` : modelText}
         className="min-w-0 shrink text-xs text-foreground-muted"
         numberOfLines={1}
       >
-        {instance?.showBadge ? `${modelLabel} · ${instance.displayName}` : modelLabel}
+        {instance?.showBadge ? `${modelText} · ${instance.displayName}` : modelText}
       </Text>
       {workspace.map(({ label, value }) => (
         // Preserve the label against flattening without making it a separate accessibility stop.

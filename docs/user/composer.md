@@ -14,12 +14,19 @@ to keep a large paste editable in the composer instead.
 
 ## Formatting
 
-The composer writes Markdown and shows it styled as you type. Markers such as
-`**` stay in the text and show beside the styled words when your cursor is on
-them. Lines starting with `- `, `1. `, `- [ ] `, `> `, `# ` or `---` become lists,
-task lists, quotes, headings and rules; ` ``` ` followed by Enter opens a code
-block. What you typed is what the agent receives, markers and numbering
-included, and `#1234` without a space still looks up a pull request.
+The composer writes Markdown and shows it styled as you type. When your cursor
+is on styled text, its Markdown shows instead, such as `**bold**`, and the
+markers edit like any other text: delete them to remove the style, or change
+`**` to `*` for italic. The style updates when your cursor leaves. To write
+plain Markdown with no styling, turn off **Settings → Chat → Rich text
+composer**. Lines starting with `- `, `1. `, `- [ ] `, `> `, `# ` or `---`
+become lists, task lists, quotes, headings and rules; ` ``` ` followed by Enter
+opens a code block. What you typed is what the agent receives, markers and
+numbering included, and `#1234` without a space still looks up a pull request.
+
+Some styled text containing or touching literal Markdown characters, such as a
+bold `path\` or `2*3`, keeps its styling without showing markers. Use formatting
+shortcuts or turn off rich text to edit the formatting of those ranges.
 
 Enter sends. In a list or quote, **Shift+Enter** continues it, and Shift+Enter
 on an empty line moves out one level, then leaves it; **Tab** nests a list item
@@ -37,7 +44,8 @@ Attach up to 100 files per message. Each image can be up to 10 MiB, with at most
 50 MiB each, subject to the environment's upload support and limit. The agent
 receives them on the environment's machine. Provider and model limits still
 apply, including images already in the conversation. A video attachment gives
-the agent a file path; it does not enable native video input.
+the agent a file path; only [Antigravity](./providers-antigravity.md#skills-and-attachments)
+sends supported videos to Gemini models as video.
 
 Uploads begin when you add an attachment. Sending saves a local copy of the
 message and its attachments while uploads finish. Pending messages keep their
@@ -80,8 +88,10 @@ on macOS or `Alt+Up` on Windows and Linux with the cursor at the start instead. 
 
 Mobile has the same choice under **Settings → Chat**. While a turn is
 running the send button shows which action it will take. Long-press it to use the
-other action for a single message, or hold `Cmd` while sending from a hardware
-keyboard. The button only offers Steer when the running agent supports it.
+other action for a single message. From a hardware keyboard, `Cmd+Return`
+(`Ctrl+Return` on Android) uses the other action, or `Cmd+Shift+Return`
+(`Ctrl+Shift+Return`) when Return inserts a new line. The button only offers
+Steer when the running agent supports it.
 
 ## Queue messages offline
 
@@ -377,6 +387,12 @@ and your next message starts the agent again with the new setup.
 
 Send `/compact` in an existing conversation to reduce context usage when the
 provider supports it. Web and desktop also offer compaction from the context meter.
+
+Send `/clear` on its own, or pick it from the slash menu, to start a fresh session
+in the same thread. Your next message goes to a new provider session that doesn't see the
+earlier messages, and the thread marks where it began with **New session**.
+Earlier messages and diffs stay in the thread. Dismiss the notice above the
+composer to keep the current session instead.
 
 ## Goals
 

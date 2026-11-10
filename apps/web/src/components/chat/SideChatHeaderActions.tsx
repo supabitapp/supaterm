@@ -12,7 +12,9 @@ import { TrashIcon } from "@supaterm/icons";
 import { useState } from "react";
 
 import { useChatPaneStore } from "../../chatPanes/store";
+import { useComposerDraftStore } from "../../composerDraftStore";
 import { useClientSettings } from "../../hooks/useSettings";
+import { releaseComposerDraftUploads } from "../../lib/composerDraftUploads";
 import { readLocalApi } from "../../localApi";
 import { useQuietThreadProjection, useQuietThreadShell } from "../../state/entities";
 import { useEnvironmentScope } from "../../state/session";
@@ -115,7 +117,10 @@ export function SideChatHeaderActions(props: {
       input: { threadId: threadRef.threadId },
     });
     setBusy(false);
-    if (result._tag === "Failure" && !isAtomCommandInterrupted(result)) {
+    if (result._tag === "Success") {
+      releaseComposerDraftUploads(threadRef);
+      useComposerDraftStore.getState().clearDraftThread(threadRef);
+    } else if (!isAtomCommandInterrupted(result)) {
       failureToast("Could not delete the side chat", result);
     }
   };

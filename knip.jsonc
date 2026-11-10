@@ -21,17 +21,19 @@
     "scripts": {
       // Knip loads its preprocessor through a CLI option; native verification and
       // worktree setup and cleanup (from supaterm.json) run directly, electron-builder
-      // loads the macOS signer by path, and release-desktop.yml runs the desktop launch
-      // check through xvfb-run, which knip does not trace.
+      // loads the macOS signer and the Linux afterPack hook by path, and release-desktop.yml
+      // runs the desktop launch check through xvfb-run, which knip does not trace.
       "entry": [
         "check-commit-message.ts",
         "clean-worktree.ts",
         // These fixture scripts are injected into a browser page by path.
         "fixtures/*/*.js",
         "knip-schemas.ts",
+        "linux-after-pack.ts",
         "mobile-native-client.ts",
         "setup-worktree.ts",
         "sign-macos.ts",
+        "prepare-server-compile-cache.cjs",
         "smoke-desktop-app.ts",
         "verify-windows-desktop-artifact.ts",
       ],
@@ -65,7 +67,12 @@
       // The Vite+ web build prerequisite.
       // Native and disk-loaded provider packages stay external to the bundle; the
       // CLI archive and desktop sidecar stage them from this manifest.
-      "ignoreDependencies": ["@effect/platform-node-shared", "@supaterm/web", "@napi-rs/keyring"],
+      "ignoreDependencies": [
+        "@effect/platform-node-shared",
+        "@supaterm/web",
+        "@napi-rs/keyring",
+        "ffi-rs",
+      ],
     },
     "apps/desktop": {
       // Electron loads these bundles by filename rather than importing them.
@@ -77,6 +84,7 @@
         "src/snapShot/SnapShotAccessibilityWorker.ts!",
         "src/boot.ts!",
         "src/compileCache.ts!",
+        "src/serverCompileCache.ts!",
         "src/main.ts!",
         "src/preload.ts!",
         "src/preview-pick-preload.ts!",
@@ -117,10 +125,13 @@
       "ignoreDependencies": [
         "@supaterm/mobile-relay-tunnel",
         "@expo-google-fonts/jetbrains-mono",
-        "@supaterm/mobile-highlights-native",
         "@supaterm/mobile-review-diff-native",
         "@supaterm/mobile-terminal-native",
       ],
+    },
+    "apps/mobile/modules/supaterm-highlights": {
+      // Nitrogen discovers HybridObject specifications by filename.
+      "entry": ["src/*.nitro.ts!"],
     },
     "apps/mobile/modules/supaterm-source-text": {
       // React Native codegen discovers component specifications by filename.

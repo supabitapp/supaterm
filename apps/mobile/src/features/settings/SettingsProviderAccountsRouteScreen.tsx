@@ -25,92 +25,111 @@ import { serverEnvironment } from "../../state/server";
 import { useEnvironmentsWithScope } from "../../state/session";
 import { useAtomCommand } from "../../state/use-atom-command";
 import { ListActionRow as SettingsActionRow } from "../../components/ui/ListActionRow";
-import {
-  AndroidSettingsEnvironmentFilter,
-  SettingsEnvironmentFilterHeader,
-} from "./components/SettingsEnvironmentFilterHeader";
+import { useSettingsEnvironmentMenu } from "./components/SettingsEnvironmentFilterHeader";
 import { SettingsScreen } from "./components/SettingsScreen";
 import { SettingsSection } from "./components/SettingsSection";
+import { AddClaudeAccount, ClaudeAccount } from "./ClaudeAccounts";
+import { CLAUDE_DRIVER } from "./claude-accounts";
 import { useSettingsEnvironmentFilter, type SettingsTarget } from "./settings-environment-filter";
 const TERMINAL_CONTROL_SEQUENCE = new RegExp(
   `${String.fromCharCode(0x1b)}\\[[0-?]*[ -/]*[@-~]`,
   "g",
 );
 export function SettingsProviderAccountsRouteScreen() {
+  const environmentMenu = useSettingsEnvironmentMenu();
   const { selectedTargets } = useSettingsEnvironmentFilter();
   const permittedEnvironments = useEnvironmentsWithScope(selectedTargets, AuthProvidersManageScope);
   const providersByEnvironment = useAtomValue(environmentPresentations.providersByEnvironmentAtom);
   const insets = useSafeAreaInsets();
   return (
-    <>
-      <SettingsEnvironmentFilterHeader />
-      <SettingsScreen title="Providers" trailing={<AndroidSettingsEnvironmentFilter />}>
-        <ScreenScrollView
-          className="flex-1"
-          contentInsetAdjustmentBehavior="automatic"
-          contentContainerClassName="gap-6 px-5 pt-4"
-          contentContainerStyle={{
-            paddingBottom: Math.max(insets.bottom, 18) + 18,
-          }}
-        >
+    <SettingsScreen title="Providers" menus={[environmentMenu]}>
+      <ScreenScrollView
+        className="flex-1"
+        contentInsetAdjustmentBehavior="automatic"
+        contentContainerClassName="gap-6 px-5 pt-4"
+        contentContainerStyle={{
+          paddingBottom: Math.max(insets.bottom, 18) + 18,
+        }}
+      >
+        <Text className="px-2 text-sm text-foreground-muted">
+          Accounts are saved on the environment that runs your agents.
+        </Text>
+        {selectedTargets.length === 0 ? (
           <Text className="px-2 text-sm text-foreground-muted">
-            Accounts are saved on the environment that runs your agents.
+            Select a connected environment with the filter above.
           </Text>
-          {selectedTargets.length === 0 ? (
-            <Text className="px-2 text-sm text-foreground-muted">
-              Select a connected environment with the filter above.
-            </Text>
-          ) : (
-            selectedTargets.map((environment) => {
-              const providers = (
-                providersByEnvironment.get(environment.environmentId) ?? []
-              ).filter(
-                (provider) =>
-                  provider.setup?.canAuthenticate ||
-                  (provider.driver === "acpRegistry" && provider.installed),
-              );
-              return (
-                <SettingsSection key={environment.environmentId} title={environment.label}>
-                  {!permittedEnvironments.has(environment.environmentId) ? (
-                    <View className="gap-1 p-4">
-                      <Text className="text-base font-supaterm-medium text-foreground">
-                        Limited permissions
-                      </Text>
-                      <Text className="text-sm text-foreground-muted">
-                        {`This session can view ${environment.label}'s providers but can't change their settings.`}
-                      </Text>
-                    </View>
-                  ) : (
-                    <>
-                      {providers.map((provider, index) => (
-                        <ProviderAccount
-                          key={provider.instanceId}
-                          environment={environment}
-                          provider={provider}
-                          isLast={index === providers.length - 1}
-                        />
-                      ))}
-                      {providers.length === 0 ? (
-                        <View className="gap-1 p-4">
-                          <Text className="text-base font-supaterm-medium text-foreground">
-                            No accounts to connect
-                          </Text>
-                          <Text className="text-sm text-foreground-muted">
-                            Add a provider in web or desktop Settings → Providers.
-                          </Text>
-                        </View>
-                      ) : null}
-                    </>
-                  )}
-                </SettingsSection>
-              );
-            })
-          )}
-        </ScreenScrollView>
-      </SettingsScreen>
+        ) : (
+          selectedTargets.map((environment) => (
+            <SettingsSection key={environment.environmentId} title={environment.label}>
+              {!permittedEnvironments.has(environment.environmentId) ? (
+                <View className="gap-1 p-4">
+                  <Text className="text-base font-supaterm-medium text-foreground">
+                    Limited permissions
+                  </Text>
+                  <Text className="text-sm text-foreground-muted">
+                    {`This session can view ${environment.label}'s providers but can't change their settings.`}
+                  </Text>
+                </View>
+              ) : (
+                <EnvironmentProviders
+                  environment={environment}
+                  providers={providersByEnvironment.get(environment.environmentId) ?? []}
+                />
+              )}
+            </SettingsSection>
+          ))
+        )}
+      </ScreenScrollView>
+    </SettingsScreen>
+  );
+}
+function canManageProvider(provider: ServerProvider) {
+  return (
+    provider.setup?.canAuthenticate === true ||
+    (provider.driver === "acpRegistry" && provider.installed)
+  );
+}
+
+function EnvironmentProviders({
+  environment,
+  providers,
+}: {
+  readonly environment: SettingsTarget;
+  readonly providers: ReadonlyArray<ServerProvider>;
+}) {
+  const accounts = providers.filter(canManageProvider);
+  // Claude has no in-app sign-in; each account is its own instance on a signed-in config folder.
+  const claudeAccounts = providers.filter(
+    (provider) => provider.driver === CLAUDE_DRIVER && !canManageProvider(provider),
+  );
+  return (
+    <>
+      {accounts.map((provider, index) => (
+        <ProviderAccount
+          key={provider.instanceId}
+          environment={environment}
+          provider={provider}
+          isLast={index === accounts.length - 1}
+        />
+      ))}
+      {accounts.length === 0 ? (
+        <View className="gap-1 p-4">
+          <Text className="text-base font-supaterm-medium text-foreground">
+            No accounts to connect
+          </Text>
+          <Text className="text-sm text-foreground-muted">
+            Add a provider in web or desktop Settings → Providers.
+          </Text>
+        </View>
+      ) : null}
+      {claudeAccounts.map((provider) => (
+        <ClaudeAccount key={provider.instanceId} environment={environment} provider={provider} />
+      ))}
+      <AddClaudeAccount environment={environment} />
     </>
   );
 }
+
 function ProviderAccount({
   environment,
   provider,
@@ -138,6 +157,10 @@ function ProviderAccount({
   const complete = useAtomCommand(serverEnvironment.completeProviderAuth, options);
   const cancel = useAtomCommand(serverEnvironment.cancelProviderAuth, options);
   const logout = useAtomCommand(serverEnvironment.logoutProviderAuth, options);
+  const removeMethod = useAtomCommand(serverEnvironment.removeProviderAuthMethod, options);
+  const canRemoveMethod = useAtomValue(
+    serverEnvironment.removeProviderAuthMethod.permissionAtom(environmentId),
+  );
   const name = provider.displayName ?? provider.driver;
   // Matches ListRowLayout: large text moves the action below the status instead of squeezing the name.
   const stacked = useWindowDimensions().fontScale >= 1.5;
@@ -184,11 +207,15 @@ function ProviderAccount({
     !choosingMethod &&
     !loading &&
     !auth.error;
+  const usesCredentials =
+    provider.driver === "antigravity" &&
+    (provider.auth.type === "gemini-api-key" || provider.auth.type === "agent-platform");
   function signInLabels() {
     if (pending) return { label: "Working…", accessibilityLabel: `Working on ${name} sign-in` };
     if (signedIn) return { label: "Change account", accessibilityLabel: `Change ${name} account` };
     if (state?.phase === "failed" || state?.phase === "cancelled")
       return { label: "Retry sign-in", accessibilityLabel: `Retry ${name} sign-in` };
+    if (usesCredentials) return { label: "Connect", accessibilityLabel: `Connect to ${name}` };
     return { label: "Sign in", accessibilityLabel: `Sign in to ${name}` };
   }
   function accountDescription() {
@@ -202,6 +229,7 @@ function ProviderAccount({
     if (signedIn) return "Signed in.";
     if (needsExternalSetup) return "Follow the provider’s setup guide to sign in.";
     if (choosingMethod) return "Choose how to sign in below.";
+    if (usesCredentials) return "Connect to load models.";
     return "Not signed in.";
   }
   async function run(command: () => Promise<AtomCommandResult<unknown, unknown>>) {
@@ -261,9 +289,10 @@ function ProviderAccount({
       </View>
     );
   }
+  const removableMethods = (state?.methods ?? []).filter((method) => method.canRemove);
   function chooseMethod() {
     const methods = state?.methods ?? [];
-    if (methods.length <= 1) {
+    if (methods.length <= 1 && removableMethods.length === 0) {
       void run(() => start(target));
       return;
     }
@@ -424,6 +453,28 @@ function ProviderAccount({
                 setChoosingMethod(false);
                 void run(() =>
                   start({
+                    environmentId,
+                    input: {
+                      instanceId,
+                      methodId: method.id,
+                    },
+                  }),
+                );
+              }}
+            />
+          ))}
+          {removableMethods.map((method) => (
+            <SettingsActionRow
+              key={`remove:${method.id}`}
+              icon="trash"
+              tone="danger"
+              label={`Remove incomplete ${method.name}`}
+              accessibilityLabel={`Remove incomplete ${name} connection ${method.name}`}
+              disabled={disabled || !canRemoveMethod}
+              onPress={() => {
+                setChoosingMethod(false);
+                void run(() =>
+                  removeMethod({
                     environmentId,
                     input: {
                       instanceId,

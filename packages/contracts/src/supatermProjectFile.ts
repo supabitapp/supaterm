@@ -47,6 +47,12 @@ export const SupatermProjectFileScript = Schema.Struct({
         "When true, the script runs in the thread's worktree each time the thread is marked Done, for example to delete build output. Threads without their own worktree skip it.",
     }),
   ),
+  stopOnDone: Schema.optionalKey(
+    Schema.Boolean.annotate({
+      description:
+        "When true, Supaterm stops this action's terminal and child processes when its thread is marked Done.",
+    }),
+  ),
   async: Schema.optionalKey(
     Schema.Boolean.annotate({
       description:

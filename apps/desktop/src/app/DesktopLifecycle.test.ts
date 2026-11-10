@@ -5,6 +5,8 @@ import * as Layer from "effect/Layer";
 import * as Ref from "effect/Ref";
 import * as TestClock from "effect/testing/TestClock";
 
+import * as HostProcess from "@supaterm/shared/HostProcess";
+
 import type * as Electron from "electron";
 
 import * as ElectronApp from "../electron/ElectronApp.ts";
@@ -22,6 +24,7 @@ function layerElectronApp(
   appListeners: Map<string, (...args: readonly unknown[]) => void>,
   quit: Effect.Effect<void> = Effect.void,
   exit: (code: number) => Effect.Effect<void> = () => Effect.void,
+  relaunch: (options: Electron.RelaunchOptions) => Effect.Effect<void> = () => Effect.void,
 ) {
   const registerListener = (eventName: string, listener: (...args: readonly unknown[]) => void) =>
     Effect.acquireRelease(
@@ -43,7 +46,7 @@ function layerElectronApp(
     requestSingleInstanceLock: Effect.succeed(true),
     quit,
     exit,
-    relaunch: () => Effect.void,
+    relaunch,
     setPath: () => Effect.void,
     setName: () => Effect.void,
     setAboutPanelOptions: () => Effect.void,
@@ -252,6 +255,50 @@ describe("DesktopLifecycle", () => {
           assert.deepEqual(events, ["flush", "destroy", "request", "quit"]);
         }),
       ).pipe(Effect.provide(layer));
+    }),
+  );
+
+  it.effect("relaunches without the app link that launched it", () =>
+    Effect.gen(function* () {
+      const relaunched = yield* Deferred.make<Electron.RelaunchOptions>();
+      const layerEnvironment = Layer.succeed(DesktopEnvironment.DesktopEnvironment, {
+        platform: "linux",
+        isDevelopment: false,
+      } as DesktopEnvironment.DesktopEnvironment["Service"]);
+      const layer = DesktopLifecycle.layer.pipe(
+        Layer.provideMerge(
+          layerElectronApp(
+            new Map(),
+            Effect.void,
+            () => Effect.void,
+            (options) => Deferred.succeed(relaunched, options).pipe(Effect.asVoid),
+          ),
+        ),
+        Layer.provideMerge(layerElectronTheme),
+        Layer.provideMerge(layerElectronWindow()),
+        Layer.provideMerge(layerDesktopWindow()),
+        Layer.provideMerge(layerEnvironment),
+        Layer.provideMerge(DesktopShutdown.layer),
+        Layer.provideMerge(DesktopState.layer),
+      );
+
+      const options = yield* Effect.gen(function* () {
+        const lifecycle = yield* DesktopLifecycle.DesktopLifecycle;
+        yield* (yield* DesktopShutdown.DesktopShutdown).markComplete;
+        yield* lifecycle.relaunch("network access changed");
+        return yield* Deferred.await(relaunched);
+      }).pipe(
+        Effect.provide(layer),
+        Effect.provideService(HostProcess.ExecutablePath, "/opt/Supaterm/supaterm"),
+        Effect.provideService(HostProcess.Arguments, [
+          "/opt/Supaterm/supaterm",
+          "--no-sandbox",
+          "SUPATERM://pair?token=spent",
+          "supaterm://new?prompt=hello",
+        ]),
+      );
+
+      assert.deepEqual(options, { execPath: "/opt/Supaterm/supaterm", args: ["--no-sandbox"] });
     }),
   );
 

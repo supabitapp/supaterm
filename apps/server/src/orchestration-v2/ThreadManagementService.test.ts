@@ -423,6 +423,151 @@ it.effect.each(["live", "no-session", "unsupported-runtime"] as const)(
 );
 
 it.effect.each([
+  { status: "completed" as const, followUp: "none", marksDone: true },
+  { status: "failed" as const, followUp: "none", marksDone: false },
+  { status: "interrupted" as const, followUp: "none", marksDone: false },
+  { status: "completed" as const, followUp: "notification", marksDone: true },
+  { status: "completed" as const, followUp: "replayed-notification", marksDone: true },
+  { status: "completed" as const, followUp: "delegated", marksDone: true },
+  { status: "completed" as const, followUp: "failed-notification", marksDone: false },
+  { status: "completed" as const, followUp: "held-notification", marksDone: true },
+  { status: "completed" as const, followUp: "user", marksDone: false },
+  { status: "completed" as const, followUp: "steered-notification", marksDone: false },
+])("markDoneAfterRun handles $status with $followUp follow-up", ({ status, followUp, marksDone }) =>
+  Effect.gen(function* () {
+    const projectId = ProjectId.make("project:thread-management:mark-done-after-run");
+    const threadId = ThreadId.make("thread:thread-management:mark-done-after-run");
+    const runId = RunId.make("run:thread-management:mark-done-after-run");
+    const followUpId = RunId.make(`${runId}:follow-up`);
+    const subscribed = yield* Deferred.make<void>();
+    const events = yield* Queue.unbounded<OrchestrationV2StoredEvent>();
+    const replayRejected = yield* Deferred.make<void>();
+    let sequence = 0;
+    let sequenceReads = 0;
+    let rejectedCommandId: CommandId | undefined;
+    const runs = [{ id: runId, ordinal: 1, status, userMessageId: MessageId.make("original") }];
+    const nextRun = {
+      id: followUpId,
+      ordinal: 2,
+      status: "running" as OrchestrationV2Run["status"],
+      userMessageId: MessageId.make("follow-up"),
+    };
+    const dispatched: Array<string> = [];
+    // The notification starts after the completed run was observed, before marking done commits.
+    let raced = false;
+    const layerTest = ThreadManagementService.layer.pipe(
+      Layer.provide(Layer.mock(ProviderSessionManager.ProviderSessionManagerV2)({})),
+      Layer.provide(
+        Layer.mock(Orchestrator.OrchestratorV2)({
+          getThreadEventSequence: () =>
+            Effect.sync(() => {
+              if (followUp === "replayed-notification" && sequenceReads++ === 2) sequence = 1;
+              return sequence;
+            }),
+          restartContinuationPending: () => Effect.succeed(false),
+          streamStoredEventsFrom: () =>
+            Stream.fromEffect(Deferred.succeed(subscribed, undefined)).pipe(
+              Stream.drain,
+              Stream.concat(Stream.fromQueue(events)),
+            ),
+          getThreadRecords: (_threadId, _fields, filter) =>
+            Effect.sync(
+              () =>
+                ({
+                  thread: { id: threadId, projectId, deletedAt: null },
+                  runs: raced ? [...runs, nextRun] : runs,
+                  messages: [
+                    { id: MessageId.make("original"), runId, role: "user" as const },
+                    {
+                      id: nextRun.userMessageId,
+                      runId: followUpId,
+                      role: "user" as const,
+                      ...(followUp.endsWith("notification") ? { notification: {} } : {}),
+                      ...(followUp === "delegated" ? { delegatedCompletion: {} } : {}),
+                    },
+                    { id: MessageId.make("reply"), runId: followUpId, role: "assistant" as const },
+                    ...(followUp === "steered-notification"
+                      ? [
+                          {
+                            id: MessageId.make("user-steer"),
+                            runId: followUpId,
+                            role: "user" as const,
+                          },
+                        ]
+                      : []),
+                  ].filter(
+                    (message) =>
+                      (filter?.messageIds === undefined ||
+                        filter.messageIds.includes(message.id)) &&
+                      (filter?.messageRunIds === undefined ||
+                        filter.messageRunIds.includes(message.runId)) &&
+                      (filter?.messageRoles === undefined ||
+                        filter.messageRoles.includes(message.role)),
+                  ),
+                }) as unknown as OrchestrationV2ThreadProjection,
+            ),
+          dispatch: (command) =>
+            Effect.gen(function* () {
+              if (followUp !== "none" && !raced) {
+                raced = true;
+                rejectedCommandId = command.commandId;
+                return yield* new Orchestrator.OrchestratorDispatchError({
+                  commandId: command.commandId,
+                  commandType: command.type,
+                  cause: "Thread is still running",
+                });
+              }
+              if (followUp === "replayed-notification" && command.commandId === rejectedCommandId) {
+                yield* Deferred.succeed(replayRejected, undefined);
+                return yield* new Orchestrator.OrchestratorCommandPreviouslyRejectedError({
+                  commandId: command.commandId,
+                  commandType: command.type,
+                  detail: "Thread is still running",
+                });
+              }
+              dispatched.push(command.type);
+              return { sequence: 1, storedEvents: [] } as never;
+            }),
+        }),
+      ),
+      Layer.provide(ServerSettings.layerTest()),
+      Layer.provide(layerReceiptsTest),
+    );
+    const service = yield* ThreadManagementService.ThreadManagementService.pipe(
+      Effect.provide(layerTest),
+    );
+    const fiber = yield* service
+      .markDoneAfterRun({ projectId, threadId, runId })
+      .pipe(Effect.forkChild);
+    if (followUp !== "none") {
+      yield* Deferred.await(subscribed);
+      expect(dispatched).toEqual([]);
+      nextRun.status =
+        followUp === "failed-notification"
+          ? "failed"
+          : followUp === "held-notification"
+            ? "queued"
+            : "completed";
+      yield* Queue.offer(events, {
+        sequence: 1,
+        event: { type: "run.updated", threadId, payload: nextRun },
+      } as unknown as OrchestrationV2StoredEvent);
+    }
+    if (followUp === "replayed-notification") {
+      yield* Deferred.await(replayRejected);
+      expect(dispatched).toEqual([]);
+      sequence = 2;
+      yield* Queue.offer(events, {
+        sequence,
+        event: { type: "run.updated", threadId, payload: nextRun },
+      } as unknown as OrchestrationV2StoredEvent);
+    }
+    yield* Fiber.join(fiber);
+    expect(dispatched).toEqual(marksDone ? ["thread.mark-done"] : []);
+  }),
+);
+
+it.effect.each([
   {
     name: "kills the thread's own agent and ends its turn",
     others: [] as ReadonlyArray<string>,

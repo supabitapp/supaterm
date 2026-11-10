@@ -62,6 +62,7 @@ internal object SupatermComposerClipboard {
 }
 
 class SupatermComposerEditorModule : Module() {
+  @Suppress("LongMethod") // A flat list of the view's props and events.
   override fun definition() = ModuleDefinition {
     Name("SupatermComposerEditor")
 
@@ -104,6 +105,12 @@ class SupatermComposerEditorModule : Module() {
       Prop("readOnly") { view: SupatermComposerEditorView, readOnly: Boolean ->
         view.setReadOnly(readOnly)
       }
+      Prop("enterBehavior") { view: SupatermComposerEditorView, behavior: String ->
+        view.setEnterBehavior(behavior)
+      }
+      Prop("submitEnabled") { view: SupatermComposerEditorView, enabled: Boolean ->
+        view.setSubmitEnabled(enabled)
+      }
       Prop("scrollEnabled") { view: SupatermComposerEditorView, scrollEnabled: Boolean ->
         view.setScrollEnabled(scrollEnabled)
       }
@@ -128,6 +135,7 @@ class SupatermComposerEditorModule : Module() {
         "onComposerSelectionChange",
         "onComposerFocus",
         "onComposerBlur",
+        "onComposerSubmit",
         "onComposerPasteImages",
         "onComposerContextPress",
         "onComposerPasteContext",

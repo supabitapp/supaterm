@@ -40,17 +40,20 @@ import type { ComposerEditorProps, ComposerEditorSelection } from "./SupatermCom
 
 const NATIVE_MODULE_NAME = "SupatermComposerEditor";
 const EMPTY_SKILLS: NonNullable<ComposerEditorProps["skills"]> = [];
+const NO_RESET = () => 0;
 
 type NativeEditorEvent = NativeSyntheticEvent<{
   readonly value: string;
   readonly selection: ComposerEditorSelection;
   readonly eventCount: number;
+  readonly resetGeneration: number;
 }>;
 
 type NativeSelectionEvent = NativeSyntheticEvent<{
   readonly value: string;
   readonly selection: ComposerEditorSelection;
   readonly eventCount: number;
+  readonly resetGeneration: number;
 }>;
 
 type NativePasteImagesEvent = NativeSyntheticEvent<{
@@ -60,6 +63,7 @@ type NativePasteImagesEvent = NativeSyntheticEvent<{
 type NativePasteTextEvent = NativeSyntheticEvent<{
   readonly value: string;
   readonly eventCount: number;
+  readonly resetGeneration: number;
   readonly text: string;
   readonly selection: ComposerEditorSelection;
 }>;
@@ -68,6 +72,13 @@ interface NativeComposerEditorRef {
   focus: () => Promise<void>;
   blur: () => Promise<void>;
   setSelection: (start: number, end: number) => Promise<void>;
+  readState: () => Promise<{
+    readonly value: string;
+    readonly selection: ComposerEditorSelection;
+    readonly eventCount: number;
+    readonly resetGeneration: number;
+    readonly pasteEventCount: number;
+  }>;
 }
 
 interface NativeComposerEditorProps extends ViewProps {
@@ -138,12 +149,15 @@ export function ComposerEditor({
   onSubmit,
   onContentSizeChange,
   contentInsetVertical = 0,
+  readResetGeneration = NO_RESET,
   ...props
 }: ComposerEditorProps) {
   const nativeRef = useRef<NativeComposerEditorRef>(null);
   const mostRecentEventCountRef = useRef(0);
   const [mostRecentEventCount, setMostRecentEventCount] = useState(0);
   const [, forceNativeEventRender] = useState(0);
+  // Native stamps every event with the reset generation it had applied.
+  const nativeResetGenerationRef = useRef(0);
   // The native editor mounts empty, so the snapshot history starts empty: the
   // first controlled payload must be a non-echo so a restored draft (or a
   // recycled native view) is applied rather than skipped.
@@ -163,17 +177,6 @@ export function ComposerEditor({
   }
   const bodyText = useScaledTextRole("body");
   const theme = useUniwindTheme();
-
-  useImperativeHandle(
-    ref,
-    () => ({
-      focus: () => settleViewCommand(nativeRef.current?.focus()),
-      blur: () => settleViewCommand(nativeRef.current?.blur()),
-      setSelection: (nextSelection) =>
-        settleViewCommand(nativeRef.current?.setSelection(nextSelection.start, nextSelection.end)),
-    }),
-    [],
-  );
 
   const skillLabels = useMemo(() => composerSkillLabels(skills), [skills]);
   const chipTextColor = createNativeComposerTheme(theme).text;
@@ -215,13 +218,19 @@ export function ComposerEditor({
   // (value, selection) lags the acknowledged native state is stamped behind
   // the native revision and rejected by the editor instead of re-applying a
   // stale caret or stale text mid-typing.
-  const controlledEventCount = resolveComposerControlledEventCount(
-    props.value,
-    selection ?? null,
-    mostRecentEventCount,
-    // oxlint-disable-next-line react/refs -- echo detection compares against the native events seen so far, read during render on purpose
-    nativeEventSnapshotsRef.current,
-  );
+  const resetGeneration = readResetGeneration();
+  // Native restarts its revision at a reset's stamp, so stamp it at the latest acknowledged event.
+  const controlledEventCount =
+    // oxlint-disable-next-line react/refs -- a reset newer than the last native event restamps at the acknowledged revision, read during render on purpose
+    resetGeneration > nativeResetGenerationRef.current
+      ? mostRecentEventCount
+      : resolveComposerControlledEventCount(
+          props.value,
+          selection ?? null,
+          mostRecentEventCount,
+          // oxlint-disable-next-line react/refs -- echo detection compares against the native events seen so far, read during render on purpose
+          nativeEventSnapshotsRef.current,
+        );
   const acknowledgesLatestNativeEvent = isComposerNativeEcho(
     props.value,
     selection ?? null,
@@ -237,6 +246,7 @@ export function ComposerEditor({
     tokensJson,
     mostRecentEventCount: controlledEventCount,
     isNativeEcho,
+    resetGeneration,
   });
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- prunes native editor event snapshots once a committed payload acknowledges them
   useEffect(() => {
@@ -263,24 +273,53 @@ export function ComposerEditor({
     );
   });
   const acceptNativeEvent = useCallback(
-    (eventCount: number, value: string, nextSelection: ComposerEditorSelection) => {
+    (event: NativeEditorEvent["nativeEvent"]) => {
+      // Read at delivery: a send can clear the draft in the same batch, before this view re-renders.
       const acknowledgedEventCount = acknowledgeComposerNativeEvent(
         mostRecentEventCountRef.current,
-        eventCount,
+        event.eventCount,
+        readResetGeneration(),
+        event.resetGeneration,
       );
       if (acknowledgedEventCount === null) {
         return false;
       }
       mostRecentEventCountRef.current = acknowledgedEventCount;
+      nativeResetGenerationRef.current = event.resetGeneration;
       nativeEventSnapshotsRef.current.push({
         eventCount: acknowledgedEventCount,
-        value,
-        selection: nextSelection,
+        value: event.value,
+        selection: event.selection,
       });
       return acknowledgedEventCount;
     },
-    [nativeEventSnapshotsRef],
+    [nativeEventSnapshotsRef, readResetGeneration],
   );
+  const applyNativeChange = (event: NativeEditorEvent["nativeEvent"]) => {
+    const acknowledgedEventCount = acceptNativeEvent(event);
+    if (acknowledgedEventCount === false) return;
+    onChangeText(event.value);
+    onSelectionChange?.(event.selection);
+    setMostRecentEventCount(acknowledgedEventCount);
+    forceNativeEventRender((sequence) => sequence + 1);
+  };
+  useImperativeHandle(ref, () => ({
+    focus: () => settleViewCommand(nativeRef.current?.focus()),
+    blur: () => settleViewCommand(nativeRef.current?.blur()),
+    setSelection: (nextSelection) =>
+      settleViewCommand(nativeRef.current?.setSelection(nextSelection.start, nextSelection.end)),
+    // Tapping outside the editor makes iOS accept a pending autocorrection, and that edit's
+    // event can reach JS after the tap's handler has already read the draft.
+    flushPendingInput: async () => {
+      const state = await Promise.resolve()
+        .then(() => nativeRef.current?.readState())
+        .catch(() => undefined);
+      // Acknowledging past a paste JS has not received yet would get the paste rejected.
+      if (state && state.pasteEventCount <= mostRecentEventCountRef.current) {
+        applyNativeChange(state);
+      }
+    },
+  }));
   const themeJson = JSON.stringify(createNativeComposerTheme(theme));
   const resolvedTextStyle = StyleSheet.flatten(textStyle) ?? {};
   return (
@@ -318,24 +357,9 @@ export function ComposerEditor({
       textPasteThresholdBytes={onPasteText ? PASTED_TEXT_ATTACHMENT_THRESHOLD_BYTES : 0}
       maxInputChars={PROVIDER_SEND_TURN_MAX_INPUT_CHARS}
       style={style as StyleProp<ViewStyle>}
-      onComposerChange={(event) => {
-        const acknowledgedEventCount = acceptNativeEvent(
-          event.nativeEvent.eventCount,
-          event.nativeEvent.value,
-          event.nativeEvent.selection,
-        );
-        if (acknowledgedEventCount === false) return;
-        onChangeText(event.nativeEvent.value);
-        onSelectionChange?.(event.nativeEvent.selection);
-        setMostRecentEventCount(acknowledgedEventCount);
-        forceNativeEventRender((sequence) => sequence + 1);
-      }}
+      onComposerChange={(event) => applyNativeChange(event.nativeEvent)}
       onComposerSelectionChange={(event) => {
-        const acknowledgedEventCount = acceptNativeEvent(
-          event.nativeEvent.eventCount,
-          event.nativeEvent.value,
-          event.nativeEvent.selection,
-        );
+        const acknowledgedEventCount = acceptNativeEvent(event.nativeEvent);
         if (acknowledgedEventCount === false) return;
         // A selection change that raced a text mutation can carry post-edit
         // text. It must reach the parent alongside the acknowledged revision,
@@ -352,11 +376,7 @@ export function ComposerEditor({
       onComposerContextPress={(event) => props.onContextPress?.(event.nativeEvent)}
       onComposerPasteContext={(event) => {
         const paste = event.nativeEvent;
-        const acknowledgedEventCount = acceptNativeEvent(
-          paste.eventCount,
-          paste.value,
-          paste.selection,
-        );
+        const acknowledgedEventCount = acceptNativeEvent(paste);
         if (acknowledgedEventCount === false) return;
         onChangeText(paste.value);
         onSelectionChange?.(paste.selection);
@@ -366,11 +386,7 @@ export function ComposerEditor({
       }}
       onComposerPasteText={(event) => {
         const paste = event.nativeEvent;
-        const acknowledgedEventCount = acceptNativeEvent(
-          paste.eventCount,
-          paste.value,
-          paste.selection,
-        );
+        const acknowledgedEventCount = acceptNativeEvent(paste);
         if (acknowledgedEventCount === false) return;
         // Synchronize the draft before an async paste captures its insertion target.
         // React props can still precede the last native keystroke.

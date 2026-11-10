@@ -24,10 +24,12 @@ import * as NodeFS from "node:fs";
 import * as NodeOS from "node:os";
 import * as NodePath from "node:path";
 
+import { vitePlusCommand } from "./check-changed-command.ts";
 import { affectedPackages, readWorkspace } from "./lib/changed-packages.ts";
 
 const root = NodePath.resolve(import.meta.dirname, "..");
-const CODE = /\.[cm]?[jt]sx?$/;
+// CI's lint and knip also read Astro components' frontmatter.
+const CODE = /\.(?:[cm]?[jt]sx?|astro)$/;
 
 // Mirrors the mobile_native_changes gate in .github/workflows/ci.yml.
 const MOBILE_NATIVE =
@@ -262,12 +264,13 @@ const vitestTests = [...tests].filter((file) => !nodeTests.includes(file));
 const runKnip = files.some(
   (file) => CODE.test(file) || NodePath.basename(file) === "package.json" || file === "knip.jsonc",
 );
-// CI runs knip:check as one script of `knip ... && knip ...` passes. The passes
+// CI runs knip:check as a task that depends on one script per pass. The passes
 // do not depend on each other, so they run side by side here.
-const knipCheck: string = JSON.parse(
+const rootScripts: Record<string, string> = JSON.parse(
   NodeFS.readFileSync(NodePath.join(root, "package.json"), "utf8"),
-).scripts["knip:check"];
-const knipPasses = knipCheck.split(" && ").map((command, index, all) => {
+).scripts;
+const knipCommands = [rootScripts["knip:check:files"], rootScripts["knip:check:exports"]];
+const knipPasses = knipCommands.map((command = "", index, all) => {
   const [bin, ...args] = command.trim().split(/\s+/);
   if (bin !== "knip" || /["'$\\|;&<>]/.test(command)) {
     throw new Error(`check:changed cannot split knip:check: ${command}`);
@@ -352,8 +355,7 @@ const checkPatches = async (deadline: number): Promise<StepResult> => {
       if (NodeFS.existsSync(NodePath.join(root, extra))) copy(extra);
     }
     const result = await spawnStep(
-      "vp",
-      ["install", "--lockfile-only", "--ignore-scripts"],
+      ...vitePlusCommand(["install", "--lockfile-only", "--ignore-scripts"]),
       temp,
       deadline,
     );
@@ -390,7 +392,7 @@ const steps = [
     name: "format",
     args: ["fmt", "--check", "--no-error-on-unmatched-pattern", ...present],
   },
-  code.length > 0 && { name: "lint", args: ["lint", ...code] },
+  code.length > 0 && { name: "lint", args: ["lint", "--no-error-on-unmatched-pattern", ...code] },
   ...(runKnip ? knipPasses : []),
   ...graphql.map((dir) => ({
     name: `graphql (${dir})`,
@@ -433,8 +435,9 @@ const runStep = async (step: (typeof steps)[number]) => {
     "run" in step
       ? await step.run(deadline)
       : await spawnStep(
-          "command" in step && step.command ? step.command : "vp",
-          step.args,
+          ...("command" in step && step.command
+            ? ([step.command, step.args] as const)
+            : vitePlusCommand(step.args)),
           root,
           deadline,
         );

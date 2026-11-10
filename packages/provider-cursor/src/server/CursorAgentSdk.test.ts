@@ -4,14 +4,18 @@ import { ProviderSessionId, ThreadId } from "@supaterm/contracts";
 import * as Effect from "effect/Effect";
 import * as Fiber from "effect/Fiber";
 import * as Layer from "effect/Layer";
+import * as Exit from "effect/Exit";
+import * as Cause from "effect/Cause";
 import { vi } from "vite-plus/test";
-import { createAgentPlatform } from "./sdk.ts";
 
 import * as ProviderEventLoggers from "@supaterm/provider-core/server/ProviderEventLoggers";
 import * as CursorAgentSdk from "./CursorAgentSdk.ts";
 import * as CursorSdk from "./CursorSdk.ts";
 
+type CreateAgentPlatform = typeof import("@cursor/sdk").createAgentPlatform;
+
 const cursorSdkMock = vi.hoisted(() => {
+  const createAgentPlatform = vi.fn<CreateAgentPlatform>();
   const closeExecutionOrder: Array<string> = [];
   const runOperations: Array<string> = [];
   let agentCloseFailure: unknown;
@@ -78,6 +82,7 @@ const cursorSdkMock = vi.hoisted(() => {
   return {
     agentClose,
     cancelRun,
+    createAgentPlatform,
     closeExecutionOrder,
     create,
     listRuns,
@@ -96,17 +101,19 @@ const cursorSdkMock = vi.hoisted(() => {
 });
 
 vi.mock("./sdk.ts", () => ({
-  Agent: {
-    create: cursorSdkMock.create,
-    resume: cursorSdkMock.resume,
-    listRuns: cursorSdkMock.listRuns,
-    cancelRun: cursorSdkMock.cancelRun,
-    messages: {
-      list: vi.fn(async () => []),
+  loadCursorSdk: () => ({
+    Agent: {
+      create: cursorSdkMock.create,
+      resume: cursorSdkMock.resume,
+      listRuns: cursorSdkMock.listRuns,
+      cancelRun: cursorSdkMock.cancelRun,
+      messages: {
+        list: vi.fn(async () => []),
+      },
     },
-  },
-  createAgentPlatform: vi.fn(),
-  SqliteLocalAgentStore: { open: vi.fn() },
+    createAgentPlatform: cursorSdkMock.createAgentPlatform,
+  }),
+  loadCursorSqlite: () => ({ SqliteLocalAgentStore: { open: vi.fn() } }),
 }));
 
 const layerTest = CursorAgentSdk.layer.pipe(
@@ -139,7 +146,7 @@ describe("CursorAgentSdkRunner", () => {
       const started = Promise.withResolvers<void>();
       const release = Promise.withResolvers<void>();
       let primed = false;
-      vi.mocked(createAgentPlatform).mockImplementationOnce(
+      cursorSdkMock.createAgentPlatform.mockImplementationOnce(
         async () =>
           ({
             prewarmLocalWorkspace: async () => {
@@ -149,7 +156,7 @@ describe("CursorAgentSdkRunner", () => {
                 primed = true;
               };
             },
-          }) as unknown as Awaited<ReturnType<typeof createAgentPlatform>>,
+          }) as unknown as Awaited<ReturnType<CreateAgentPlatform>>,
       );
       cursorSdkMock.create.mockImplementationOnce(async () => {
         assert.isTrue(primed);
@@ -180,6 +187,41 @@ describe("CursorAgentSdkRunner", () => {
       assert.equal((yield* Fiber.join(second)).agentId, "agent-cursor-agent-sdk-test");
       assert.isTrue(primed);
     }).pipe(Effect.provide(layerTest)),
+  );
+
+  it.effect("constructs without loading and reports first-use load failures as runner errors", () =>
+    Effect.gen(function* () {
+      const failure = new Error("missing SDK chunk");
+      const load = vi.fn(() => {
+        throw failure;
+      });
+      const runner = yield* CursorAgentSdk.makeCursorAgentSdkRunner(() => undefined).pipe(
+        Effect.provideService(CursorSdk.CursorSdk, {
+          load,
+          loadSqlite: () => {
+            throw new Error("unused SQLite");
+          },
+        }),
+      );
+      assert.strictEqual(load.mock.calls.length, 0);
+      const result = yield* runner
+        .open({
+          operation: "create",
+          options: {},
+          threadId: ThreadId.make("lazy-load"),
+          providerSessionId: ProviderSessionId.make("lazy-load"),
+        })
+        .pipe(Effect.exit);
+      assert(Exit.isFailure(result));
+      assert.deepStrictEqual(
+        Cause.squash(result.cause),
+        new CursorAgentSdk.CursorAgentSdkRunnerError({
+          method: "agent.create",
+          cause: failure,
+        }),
+      );
+      assert.strictEqual(load.mock.calls.length, 1);
+    }),
   );
 
   it.effect("retries a resumed send after cancelling its abandoned local run", () =>

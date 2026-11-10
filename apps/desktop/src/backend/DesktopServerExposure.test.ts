@@ -1,5 +1,6 @@
 import * as NodeFileSystem from "@effect/platform-node/NodeFileSystem";
 import * as NodeHttpClient from "@effect/platform-node/NodeHttpClient";
+import * as NodeCrypto from "@effect/platform-node/NodeCrypto";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { assert, describe, it } from "@effect/vitest";
 import * as Deferred from "effect/Deferred";
@@ -40,7 +41,11 @@ const tailnetNetworkInterfaces: DesktopNetworkInterfaces.NetworkInterfaces = {
   ],
 };
 
-function layerMockSpawner(statusJson: string | (() => string) = "{}", onSpawn?: () => void) {
+function layerMockSpawner(
+  statusJson: string | (() => string) = "{}",
+  onSpawn?: () => void,
+  exitCode = 0,
+) {
   return Layer.succeed(
     ChildProcessSpawner.ChildProcessSpawner,
     ChildProcessSpawner.make(() =>
@@ -48,7 +53,7 @@ function layerMockSpawner(statusJson: string | (() => string) = "{}", onSpawn?: 
         onSpawn?.();
         return ChildProcessSpawner.makeHandle({
           pid: ChildProcessSpawner.ProcessId(1),
-          exitCode: Effect.succeed(ChildProcessSpawner.ExitCode(0)),
+          exitCode: Effect.succeed(ChildProcessSpawner.ExitCode(exitCode)),
           isRunning: Effect.succeed(false),
           kill: () => Effect.void,
           unref: Effect.succeed(Effect.void),
@@ -81,6 +86,7 @@ function layerEnvironmentFor(baseDir: string, env: Record<string, string | undef
     Layer.provide(
       Layer.mergeAll(
         NodeServices.layer,
+        NodeCrypto.layer,
         DesktopConfig.layerTest({ SUPATERM_HOME: baseDir, ...env }),
       ),
     ),
@@ -142,9 +148,28 @@ const withHarness = <A, E, R>(
         }),
       ),
     );
-  }).pipe(Effect.provide(NodeServices.layer), Effect.scoped);
+  }).pipe(Effect.provide(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer)), Effect.scoped);
 
 describe("DesktopServerExposure", () => {
+  it.effect("reports a failing Tailscale command only while HTTPS is enabled", () =>
+    withHarness(
+      lanNetworkInterfaces,
+      Effect.gen(function* () {
+        const exposure = yield* DesktopServerExposure.DesktopServerExposure;
+        yield* exposure.configureFromSettings({ port: 4173 });
+        yield* exposure.setTailscaleServeEnabled({ enabled: true });
+        assert.equal(
+          (yield* exposure.getState).tailscaleError,
+          "tailscale status exited with code 1.",
+        );
+        yield* exposure.setTailscaleServeEnabled({ enabled: false });
+        assert.isNull((yield* exposure.getState).tailscaleError);
+      }),
+      {},
+      layerMockSpawner("", undefined, 1),
+    ),
+  );
+
   it.effect("uses cached Tailscale identity to exclude another VPN's pairing address", () => {
     let statusReads = 0;
     return withHarness(

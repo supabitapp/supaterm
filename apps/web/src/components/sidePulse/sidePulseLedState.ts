@@ -9,14 +9,17 @@ import {
   threadRuntimeIsUnsettled,
   type EnvironmentThreadShell,
 } from "@supaterm/client-runtime/state/models";
-import { resolveThreadRowStatus } from "@supaterm/client-runtime/state/thread-row-status";
 import { effectiveSnoozed } from "@supaterm/client-runtime/state/thread-snooze";
 import { backgroundWorkHoldsCompletion } from "@supaterm/shared/orchestrationV2PendingBackgroundWork";
 
-import { hasUnseenCompletion, hasUnseenFailure } from "../Sidebar.logic";
+import {
+  hasUnseenCompletion,
+  hasUnseenFailure,
+  resolveSidebarThreadStatus,
+} from "../Sidebar.logic";
 
 function threadLedState(thread: EnvironmentThreadShell, seen: boolean): SidePulseLedState {
-  const status = resolveThreadRowStatus(thread);
+  const status = resolveSidebarThreadStatus(thread);
   if (status === "approval" || status === "input") return "attention";
   if (
     threadRuntimeIsUnsettled(thread.runtime) ||

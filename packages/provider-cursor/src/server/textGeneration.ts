@@ -11,6 +11,7 @@ import type { CursorSettings } from "../settings.ts";
 import * as TextGenerationOperations from "@supaterm/provider-core/server/textGenerationOperations";
 import { cursorSdkModelSelection } from "./sdkModel.ts";
 import type { CursorAuth } from "./auth.ts";
+import * as CursorAgentSdk from "./CursorAgentSdk.ts";
 import * as CursorSdk from "./CursorSdk.ts";
 import * as HostProcess from "@supaterm/shared/HostProcess";
 
@@ -23,7 +24,9 @@ function cursorSdkResultDetail(result: RunResult): string {
     case "cancelled":
       return "Cursor SDK request was cancelled.";
     case "error":
-      return "Cursor SDK request finished with an error.";
+      return CursorAgentSdk.isCursorUsageLimitError(result.error)
+        ? "Cursor usage limit reached. Try again later or choose another text-generation provider."
+        : "Cursor SDK request finished with an error.";
     case "finished":
       return "Cursor SDK returned empty output.";
   }
@@ -54,7 +57,7 @@ export const makeCursorTextGeneration = Effect.fn("makeCursorTextGeneration")(fu
   withAccess?: CursorAuth["withAccess"],
 ) {
   const fs = yield* FileSystem.FileSystem;
-  const { Agent, SqliteLocalAgentStore } = yield* CursorSdk.CursorSdk;
+  const sdk = yield* CursorSdk.CursorSdk;
   const resolvedEnvironment = environment ?? process.env;
 
   const resolveCursorApiKey = Effect.fn("CursorTextGeneration.resolveCursorApiKey")(function* (
@@ -87,6 +90,7 @@ export const makeCursorTextGeneration = Effect.fn("makeCursorTextGeneration")(fu
       const { operation, prompt, modelSelection } = input;
 
       const apiKey = yield* resolveCursorApiKey(operation);
+      const { Agent } = yield* Effect.try(sdk.load);
       // The SDK loads sandbox.json independently of settingSources and lets it
       // expand the writable paths. Its public API cannot override that policy.
       if (yield* fs.exists(`${yield* HostProcess.HomeDirectory}/.cursor/sandbox.json`)) {
@@ -104,7 +108,9 @@ export const makeCursorTextGeneration = Effect.fn("makeCursorTextGeneration")(fu
         prefix: "supaterm-cursor-text-state-",
       });
       const store = yield* Effect.acquireRelease(
-        Effect.tryPromise(() => SqliteLocalAgentStore.open({ workspaceRef: cwd, stateRoot })),
+        Effect.tryPromise(() =>
+          sdk.loadSqlite().SqliteLocalAgentStore.open({ workspaceRef: cwd, stateRoot }),
+        ),
         (store) => Effect.tryPromise(() => store.dispose()).pipe(Effect.ignore({ log: true })),
       );
       const agentOptions = {
@@ -189,6 +195,7 @@ export const makeCursorTextGeneration = Effect.fn("makeCursorTextGeneration")(fu
         return yield* new TextGenerationError({
           operation,
           detail: cursorSdkResultDetail(promptResult),
+          ...(promptResult.error ? { cause: promptResult.error } : {}),
         });
       }
 

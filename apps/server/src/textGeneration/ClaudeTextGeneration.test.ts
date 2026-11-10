@@ -57,6 +57,7 @@ function makeFakeClaudeBinary(dir: string, lifecyclePort?: number) {
 function withFakeClaudeEnv<A, E, R>(
   input: {
     output: string;
+    rejectsNoSessionPersistence?: boolean;
     lifecyclePort?: number;
     exitCode?: number;
     stderr?: string;
@@ -76,6 +77,8 @@ function withFakeClaudeEnv<A, E, R>(
     const binDir = yield* makeFakeClaudeBinary(tempDir, input.lifecyclePort);
     const pathDelimiter = (yield* HostProcess.isWindows) ? ";" : ":";
     const previousPath = process.env.PATH;
+    const previousRejectsNoSessionPersistence =
+      process.env.SUPATERM_FAKE_CLAUDE_REJECTS_NO_SESSION_PERSISTENCE;
     const previousOutput = process.env.SUPATERM_FAKE_CLAUDE_OUTPUT;
     const previousExitCode = process.env.SUPATERM_FAKE_CLAUDE_EXIT_CODE;
     const previousStderr = process.env.SUPATERM_FAKE_CLAUDE_STDERR;
@@ -89,6 +92,12 @@ function withFakeClaudeEnv<A, E, R>(
       Effect.sync(() => {
         process.env.PATH = `${binDir}${pathDelimiter}${previousPath ?? ""}`;
         process.env.SUPATERM_FAKE_CLAUDE_OUTPUT = input.output;
+
+        if (input.rejectsNoSessionPersistence) {
+          process.env.SUPATERM_FAKE_CLAUDE_REJECTS_NO_SESSION_PERSISTENCE = "1";
+        } else {
+          delete process.env.SUPATERM_FAKE_CLAUDE_REJECTS_NO_SESSION_PERSISTENCE;
+        }
 
         if (input.exitCode !== undefined) {
           process.env.SUPATERM_FAKE_CLAUDE_EXIT_CODE = String(input.exitCode);
@@ -135,6 +144,13 @@ function withFakeClaudeEnv<A, E, R>(
       () =>
         Effect.sync(() => {
           process.env.PATH = previousPath;
+
+          if (previousRejectsNoSessionPersistence === undefined) {
+            delete process.env.SUPATERM_FAKE_CLAUDE_REJECTS_NO_SESSION_PERSISTENCE;
+          } else {
+            process.env.SUPATERM_FAKE_CLAUDE_REJECTS_NO_SESSION_PERSISTENCE =
+              previousRejectsNoSessionPersistence;
+          }
 
           if (previousOutput === undefined) {
             delete process.env.SUPATERM_FAKE_CLAUDE_OUTPUT;
@@ -344,6 +360,28 @@ it.layer(layerClaudeTextGenerationTest)("ClaudeTextGeneration", (it) => {
     }),
   );
 
+  it.effect("retries without --no-session-persistence when the Claude CLI rejects it", () =>
+    withFakeClaudeEnv(
+      {
+        output: JSON.stringify({ structured_output: { title: "Reconnect failures" } }),
+        rejectsNoSessionPersistence: true,
+      },
+      (textGeneration) =>
+        Effect.gen(function* () {
+          const generated = yield* textGeneration.generateThreadTitle({
+            cwd: process.cwd(),
+            message: "Investigate reconnect failures",
+            modelSelection: {
+              instanceId: ProviderInstanceId.make("claudeAgent"),
+              model: SYNTHETIC_CLAUDE_STANDARD_MODEL,
+            },
+          });
+
+          expect(generated.title).toBe("Reconnect failures");
+        }),
+    ),
+  );
+
   it.effect.each([
     { verbose: false, label: "normal" },
     { verbose: true, label: "verbose" },
@@ -438,7 +476,33 @@ it.layer(layerClaudeTextGenerationTest)("ClaudeTextGeneration", (it) => {
 
   const apiError = "API Error: 400 Model blocked by guardrail: 4 endpoints excluded";
   const wrapperNotice = "Using the OpenRouter credential from the global credential file.";
+  const structuredOutputError = "Failed to provide valid structured output after 5 attempts";
+  const structuredOutputFailure = {
+    type: "result",
+    subtype: "error_max_structured_output_retries",
+    is_error: true,
+    errors: [structuredOutputError],
+  };
   it.effect.each([
+    [
+      "the errors list of a result with no result text",
+      JSON.stringify(structuredOutputFailure),
+      structuredOutputError,
+    ],
+    [
+      "the errors list from verbose output",
+      JSON.stringify([{ type: "system", subtype: "init" }, structuredOutputFailure]),
+      structuredOutputError,
+    ],
+    [
+      "the errors list without CLI telemetry",
+      JSON.stringify({
+        ...structuredOutputFailure,
+        subtype: "error_during_execution",
+        errors: ["[ede_diagnostic] result_type=user last_content_type=n/a", apiError],
+      }),
+      apiError,
+    ],
     [
       "the stdout error over a stderr notice",
       JSON.stringify({ is_error: true, api_error_status: 400, result: apiError }),
@@ -454,6 +518,14 @@ it.layer(layerClaudeTextGenerationTest)("ClaudeTextGeneration", (it) => {
       apiError,
     ],
     ["stderr when stdout has no error", "not json", wrapperNotice],
+    [
+      "a stdout error naming --no-session-persistence without retrying",
+      JSON.stringify({
+        is_error: true,
+        result: "error: unknown option '--no-session-persistence'",
+      }),
+      "error: unknown option '--no-session-persistence'",
+    ],
   ] as const)("reports %s when the Claude CLI fails", ([, output, expected]) =>
     withFakeClaudeEnv({ output, stderr: wrapperNotice, exitCode: 1 }, (textGeneration) =>
       Effect.gen(function* () {
@@ -470,6 +542,27 @@ it.layer(layerClaudeTextGenerationTest)("ClaudeTextGeneration", (it) => {
 
         expect(error.detail).toBe(`Claude CLI command failed: ${expected}`);
       }),
+    ),
+  );
+
+  it.effect("does not report the raw result JSON when a failed run writes nothing to stderr", () =>
+    withFakeClaudeEnv(
+      { output: JSON.stringify(structuredOutputFailure), exitCode: 1 },
+      (textGeneration) =>
+        Effect.gen(function* () {
+          const error = yield* Effect.flip(
+            textGeneration.generateThreadTitle({
+              cwd: process.cwd(),
+              message: "Name this thread",
+              modelSelection: {
+                instanceId: ProviderInstanceId.make("claudeAgent"),
+                model: SYNTHETIC_CLAUDE_STANDARD_MODEL,
+              },
+            }),
+          );
+
+          expect(error.detail).toBe(`Claude CLI command failed: ${structuredOutputError}`);
+        }),
     ),
   );
 });

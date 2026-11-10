@@ -8,6 +8,7 @@ for (const stream of [process.stdout, process.stderr]) {
 
 import * as NodeHttpClient from "@effect/platform-node/NodeHttpClient";
 import * as NodeRuntime from "@effect/platform-node/NodeRuntime";
+import * as NodeCrypto from "@effect/platform-node/NodeCrypto";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 // @effect-diagnostics-next-line nodeBuiltinImport:off - Version output must flush before Electron exits, without acquiring the runtime.
 import * as NodeFS from "node:fs";
@@ -37,6 +38,7 @@ import * as ElectronWindow from "./electron/ElectronWindow.ts";
 import * as DesktopApp from "./app/DesktopApp.ts";
 import * as CodexMicroDesktop from "./codexMicro/CodexMicroDesktop.ts";
 import * as SidePulse from "./sidePulse/SidePulse.ts";
+import * as SidePulseEjectGuard from "./sidePulse/SidePulseEjectGuard.ts";
 import * as DesktopAppActivation from "./app/DesktopAppActivation.ts";
 import * as DesktopAppIdentity from "./app/DesktopAppIdentity.ts";
 import * as DesktopConnectionCatalogStore from "./app/DesktopConnectionCatalogStore.ts";
@@ -188,7 +190,9 @@ const layerDesktopCodexMicro = CodexMicroDesktop.layer.pipe(
   Layer.provideMerge(layerDesktopFoundation),
 );
 
-const layerDesktopSidePulse = SidePulse.layer.pipe(Layer.provideMerge(layerDesktopFoundation));
+const layerDesktopSidePulse = Layer.merge(SidePulse.layer, SidePulseEjectGuard.layer).pipe(
+  Layer.provideMerge(layerDesktopFoundation),
+);
 
 const layerDesktopAppActivation = DesktopAppActivation.layer.pipe(
   Layer.provide(layerDesktopWindow),
@@ -197,10 +201,10 @@ const layerDesktopAppActivation = DesktopAppActivation.layer.pipe(
 const layerDesktopBackend = DesktopBackendPool.layer.pipe(
   Layer.provideMerge(DesktopAppIdentity.layer),
   Layer.provideMerge(DesktopBackendConfiguration.layer),
-  Layer.provideMerge(DesktopShellEnvironment.layer),
   Layer.provideMerge(DesktopWslEnvironment.layer),
   Layer.provideMerge(DesktopWslServerTree.layer),
   Layer.provideMerge(DesktopTelemetryPublisher.layer),
+  Layer.provideMerge(DesktopShellEnvironment.layer),
   Layer.provideMerge(layerDesktopWindow),
 );
 
@@ -233,12 +237,12 @@ const layerDesktopApplication = Layer.mergeAll(
 const desktopDeepLinksLayer = DesktopDeepLinks.layer.pipe(
   Layer.provideMerge(ElectronShell.layer),
   Layer.provideMerge(layerDesktopEnvironment),
-  Layer.provideMerge(NodeServices.layer),
+  Layer.provideMerge(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer)),
   Layer.provideMerge(ElectronApp.layer),
 );
 
 const layerDesktopApplicationRuntime = layerDesktopApplication.pipe(
-  Layer.provideMerge(NodeServices.layer),
+  Layer.provideMerge(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer)),
   Layer.provideMerge(NodeHttpClient.layerUndici),
   Layer.provideMerge(NetService.layer),
   Layer.provideMerge(layerElectron),

@@ -34,6 +34,7 @@ import {
   ProviderAuthCompleteInput,
   ProviderAuthState,
   ProviderAuthStartInput,
+  ProviderAuthRemoveMethodInput,
   ProviderAuthRespondInput,
   ProviderInstallCancelInput,
   ProviderInstallState,
@@ -135,6 +136,7 @@ import {
   GitResolvePullRequestResult,
   GitRunStackedActionInput,
   VcsStatusInput,
+  VcsBranchStatus,
   VcsStatusSubscriptionInput,
   VcsStatusResult,
   VcsStatusStreamEvent,
@@ -187,6 +189,7 @@ import {
   PullRequestLinkedThreadsResult,
   PullRequestSummary,
   PullRequestReviewerCandidateList,
+  PullRequestReviewerCandidatesInput,
   PullRequestReviewerRequestInput,
   PullRequestLabelCandidateList,
   PullRequestLabelChangeInput,
@@ -202,6 +205,7 @@ import {
 import {
   ORCHESTRATION_V2_WS_METHODS,
   OrchestrationGetWorkflowScriptError,
+  OrchestrationV2GetNativeChildWorkError,
   OrchestrationV2StopWorkflowError,
   OrchestrationV2SuggestNextPromptError,
   OrchestrationV2ForceStopThreadError,
@@ -342,6 +346,7 @@ import {
 import { UsagePricing, UsageReadError, UsageSummary, UsageSummaryInput } from "./usage.ts";
 import {
   StorageCleanupReport,
+  DatabaseReclaimError,
   DatabaseStorageStatus,
   ServerSettingsError,
   ServerSettings,
@@ -424,6 +429,7 @@ export const WS_METHODS = {
   chatGptHandoffSubscribe: "provider.chatgpt.handoff.subscribe",
   providerAuthRespond: "provider.auth.respond",
   providerAuthCancel: "provider.auth.cancel",
+  providerAuthRemoveMethod: "provider.auth.removeMethod",
   providerAuthLogout: "provider.auth.logout",
   providerAuthSubscribe: "provider.auth.subscribe",
   orchestrationSkillsStatus: "orchestrationSkills.status",
@@ -492,6 +498,7 @@ export const WS_METHODS = {
   serverRunStorageCleanup: "server.runStorageCleanup",
   serverGetStorageCleanupReport: "server.getStorageCleanupReport",
   serverGetDatabaseStorage: "server.getDatabaseStorage",
+  serverReclaimDatabaseSpace: "server.reclaimDatabaseSpace",
   serverUpdateSettings: "server.updateSettings",
   serverDiscoverSourceControl: "server.discoverSourceControl",
   serverSearchAcpRegistry: "server.searchAcpRegistry",
@@ -569,6 +576,8 @@ export const WS_METHODS = {
   subscribeProjectClones: "subscribeProjectClones",
 
   subscribeVcsStatus: "subscribeVcsStatus",
+  subscribeVcsBranch: "subscribeVcsBranch",
+  vcsRefreshBranch: "vcs.refreshBranch",
   subscribeWorktreeSetup: "subscribeWorktreeSetup",
   worktreeSetupCancel: "worktreeSetup.cancel",
   subscribeTerminalMetadata: "subscribeTerminalMetadata",
@@ -616,11 +625,18 @@ export const WsServerRefreshProvidersRpc = Rpc.make(WS_METHODS.serverRefreshProv
      * Background status refreshes must not open agent sessions. */
     refreshModels: Schema.optional(Schema.Boolean),
     /**
+     * A model picker opened: refetch a model manifest older than a few minutes and probe providers
+     * only when it changed. The other fields are ignored and the config stream carries the result.
+     */
+    modelCatalogOnly: Schema.optional(Schema.Boolean),
+    /**
      * Reply without snapshots, or with only the requested instance's cwd snapshot. Snapshots then
      * reach the client only through these replies, so another client's scan shows on its next
      * refresh, at most one TTL later.
      */
     workspaceSnapshotsOnDemand: Schema.optional(Schema.Boolean),
+    /** As on `subscribeServerConfig`: a failed cwd scan replies with the machine catalog as a pending snapshot. */
+    providerCatalogsOnDemand: Schema.optional(Schema.Boolean),
   }),
   success: ServerProviderUpdatedPayload,
   error: Schema.Union([EnvironmentAuthorizationError, ProviderSetupError]),
@@ -677,6 +693,12 @@ const WsChatGptHandoffSubscribeRpc = Rpc.make(WS_METHODS.chatGptHandoffSubscribe
 
 const WsProviderAuthCancelRpc = Rpc.make(WS_METHODS.providerAuthCancel, {
   payload: ProviderAuthCancelInput,
+  success: ProviderAuthState,
+  error: ProviderSetupRpcError,
+});
+
+const WsProviderAuthRemoveMethodRpc = Rpc.make(WS_METHODS.providerAuthRemoveMethod, {
+  payload: ProviderAuthRemoveMethodInput,
   success: ProviderAuthState,
   error: ProviderSetupRpcError,
 });
@@ -779,6 +801,11 @@ const WsServerGetDatabaseStorageRpc = Rpc.make(WS_METHODS.serverGetDatabaseStora
   success: Schema.NullOr(DatabaseStorageStatus),
   stream: true,
   error: EnvironmentAuthorizationError,
+});
+
+const WsServerReclaimDatabaseSpaceRpc = Rpc.make(WS_METHODS.serverReclaimDatabaseSpace, {
+  payload: Schema.Struct({}),
+  error: Schema.Union([DatabaseReclaimError, EnvironmentAuthorizationError]),
 });
 
 const WsServerUpdateSettingsRpc = Rpc.make(WS_METHODS.serverUpdateSettings, {
@@ -1069,7 +1096,8 @@ const WsPullRequestsSetFilesViewedRpc = Rpc.make(WS_METHODS.pullRequestsSetFiles
 
 const WsPullRequestsRunActionRpc = Rpc.make(WS_METHODS.pullRequestsRunAction, {
   payload: PullRequestActionInput,
-  success: Schema.Void,
+  // Undefined unless asked for with replyWithSummary, or when the host's reply lacked it.
+  success: Schema.UndefinedOr(PullRequestSummary),
   error: PullRequestRpcError,
 });
 
@@ -1140,7 +1168,7 @@ const WsPullRequestsSubscribeRefreshesRpc = Rpc.make(WS_METHODS.pullRequestsSubs
  * per host on a list nobody looked at.
  */
 const WsPullRequestsReviewerCandidatesRpc = Rpc.make(WS_METHODS.pullRequestsReviewerCandidates, {
-  payload: PullRequestRef,
+  payload: PullRequestReviewerCandidatesInput,
   success: PullRequestReviewerCandidateList,
   error: PullRequestRpcError,
 });
@@ -1393,6 +1421,19 @@ const WsProviderUploadFeedbackRpc = Rpc.make(WS_METHODS.providerUploadFeedback, 
   payload: ProviderUploadFeedbackInput,
   success: ProviderUploadFeedbackResult,
   error: Schema.Union([ProviderUploadFeedbackError, EnvironmentAuthorizationError]),
+});
+
+const WsSubscribeVcsBranchRpc = Rpc.make(WS_METHODS.subscribeVcsBranch, {
+  payload: VcsStatusInput,
+  success: VcsBranchStatus,
+  error: Schema.Union([GitManagerServiceError, EnvironmentAuthorizationError]),
+  stream: true,
+});
+
+const WsVcsRefreshBranchRpc = Rpc.make(WS_METHODS.vcsRefreshBranch, {
+  payload: VcsStatusInput,
+  success: Schema.Void,
+  error: Schema.Union([GitManagerServiceError, EnvironmentAuthorizationError]),
 });
 
 const WsSubscribeVcsStatusRpc = Rpc.make(WS_METHODS.subscribeVcsStatus, {
@@ -1726,6 +1767,21 @@ const WsOrchestrationV2GetThreadFamilyRpc = Rpc.make(ORCHESTRATION_V2_WS_METHODS
   error: Schema.Union([OrchestrationV2GetShellSnapshotError, EnvironmentAuthorizationError]),
 });
 
+const WsOrchestrationV2GetThreadTitlesRpc = Rpc.make(ORCHESTRATION_V2_WS_METHODS.getThreadTitles, {
+  payload: OrchestrationV2RpcSchemas.getThreadTitles.input,
+  success: OrchestrationV2RpcSchemas.getThreadTitles.output,
+  error: Schema.Union([OrchestrationV2GetShellSnapshotError, EnvironmentAuthorizationError]),
+});
+
+const WsOrchestrationV2GetThreadLinkMetadataRpc = Rpc.make(
+  ORCHESTRATION_V2_WS_METHODS.getThreadLinkMetadata,
+  {
+    payload: OrchestrationV2RpcSchemas.getThreadLinkMetadata.input,
+    success: OrchestrationV2RpcSchemas.getThreadLinkMetadata.output,
+    error: Schema.Union([OrchestrationV2GetShellSnapshotError, EnvironmentAuthorizationError]),
+  },
+);
+
 const WsOrchestrationV2GetWorktreeThreadIdsRpc = Rpc.make(
   ORCHESTRATION_V2_WS_METHODS.getWorktreeThreadIds,
   {
@@ -1780,6 +1836,15 @@ const WsOrchestrationV2GetWorkflowScriptRpc = Rpc.make(
     payload: OrchestrationV2RpcSchemas.getWorkflowScript.input,
     success: OrchestrationV2RpcSchemas.getWorkflowScript.output,
     error: Schema.Union([OrchestrationGetWorkflowScriptError, EnvironmentAuthorizationError]),
+  },
+);
+
+const WsOrchestrationV2GetNativeChildWorkRpc = Rpc.make(
+  ORCHESTRATION_V2_WS_METHODS.getNativeChildWork,
+  {
+    payload: OrchestrationV2RpcSchemas.getNativeChildWork.input,
+    success: OrchestrationV2RpcSchemas.getNativeChildWork.output,
+    error: Schema.Union([OrchestrationV2GetNativeChildWorkError, EnvironmentAuthorizationError]),
   },
 );
 
@@ -1842,6 +1907,8 @@ export const WsSubscribeServerConfigRpc = Rpc.make(WS_METHODS.subscribeServerCon
     environmentThemes: Schema.optional(Schema.Boolean),
     /** Omit per-cwd provider snapshots; the client fetches its cwd through `server.refreshProviders`. */
     workspaceSnapshotsOnDemand: Schema.optional(Schema.Boolean),
+    /** With on-demand snapshots, also omit machine slash commands and skills a cwd snapshot replaces. */
+    providerCatalogsOnDemand: Schema.optional(Schema.Boolean),
   }),
   success: ServerConfigStreamEvent,
   error: Schema.Union([KeybindingsConfigError, ServerSettingsError, EnvironmentAuthorizationError]),
@@ -1936,6 +2003,7 @@ export const WsRpcGroup = RpcGroup.make(
   WsChatGptHandoffSubscribeRpc,
   WsProviderAuthRespondRpc,
   WsProviderAuthCancelRpc,
+  WsProviderAuthRemoveMethodRpc,
   WsProviderAuthLogoutRpc,
   WsProviderAuthSubscribeRpc,
   WsOrchestrationSkillsStatusRpc,
@@ -1954,6 +2022,7 @@ export const WsRpcGroup = RpcGroup.make(
   WsServerRunStorageCleanupRpc,
   WsServerGetStorageCleanupReportRpc,
   WsServerGetDatabaseStorageRpc,
+  WsServerReclaimDatabaseSpaceRpc,
   WsServerUpdateSettingsRpc,
   WsServerDiscoverSourceControlRpc,
   WsServerSearchAcpRegistryRpc,
@@ -2056,6 +2125,8 @@ export const WsRpcGroup = RpcGroup.make(
   WsMcpAppsUpdateModelContextRpc,
   WsProviderUploadFeedbackRpc,
   WsSubscribeVcsStatusRpc,
+  WsSubscribeVcsBranchRpc,
+  WsVcsRefreshBranchRpc,
   WsSubscribeWorktreeSetupRpc,
   WsWorktreeSetupCancelRpc,
   WsVcsPullRpc,
@@ -2109,6 +2180,7 @@ export const WsRpcGroup = RpcGroup.make(
   WsSubscribeResourceTelemetryRpc,
   WsOrchestrationV2DispatchCommandRpc,
   WsOrchestrationV2GetWorkflowScriptRpc,
+  WsOrchestrationV2GetNativeChildWorkRpc,
   WsOrchestrationV2SuggestNextPromptRpc,
   WsOrchestrationV2StopWorkflowRpc,
   WsOrchestrationV2ForceStopThreadRpc,
@@ -2120,6 +2192,8 @@ export const WsRpcGroup = RpcGroup.make(
   WsOrchestrationV2SearchThreadStreamRpc,
   WsOrchestrationV2GetArchivedShellSnapshotRpc,
   WsOrchestrationV2GetThreadFamilyRpc,
+  WsOrchestrationV2GetThreadTitlesRpc,
+  WsOrchestrationV2GetThreadLinkMetadataRpc,
   WsOrchestrationV2GetWorktreeThreadIdsRpc,
   WsOrchestrationV2GetOlderDoneThreadsRpc,
   WsOrchestrationV2GetThreadProjectionRpc,

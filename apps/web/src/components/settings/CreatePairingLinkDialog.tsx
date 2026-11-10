@@ -9,15 +9,19 @@ import {
   AuthTerminalReadScope,
   type AuthEnvironmentScope,
   type AuthPairingCredentialResult,
+  type EnvironmentId,
   type RelayConnectionInfo,
 } from "@supaterm/contracts";
-import { settlePromise, squashAtomCommandFailure } from "@supaterm/client-runtime/state/runtime";
+import {
+  isAtomCommandInterrupted,
+  settlePromise,
+  squashAtomCommandFailure,
+} from "@supaterm/client-runtime/state/runtime";
 import { AUTH_SCOPE_OPTIONS } from "@supaterm/shared/authScopeOptions";
 import { LinkIcon, PlusIcon } from "@supaterm/icons";
 import { type RefObject, useId, useRef, useState } from "react";
 
-import { createServerPairingCredential } from "~/environments/primary";
-import { usePrimaryEnvironmentId } from "~/state/environments";
+import { authEnvironment } from "~/state/auth";
 import { serverEnvironment } from "~/state/server";
 import { readEnvironmentScope } from "~/state/session";
 import { useAtomCommand } from "~/state/use-atom-command";
@@ -69,11 +73,13 @@ const PERMISSION_PRESETS = [
 ] as const;
 
 export function CreatePairingLinkDialog({
+  environmentId,
   triggerRef,
   relayEnabled,
   delegatableScopes,
   onPairingLinkCreated,
 }: {
+  readonly environmentId: EnvironmentId;
   readonly triggerRef: RefObject<HTMLButtonElement | null>;
   readonly relayEnabled: boolean;
   readonly delegatableScopes: ReadonlyArray<AuthEnvironmentScope>;
@@ -82,10 +88,12 @@ export function CreatePairingLinkDialog({
     relay?: RelayConnectionInfo,
   ) => void;
 }) {
-  const primaryEnvironmentId = usePrimaryEnvironmentId();
   const prepareRelay = useAtomCommand(serverEnvironment.prepareRelay, { reportFailure: false });
+  const createPairingCredential = useAtomCommand(authEnvironment.createPairingCredential, {
+    reportFailure: false,
+  });
   const canPrepareRelay = useAtomValue(
-    serverEnvironment.prepareRelay.permissionAtom(primaryEnvironmentId),
+    serverEnvironment.prepareRelay.permissionAtom(environmentId),
   );
   const permissionsId = useId();
   const createButtonRef = useRef<HTMLButtonElement | null>(null);
@@ -108,24 +116,31 @@ export function CreatePairingLinkDialog({
   const createLink = async () => {
     if (
       pending ||
-      primaryEnvironmentId === null ||
       selectedScopes.length === 0 ||
-      !readEnvironmentScope(primaryEnvironmentId, AuthAccessWriteScope) ||
-      !selectedScopes.every((scope) => readEnvironmentScope(primaryEnvironmentId, scope))
+      !readEnvironmentScope(environmentId, AuthAccessWriteScope) ||
+      !selectedScopes.every((scope) => readEnvironmentScope(environmentId, scope))
     )
       return;
     setStage(relayEnabled ? "relay" : "creating");
     const result = await settlePromise(async () => {
       let relay: RelayConnectionInfo | undefined;
       if (relayEnabled) {
-        const prepared = await prepareRelay({ environmentId: primaryEnvironmentId, input: {} });
+        const prepared = await prepareRelay({ environmentId, input: {} });
         if (prepared._tag === "Failure") throw squashAtomCommandFailure(prepared);
         relay = prepared.value;
       }
       setStage("creating");
-      const created = await createServerPairingCredential({ label, scopes: selectedScopes });
+      const trimmedLabel = label.trim();
+      const created = await createPairingCredential({
+        environmentId,
+        input: { ...(trimmedLabel ? { label: trimmedLabel } : {}), scopes: selectedScopes },
+      });
+      if (created._tag === "Failure") {
+        if (isAtomCommandInterrupted(created)) return;
+        throw squashAtomCommandFailure(created);
+      }
       setOpen(false);
-      onPairingLinkCreated(created, relay);
+      onPairingLinkCreated(created.value, relay);
     });
     if (result._tag === "Failure") {
       const error = squashAtomCommandFailure(result);

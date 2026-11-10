@@ -19,6 +19,18 @@ volume. Choose **Allow**. If you chose **Don't Allow**, the page shows **No acce
 Quit SidePulse's own menu bar app first. Both apps write to the same device, and each overwrites
 the other.
 
+## Staying connected after sleep
+
+When a Mac wakes from deep sleep while locked, such as after its battery runs low, macOS ejects
+SidePulse and the LEDs stay dark until you reinsert it. To prevent this on macOS, click **Install…**
+next to **Stay connected after sleep**. macOS asks for an administrator password because the helper
+runs as a system service, so it is already running at the lock screen when your Mac wakes.
+It only keeps SidePulse volumes connected, so other SD cards eject as usual. **Remove…** uninstalls
+it.
+
+While the helper is installed, ejecting SidePulse from Finder doesn't work. Pull it out, or remove
+the helper first.
+
 ## What the lights mean
 
 The LEDs show the most urgent state across your open threads in every connected environment.

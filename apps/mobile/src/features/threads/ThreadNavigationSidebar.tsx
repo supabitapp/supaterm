@@ -20,26 +20,15 @@ import Animated from "react-native-reanimated";
 import { useThreadListMotion } from "./use-thread-list-motion";
 import { useAtomValue } from "@effect/atom-react";
 import { useMemo, useRef, useState } from "react";
-import type {
-  LayoutChangeEvent,
-  NativeScrollEvent,
-  NativeSyntheticEvent,
-  TextInputInstance,
-} from "react-native";
-import { Platform, StyleSheet, TextInput, View } from "react-native";
+import type { NativeScrollEvent, NativeSyntheticEvent } from "react-native";
+import { Platform, StyleSheet, View } from "react-native";
 import { GestureDetector, useNativeGesture } from "react-native-gesture-handler";
 import type { SwipeableMethods } from "react-native-gesture-handler/ReanimatedSwipeable";
-import { useEnabledNavigationTabs } from "../workspace/navigation-tabs";
-import { FLOATING_TABS, floatingTabsMetrics } from "../workspace/floating-workspace-tabs";
+import { FLOATING_TABS } from "../layout/workspace/floating-workspace-tabs";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import type { SearchBarCommands } from "react-native-screens";
 
 import { AppText as Text } from "../../components/ui/AppText";
-import { brandTitleOffset, CompactBrandTitle } from "../../components/CompactBrandTitle";
-import { Menu } from "../../components/ui/Menu";
-import { SymbolView } from "../../components/ui/AppSymbol";
-import { NATIVE_LIQUID_GLASS_SUPPORTED } from "../../native/native-glass";
-import { NativeStackScreenOptions } from "../../native/StackHeader";
+import { useContentTopInset } from "../../components/ui/useBarInset";
 import { scopedProjectKey, scopedThreadKey } from "../../lib/scopedEntities";
 import { useProjects, useNavigationThreadShells } from "../../state/entities";
 import { useThreadSearch } from "../../state/queries";
@@ -51,29 +40,20 @@ import { usePendingNewTasks, type PendingNewTask } from "../../state/use-pending
 import { useQueuedThreadKeys } from "../../state/use-thread-outbox";
 import { useWorkspaceState } from "../../state/workspace";
 import { useSavedRemoteConnections } from "../../state/use-remote-environment-registry";
-import { useHardwareKeyboardCommand } from "../keyboard/hardwareKeyboardCommands";
 import { useThreadJumpShortcuts } from "../keyboard/threadKeyboardShortcuts";
 import { requestThreadMessageJump } from "./threadMessageJump";
 import { useThreadListSearchMatches } from "./useThreadListSearchMatches";
 import { useHomeListOptions } from "../home/home-list-options";
-import { useThreadListFilterMenu } from "../home/useThreadListFilterMenu";
-import { buildHomeListFilterMenu } from "../home/home-list-filter-menu";
+import { buildHomeListFilterMenuItems } from "../home/home-list-filter-menu";
+import { WorkspaceListHeader } from "../layout/workspace/WorkspaceListHeader";
+import { WORKSPACE_LIST_SCROLL_INSETS } from "../layout/workspace/workspace-list-insets";
+import { WorkspaceSidebarColumn } from "../layout/workspace/WorkspaceSidebarColumn";
 import { buildHomeProjectScopes, findHomeProjectScope } from "../home/homeThreadList";
 import { SwipeableScrollGateProvider, useSwipeableScrollGate } from "../home/thread-swipe-actions";
 import { usePendingTaskListActions } from "../home/usePendingTaskListActions";
 import { useThreadListActions } from "../home/useThreadListActions";
-import {
-  getConnectionAwareBrandHeaderOptions,
-  WorkspaceConnectionTitle,
-} from "../home/WorkspaceConnectionTitle";
-import { SidebarHeaderActions } from "./sidebar-header-actions";
-import { ThreadListToolbar } from "../home/ThreadListToolbar";
-import { useToolbarLayout } from "../../components/ui/useToolbarLayout";
 import { useFabScroll } from "../home/FabScrollContext";
-import { useWorkspaceTabs } from "../workspace/WorkspaceTabsContext";
-import { SidebarFilterButton } from "./sidebar-filter-button";
-import { createSidebarHeaderItems } from "./sidebar-native-header-items";
-import { SidebarNavigationShell } from "./sidebar-navigation-shell";
+import { useWorkspaceTabs } from "../layout/workspace/WorkspaceTabsContext";
 import {
   ThreadListV2PendingRow,
   ThreadListV2Row,
@@ -94,14 +74,12 @@ import {
   THREAD_LIST_V2_DONE_PAGE_COUNT,
   type ThreadListV2ListItem,
 } from "./threadListV2";
-import { useSelectWorkspaceDetail } from "../workspace/useSelectWorkspaceDetail";
+import { useSelectWorkspaceDetail } from "../layout/workspace/useSelectWorkspaceDetail";
 import { NativeScrollView } from "../../native/NativeScrollViewMarker";
 
 /** The sidebar list: flat v2 rows with queued tasks spliced in, plus a
     done "Show more" pager row. */
 type SidebarListItem = ThreadListV2ListItem;
-
-const SIDEBAR_STICKY_HEADER_HEIGHT = 106;
 
 interface ThreadNavigationSidebarProps {
   readonly width: number;
@@ -125,32 +103,14 @@ interface ThreadNavigationSidebarProps {
 export function ThreadNavigationSidebar(props: ThreadNavigationSidebarProps) {
   return (
     <ThreadPrDemandProvider visible={props.visible}>
-      {Platform.OS !== "ios" ? (
-        <ThreadNavigationSidebarPane {...props} nativeChrome={false} />
-      ) : (
-        <NativeSidebarContainer {...props} />
-      )}
+      <WorkspaceSidebarColumn width={props.width}>
+        <ThreadNavigationSidebarPane {...props} />
+      </WorkspaceSidebarColumn>
     </ThreadPrDemandProvider>
   );
 }
 
-function NativeSidebarContainer(props: ThreadNavigationSidebarProps) {
-  return (
-    <View
-      testID="thread-navigation-sidebar"
-      className="flex-1 border-border bg-drawer"
-      style={{ borderRightWidth: StyleSheet.hairlineWidth, width: props.width }}
-    >
-      <SidebarNavigationShell>
-        <ThreadNavigationSidebarPane {...props} nativeChrome />
-      </SidebarNavigationShell>
-    </View>
-  );
-}
-
-function ThreadNavigationSidebarPane(
-  props: ThreadNavigationSidebarProps & { readonly nativeChrome: boolean },
-) {
+function ThreadNavigationSidebarPane(props: ThreadNavigationSidebarProps) {
   const workspace = useWorkspaceTabs();
   const [initialScrollOffset] = useState(() => workspace?.getScrollOffset("threads") ?? 0);
   const floatingTabsEnabled = useAndroidFloatingTabs();
@@ -158,15 +118,12 @@ function ThreadNavigationSidebarPane(
   const drawerColor = materialTheme["--color-drawer"];
 
   const insets = useSafeAreaInsets();
-  const { fabClearance, scale, fabSize } = useAndroidControlSizing();
-  const enabledTabs = useEnabledNavigationTabs();
-  const floatingTabs = floatingTabsMetrics(enabledTabs.length + 1, scale, fabSize, props.width);
+  const contentTopInset = useContentTopInset();
+  const { fabClearance, fabSize } = useAndroidControlSizing();
   const projects = useProjects();
   const threads = useNavigationThreadShells();
   const { environments: workspaceEnvironments, state: catalogState } = useWorkspaceState();
   const { savedConnectionsById } = useSavedRemoteConnections();
-  const searchInputRef = useRef<TextInputInstance>(null);
-  const searchBarRef = useRef<SearchBarCommands>(null);
   const openSwipeableRef = useRef<SwipeableMethods | null>(null);
   const sidebarScrollGesture = useNativeGesture();
   const {
@@ -342,34 +299,7 @@ function ThreadNavigationSidebarPane(
     doneShelfExpanded,
     selectedThreadKey: props.selectedThreadKey ?? null,
   });
-  const threadFilterMenu = useThreadListFilterMenu({
-    environments,
-    projects: projectFilterOptions,
-    selectedEnvironmentId: options.selectedEnvironmentId,
-    selectedProjectKey,
-    onEnvironmentChange: setSelectedEnvironmentId,
-    onProjectChange: setSelectedProjectKey,
-    grouping: options.threadGrouping,
-    onGroupingChange: setThreadGrouping,
-    hideOfflineEnvironments: options.hideOfflineEnvironments,
-    onHideOfflineEnvironmentsChange: setHideOfflineEnvironments,
-  });
 
-  const [measuredHeaderHeight, setMeasuredHeaderHeight] = useState<number | null>(null);
-  const { height, paddingTop, paddingBottom } = useToolbarLayout();
-  // The sticky header (title row, search field, optional connection status)
-  // is measured so the list inset always matches its real height — no
-  // hardcoded per-variant constants.
-  const stickyHeaderHeight =
-    measuredHeaderHeight ??
-    (Platform.OS === "android"
-      ? paddingTop + height + paddingBottom
-      : insets.top + SIDEBAR_STICKY_HEADER_HEIGHT);
-  const topListInset = stickyHeaderHeight + 6;
-  const handleStickyHeaderLayout = (event: LayoutChangeEvent) => {
-    const nextHeight = event.nativeEvent.layout.height;
-    setMeasuredHeaderHeight((current) => (current === nextHeight ? current : nextHeight));
-  };
   const handleSwipeableWillOpen = (methods: SwipeableMethods) => {
     if (openSwipeableRef.current !== methods) {
       openSwipeableRef.current?.close();
@@ -410,7 +340,7 @@ function ThreadNavigationSidebarPane(
     onFabScroll?.(event);
     workspace?.recordScrollOffset(
       "threads",
-      Math.max(0, event.nativeEvent.contentOffset.y + (Platform.OS === "ios" ? insets.top : 0)),
+      Math.max(0, event.nativeEvent.contentOffset.y + contentTopInset),
     );
   };
   const { swipeEnabled, scrollGateHandlers } = useSwipeableScrollGate({
@@ -431,25 +361,6 @@ function ThreadNavigationSidebarPane(
     threadSearchMatchByKey,
   };
   useThreadJumpShortcuts(listItems, handleSelectThread);
-  const { nativeChrome, onRequestVisibility, visible } = props;
-  const focusSearch = () => {
-    if (Platform.OS === "android") return false;
-    const focus = () => {
-      if (nativeChrome) {
-        searchBarRef.current?.focus();
-        return;
-      }
-      searchInputRef.current?.focus();
-    };
-    if (!visible) {
-      onRequestVisibility();
-      setTimeout(focus, 240);
-    } else {
-      focus();
-    }
-    return true;
-  };
-  useHardwareKeyboardCommand("focusSearch", focusSearch);
   const listMotion = useThreadListMotion({
     items: listItems,
     doneLimit: doneVisibleCount,
@@ -657,26 +568,39 @@ function ThreadNavigationSidebarPane(
       {renderListItemContent(itemProps)}
     </Animated.View>
   );
-  const filterIcon = threadFilterMenu.customized
-    ? "line.3.horizontal.decrease.circle.fill"
-    : "line.3.horizontal.decrease.circle";
-  const filterMenu = buildHomeListFilterMenu({
-    grouping: options.threadGrouping,
-    onGroupingChange: setThreadGrouping,
-    environments,
-    projects: projectFilterOptions,
-    selectedEnvironmentId: options.selectedEnvironmentId,
-    selectedProjectKey,
-    onEnvironmentChange: setSelectedEnvironmentId,
-    onProjectChange: setSelectedProjectKey,
-    hideOfflineEnvironments: options.hideOfflineEnvironments,
-    onHideOfflineEnvironmentsChange: setHideOfflineEnvironments,
-  });
-  const nativeHeaderItems = createSidebarHeaderItems({
-    filterIcon,
-    filterMenu,
-    onOpenSettings: props.onOpenSettings,
-  });
+  const header = (
+    <WorkspaceListHeader
+      accessibilityLabel="Supaterm, Threads"
+      onOpenEnvironments={props.onOpenEnvironmentSettings}
+      onOpenSettings={props.onOpenSettings}
+      search={{
+        value: props.searchQuery,
+        onChangeText: props.onSearchQueryChange,
+        placeholder: "Search",
+        accessibilityLabel: "Search threads",
+      }}
+      filter={{
+        customized: options.selectedEnvironmentId !== null || selectedProjectKey !== null,
+        items: buildHomeListFilterMenuItems({
+          grouping: options.threadGrouping,
+          onGroupingChange: setThreadGrouping,
+          environments,
+          projects: projectFilterOptions,
+          selectedEnvironmentId: options.selectedEnvironmentId,
+          selectedProjectKey,
+          onEnvironmentChange: setSelectedEnvironmentId,
+          onProjectChange: setSelectedProjectKey,
+          hideOfflineEnvironments: options.hideOfflineEnvironments,
+          onHideOfflineEnvironmentsChange: setHideOfflineEnvironments,
+        }),
+      }}
+      sidebar={{
+        width: props.width,
+        visible: props.visible,
+        onRequestVisibility: props.onRequestVisibility,
+      }}
+    />
+  );
   const listEmpty = (
     <Text
       className={
@@ -699,49 +623,18 @@ function ThreadNavigationSidebarPane(
     </Text>
   );
 
-  if (props.nativeChrome) {
+  if (Platform.OS === "ios") {
     return (
       <>
-        <NativeStackScreenOptions
-          optionsVersion={[nativeHeaderItems, props.width]}
-          options={{
-            // Re-applies the shell's static brand slot with the
-            // connection subtitle so reconnects surface in the header
-            // instead of shifting the list.
-            ...getConnectionAwareBrandHeaderOptions({
-              headerWidth: props.width,
-              trailingItemCount: nativeHeaderItems.length,
-              onOpenEnvironments: props.onOpenEnvironmentSettings,
-              fallbackTitleStyle: { fontSize: 18, fontWeight: "800" },
-            }),
-            headerSearchBarOptions: {
-              ref: searchBarRef,
-              autoCapitalize: "none",
-              hideNavigationBar: false,
-              hideWhenScrolling: false,
-              obscureBackground: false,
-              placeholder: "Search",
-              placement: "stacked",
-              onCancelButtonPress: () => {
-                props.onSearchQueryChange("");
-              },
-              onChangeText: (event) => {
-                props.onSearchQueryChange(event.nativeEvent.text);
-              },
-            },
-            unstable_headerRightItems: () => nativeHeaderItems,
-          }}
-        />
+        {header}
         <View className="flex-1">
           <SwipeableScrollGateProvider enabled={swipeEnabled}>
             <GestureDetector gesture={sidebarScrollGesture}>
               <AnimatedLegendList
-                renderScrollComponent={Platform.OS === "ios" ? NativeScrollView : undefined}
+                renderScrollComponent={NativeScrollView}
                 itemLayoutAnimation={listMotion.layout}
                 initialScrollOffset={
-                  initialScrollOffset > 0
-                    ? initialScrollOffset - (Platform.OS === "ios" ? insets.top : 0)
-                    : undefined
+                  initialScrollOffset > 0 ? initialScrollOffset - contentTopInset : undefined
                 }
                 data={listItems}
                 drawDistance={500}
@@ -751,13 +644,9 @@ function ThreadNavigationSidebarPane(
                 itemsAreEqual={threadListV2ListItemsAreEqual}
                 keyExtractor={(item) => item.key}
                 renderItem={renderListItem}
-                automaticallyAdjustsScrollIndicatorInsets={NATIVE_LIQUID_GLASS_SUPPORTED}
-                contentInsetAdjustmentBehavior={
-                  NATIVE_LIQUID_GLASS_SUPPORTED ? "automatic" : "never"
-                }
+                {...WORKSPACE_LIST_SCROLL_INSETS}
                 contentContainerStyle={[
                   styles.threadListContent,
-                  Platform.OS === "android" ? { paddingHorizontal: 0 } : null,
                   {
                     paddingBottom: Math.max(insets.bottom, 16) + 16,
                     paddingTop: 6,
@@ -780,44 +669,29 @@ function ThreadNavigationSidebarPane(
     );
   }
 
+  // Android: the bar floats below the list.
   return (
-    <View
-      testID="thread-navigation-sidebar"
-      className={
-        Platform.OS === "android" ? "flex-1 bg-header" : "flex-1 border-r border-border bg-drawer"
-      }
-      // Android fills its pane, which animates its width while a hinge resizes the split.
-      style={Platform.OS === "android" ? undefined : { width: props.width }}
-    >
+    <View testID="thread-navigation-sidebar" className="flex-1 bg-header">
       <View
         className="flex-1"
-        style={
-          Platform.OS === "android"
-            ? {
-                marginTop: stickyHeaderHeight,
-                marginHorizontal: 4,
-                paddingBottom: insets.bottom,
-                backgroundColor: drawerColor,
-                borderTopLeftRadius: 28,
-                borderTopRightRadius: 28,
-                overflow: "hidden",
-              }
-            : { paddingBottom: insets.bottom }
-        }
+        style={{
+          marginHorizontal: 4,
+          paddingBottom: insets.bottom,
+          backgroundColor: drawerColor,
+          borderTopLeftRadius: 28,
+          borderTopRightRadius: 28,
+          overflow: "hidden",
+        }}
       >
-        {Platform.OS === "android" && listItems.length === 0 ? (
+        {listItems.length === 0 ? (
           <View className="flex-1 items-center justify-center">{listEmpty}</View>
         ) : (
           <SwipeableScrollGateProvider enabled={swipeEnabled}>
             <GestureDetector gesture={sidebarScrollGesture}>
-              {/* oxlint-disable-next-line supaterm/require-registered-list-scroll -- Only the non-native workspace layout (Android and the fallback) renders this sidebar, which has no native header to register with. */}
+              {/* oxlint-disable-next-line supaterm/require-registered-list-scroll -- The Android sidebar has no native header to register with. */}
               <AnimatedLegendList
                 itemLayoutAnimation={listMotion.layout}
-                initialScrollOffset={
-                  initialScrollOffset > 0
-                    ? initialScrollOffset - (Platform.OS === "ios" ? insets.top : 0)
-                    : undefined
-                }
+                initialScrollOffset={initialScrollOffset > 0 ? initialScrollOffset : undefined}
                 data={listItems}
                 drawDistance={500}
                 estimatedItemSize={64}
@@ -826,21 +700,12 @@ function ThreadNavigationSidebarPane(
                 itemsAreEqual={threadListV2ListItemsAreEqual}
                 keyExtractor={(item) => item.key}
                 renderItem={renderListItem}
-                contentContainerStyle={[
-                  styles.threadListContent,
-                  Platform.OS === "android" ? { paddingHorizontal: 0 } : null,
-                  {
-                    paddingBottom:
-                      Platform.OS === "android"
-                        ? floatingTabsEnabled
-                          ? FLOATING_TABS.bottom +
-                            FLOATING_TABS.edge +
-                            Math.max(floatingTabs.height, floatingTabs.fabOffset + fabSize)
-                          : Math.max(insets.bottom, 16) + fabClearance - insets.bottom
-                        : 16 + insets.bottom,
-                    paddingTop: Platform.OS === "android" ? 6 : topListInset,
-                  },
-                ]}
+                contentContainerStyle={{
+                  paddingBottom: floatingTabsEnabled
+                    ? FLOATING_TABS.bottom + FLOATING_TABS.edge + fabSize
+                    : Math.max(insets.bottom, 16) + fabClearance - insets.bottom,
+                  paddingTop: 6,
+                }}
                 keyboardDismissMode="on-drag"
                 keyboardShouldPersistTaps="handled"
                 {...scrollGateHandlers}
@@ -854,72 +719,7 @@ function ThreadNavigationSidebarPane(
           </SwipeableScrollGateProvider>
         )}
       </View>
-
-      {Platform.OS === "android" ? (
-        <ThreadListToolbar
-          sidebar
-          onLayout={handleStickyHeaderLayout}
-          searchQuery={props.searchQuery}
-          onSearchQueryChange={props.onSearchQueryChange}
-          filterMenu={threadFilterMenu}
-          onOpenEnvironments={props.onOpenEnvironmentSettings}
-          onRequestVisibility={props.onRequestVisibility}
-        />
-      ) : (
-        <View
-          className="absolute inset-x-0 top-0 z-[4] bg-drawer"
-          collapsable={false}
-          onLayout={handleStickyHeaderLayout}
-          pointerEvents="auto"
-          style={{ paddingTop: insets.top }}
-        >
-          <View className="h-[50px] flex-row items-end gap-0.5 pr-2 pl-5">
-            {/* Keep the title and connection subtitle inside the fixed header
-              so reconnects never shift the list below. */}
-            <WorkspaceConnectionTitle
-              grow
-              onPress={props.onOpenEnvironmentSettings}
-              size="pageTitle"
-              statusOffset={brandTitleOffset()}
-              brand={<CompactBrandTitle allowFontScaling={false} />}
-            />
-            <View className="flex-row items-center gap-2.5">
-              <Menu
-                actions={threadFilterMenu.actions}
-                onPressAction={threadFilterMenu.onPressAction}
-              >
-                <SidebarFilterButton accessibilityLabel="Filter threads" icon={filterIcon} />
-              </Menu>
-              <SidebarHeaderActions onOpenSettings={props.onOpenSettings} />
-            </View>
-          </View>
-
-          <View className="mx-4 mt-[9px] h-[38px] flex-row items-center gap-1.5 rounded-xl bg-sidebar-search pr-2.5 pl-[11px]">
-            <SymbolView
-              name="magnifyingglass"
-              size={15}
-              tintColorClassName="accent-drawer-foreground-muted"
-              type="monochrome"
-            />
-            <TextInput
-              ref={searchInputRef}
-              accessibilityLabel="Search threads"
-              autoCapitalize="none"
-              autoCorrect={false}
-              clearButtonMode="while-editing"
-              onChangeText={props.onSearchQueryChange}
-              placeholder="Search"
-              placeholderTextColorClassName="accent-placeholder"
-              selectionColorClassName={undefined}
-              cursorColorClassName={undefined}
-              selectionHandleColorClassName={undefined}
-              returnKeyType="search"
-              className="h-[34px] flex-1 px-0 py-0 font-sans text-base text-drawer-foreground"
-              value={props.searchQuery}
-            />
-          </View>
-        </View>
-      )}
+      {header}
       <ThreadUndoNotice visible={props.visible} />
     </View>
   );

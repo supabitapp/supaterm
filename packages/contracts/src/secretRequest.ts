@@ -2,6 +2,17 @@ import * as Schema from "effect/Schema";
 
 import { ThreadId, TurnItemId } from "./baseSchemas.ts";
 
+/** The http(s) page a secret card may open, or null for anything else. */
+export function secretRequestPageUrl(value: string): URL | null {
+  // React Native's URL has no `canParse`.
+  try {
+    const url = new URL(value);
+    return (url.protocol === "https:" || url.protocol === "http:") && url.host !== "" ? url : null;
+  } catch {
+    return null;
+  }
+}
+
 /** Server keeps the value until it moves to the agent's file; the thread learns only status. */
 export const SecretRequestAnswerInput = Schema.Struct({
   threadId: ThreadId,
@@ -15,6 +26,16 @@ export const SecretRequestAnswerInput = Schema.Struct({
   ]),
 });
 export type SecretRequestAnswerInput = typeof SecretRequestAnswerInput.Type;
+
+/** What the agent reads when its card ends without a secret. */
+export const SECRET_REQUEST_UNSAVED_NOTE = {
+  declined:
+    "The user declined. Don't ask for it in chat or another way; say what's blocked and go on without it.",
+  cancelled:
+    "The card closed with the run. Ask again with a new clientRequestId only if the secret is still needed.",
+  timed_out:
+    "No answer in time. Don't ask in chat; ask again with a new clientRequestId only if it is still needed.",
+} as const;
 
 const SECRET_REQUEST_FAILURE_MESSAGES = {
   load_failed: "Could not load the secret request.",

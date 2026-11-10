@@ -52,6 +52,8 @@ interface UpdateEverythingDialogProps {
   readonly disabledReason?: string | null;
   /** The confirmed work is starting; it cannot be cancelled from here. */
   readonly busy?: boolean;
+  /** Machines are still looking for provider updates, so more rows can appear. */
+  readonly checking?: boolean;
 }
 
 type UpdateEverythingDialogContentProps = Omit<
@@ -99,6 +101,7 @@ function UpdateEverythingDialogContent({
   notes = [],
   disabledReason = null,
   busy = false,
+  checking = false,
 }: UpdateEverythingDialogContentProps) {
   const stopped = useAtomValue(
     runningThreadCountAtom(
@@ -137,6 +140,9 @@ function UpdateEverythingDialogContent({
           {version !== null && providerCount > 0 ? " · " : null}
           {providerCount > 0
             ? `${providerCount} provider ${providerCount === 1 ? "update" : "updates"}`
+            : null}
+          {checking
+            ? `${version !== null || providerCount > 0 ? " · " : ""}Checking for more…`
             : null}
         </AlertDialogDescription>
       </AlertDialogHeader>

@@ -59,7 +59,7 @@ const serveFakeRelease = Effect.fn("test.serveFakeRelease")(function* (root: str
   });
   yield* fs.writeFileString(
     path.join(root, "release", stem, "supaterm"),
-    '#!/bin/sh\necho "stub $* launcher=$SUPATERM_NPM_LAUNCHER_PATH"\nexit 7\n',
+    `#!/bin/sh\nif [ "$1" = "--version" ]; then echo "${VERSION}"; exit 0; fi\necho "stub $* launcher=$SUPATERM_NPM_LAUNCHER_PATH"\nexit 7\n`,
   );
   yield* fs.chmod(path.join(root, "release", stem, "supaterm"), 0o755);
   const tar = yield* run("tar", ["-czf", archiveName, stem], {
@@ -165,7 +165,7 @@ it.layer(NodeServices.layer)("build-npm-launcher", (it) => {
         // A second run reuses the download.
         const requestsAfterFirst = release.requests.length;
         const second = yield* run(process.execPath, [launcher, "--version"], { cwd: root, env });
-        assert.equal(second.exitCode, 7);
+        assert.equal(second.exitCode, 0);
         assert.equal(release.requests.length, requestsAfterFirst);
 
         // A parent that talks to the server over IPC keeps that channel, and
@@ -198,8 +198,8 @@ it.layer(NodeServices.layer)("build-npm-launcher", (it) => {
           env: { ...env, SUPATERM_HOME: raceHome },
         });
         const [one, two] = yield* Effect.all([launch, launch], { concurrency: "unbounded" });
-        assert.equal(one.exitCode, 7, one.stderr);
-        assert.equal(two.exitCode, 7, two.stderr);
+        assert.equal(one.exitCode, 0, one.stderr);
+        assert.equal(two.exitCode, 0, two.stderr);
         assert.deepStrictEqual(yield* fs.readDirectory(path.join(raceHome, "runtime/versions")), [
           VERSION,
         ]);
@@ -308,12 +308,8 @@ fs.readFileSync = (file, ...rest) => {
           cwd: root,
           env: { ...env, SUPATERM_HOME: staleOnlyHome },
         });
-        assert.equal(
-          replaced.stdout.trim(),
-          `stub --version launcher=${launcher}`,
-          replaced.stderr,
-        );
-        assert.equal(replaced.exitCode, 7);
+        assert.equal(replaced.stdout.trim(), VERSION, replaced.stderr);
+        assert.equal(replaced.exitCode, 0);
         assert.deepStrictEqual(
           yield* fs.readDirectory(path.join(staleOnlyHome, "runtime/versions")),
           [VERSION],

@@ -20,7 +20,7 @@ import { PCM_BYTES_PER_SECOND, parseWav } from "@supaterm/provider-core/server/t
 import * as Cause from "effect/Cause";
 import * as Clock from "effect/Clock";
 import * as Context from "effect/Context";
-import * as Crypto from "effect/Crypto";
+import * as SecureRandom from "effect/crypto/SecureRandom";
 import * as Deferred from "effect/Deferred";
 import * as Effect from "effect/Effect";
 import * as Exit from "effect/Exit";
@@ -37,7 +37,8 @@ import * as Semaphore from "effect/Semaphore";
 import * as Socket from "effect/socket/Socket";
 import * as Stream from "effect/Stream";
 
-import { signUploadToken, verifyUploadToken, writeUploadBody } from "../assets/AttachmentUpload.ts";
+import * as AssetSigner from "../assets/AssetSigner.ts";
+import * as AttachmentUpload from "../assets/AttachmentUpload.ts";
 import * as ServerSecretStore from "../auth/ServerSecretStore.ts";
 import * as ServerConfig from "../config.ts";
 import * as ThreadManagement from "../orchestration-v2/ThreadManagementService.ts";
@@ -188,6 +189,7 @@ const messageDispatch = (
     text,
     attachments: [],
     ...(submit.modelSelection === undefined ? {} : { modelSelection: submit.modelSelection }),
+    ...(submit.freshContext ? { freshContext: true } : {}),
     ...(delivery === "queue" ? {} : { deliveryIntent: delivery }),
     dispatchMode:
       delivery === "queue" ? { type: "queue_after_active" } : { type: "start_immediately" },
@@ -238,13 +240,22 @@ const make = Effect.gen(function* () {
   const config = yield* ServerConfig.ServerConfig;
   const fileSystem = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
-  const crypto = yield* Crypto.Crypto;
+  const random = yield* SecureRandom.SecureRandom;
+  const assetSigner = yield* AssetSigner.AssetSigner;
+  const signUploadToken = (payloadJson: string) =>
+    AttachmentUpload.signUploadToken(payloadJson).pipe(
+      Effect.provideService(AssetSigner.AssetSigner, assetSigner),
+    );
+  const verifyUploadToken = (token: string) =>
+    AttachmentUpload.verifyUploadToken(token).pipe(
+      Effect.provideService(AssetSigner.AssetSigner, assetSigner),
+    );
   const secretStore = yield* ServerSecretStore.ServerSecretStore;
   const threads = yield* ThreadManagement.ThreadManagementService;
   const transcription = yield* Transcription.Transcription;
   const entriesRef = yield* Ref.make<ReadonlyMap<string, Entry>>(new Map());
   const storeLock = yield* Semaphore.make(1);
-  const randomId = crypto.randomUUIDv4().pipe(Effect.orDie);
+  const randomId = random.uuidV4();
   // Outcomes don't survive a restart, so URLs issued before it must not start work again.
   const bootId = yield* randomId;
   // Kept apart from pending attachments, so the attachment and transcription APIs can't
@@ -658,7 +669,7 @@ const make = Effect.gen(function* () {
     sizeBytes: number,
   ) {
     const partPath = path.join(directory, `${yield* randomId}.part`);
-    const audio = yield* writeUploadBody(body, sizeBytes, partPath).pipe(
+    const audio = yield* AttachmentUpload.writeUploadBody(body, sizeBytes, partPath).pipe(
       Effect.provideService(FileSystem.FileSystem, fileSystem),
       Effect.provideService(Path.Path, path),
       Effect.flatMap((receivedBytes) =>
@@ -751,7 +762,7 @@ const make = Effect.gen(function* () {
 
     const partPath = path.join(directory, `${yield* randomId}.part`);
     const outcome = yield* Effect.uninterruptibleMask((restore) =>
-      restore(writeUploadBody(body, claims.request.sizeBytes, partPath)).pipe(
+      restore(AttachmentUpload.writeUploadBody(body, claims.request.sizeBytes, partPath)).pipe(
         Effect.provideService(FileSystem.FileSystem, fileSystem),
         Effect.provideService(Path.Path, path),
         Effect.mapError((cause) => new TranscriptionError({ reason: "failed", cause })),

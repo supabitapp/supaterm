@@ -76,6 +76,7 @@ import { resolveChatListAnchoredEndSpace } from "@supaterm/shared/chatList";
 import { observeVisibleAnimation } from "../../lib/visibleAnimation";
 import {
   type ReactNode,
+  type Ref,
   type SyntheticEvent,
   useContext,
   useEffect,
@@ -83,6 +84,7 @@ import {
   memo,
   useState,
   useRef,
+  useImperativeHandle,
   useLayoutEffect,
   use,
 } from "react";
@@ -127,6 +129,7 @@ import {
   resolveTimelineMinimapVisibleRange,
   isTimelineMinimapRowVisible,
   resolveTimelineMinimapCurrentIndex,
+  resolveTimelineTurnStep,
   resolveTimelineMinimapHasPersistentGutter,
   resolveTimelineMinimapHitStripWidth,
   resolveWorktreeSetupLabel,
@@ -328,10 +331,16 @@ interface MessagesTimelineProps {
   onJumpToPinnedMessage: (pin: ThreadPinnedMessage) => void;
   messageJump?: MessageJump | null;
   onMessageJumpFailed?: MessageJumpHandlers["fail"];
+  turnNavigationRef?: Ref<TimelineTurnNavigation | null>;
   findExpanded?: boolean;
   findQuery?: string;
   activeFindMatch?: ThreadFindMatch | null;
   findNavigationId?: number;
+}
+
+export interface TimelineTurnNavigation {
+  /** Returns `false` when the thread has no user messages to step between. */
+  readonly step: (delta: -1 | 1, repeat: boolean) => boolean;
 }
 
 export function MessagesTimeline(props: MessagesTimelineProps) {
@@ -424,6 +433,7 @@ const ConversationTimeline = memo(function ConversationTimeline({
   onJumpToPinnedMessage,
   messageJump = null,
   onMessageJumpFailed = NOOP_MESSAGE_JUMP_FAILED,
+  turnNavigationRef,
 }: MessagesTimelineProps) {
   const listIdentityKey = displayThreadKey ?? routeThreadKey;
   // Keys typed outside every list reach each pane's viewport; only the focused pane's reacts.
@@ -490,8 +500,6 @@ const ConversationTimeline = memo(function ConversationTimeline({
     setExpandedRunIds((current) => (current.has(runId) ? current : new Set([...current, runId])));
   };
   const [minimapStripMap] = useState(() => new Map<string, HTMLSpanElement>());
-  const [disclosureToggleSettling, setDisclosureToggleSettling] = useState(false);
-  const disclosureAnchorKeyRef = useRef<string | null>(null);
   const disclosureSettleRef = useRef<{
     readonly cancel: () => void;
     readonly followingEnd: boolean;
@@ -517,18 +525,14 @@ const ConversationTimeline = memo(function ConversationTimeline({
     };
   }, [settlingListIdentity]);
 
-  // End-follow stays off and only the toggled row anchors until that row has
-  // finished resizing, so an animated disclosure is never chased or yanked.
-  const suspendEndScrollMaintenanceForDisclosure = (anchorKey: string, collapsed = false) => {
+  const preserveDisclosurePosition = (anchorKey: string, collapsed = false) => {
     const pending = disclosureSettleRef.current;
     pending?.cancel();
-    // Rows streamed in during the hold push the end away, so the toggle-time
+    // Rows streamed in while the row resizes push the end away, so the toggle-time
     // position decides whether a close returns to the live edge.
     const followingEnd =
       pending?.followingEnd === true ||
       resolveTimelineIsAtEnd(listRef.current?.getState()) === true;
-    disclosureAnchorKeyRef.current = anchorKey;
-    setDisclosureToggleSettling(true);
     const cancel = waitForDisclosureSettle(
       () => {
         const state = listRef.current?.getState();
@@ -538,8 +542,6 @@ const ConversationTimeline = memo(function ConversationTimeline({
       },
       () => {
         disclosureSettleRef.current = null;
-        disclosureAnchorKeyRef.current = null;
-        setDisclosureToggleSettling(false);
         if (!collapsed) return;
         const list = listRef.current;
         let atEnd = resolveTimelineIsAtEnd(list?.getState()) === true;
@@ -551,20 +553,20 @@ const ConversationTimeline = memo(function ConversationTimeline({
       },
     );
     disclosureSettleRef.current = { cancel, followingEnd };
+    const list = listRef.current;
+    // An anchor ends end-follow until the reader scrolls, so a streaming turn keeps the live end.
+    if (!list || (isWorking && list.getState().isFollowingEnd)) return;
+    list.cancelScroll();
+    list.anchorVisibleContent({ key: anchorKey });
   };
   const onDisclosureToggle: TimelineDisclosureToggle = (target, closing) => {
     if (!(target instanceof Element)) return;
     const rowId = target.closest<HTMLElement>("[data-timeline-row-id]")?.dataset.timelineRowId;
-    if (rowId !== undefined) suspendEndScrollMaintenanceForDisclosure(rowId, closing);
-  };
-
-  const shouldRestoreVisibleContentPosition = (row: MessagesTimelineRow) => {
-    const disclosureAnchorKey = disclosureAnchorKeyRef.current;
-    return disclosureAnchorKey === null || row.id === disclosureAnchorKey;
+    if (rowId !== undefined) preserveDisclosurePosition(rowId, closing);
   };
 
   const onToggleTurnFold = (runId: RunId) => {
-    suspendEndScrollMaintenanceForDisclosure(`turn-fold:${runId}`);
+    preserveDisclosurePosition(`turn-fold:${runId}`);
     setExpandedRunIds((existing) => {
       const next = new Set(existing);
       if (next.has(runId)) {
@@ -576,7 +578,7 @@ const ConversationTimeline = memo(function ConversationTimeline({
     });
   };
   const onToggleWorkGroup = (groupId: string, anchorKey: string) => {
-    suspendEndScrollMaintenanceForDisclosure(anchorKey, expandedWorkGroupIds.has(groupId));
+    preserveDisclosurePosition(anchorKey, expandedWorkGroupIds.has(groupId));
     setExpandedWorkGroupIds((existing) => {
       const next = new Set(existing);
       if (next.has(groupId)) {
@@ -588,7 +590,7 @@ const ConversationTimeline = memo(function ConversationTimeline({
     });
   };
   const onToggleAttemptFold = (attemptId: RunAttemptId) => {
-    suspendEndScrollMaintenanceForDisclosure(`attempt-fold:${attemptId}`);
+    preserveDisclosurePosition(`attempt-fold:${attemptId}`);
     setExpandedAttemptIds((existing) => {
       const next = new Set(existing);
       if (next.has(attemptId)) {
@@ -764,6 +766,65 @@ const ConversationTimeline = memo(function ConversationTimeline({
   // is not keyed per thread and reports no "new data" event, and the restore
   // must land before paint, after LegendList's own layout effects applied the
   // new data. A citation request that arrives mid-restore takes over.
+  const [minimapCurrentIndex, setMinimapCurrentIndex] = useState<number | null>(null);
+  const refreshMinimap = useStableCallback(() => {
+    const state = listRef.current?.getState?.();
+    if (restoringThreadPosition || state?.data !== rows) return;
+    if (!state || minimapItems.length === 0) {
+      return;
+    }
+
+    const firstBufferedIndex = state.startBuffered;
+    const firstBufferedRow: HTMLElement | undefined =
+      firstBufferedIndex == null ? undefined : state.elementAtIndex(firstBufferedIndex);
+    const firstBufferedTop =
+      firstBufferedIndex == null ? undefined : state.positionAtIndex(firstBufferedIndex);
+    const viewport = listRef.current?.getScrollableNode() ?? undefined;
+    // Cached row positions exclude the header and pending scroll adjustments.
+    const scroll =
+      firstBufferedRow && viewport && firstBufferedTop !== undefined
+        ? firstBufferedTop +
+          viewport.getBoundingClientRect().top -
+          firstBufferedRow.getBoundingClientRect().top
+        : state.scroll;
+    const visibleRange = resolveTimelineMinimapVisibleRange({ ...state, scroll });
+    for (const item of minimapItems) {
+      const strip = minimapStripMap.get(item.id);
+      const inView = isTimelineMinimapRowVisible(
+        item.rowIndex,
+        visibleRange.start,
+        visibleRange.end,
+      );
+      const next = inView ? "true" : "false";
+      // Avoid dirtying style state on every scroll tick for unchanged strips.
+      if (strip && strip.dataset.inView !== next) {
+        strip.dataset.inView = next;
+      }
+    }
+    const nextCurrentIndex = resolveTimelineMinimapCurrentIndex({
+      visibleStart: visibleRange.start,
+      visibleEnd: visibleRange.end,
+      rowIndices: minimapRowIndices,
+    });
+    setMinimapCurrentIndex((current) =>
+      current === nextCurrentIndex ? current : nextCurrentIndex,
+    );
+  });
+
+  const minimapRefreshFrameRef = useRef<number | null>(null);
+  const scheduleMinimapRefresh = () => {
+    if (minimapRefreshFrameRef.current !== null) return;
+    // LegendList recycles row containers before React commits their positions.
+    minimapRefreshFrameRef.current = requestAnimationFrame(() => {
+      minimapRefreshFrameRef.current = null;
+      refreshMinimap();
+    });
+  };
+
+  const onTimelinePositioned = useStableCallback((threadKey: string) => {
+    setPositionedThreadKey(threadKey);
+    scheduleMinimapRefresh();
+  });
   const { findOpenAtOpening } = identityChanged ? { findOpenAtOpening: findOpen } : listState;
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- restores LegendList's scroll position for the shown thread before paint, after the list's own layout
   useLayoutEffect(() => {
@@ -778,7 +839,7 @@ const ConversationTimeline = memo(function ConversationTimeline({
       rememberedPosition,
       citationPending: citationRequest !== null,
       releaseForFind: findOpenAtOpening,
-      onPositioned: setPositionedThreadKey,
+      onPositioned: onTimelinePositioned,
     });
   }, [
     citationRequest,
@@ -786,6 +847,7 @@ const ConversationTimeline = memo(function ConversationTimeline({
     listIdentityKey,
     listOpenedOn,
     listRef,
+    onTimelinePositioned,
     rememberedPosition,
     restoreReady,
   ]);
@@ -870,7 +932,6 @@ const ConversationTimeline = memo(function ConversationTimeline({
           ...(alwaysRenderKeys.length === 0 ? {} : { keys: alwaysRenderKeys }),
         };
   const [minimapHitStripWidth, setMinimapHitStripWidth] = useState(0);
-  const [minimapCurrentIndex, setMinimapCurrentIndex] = useState<number | null>(null);
   const handleAnchorReady = (info: { anchorIndex: number | undefined }) => {
     if (anchorMessageId !== null && info.anchorIndex !== undefined) {
       onAnchorReady(anchorMessageId, info.anchorIndex);
@@ -897,7 +958,6 @@ const ConversationTimeline = memo(function ConversationTimeline({
   const maintainVisibleContentPosition = {
     data: true,
     size: true,
-    shouldRestorePosition: shouldRestoreVisibleContentPosition,
   };
   const timelineListFooter = (
     <TimelineListFooter
@@ -937,60 +997,6 @@ const ConversationTimeline = memo(function ConversationTimeline({
     onContentOverflowChange?.(measureContentOverflow());
     // oxlint-disable-next-line react/exhaustive-effect-dependencies -- rows.length and layout inputs trigger a re-measure; the effect reads them through the DOM
   }, [cancelContentOverflowFrame, measureContentOverflow, onContentOverflowChange, rows.length]);
-
-  const refreshMinimap = useStableCallback(() => {
-    const state = listRef.current?.getState?.();
-    if (restoringThreadPosition || state?.data !== rows) return;
-    if (!state || minimapItems.length === 0) {
-      return;
-    }
-
-    const firstBufferedIndex = state.startBuffered;
-    const firstBufferedRow: HTMLElement | undefined =
-      firstBufferedIndex == null ? undefined : state.elementAtIndex(firstBufferedIndex);
-    const firstBufferedTop =
-      firstBufferedIndex == null ? undefined : state.positionAtIndex(firstBufferedIndex);
-    const viewport: HTMLElement | undefined = listRef.current?.getScrollableNode();
-    // Cached row positions exclude the header and pending scroll adjustments.
-    const scroll =
-      firstBufferedRow && viewport && firstBufferedTop !== undefined
-        ? firstBufferedTop +
-          viewport.getBoundingClientRect().top -
-          firstBufferedRow.getBoundingClientRect().top
-        : state.scroll;
-    const visibleRange = resolveTimelineMinimapVisibleRange({ ...state, scroll });
-    for (const item of minimapItems) {
-      const strip = minimapStripMap.get(item.id);
-      const inView = isTimelineMinimapRowVisible(
-        item.rowIndex,
-        visibleRange.start,
-        visibleRange.end,
-      );
-      const next = inView ? "true" : "false";
-      // Avoid dirtying style state on every scroll tick for unchanged strips.
-      if (strip && strip.dataset.inView !== next) {
-        strip.dataset.inView = next;
-      }
-    }
-    const nextCurrentIndex = resolveTimelineMinimapCurrentIndex({
-      visibleStart: visibleRange.start,
-      visibleEnd: visibleRange.end,
-      rowIndices: minimapRowIndices,
-    });
-    setMinimapCurrentIndex((current) =>
-      current === nextCurrentIndex ? current : nextCurrentIndex,
-    );
-  });
-
-  const minimapRefreshFrameRef = useRef<number | null>(null);
-  const scheduleMinimapRefresh = () => {
-    if (minimapRefreshFrameRef.current !== null) return;
-    // LegendList recycles row containers before React commits their positions.
-    minimapRefreshFrameRef.current = requestAnimationFrame(() => {
-      minimapRefreshFrameRef.current = null;
-      refreshMinimap();
-    });
-  };
 
   const handleScroll = () => {
     handleHistoryPrefetch();
@@ -1129,7 +1135,7 @@ const ConversationTimeline = memo(function ConversationTimeline({
     onToggleTurnFold,
     onToggleAttemptFold,
     onToggleWorkGroup,
-    onToggleWorkEntry: suspendEndScrollMaintenanceForDisclosure,
+    onToggleWorkEntry: preserveDisclosurePosition,
     onCancelWorktreeSetup: onCancelWorktreeSetup ?? null,
     retryableWorkspacePreparationRunIds,
     onRetryWorkspacePreparation: onRetryWorkspacePreparation ?? null,
@@ -1355,14 +1361,33 @@ const ConversationTimeline = memo(function ConversationTimeline({
   );
   const listExtraData = { identity: listIdentityKey, rowCount: rows.length, sharedState };
 
-  const scrollToMinimapTurn = (item: TimelineMinimapItem) => {
+  const scrollToMinimapTurn = (item: TimelineMinimapItem, animated = true) => {
     navigateTimeline();
     void listRef.current?.scrollToIndex({
       index: item.rowIndex,
-      animated: !prefersReducedMotion,
+      animated: animated && !prefersReducedMotion,
       viewOffset: 24,
     });
   };
+
+  const heldTurnRef = useRef<{ listIdentityKey: string; itemId: string } | null>(null);
+  useImperativeHandle(turnNavigationRef, () => ({
+    step: (delta: -1 | 1, repeat: boolean) => {
+      if (minimapItems.length === 0) return false;
+      if (!repeat) heldTurnRef.current = null;
+      const held = heldTurnRef.current;
+      const item = resolveTimelineTurnStep({
+        items: minimapItems,
+        currentIndex: minimapCurrentIndex,
+        heldItemId: held?.listIdentityKey === listIdentityKey ? held.itemId : null,
+        delta,
+      });
+      if (!item) return true;
+      heldTurnRef.current = { listIdentityKey, itemId: item.id };
+      scrollToMinimapTurn(item, !repeat);
+      return true;
+    },
+  }));
 
   const forwardMinimapWheel = (event: WheelEvent) => {
     const scrollNode = listRef.current?.getScrollableNode();
@@ -1435,8 +1460,7 @@ const ConversationTimeline = memo(function ConversationTimeline({
                   (restoringThreadPosition && rememberedPosition?.atEnd === false) ||
                   anchoredEndSpace ||
                   !liveFollowEnabled ||
-                  fullscreenAppRowId !== null ||
-                  disclosureToggleSettling
+                  fullscreenAppRowId !== null
                     ? false
                     : isWorking && !prefersReducedMotion && settlingListIdentity === null
                       ? TIMELINE_MAINTAIN_SCROLL_AT_END_SMOOTH
@@ -1527,10 +1551,14 @@ function keyExtractor(item: MessagesTimelineRow) {
   return item.id;
 }
 
+// LegendList estimates unmeasured rows from their type's average. Long messages of equal length
+// can differ in height by orders of magnitude, so each gets its own type to avoid nested-update loops.
 function getItemType(item: MessagesTimelineRow) {
   if (item.kind !== "message") return item.kind;
   const lengthBucket = Math.max(0, Math.floor(Math.log2(item.message.text.length / 1000)));
-  return `message:${item.message.role}:${lengthBucket}`;
+  return lengthBucket < 2
+    ? `message:${item.message.role}:${lengthBucket}`
+    : `message:${item.message.id}`;
 }
 
 const TimelineRowContent = memo(function TimelineRowContent({ row }: { row: TimelineRow }) {

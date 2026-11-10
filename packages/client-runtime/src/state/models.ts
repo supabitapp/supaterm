@@ -143,6 +143,7 @@ export interface EnvironmentThreadShell {
   readonly latestUserAuthoredMessageAt?: string | null;
   readonly hasPendingApprovals: boolean;
   readonly hasPendingUserInput: boolean;
+  readonly pendingUserInputAt?: string | null;
   readonly pendingSubagentRequest?: PendingSubagentRequest | null;
   readonly hasActionableProposedPlan: boolean;
   readonly pendingBackgroundTasks: ReadonlyArray<
@@ -289,6 +290,10 @@ export function presentThreadShell(
       thread.pendingRuntimeRequest.kind !== "auth_refresh",
     // Async questions count too, so a thread with any open question leaves Working.
     hasPendingUserInput: thread.pendingRuntimeRequest?.kind === "user_input",
+    pendingUserInputAt:
+      thread.pendingRuntimeRequest?.kind === "user_input"
+        ? iso(thread.pendingRuntimeRequest.createdAt)
+        : null,
     pendingSubagentRequest,
     hasActionableProposedPlan: thread.hasActionableProposedPlan,
     pendingBackgroundTasks: thread.pendingBackgroundTasks ?? [],

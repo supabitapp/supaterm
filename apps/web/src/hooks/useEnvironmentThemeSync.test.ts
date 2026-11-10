@@ -62,7 +62,7 @@ async function setupThemeSync(mode: "dark" | "system" = "dark") {
   }));
   const { Atom } = await import("effect/reactivity");
   const publishedAtom = Atom.make<ReadonlyArray<EnvironmentTheme>>([NIGHTFALL_THEME]);
-  vi.doMock("../state/server", () => ({ primaryServerEnvironmentThemesAtom: publishedAtom }));
+  vi.doMock("../state/server", () => ({ themeServerEnvironmentThemesAtom: publishedAtom }));
 
   const palette = await import("../themePalette");
   storage.set(palette.THEME_APPEARANCE_MODE_STORAGE_KEY, mode);

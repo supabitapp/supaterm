@@ -1,8 +1,9 @@
-import type { AdvertisedEndpoint, DesktopWslState } from "@supaterm/contracts";
+import { type AdvertisedEndpoint, type DesktopWslState, EnvironmentId } from "@supaterm/contracts";
 import { describe, expect, it, vi } from "vite-plus/test";
 import { buildPairingUrl } from "@supaterm/shared/remote";
 import {
   applyWslEnableSelection,
+  resolveAccessEnvironmentId,
   resolveTailscaleServeBaseUrl,
   selectQrEndpointOption,
   togglePairingScopeSelection,
@@ -209,15 +210,26 @@ describe("resolveTailscaleHttpsRow", () => {
   it("offers setup before Tailscale has reported a MagicDNS name", () => {
     expect(resolveTailscaleHttpsRow({ endpoint: null, serveEnabled: false })).toEqual({
       description: "Use Tailscale Serve to expose this backend through a MagicDNS HTTPS URL.",
-      unreachable: false,
+      status: null,
     });
   });
 
-  it("asks to start Tailscale when Serve is on but no MagicDNS name is reported", () => {
+  it("reports unavailable HTTPS when Serve is on but no MagicDNS name is reported", () => {
     expect(resolveTailscaleHttpsRow({ endpoint: null, serveEnabled: true })).toEqual({
-      description: "Start Tailscale to set up HTTPS access through MagicDNS.",
-      unreachable: false,
+      description: "Use Tailscale Serve to expose this backend through a MagicDNS HTTPS URL.",
+      status:
+        "Tailscale HTTPS is unavailable. Check that Tailscale is running and its command works, then restart Supaterm.",
     });
+  });
+
+  it("shows the command error and clears it when HTTPS is disabled", () => {
+    const error = "tailscale status exited with code 1.";
+    expect(resolveTailscaleHttpsRow({ endpoint: null, serveEnabled: true, error }).status).toBe(
+      error,
+    );
+    expect(
+      resolveTailscaleHttpsRow({ endpoint: null, serveEnabled: false, error }).status,
+    ).toBeNull();
   });
 
   it("shows the URL and flags it when this machine cannot reach it", () => {
@@ -226,6 +238,66 @@ describe("resolveTailscaleHttpsRow", () => {
         endpoint: { ...endpoint, status: "unavailable" },
         serveEnabled: true,
       }),
-    ).toEqual({ description: endpoint.httpBaseUrl, unreachable: true });
+    ).toEqual({
+      description: endpoint.httpBaseUrl,
+      status:
+        "Tailscale HTTPS is unavailable. Check that Tailscale is running and its command works, then restart Supaterm.",
+    });
+  });
+});
+
+describe("resolveAccessEnvironmentId", () => {
+  const primary = EnvironmentId.make("primary");
+  const service = EnvironmentId.make("service");
+  const laptop = EnvironmentId.make("laptop");
+  it.each([
+    {
+      label: "defaults to the primary environment",
+      primaryEnvironmentId: primary,
+      environments: [
+        { environmentId: primary, connected: true },
+        { environmentId: service, connected: true },
+      ],
+      selected: null,
+      expected: primary,
+    },
+    {
+      label: "falls back to a connected saved environment without a primary",
+      primaryEnvironmentId: null,
+      environments: [
+        { environmentId: laptop, connected: false },
+        { environmentId: service, connected: true },
+      ],
+      selected: null,
+      expected: service,
+    },
+    {
+      label: "keeps an explicit choice",
+      primaryEnvironmentId: primary,
+      environments: [
+        { environmentId: primary, connected: true },
+        { environmentId: laptop, connected: false },
+      ],
+      selected: laptop,
+      expected: laptop,
+    },
+    {
+      label: "drops a choice that is no longer listed",
+      primaryEnvironmentId: null,
+      environments: [{ environmentId: service, connected: true }],
+      selected: laptop,
+      expected: service,
+    },
+    {
+      label: "has nothing to show without environments",
+      primaryEnvironmentId: null,
+      environments: [],
+      selected: null,
+      expected: null,
+    },
+  ])("$label", ({ primaryEnvironmentId, environments, selected, expected }) => {
+    expect(resolveAccessEnvironmentId({ primaryEnvironmentId, environments, selected })).toBe(
+      expected,
+    );
   });
 });

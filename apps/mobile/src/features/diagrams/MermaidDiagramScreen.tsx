@@ -1,12 +1,12 @@
 import { type StaticScreenProps, useNavigation } from "@react-navigation/native";
 import { PREVIEW_ZOOM, stepPreviewZoom } from "@supaterm/client-runtime/preview-zoom";
 import { SourceText } from "@supaterm/mobile-source-text";
-import { useEffect, useLayoutEffect, useState } from "react";
-import { Platform, Pressable, ScrollView, View } from "react-native";
+import { useEffect, useState } from "react";
+import { Platform, ScrollView, View } from "react-native";
 
 import { diagramOptions, type Diagram } from "@supaterm/mermaid/diagram";
 import { NativeMermaidSvg } from "../../native/NativeMermaidSvg";
-import { AppText } from "../../components/ui/AppText";
+import { AppBar } from "../../components/ui/AppBar";
 import { CODE_FONT_FAMILY } from "../../lib/fonts";
 import { renderMermaidDiagram } from "../../lib/mermaidRenderer.native";
 import { useUniwindTheme } from "../../lib/useUniwindTheme";
@@ -15,47 +15,6 @@ import { useAppearanceCodeSurface } from "../settings/appearance/useAppearanceCo
 type MermaidDiagramRouteParams = {
   readonly source: string;
 };
-
-function ZoomControls(props: { readonly zoom: number; readonly onZoom: (zoom: number) => void }) {
-  const { zoom, onZoom } = props;
-  const canZoomOut = zoom > PREVIEW_ZOOM.min;
-  const canZoomIn = zoom < PREVIEW_ZOOM.max;
-  return (
-    <View className="flex-row items-center">
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel="Zoom out"
-        disabled={!canZoomOut}
-        hitSlop={6}
-        onPress={() => onZoom(stepPreviewZoom(zoom, -1))}
-        className={canZoomOut ? "px-2" : "px-2 opacity-40"}
-      >
-        <AppText className="text-xl text-foreground">−</AppText>
-      </Pressable>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel="Reset zoom"
-        hitSlop={6}
-        onPress={() => onZoom(1)}
-        className="px-1"
-      >
-        <AppText className="text-sm text-foreground tabular-nums">
-          {Math.round(zoom * 100)}%
-        </AppText>
-      </Pressable>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel="Zoom in"
-        disabled={!canZoomIn}
-        hitSlop={6}
-        onPress={() => onZoom(stepPreviewZoom(zoom, 1))}
-        className={canZoomIn ? "px-2" : "px-2 opacity-40"}
-      >
-        <AppText className="text-xl text-foreground">+</AppText>
-      </Pressable>
-    </View>
-  );
-}
 
 export function MermaidDiagramScreen(props: StaticScreenProps<MermaidDiagramRouteParams>) {
   const { source } = props.route.params;
@@ -85,12 +44,6 @@ export function MermaidDiagramScreen(props: StaticScreenProps<MermaidDiagramRout
     };
   }, [source, width]);
 
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- writes the zoom controls into the navigator's header options before paint
-  useLayoutEffect(() => {
-    const controls = <ZoomControls zoom={zoom} onZoom={setZoom} />;
-    navigation.setOptions({ headerRight: () => controls });
-  }, [navigation, zoom]);
-
   const sourceText = (
     <SourceText
       selectable
@@ -107,20 +60,50 @@ export function MermaidDiagramScreen(props: StaticScreenProps<MermaidDiagramRout
   );
 
   return (
-    <ScrollView
-      className="flex-1 bg-md-code-bg"
-      contentInsetAdjustmentBehavior="automatic"
-      onLayout={(event) =>
-        setWidth(diagramOptions({ maxWidth: event.nativeEvent.layout.width - 32 }).maxWidth)
-      }
-    >
-      <ScrollView horizontal contentContainerStyle={{ padding: 16 }}>
-        {diagram ? (
-          <NativeMermaidSvg diagram={diagram} zoom={zoom} fallback={sourceText} />
-        ) : (
-          sourceText
-        )}
+    <View className="flex-1 bg-md-code-bg">
+      <AppBar
+        title="Mermaid"
+        subtitle={zoom === 1 ? null : `${Math.round(zoom * 100)}%`}
+        onBack={() => navigation.goBack()}
+        actions={[
+          {
+            accessibilityLabel: "Zoom out",
+            icon: "minus.magnifyingglass",
+            disabled: zoom <= PREVIEW_ZOOM.min,
+            separateBackground: false,
+            onPress: () => setZoom(stepPreviewZoom(zoom, -1)),
+          },
+          {
+            accessibilityLabel: "Reset zoom",
+            icon: "arrow.uturn.backward",
+            disabled: zoom === 1,
+            separateBackground: false,
+            onPress: () => setZoom(1),
+          },
+          {
+            accessibilityLabel: "Zoom in",
+            icon: "plus.magnifyingglass",
+            disabled: zoom >= PREVIEW_ZOOM.max,
+            separateBackground: false,
+            onPress: () => setZoom(stepPreviewZoom(zoom, 1)),
+          },
+        ]}
+      />
+      <ScrollView
+        className="flex-1"
+        contentInsetAdjustmentBehavior="automatic"
+        onLayout={(event) =>
+          setWidth(diagramOptions({ maxWidth: event.nativeEvent.layout.width - 32 }).maxWidth)
+        }
+      >
+        <ScrollView horizontal contentContainerStyle={{ padding: 16 }}>
+          {diagram ? (
+            <NativeMermaidSvg diagram={diagram} zoom={zoom} fallback={sourceText} />
+          ) : (
+            sourceText
+          )}
+        </ScrollView>
       </ScrollView>
-    </ScrollView>
+    </View>
   );
 }

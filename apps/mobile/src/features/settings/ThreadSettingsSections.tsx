@@ -20,7 +20,7 @@ import {
 import { uniformMobileSetting, type ScopedMobileSettingsTarget } from "./settings-scoped-server";
 import { PullRequestGlyph } from "../pull-requests/pullRequestGlyphs";
 
-const AUTO_MARK_DONE_DEFAULT_DAYS = DEFAULT_SERVER_SETTINGS.sidebarAutoMarkDoneAfterDays ?? 3;
+const AUTO_MARK_DONE_DEFAULT_DAYS = DEFAULT_SERVER_SETTINGS.sidebarAutoMarkDoneAfterDays ?? 7;
 
 /**
  * Thread lifecycle rows on the Threads page. They save through the page's writer so a project

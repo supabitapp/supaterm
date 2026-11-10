@@ -10,6 +10,7 @@ import type { VoiceRecordingHandOff } from "@supaterm/client-runtime/voice-input
 import { resolvePendingHandoff } from "@supaterm/client-runtime/handoff";
 import {
   deriveProviderSubagentStatus,
+  deriveProviderExtensionStatuses,
   deriveResumableRunId,
   deriveRunlessWorkStartedAt,
   deriveThreadActivityRun,
@@ -54,12 +55,12 @@ import {
   selectPendingAcknowledgedMessages,
 } from "../features/threads/pending-thread-feed";
 import { threadAllowsProviderSwitch } from "./thread-provider-switching";
-import { appAtomRegistry } from "../state/atom-registry";
+import { appAtomRegistry } from "./atom-registry";
 import { pendingThreadCreationMessage } from "./pending-thread-creation";
 import {
   composerAttachmentUploadBlockReason,
   composerAttachmentUploadsAtom,
-} from "../state/composer-attachment-uploads";
+} from "./composer-attachment-uploads";
 import {
   appendComposerDraftAttachments,
   insertComposerDraftContext,
@@ -67,14 +68,17 @@ import {
   clearComposerDraftContent,
   composerContextImportsAtom,
   getComposerDraftSnapshot,
+  isFreshSessionPending,
   mergeComposerDraftContent,
   removeComposerDraftAttachment,
   scheduleUnusedComposerAttachmentCleanup,
   setComposerDraftText,
-  updateComposerDraftSettings,
+  setFreshSessionPending,
   useComposerDraft,
   useComposerDraftSettings,
 } from "./use-composer-drafts";
+import { selectThreadModel } from "./thread-model-selection";
+import { isClearComposerCommand } from "@supaterm/shared/composerTrigger";
 import {
   resolveComposerDispatchMode,
   type ActiveTurnComposerAction,
@@ -95,13 +99,13 @@ import {
   resolveQueuedEditPayload,
   useQueuedRunEdit,
 } from "./queued-run-edit";
-import { setPendingConnectionError } from "../state/use-remote-environment-registry";
+import { setPendingConnectionError } from "./use-remote-environment-registry";
 import { clearThreadComposerError, setThreadComposerError } from "./thread-composer-error";
 import {
   useSelectedThreadProjection,
   useSelectedThreadVisibleTurnItems,
-} from "../state/use-thread-detail";
-import { useThreadSelection } from "../state/use-thread-selection";
+} from "./use-thread-detail";
+import { useThreadSelection } from "./use-thread-selection";
 import { enqueueThreadOutboxMessage } from "./thread-outbox";
 import { enqueueVoiceThreadOutboxMessage } from "./thread-outbox-audio";
 import { dispatchingQueuedMessageIdAtom, useThreadOutboxMessages } from "./use-thread-outbox";
@@ -524,9 +528,11 @@ export function useThreadComposerState() {
     }
     const draft = getComposerDraftSnapshot(threadKey);
     const dispatchMode = resolveFollowUpDispatchMode(followUpBehavior);
+    const freshContext = isFreshSessionPending(threadKey);
     const metadata = makeQueuedMessageMetadata();
     const messageId = MessageId.make(metadata.messageId);
     clearThreadComposerError(threadKey);
+    if (freshContext) setFreshSessionPending(threadKey, false);
     return enqueueVoiceThreadOutboxMessage(
       recordingUri,
       {
@@ -540,6 +546,7 @@ export function useThreadComposerState() {
         runtimeMode: draft.runtimeMode ?? thread.runtimeMode,
         interactionMode: DEFAULT_PROVIDER_INTERACTION_MODE,
         ...(dispatchMode === null ? {} : { dispatchMode }),
+        ...(freshContext ? { freshContext: true } : {}),
         createdAt: metadata.createdAt,
       },
       language,
@@ -547,6 +554,7 @@ export function useThreadComposerState() {
     ).then(
       () => messageId,
       (error: unknown) => {
+        if (freshContext) setFreshSessionPending(threadKey, true);
         if (error instanceof VoiceUploadError && error.reason === "audioTooShort") return null;
         setThreadComposerError(
           threadKey,
@@ -563,6 +571,7 @@ export function useThreadComposerState() {
       text: string,
       hasAttachmentsOrContext: boolean,
     ) => Promise<boolean | "responded">,
+    onWillEnqueue?: () => void,
   ) => {
     if (
       selectedThreadShell &&
@@ -602,6 +611,19 @@ export function useThreadComposerState() {
     )
       return null;
     if (text.length === 0 && attachments.length === 0) {
+      return null;
+    }
+    // A redirect's text answers its approval, so /clear there is that text, not the command.
+    if (
+      beforeDispatch === undefined &&
+      selectedEnvironmentRuntime?.serverConfig?.environment.capabilities.freshContext === true &&
+      thread.latestRun != null &&
+      attachments.length === 0 &&
+      draft.context === undefined &&
+      isClearComposerCommand(text)
+    ) {
+      setFreshSessionPending(threadKey, true);
+      clearComposerDraftContent(threadKey);
       return null;
     }
     // A send-failure restore appends with allowOverflow so it never drops the
@@ -710,8 +732,11 @@ export function useThreadComposerState() {
       followUpOverride,
     );
 
+    // A redirect belongs to the approval it answers; the armed session waits for the next message.
+    const freshContext = beforeDispatch === undefined && isFreshSessionPending(threadKey);
     const metadata = makeQueuedMessageMetadata();
     const messageId = MessageId.make(metadata.messageId);
+    onWillEnqueue?.();
     clearThreadComposerError(threadKey);
     const enqueuePromise = enqueueThreadOutboxMessage({
       environmentId: selectedThreadShell.environmentId,
@@ -725,9 +750,11 @@ export function useThreadComposerState() {
       runtimeMode: draft.runtimeMode ?? thread.runtimeMode,
       interactionMode: DEFAULT_PROVIDER_INTERACTION_MODE,
       ...(followUpDispatchMode === null ? {} : { dispatchMode: followUpDispatchMode }),
+      ...(freshContext ? { freshContext: true } : {}),
       createdAt: metadata.createdAt,
     });
     clearComposerDraftContent(threadKey, { deferAttachmentCleanup: true });
+    if (freshContext) setFreshSessionPending(threadKey, false);
     enqueuePromise.then(
       () => scheduleUnusedComposerAttachmentCleanup(attachments),
       (error: unknown) => {
@@ -741,6 +768,7 @@ export function useThreadComposerState() {
           attachments: [],
         });
         appendComposerDraftAttachments(threadKey, attachments, { allowOverflow: true });
+        if (freshContext) setFreshSessionPending(threadKey, true);
         setThreadComposerError(
           threadKey,
           error instanceof Error ? error.message : "Failed to save the queued message.",
@@ -775,10 +803,13 @@ export function useThreadComposerState() {
   };
 
   const onUpdateModelSelection = (value: ModelSelection) => {
-    if (!selectedThreadKey) {
+    if (!selectedThreadShell) {
       return;
     }
-    updateComposerDraftSettings(selectedThreadKey, { modelSelection: value });
+    selectThreadModel(
+      { environmentId: selectedThreadShell.environmentId, threadId: selectedThreadShell.id },
+      value,
+    );
   };
 
   return {
@@ -791,6 +822,9 @@ export function useThreadComposerState() {
     dispatchingQueuedMessageId,
     activeWorkStartedAt,
     runlessWorkActive,
+    extensionStatuses: deriveProviderExtensionStatuses(
+      selectedThreadProjection?.projection ?? null,
+    ),
     providerSubagentStatus,
     isCompacting,
     composerDraftKey,

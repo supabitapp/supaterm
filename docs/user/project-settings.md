@@ -89,6 +89,14 @@ environment's time zone, which may differ from your phone's. Choose **Once**
 to run a task a single time at a date and time in your own time zone. If the
 environment is offline then, the task runs when it is back.
 
+Under **Destination**, choose where runs go. **New thread each run** keeps every
+run separate. The two one-thread choices start a thread on the first run and post
+later runs there: one continues the same conversation, the other starts each run
+in a fresh session that doesn't see earlier runs, so the thread stays readable
+without the agent's context growing. To move a one-thread task, pick another
+thread in its project under **Destination**. Moving such a task to another
+project starts a new thread there on its next run.
+
 Deleting a thread also deletes tasks that post into that thread. Tasks that start
 a new thread on each run survive deletion of their previous threads.
 
@@ -126,6 +134,19 @@ such as another drive, set **Settings → Worktrees → Worktree location** to a
 `D:\worktrees` or `~/worktrees`. The setting is per machine. Existing worktrees stay where they
 are, and cleanup covers both the default folder and the custom one.
 
+## Fast worktree checkout on macOS
+
+Fast worktree checkout is off by default. Turn it on for each Mac in **Settings → Worktrees → Fast
+worktree checkout**. Supaterm then keeps a few recent checkouts of each repository in the `caches` folder of
+the Supaterm home directory. A new worktree is cloned from one of them with APFS copy-on-write, which is
+about twice as fast as writing every file and makes the first `git status` in it fast as well.
+Turning it off deletes the cache.
+
+The first worktree of a repository uses Git's normal checkout and fills the cache. It needs Git 2.42
+or newer. Git's normal checkout is also used for worktrees on a different drive from the Supaterm home
+directory, sparse checkouts, repositories whose attributes use filters such as Git LFS, and
+repositories whose checkout settings changed.
+
 ## Storage cleanup
 
 Open **Settings → Worktrees** to configure automatic worktree cleanup, and **Settings →
@@ -142,7 +163,9 @@ Worktrees can be removed after a chosen number of inactive days, a chosen number
 their thread is marked done, after merging, or when they have no commits beyond the default
 branch. Set **Delete done worktrees** to 0 days to remove a worktree at the next cleanup after its
 thread is marked done. A thread marked done automatically counts its done days from its last
-activity, not from when it was marked done. Only Supaterm-managed worktrees are eligible. Active
+activity, not from when it was marked done. In repositories without remotes, unchanged-worktree
+cleanup compares against the branch checked out in the project workspace; if that checkout has a
+detached HEAD, the worktree is kept. Only Supaterm-managed worktrees are eligible. Active
 sessions prevent removal, and so do other threads sharing the worktree, except a thread's own
 subagents: their shared worktree is removed once the parent qualifies and every subagent is idle.
 **Keep worktrees with local changes** defaults

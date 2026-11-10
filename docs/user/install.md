@@ -31,10 +31,13 @@ On Windows, in PowerShell, install the packaged command line with:
 irm https://supaterm.com/install.ps1 | iex
 ```
 
-This installs the `supaterm` binary to `~/.local/bin`. If your shell reports
-`command not found` afterwards, add that directory to `PATH`. Set
-`SUPATERM_CHANNEL=nightly` to install the nightly train, or `SUPATERM_VERSION` to pin an exact
-version.
+This installs the `supaterm` binary to `~/.local/bin`. If that folder is not on your
+`PATH` yet, the installer says so and, for zsh, bash on Linux, and fish, prints
+a command to add it. On Windows, `supaterm` works in the same PowerShell window right
+away; add the folder to your `PATH` for new windows. If a `supaterm` that the
+installer or the desktop app did not create is already there, it leaves that
+one alone and stops. Set `SUPATERM_CHANNEL=nightly` to install the nightly train, or
+`SUPATERM_VERSION` to pin an exact version.
 
 ### Intel Macs
 
@@ -64,6 +67,12 @@ If you have a packaged `supaterm` executable installed, these commands are avail
 
 Run `supaterm --help` for the full reference.
 
+To try Supaterm without installing it, run `npx supaterm@latest` (needs Node.js
+for `npx`). It offers to install the `supaterm` command first. If you say no, it
+asks again at the next minor release, and `npx supaterm install` installs it
+later. `npx supaterm` always runs the version npm picked, even when a `supaterm`
+is installed.
+
 ## Desktop app
 
 Build the desktop client from this repository. Distribution artifacts belong to
@@ -83,7 +92,8 @@ The desktop app installs its bundled `supaterm` command on startup when possible
 It preserves an existing `supaterm` command from a separate installation. On macOS
 and Linux it creates a link in a writable command folder; on Windows it adds the
 app's command folder to your `PATH`. Open a new terminal afterwards. If the command
-folder is not on your `PATH`, add it to run `supaterm` by name.
+folder is not on your `PATH`, **Add to PATH** in the welcome setup or **Settings →
+About** adds one line to your shell's startup file.
 
 **Settings → About → supaterm command** lets you retry installation or
 remove the command. **Remove** also disables automatic installation until you
@@ -136,6 +146,7 @@ computer.
 | Claude      | Install [Claude Code](https://claude.com/product/claude-code), then run `claude auth login`.                                                              |
 | Cursor      | Install [Cursor CLI](https://cursor.com/cli), then run `agent login`.                                                                                     |
 | Grok Build  | Install [Grok Build CLI](https://x.ai/cli), then run `grok login`.                                                                                        |
+| Kiro        | Install [Kiro CLI](https://kiro.dev/docs/cli/), then run `kiro-cli login`.                                                                                |
 | OpenCode    | Install [OpenCode](https://opencode.ai), then run `opencode auth login`.                                                                                  |
 | Antigravity | Install and sign in with Google from Supaterm's provider settings.                                                                                        |
 | Pi          | Install [Pi](./providers-pi.md#set-up-pi) with Node.js 22.19 or newer, then run `pi` and `/login`.                                                        |
@@ -156,12 +167,14 @@ on the environment's machine. An unlisted version is unverified.
 
 When a provider CLI is behind its latest release, its provider card shows the
 available version. **Update now** runs the installer that owns the CLI
-(Homebrew, or a global npm, pnpm, Yarn, Bun, Volta, or Vite+ install), or the
-CLI's own update command when Supaterm cannot tell. Update a CLI installed with
-mise through mise. Cursor and Antigravity update with Supaterm. Homebrew and
-Chocolatey installs compare against the version their package manager offers,
-which can trail the npm release; update Claude installed with Chocolatey
-through Chocolatey.
+(Homebrew, mise, or a global npm, pnpm, Yarn, Bun, Volta, or Vite+ install), or
+the CLI's own update command when Supaterm cannot tell. Supaterm runs `mise upgrade`
+only for a tool your mise config requests as `latest` when the provider's binary
+path is a mise shim or under the tool's `installs/<tool>/latest` link; update a
+pinned version, or a path into one version's directory, through mise yourself.
+Cursor and Antigravity update with Supaterm. Homebrew and Chocolatey installs
+compare against the version their package manager offers, which can trail the
+npm release; update Claude installed with Chocolatey through Chocolatey.
 
 Add another provider instance for a separate account or configuration. Each
 instance can have its own environment variables, such as API keys or a custom
@@ -170,8 +183,8 @@ their original values.
 
 For provider-specific setup and accounts, see [Codex](./providers-codex.md),
 [Claude](./providers-claude.md), [OpenCode](./providers-opencode.md),
-[Antigravity](./providers-antigravity.md), [Pi](./providers-pi.md),
-[Muse Code](./providers-muse.md), and [fx](./providers-fx.md).
+[Antigravity](./providers-antigravity.md), [Kiro](./providers-kiro.md),
+[Pi](./providers-pi.md), [Muse Code](./providers-muse.md), and [fx](./providers-fx.md).
 
 ## Next steps
 

@@ -2,8 +2,10 @@ import { PullRequestProviderError } from "@supaterm/source-control-core/server/P
 import { SourceControlProviderKind } from "@supaterm/contracts";
 import { ATTACHMENT_ONLY_BOOTSTRAP_PROMPT } from "@supaterm/shared/composerContextReferences";
 import { limitRecoveryCommand } from "./UsageLimitRecoveryWorker.ts";
+import { createOrchestrationV2TurnItemVisibility } from "@supaterm/shared/orchestrationV2Timeline";
 import * as McpProviderSessions from "@supaterm/provider-core/server/McpProviderSessions";
 import * as SourceControlProviderRegistry from "../sourceControl/SourceControlProviderRegistry.ts";
+import * as NodeCrypto from "@effect/platform-node/NodeCrypto";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { assert, it } from "@effect/vitest";
 import { vi } from "vite-plus/test";
@@ -90,7 +92,7 @@ import * as ThreadCommandExecutor from "./ThreadCommandExecutor.ts";
 import type * as ProviderAdapter from "@supaterm/provider-core/server/ProviderAdapter";
 
 const layerPlatformTest = Layer.merge(
-  NodeServices.layer,
+  Layer.mergeAll(NodeServices.layer, NodeCrypto.layer),
   Layer.mock(SourceControlProviderRegistry.SourceControlProviderRegistry)({
     resolveLink: () => Effect.die("unused title link"),
   }),
@@ -157,17 +159,35 @@ const alternateProviderInstance = {
     instanceId: alternateInstanceId,
   },
 } satisfies ProviderInstance;
+const claudeInstanceId = ProviderInstanceId.make("claude_test");
+const claudeDriver = ProviderDriverKind.make("claudeAgent");
+const claudeProviderInstance = {
+  ...providerInstance,
+  instanceId: claudeInstanceId,
+  driverKind: claudeDriver,
+  continuationIdentity: { driverKind: claudeDriver, continuationKey: "claude:test" },
+  displayName: "Claude test",
+  orchestrationAdapter: {
+    ...orchestrationAdapter,
+    instanceId: claudeInstanceId,
+    driver: claudeDriver,
+  },
+} satisfies ProviderInstance;
 
 const layerTestProviderInstanceRegistry = Layer.succeed(
   ProviderInstanceRegistry.ProviderInstanceRegistry,
   {
     getInstance: (instanceId) =>
       Effect.succeed(
-        [providerInstance, alternateProviderInstance].find(
+        [providerInstance, alternateProviderInstance, claudeProviderInstance].find(
           (instance) => instanceId === instance.instanceId,
         ),
       ),
-    listInstances: Effect.succeed([providerInstance, alternateProviderInstance]),
+    listInstances: Effect.succeed([
+      providerInstance,
+      alternateProviderInstance,
+      claudeProviderInstance,
+    ]),
     listUnavailable: Effect.succeed([]),
     streamChanges: Stream.empty,
     subscribeChanges: Effect.never,
@@ -298,8 +318,16 @@ const layerScheduledTasksTest = ScheduledTaskService.layer.pipe(
   Layer.provide(
     Layer.mergeAll(
       Layer.mock(ThreadLaunchService.ThreadLaunchService)({}),
-      Layer.mock(ThreadManagementService.ThreadManagementService)({}),
-
+      // The orchestrator depends on this layer, so read the shell from its projection.
+      Layer.unwrap(
+        ProjectionStore.ProjectionStoreV2.pipe(
+          Effect.map(({ getThreadShell }) =>
+            Layer.mock(ThreadManagementService.ThreadManagementService)({
+              getThreadShell: (threadId) => getThreadShell(threadId).pipe(Effect.orDie),
+            }),
+          ),
+        ),
+      ).pipe(Layer.provide(ProjectionStore.layer)),
       Layer.mock(ManagedProjectFolders.ManagedProjectFolders)({
         namedProjectsRoot: "/projects",
         isScratchProject: () => Effect.succeed(false),
@@ -370,6 +398,7 @@ it.layer(layerProjectDeletionTest)("project deletion during thread commands", (i
         const projectId = ProjectId.make(`automation-delete-project:${deletion}`);
         const threadId = ThreadId.make(`automation-delete-thread:${deletion}`);
         const otherThreadId = ThreadId.make(`automation-surviving-thread:${deletion}`);
+        const otherProjectId = ProjectId.make("automation-other-project");
         yield* projects.create({
           commandId: CommandId.make(`automation-create-project:${deletion}`),
           projectId,
@@ -383,7 +412,7 @@ it.layer(layerProjectDeletionTest)("project deletion during thread commands", (i
             createdBy: "user",
             creationSource: "web",
             threadId: id,
-            projectId: id === threadId ? projectId : ProjectId.make("automation-other-project"),
+            projectId: id === threadId ? projectId : otherProjectId,
             title: "Automation target",
             modelSelection,
             runtimeMode: "full-access",
@@ -394,12 +423,14 @@ it.layer(layerProjectDeletionTest)("project deletion during thread commands", (i
         }
         const save = (name: string, target: ThreadId | null) =>
           tasks.upsert({
+            // As schedule_task sends it, so clearing the thread unbinds the task.
+            threadMode: target === null ? "new_thread" : "continue",
             id: ScheduledTaskId.make(`automation:${deletion}:${name}`),
             title: name,
             prompt: "Check orchestration progress",
             enabled: true,
             schedule: { type: "interval", everyMs: 60_000 },
-            projectId,
+            projectId: target === otherThreadId ? otherProjectId : projectId,
             threadId: target,
             workspaceStrategy: { type: "root" },
             modelSelection,
@@ -1001,7 +1032,9 @@ it.layer(layerTest)("OrchestrationV2LayerLive", (it) => {
             (yield* outbox.listByCommandId(commandId)).map((effect) => effect.request.type),
             ["provider-thread.rollback"],
           );
-          const path = yield* Path.Path.pipe(Effect.provide(NodeServices.layer));
+          const path = yield* Path.Path.pipe(
+            Effect.provide(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer)),
+          );
           yield* orchestrator.dispatch({
             type: "thread.create",
             createdBy: "user",
@@ -1553,6 +1586,52 @@ it.layer(layerTest)("OrchestrationV2LayerLive", (it) => {
         type: "message",
       });
       const outbox = yield* EffectOutbox.EffectOutboxV2;
+      const now = yield* DateTime.now;
+      const beforeSnooze = yield* orchestrator.getThreadProjection(threadId);
+      const snooze = {
+        type: "thread.snooze" as const,
+        commandId: CommandId.make("runtime-async-question-snooze"),
+        threadId,
+        snoozedUntil: "2099-07-25T09:00:00.000Z",
+      };
+      yield* orchestrator.dispatch(snooze);
+      const snoozed = yield* orchestrator.getThreadProjection(threadId);
+      assert.isNotNull(snoozed.thread.snoozedUntil);
+      assert.deepEqual(snoozed.runtimeRequests, beforeSnooze.runtimeRequests);
+      assert.deepEqual(snoozed.turnItems, beforeSnooze.turnItems);
+      assert.deepEqual(snoozed.nodes, beforeSnooze.nodes);
+      assert.deepEqual(snoozed.runs, beforeSnooze.runs);
+
+      // A question arriving after an earlier snooze must be acknowledged even
+      // when the user picks the same wake time again.
+      const priorSnooze = DateTime.makeUnsafe(DateTime.toEpochMillis(now) - 1_000);
+      yield* eventSink.write({
+        commandId: CommandId.make("runtime-async-question-earlier-snooze"),
+        events: [
+          {
+            id: EventId.make("runtime-async-question-earlier-snooze-event"),
+            type: "thread.snoozed",
+            threadId,
+            occurredAt: priorSnooze,
+            payload: { ...snoozed.thread, snoozedAt: priorSnooze },
+          },
+        ],
+      });
+      yield* orchestrator.dispatch({
+        ...snooze,
+        commandId: CommandId.make("runtime-async-question-resnooze"),
+      });
+      assert.deepEqual((yield* orchestrator.getThreadProjection(threadId)).thread.snoozedAt, now);
+      yield* orchestrator.dispatch({
+        type: "thread.unsnooze",
+        commandId: CommandId.make("runtime-async-question-wake"),
+        threadId,
+        reason: "user",
+      });
+      const awake = yield* orchestrator.getThreadProjection(threadId);
+      assert.isNull(awake.thread.snoozedUntil);
+      assert.deepEqual(awake.runtimeRequests, beforeSnooze.runtimeRequests);
+
       const beforeInvalid = yield* orchestrator.getThreadProjection(threadId);
       const beforeSequence = yield* eventSink.latestSequence();
       for (const [index, answers] of [
@@ -2371,6 +2450,20 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
       );
       assert.deepEqual(activeShell?.reopenedAt, activeProjection.thread.reopenedAt);
 
+      yield* orchestrator.dispatch({
+        type: "thread.mark-done",
+        commandId: CommandId.make("runtime-layer-lifecycle-remarkDone"),
+        threadId,
+      });
+      yield* orchestrator.dispatch({
+        type: "thread.pin",
+        commandId: CommandId.make("runtime-layer-lifecycle-pin-done"),
+        threadId,
+      });
+      const pinnedProjection = yield* orchestrator.getThreadProjection(threadId);
+      assert.equal(pinnedProjection.thread.doneOverride, "active");
+      assert.isNotNull(pinnedProjection.thread.reopenedAt);
+
       const archive = yield* orchestrator.dispatch({
         type: "thread.archive",
         commandId: CommandId.make("runtime-layer-lifecycle-archive"),
@@ -2975,6 +3068,7 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
           Effect.provide(
             Layer.mergeAll(
               NodeServices.layer,
+              NodeCrypto.layer,
               Layer.mock(PullRequestService.PullRequestService)({
                 watchFingerprint: () => Effect.succeed(null),
                 detail: () =>
@@ -3103,6 +3197,7 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
       let headSha = "ad70160aaa";
       const host = Layer.mergeAll(
         NodeServices.layer,
+        NodeCrypto.layer,
         Layer.mock(PullRequestService.PullRequestService)({
           detail: () =>
             Effect.sync(() => ({
@@ -3158,12 +3253,12 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
     }),
   );
 
-  it.effect("finishes owed checks once after pending sweeps, a restart, and a re-watch", () =>
+  it.effect.each(["pending", "action-required"] as const)("recovers %s watches", (initialStatus) =>
     Effect.gen(function* () {
       const orchestrator = yield* Orchestrator.OrchestratorV2;
       const worker = yield* EffectWorker.OrchestrationEffectWorkerV2;
-      const threadId = ThreadId.make("runtime-pull-request-watch-owed");
-      const projectId = ProjectId.make("pr-watch-owed-project");
+      const threadId = ThreadId.make(`runtime-pull-request-watch-owed-${initialStatus}`);
+      const projectId = ProjectId.make(`pr-watch-owed-project-${initialStatus}`);
       yield* seedProject({
         projectId,
         title: "Watch owed",
@@ -3175,7 +3270,7 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
         type: "thread.create",
         createdBy: "user",
         creationSource: "web",
-        commandId: CommandId.make("pr-watch-owed-create"),
+        commandId: CommandId.make(`pr-watch-owed-create-${initialStatus}`),
         threadId,
         projectId,
         title: "Watch owed",
@@ -3188,7 +3283,7 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
       const watch = (on: boolean, id: string) =>
         orchestrator.dispatch({
           type: "thread.pull-request.watch",
-          commandId: CommandId.make(`pr-watch-owed-${id}`),
+          commandId: CommandId.make(`pr-watch-owed-${initialStatus}-${id}`),
           threadId,
           host: "github.com",
           repository: "supabitapp/supaterm",
@@ -3198,9 +3293,13 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
         });
       yield* watch(true, "start");
 
-      let remainingStatus: "pending" | "success" = "pending";
+      let remainingStatus: "pending" | "action-required" | "success" = initialStatus;
+      const approval = initialStatus === "action-required";
+      const firstSummary = approval ? "#12: checks await approval" : "#12: checks passed";
+      const runUrl = "https://github.com/supabitapp/supaterm/actions/runs/123";
       const host = Layer.mergeAll(
         NodeServices.layer,
+        NodeCrypto.layer,
         Layer.mock(PullRequestService.PullRequestService)({
           detail: () =>
             Effect.sync(() => ({
@@ -3214,7 +3313,7 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
                 name,
                 status: name === "test" ? remainingStatus : ("success" as const),
                 description: null,
-                url: null,
+                url: name === "test" ? `${runUrl}/job/7` : null,
                 required: name === "lint",
               })),
             })),
@@ -3239,38 +3338,42 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
       yield* TestClock.adjust("10 minutes");
       yield* reactor.sweep;
       yield* worker.drain();
-      assert.deepEqual(yield* summaries, ["#12: checks passed"]);
+      assert.deepEqual(yield* summaries, [firstSummary]);
 
       assert.deepEqual(
-        (yield* orchestrator.getThreadShell(threadId))?.pullRequests?.[0]?.watch?.owedChecks,
-        ["test"],
+        (yield* orchestrator.getThreadShell(threadId))?.pullRequests?.[0]?.watch?.[
+          approval ? "awaitingApproval" : "owedChecks"
+        ],
+        approval ? [runUrl] : ["test"],
       );
       // The fresh reactor reloads the nonempty obligation from the persisted watch.
       const restarted = yield* PullRequestWatchReactor.make.pipe(Effect.provide(host));
       yield* restarted.sweep;
       yield* worker.drain();
-      assert.deepEqual(yield* summaries, ["#12: checks passed"]);
+      assert.deepEqual(yield* summaries, [firstSummary]);
 
       // A new watch on the same pull request knows what the last one told.
       yield* watch(false, "stop");
       yield* watch(true, "again");
       yield* restarted.sweep;
       yield* worker.drain();
-      assert.deepEqual(yield* summaries, ["#12: checks passed"]);
+      assert.deepEqual(yield* summaries, [firstSummary]);
 
       assert.deepEqual(
-        (yield* orchestrator.getThreadShell(threadId))?.pullRequests?.[0]?.watch?.owedChecks,
-        ["test"],
+        (yield* orchestrator.getThreadShell(threadId))?.pullRequests?.[0]?.watch?.[
+          approval ? "awaitingApproval" : "owedChecks"
+        ],
+        approval ? [runUrl] : ["test"],
       );
       remainingStatus = "success";
       yield* TestClock.adjust("10 minutes");
       yield* restarted.sweep;
       yield* worker.drain();
-      assert.deepEqual(yield* summaries, ["#12: checks passed", "#12: checks passed"]);
+      assert.deepEqual(yield* summaries, [firstSummary, "#12: checks passed"]);
       yield* TestClock.adjust("10 minutes");
       yield* restarted.sweep;
       yield* worker.drain();
-      assert.deepEqual(yield* summaries, ["#12: checks passed", "#12: checks passed"]);
+      assert.deepEqual(yield* summaries, [firstSummary, "#12: checks passed"]);
       assert.deepEqual(
         (yield* orchestrator.getThreadShell(threadId))?.pullRequests?.[0]?.watch?.owedChecks,
         [],
@@ -3345,6 +3448,7 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
       );
       const host = Layer.mergeAll(
         NodeServices.layer,
+        NodeCrypto.layer,
         Layer.mock(PullRequestService.PullRequestService)({
           detail: () =>
             Effect.sync(() => ({
@@ -3443,6 +3547,7 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
       let checks: PullRequestDetail["checks"] = [];
       const host = Layer.mergeAll(
         NodeServices.layer,
+        NodeCrypto.layer,
         Layer.mock(PullRequestService.PullRequestService)({
           detail: () =>
             Effect.sync(() => ({
@@ -3546,6 +3651,7 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
       let checks: PullRequestDetail["checks"] = [];
       const host = Layer.mergeAll(
         NodeServices.layer,
+        NodeCrypto.layer,
         Layer.mock(PullRequestService.PullRequestService)({
           detail: () =>
             Effect.sync(() => ({
@@ -3660,6 +3766,7 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
         let reads = 0;
         const host = Layer.mergeAll(
           NodeServices.layer,
+          NodeCrypto.layer,
           Layer.mock(PullRequestService.PullRequestService)({
             // The host reports the same fingerprint throughout, so only the deadline can prompt a read.
             watchFingerprint: () =>
@@ -3844,6 +3951,7 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
         Effect.provide(
           Layer.mergeAll(
             NodeServices.layer,
+            NodeCrypto.layer,
             Layer.mock(PullRequestService.PullRequestService)({
               detail: (reference) =>
                 Effect.succeed({
@@ -3920,6 +4028,7 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
     "repeated cursor",
     "missing comments",
     "thread list truncated",
+    "hidden reply",
   ])("wakes a watched thread once: %s", (mode) =>
     Effect.gen(function* () {
       const orchestrator = yield* Orchestrator.OrchestratorV2;
@@ -3995,13 +4104,14 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
         body: "Twelfth reply.",
         createdAt: "2999-01-01T00:00:02.000Z",
       };
-      const incomplete = mode !== "single page" && mode !== "paginated";
+      const incomplete = mode !== "single page" && mode !== "paginated" && mode !== "hidden reply";
       let recovering = false;
       let pagesRead = 0;
       const reactor = yield* PullRequestWatchReactor.make.pipe(
         Effect.provide(
           Layer.mergeAll(
             NodeServices.layer,
+            NodeCrypto.layer,
             Layer.mock(PullRequestService.PullRequestService)({
               detail: () => Effect.succeed(detail),
               activity: () =>
@@ -4025,7 +4135,7 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
                             isResolved: false,
                             isOutdated: false,
                             comments: firstTen,
-                            commentCount: 12,
+                            commentCount: mode === "hidden reply" ? 13 : 12,
                             nextCommentsCursor: "after-10",
                           },
                         ],
@@ -4052,7 +4162,11 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
                 if (!recovering && mode === "missing comments") {
                   return Effect.succeed({ comments: [], nextCursor: null });
                 }
-                return Effect.succeed({ comments: [eleventh, twelfth], nextCursor: null });
+                return Effect.succeed({
+                  comments: [eleventh, twelfth],
+                  nextCursor: null,
+                  ...(mode === "hidden reply" ? { hiddenCount: 1 } : {}),
+                });
               },
             }),
           ),
@@ -4152,6 +4266,7 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
       const read22 = yield* Deferred.make<void>();
       const host = Layer.mergeAll(
         NodeServices.layer,
+        NodeCrypto.layer,
         Layer.mock(PullRequestService.PullRequestService)({
           watchFingerprint: (input) =>
             input.number === 21
@@ -4630,11 +4745,29 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
           });
         });
       yield* holdQueueAfterRestart("mark-done-automatic-restart");
+      const beforeMarkDone = yield* orchestrator.getThreadProjection(threadId);
+      const oldestRun = beforeMarkDone.runs.reduce((oldest, run) =>
+        run.ordinal < oldest.ordinal ? run : oldest,
+      );
+      const latestRun = beforeMarkDone.runs.reduce((latest, run) =>
+        run.ordinal > latest.ordinal ? run : latest,
+      );
+      const staleMarkDone = yield* orchestrator
+        .dispatch({
+          type: "thread.mark-done",
+          commandId: CommandId.make("mark-done-automatic-stale"),
+          threadId,
+          expectedLatestRunId: oldestRun.id,
+        })
+        .pipe(Effect.flip);
+      assert.equal(staleMarkDone._tag, "OrchestratorDispatchError");
+      assert.isNull((yield* orchestrator.getThreadProjection(threadId)).thread.doneAt);
 
       yield* orchestrator.dispatch({
         type: "thread.mark-done",
         commandId: CommandId.make("mark-done-automatic-settle"),
         threadId,
+        expectedLatestRunId: latestRun.id,
       });
       const done = yield* orchestrator.getThreadProjection(threadId);
       assert.isNotNull(done.thread.doneAt);
@@ -5886,6 +6019,220 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
       }),
   );
 
+  it.effect("keeps a model picked ahead of a queued agent message that names none", () =>
+    Effect.gen(function* () {
+      const orchestrator = yield* Orchestrator.OrchestratorV2;
+      const eventSink = yield* EventSink.EventSinkV2;
+      const threadId = ThreadId.make("runtime-layer-queued-agent-message-model-pick");
+      const pickedSelection = { ...modelSelection, model: "gpt-5.5" };
+      yield* orchestrator.dispatch({
+        type: "thread.create",
+        commandId: CommandId.make(`${threadId}:create`),
+        threadId,
+        projectId: ProjectId.make(`${threadId}:project`),
+        createdBy: "user",
+        creationSource: "web",
+        title: "Queued model pick",
+        modelSelection,
+        runtimeMode: "full-access",
+        interactionMode: "default",
+        branch: null,
+        worktreePath: process.cwd(),
+      });
+      for (const [key, selection] of [
+        ["active", modelSelection],
+        ["picked", pickedSelection],
+      ] as const) {
+        yield* orchestrator.dispatch({
+          type: "message.dispatch",
+          commandId: CommandId.make(`${threadId}:${key}`),
+          threadId,
+          messageId: MessageId.make(`${threadId}:${key}`),
+          text: key,
+          attachments: [],
+          modelSelection: selection,
+          dispatchMode: { type: key === "active" ? "start_immediately" : "queue_after_active" },
+          createdBy: "user",
+          creationSource: "web",
+        });
+      }
+      // What supaterm_thread_send dispatches: no model of its own.
+      yield* orchestrator.dispatch({
+        type: "message.dispatch",
+        commandId: CommandId.make(`${threadId}:agent`),
+        threadId,
+        messageId: MessageId.make(`${threadId}:agent`),
+        text: "Message from another thread",
+        attachments: [],
+        dispatchMode: { type: "queue_after_active" },
+        createdBy: "agent",
+        creationSource: "mcp",
+      });
+      const [active, picked, agent] = (yield* orchestrator.getThreadProjection(threadId)).runs;
+      assert.isDefined(active);
+      assert.isDefined(picked);
+      assert.isDefined(agent);
+      const now = yield* DateTime.now;
+      for (const runId of [active.id, picked.id]) {
+        const current = yield* orchestrator.getThreadProjection(threadId);
+        yield* eventSink.write({
+          events: [
+            {
+              id: EventId.make(`${runId}:completed`),
+              type: "run.updated",
+              threadId,
+              runId,
+              occurredAt: now,
+              payload: {
+                ...current.runs.find((run) => run.id === runId)!,
+                status: "completed",
+                completedAt: now,
+              },
+            },
+          ],
+        });
+        yield* orchestrator.resumeQueuedRuns;
+      }
+      const after = yield* orchestrator.getThreadProjection(threadId);
+      const delivered = after.runs.find((run) => run.id === agent.id)!;
+      assert.equal(delivered.status, "starting");
+      assert.deepEqual(delivered.modelSelection, pickedSelection);
+      assert.deepEqual(after.thread.modelSelection, pickedSelection);
+    }),
+  );
+
+  it.effect("keeps a buffered provider wake on its own provider behind a queued pick", () =>
+    Effect.gen(function* () {
+      const orchestrator = yield* Orchestrator.OrchestratorV2;
+      const threadId = ThreadId.make("runtime-layer-buffered-wake-behind-queued-pick");
+      yield* orchestrator.dispatch({
+        type: "thread.create",
+        commandId: CommandId.make(`${threadId}:create`),
+        threadId,
+        projectId: ProjectId.make(`${threadId}:project`),
+        createdBy: "user",
+        creationSource: "web",
+        title: "Buffered wake behind a pick",
+        modelSelection,
+        runtimeMode: "full-access",
+        interactionMode: "default",
+        branch: null,
+        worktreePath: process.cwd(),
+      });
+      for (const [key, selection] of [
+        ["active", modelSelection],
+        ["picked", { ...modelSelection, instanceId: alternateInstanceId }],
+      ] as const) {
+        yield* orchestrator.dispatch({
+          type: "message.dispatch",
+          commandId: CommandId.make(`${threadId}:${key}`),
+          threadId,
+          messageId: MessageId.make(`${threadId}:${key}`),
+          text: key,
+          attachments: [],
+          modelSelection: selection,
+          dispatchMode: { type: key === "active" ? "start_immediately" : "queue_after_active" },
+          createdBy: "user",
+          creationSource: "web",
+        });
+      }
+      yield* orchestrator.dispatch({
+        type: "message.dispatch",
+        commandId: CommandId.make(`${threadId}:wake`),
+        threadId,
+        messageId: MessageId.make(`${threadId}:wake`),
+        text: "Background activity updated",
+        attachments: [],
+        dispatchMode: { type: "queue_after_active" },
+        createdBy: "agent",
+        creationSource: "provider",
+        notification: {
+          source: { kind: "background_task" },
+          outcome: "updated",
+          summary: "Background activity updated",
+        },
+      });
+      const projection = yield* orchestrator.getThreadProjection(threadId);
+      const active = projection.runs.find(
+        (run) => run.userMessageId === MessageId.make(`${threadId}:active`),
+      );
+      const wake = projection.runs.find(
+        (run) => run.userMessageId === MessageId.make(`${threadId}:wake`),
+      );
+      assert.deepEqual(wake?.modelSelection, modelSelection);
+      assert.equal(wake?.providerThreadId, active?.providerThreadId);
+    }),
+  );
+
+  it.effect("checks a queued goal pause against the model picked ahead of it", () =>
+    Effect.gen(function* () {
+      const orchestrator = yield* Orchestrator.OrchestratorV2;
+      const threadId = ThreadId.make("runtime-layer-goal-pause-behind-queued-pick");
+      const claudeSelection = { ...modelSelection, instanceId: claudeInstanceId };
+      yield* orchestrator.dispatch({
+        type: "thread.create",
+        commandId: CommandId.make(`${threadId}:create`),
+        threadId,
+        projectId: ProjectId.make(`${threadId}:project`),
+        createdBy: "user",
+        creationSource: "web",
+        title: "Goal pause behind a pick",
+        modelSelection: claudeSelection,
+        runtimeMode: "full-access",
+        interactionMode: "default",
+        branch: null,
+        worktreePath: process.cwd(),
+      });
+      for (const [key, selection] of [
+        ["active", claudeSelection],
+        ["picked", modelSelection],
+      ] as const) {
+        yield* orchestrator.dispatch({
+          type: "message.dispatch",
+          commandId: CommandId.make(`${threadId}:${key}`),
+          threadId,
+          messageId: MessageId.make(`${threadId}:${key}`),
+          text: key,
+          attachments: [],
+          modelSelection: selection,
+          dispatchMode: { type: key === "active" ? "start_immediately" : "queue_after_active" },
+          createdBy: "user",
+          creationSource: "web",
+        });
+      }
+      const sendGoal = (key: string, text: string, deliveryIntent?: "auto") =>
+        orchestrator.dispatch({
+          type: "message.dispatch",
+          commandId: CommandId.make(`${threadId}:${key}`),
+          threadId,
+          messageId: MessageId.make(`${threadId}:${key}`),
+          text,
+          attachments: [],
+          dispatchMode: { type: "queue_after_active" },
+          ...(deliveryIntent === undefined ? {} : { deliveryIntent }),
+          createdBy: "agent",
+          creationSource: "mcp",
+        });
+      // It runs after the pick, on a provider that can pause goals.
+      yield* sendGoal("pause", "/goal pause");
+      // A resume stops the active run and starts before the pick, so the thread's
+      // Claude instance still refuses it.
+      const sequence = yield* orchestrator.getThreadEventSequence(threadId);
+      const refused = yield* Effect.flip(sendGoal("resume", "/goal resume", "auto"));
+      assert.instanceOf(refused, Orchestrator.OrchestratorDispatchError);
+      assert.equal(
+        refused.cause,
+        "Claude goals cannot be paused or resumed. Send /goal clear to remove the goal.",
+      );
+      assert.equal(yield* orchestrator.getThreadEventSequence(threadId), sequence);
+
+      const pause = (yield* orchestrator.getThreadProjection(threadId)).runs.find(
+        (run) => run.userMessageId === MessageId.make(`${threadId}:pause`),
+      );
+      assert.deepEqual(pause?.modelSelection, modelSelection);
+    }),
+  );
+
   it.effect("keeps the queue after a user interrupts the active run", () =>
     Effect.gen(function* () {
       const orchestrator = yield* Orchestrator.OrchestratorV2;
@@ -6206,13 +6553,18 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
       }),
   );
 
-  it.effect.each(["startup", "shutdown"] as const)(
-    "preserves and holds queued messages across %s until explicitly resumed",
-    (trigger) =>
+  it.effect.each([
+    { trigger: "startup", started: true },
+    { trigger: "shutdown", started: true },
+    { trigger: "startup", started: false },
+    { trigger: "shutdown", started: false },
+  ] as const)(
+    "preserves and holds queued messages across $trigger with started=$started until explicitly resumed",
+    ({ trigger, started }) =>
       Effect.gen(function* () {
         const orchestrator = yield* Orchestrator.OrchestratorV2;
         const recovery = yield* ProviderRuntimeRecoveryService.ProviderRuntimeRecoveryService;
-        const threadId = ThreadId.make(`queue-hold-${trigger}`);
+        const threadId = ThreadId.make(`queue-hold-${trigger}-${started}`);
         yield* orchestrator.dispatch({
           type: "thread.create",
           createdBy: "user",
@@ -6242,6 +6594,20 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
           });
         }
         const before = yield* orchestrator.getThreadProjection(threadId);
+        const source = before.runs[0]!;
+        if (started) {
+          yield* (yield* EventSink.EventSinkV2).write({
+            events: [
+              {
+                id: EventId.make(`${threadId}:started`),
+                type: "run.updated",
+                threadId,
+                occurredAt: yield* DateTime.now,
+                payload: { ...source, status: "running", startedAt: yield* DateTime.now },
+              },
+            ],
+          });
+        }
         const queued = before.runs.filter((run) => run.status === "queued");
         assert.equal(queued.length, 2);
         yield* recovery.reconcile(trigger);
@@ -6252,12 +6618,33 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
         const held = yield* orchestrator.getThreadProjection(threadId);
         assert.deepEqual(
           held.runs.map((run) => run.status),
-          ["cancelled", "queued", "queued"],
+          [started ? "cancelled" : "queued", "queued", "queued"],
         );
-        for (const run of queued) {
+        if (!started) {
+          assert.deepInclude(
+            held.runs.find((run) => run.id === source.id),
+            {
+              status: "queued",
+              queueHeld: true,
+              queuePosition: 1,
+            },
+          );
+        }
+        if (!started) {
+          const prompt = held.turnItems.find(
+            (item) => item.type === "user_message" && item.messageId === source.userMessageId,
+          );
+          assert.deepInclude(prompt, {
+            inputIntent: "queued_turn",
+            status: "pending",
+            startedAt: null,
+            completedAt: null,
+          });
+        }
+        for (const [index, run] of queued.entries()) {
           assert.deepEqual(
             held.runs.find((row) => row.id === run.id),
-            { ...run, queueHeld: true },
+            { ...run, queueHeld: true, ...(started ? {} : { queuePosition: index + 2 }) },
           );
           assert.deepEqual(
             held.messages.find((row) => row.id === run.userMessageId),
@@ -6270,21 +6657,23 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
           assert.equal(held.nodes.find((row) => row.id === run.rootNodeId)?.status, "pending");
         }
         const first = queued[0]!;
-        const second = queued[1]!;
-        yield* orchestrator.dispatch({
-          type: "queued-run.edit",
-          commandId: CommandId.make(`${threadId}:edit`),
-          threadId,
-          runId: second.id,
-          text: "Edited second message",
-        });
-        yield* orchestrator.dispatch({
-          type: "queued-run.reorder",
-          commandId: CommandId.make(`${threadId}:reorder`),
-          threadId,
-          runId: second.id,
-          beforeRunId: first.id,
-        });
+        const second = started ? queued[1]! : source;
+        if (started) {
+          yield* orchestrator.dispatch({
+            type: "queued-run.edit",
+            commandId: CommandId.make(`${threadId}:edit`),
+            threadId,
+            runId: second.id,
+            text: "Edited second message",
+          });
+          yield* orchestrator.dispatch({
+            type: "queued-run.reorder",
+            commandId: CommandId.make(`${threadId}:reorder`),
+            threadId,
+            runId: second.id,
+            beforeRunId: first.id,
+          });
+        }
         assert.equal(yield* orchestrator.resumeQueuedRuns, 0);
         const resume = {
           type: "queue.resume" as const,
@@ -6299,9 +6688,41 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
         assert.isFalse(resumed.runs.some((run) => run.status === "queued" && run.queueHeld));
         assert.equal(
           resumed.messages.find((row) => row.id === second.userMessageId)?.text,
-          "Edited second message",
+          started ? "Edited second message" : "Active",
         );
-        assert.equal(resumed.runs.length, 3, "resume retries must not duplicate messages or runs");
+        if (!started) {
+          assert.equal(
+            resumed.attempts.find((row) => row.id === source.activeAttemptId)?.status,
+            "pending",
+          );
+          assert.equal(
+            resumed.nodes.find((row) => row.id === source.rootNodeId)?.status,
+            "pending",
+          );
+          // Recovery command identities include the restart timestamp.
+          yield* TestClock.adjust("1 millis");
+          yield* recovery.reconcile("startup");
+          yield* orchestrator.dispatch({
+            ...resume,
+            commandId: CommandId.make(`${threadId}:resume-again`),
+          });
+          const starts = yield* (yield* EffectOutbox.EffectOutboxV2).listByCommandId(
+            CommandId.make(`command:system:start-queued:${source.id}`),
+          );
+          const pendingStarts = starts.filter((effect) => effect.status === "pending");
+          assert.lengthOf(pendingStarts, 1);
+          assert.deepEqual(pendingStarts[0]?.request, {
+            type: "provider-turn.start",
+            runId: source.id,
+          });
+        }
+        const afterRetries = yield* orchestrator.getThreadProjection(threadId);
+        assert.equal(
+          afterRetries.runs.length,
+          3,
+          "resume retries must not duplicate messages or runs",
+        );
+        assert.lengthOf(afterRetries.messages, before.messages.length);
       }),
   );
 
@@ -6818,7 +7239,7 @@ const layerScratchPromotionTest = ScratchThreadPromotion.layer.pipe(
       namedProjectsRoot: "/projects",
     }),
   ),
-  Layer.provide(NodeServices.layer),
+  Layer.provide(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer)),
   Layer.provideMerge(layerProjectDeletionTest),
 );
 
@@ -6869,11 +7290,6 @@ it.layer(layerScratchPromotionTest)("turning a No project thread into a project"
       const threadId = yield* createThread("main", folder);
       const siblingId = yield* createThread("sibling", folder);
       const otherId = yield* createThread("other", `${SCRATCH_ROOT}/2026-01-01-elsewhere`);
-      yield* orchestrator.dispatch({
-        type: "thread.archive",
-        commandId: CommandId.make("promotion-moves-sibling-archive"),
-        threadId: siblingId,
-      });
       const { task } = yield* tasks.upsert({
         id: ScheduledTaskId.make("promotion-moves-bound"),
         title: "Bound",
@@ -6888,6 +7304,11 @@ it.layer(layerScratchPromotionTest)("turning a No project thread into a project"
         interactionMode: "default",
         createdBy: "user",
         creationSource: "web",
+      });
+      yield* orchestrator.dispatch({
+        type: "thread.archive",
+        commandId: CommandId.make("promotion-moves-sibling-archive"),
+        threadId: siblingId,
       });
 
       const { projectId } = yield* promotion.promote({ threadId });
@@ -7001,7 +7422,7 @@ it.layer(layerScratchPromotionTest)("turning a No project thread into a project"
 });
 
 it.layer(layerSharedApplicationDataPlaneTest)("snooze projection", (it) => {
-  it.effect("carries snooze state through the V2 shell projection", () =>
+  it.effect("carries snooze, done and title state through the V2 shell projection", () =>
     Effect.gen(function* () {
       const projects = yield* ProjectService.ProjectService;
       const orchestrator = yield* Orchestrator.OrchestratorV2;
@@ -7070,6 +7491,11 @@ it.layer(layerSharedApplicationDataPlaneTest)("snooze projection", (it) => {
       const [candidate] = yield* projections.getAutoMarkDoneCandidates(threadId);
       assert.deepEqual(candidate?.lastSnoozeWakeAt, yield* DateTime.now);
       yield* orchestrator.dispatch({
+        type: "thread.mark-done",
+        commandId: CommandId.make("runtime-layer-snoozed-thread-mark-done"),
+        threadId,
+      });
+      yield* orchestrator.dispatch({
         type: "thread.snooze",
         commandId: CommandId.make("runtime-layer-snoozed-thread-snooze-after-wake"),
         threadId,
@@ -7084,6 +7510,7 @@ it.layer(layerSharedApplicationDataPlaneTest)("snooze projection", (it) => {
         threadId,
         messageId: MessageId.make("runtime-layer-snoozed-message"),
         text: "Wake this thread.",
+        titleSeed: "Woken thread",
         attachments: [],
         modelSelection,
         dispatchMode: { type: "start_immediately" },
@@ -7092,6 +7519,13 @@ it.layer(layerSharedApplicationDataPlaneTest)("snooze projection", (it) => {
       const awakened = yield* orchestrator.getThreadProjection(threadId);
       assert.isNull(awakened.thread.snoozedUntil);
       assert.isNull(awakened.thread.snoozedAt);
+      assert.isNull(awakened.thread.doneOverride);
+      assert.isNull(awakened.thread.doneAt);
+      assert.equal(awakened.thread.title, "Woken thread");
+      assert.equal(
+        awakened.thread.titleRegeneration?.requestId,
+        CommandId.make("runtime-layer-snoozed-message"),
+      );
     }),
   );
 
@@ -7993,6 +8427,8 @@ it.layer(layerTest)("usage-limit recovery", (it) => {
 
   it.effect.each([
     "resume",
+    "resume-started",
+    "resume-untagged",
     "queued-resume",
     "cancel",
     "rearm",
@@ -8509,10 +8945,97 @@ it.layer(layerTest)("usage-limit recovery", (it) => {
         yield* orchestrator.dispatch(resume);
       }
       const after = yield* orchestrator.getThreadProjection(threadId);
+      if (
+        scenario === "resume" ||
+        scenario === "resume-started" ||
+        scenario === "resume-untagged"
+      ) {
+        assert.deepInclude(after.messages.at(-1), {
+          text: "Continue where you left off.",
+          createdBy: "agent",
+          creationSource: "server",
+        });
+        const continuation = after.runs.at(-1)!;
+        assert.equal(continuation.status, "starting");
+        if (scenario === "resume-started") {
+          const startedAt = yield* DateTime.now;
+          yield* events.write({
+            events: [
+              {
+                id: EventId.make("recovery:continuation-started:resume-started"),
+                type: "run.updated",
+                threadId,
+                runId: continuation.id,
+                occurredAt: startedAt,
+                payload: { ...continuation, status: "running", startedAt },
+              },
+            ],
+          });
+        }
+        if (scenario === "resume-untagged") {
+          // A server older than the run tag stored the resume run without it.
+          const { usageLimitContinuationOfRunId: _, ...untagged } = continuation;
+          yield* events.write({
+            events: [
+              {
+                id: EventId.make("recovery:continuation-untagged"),
+                type: "run.updated",
+                threadId,
+                runId: continuation.id,
+                occurredAt: yield* DateTime.now,
+                payload: untagged,
+              },
+            ],
+          });
+        }
+        yield* (yield* ProviderRuntimeRecoveryService.ProviderRuntimeRecoveryService).reconcile(
+          "startup",
+        );
+        const restartedShell = (yield* orchestrator.getShellSnapshot()).threads.find(
+          (thread) => thread.id === threadId,
+        )!;
+        const retry = limitRecoveryCommand(
+          restartedShell,
+          true,
+          DateTime.toEpochMillis(yield* DateTime.now),
+        );
+        if (scenario === "resume-started") assert.isNull(retry);
+        else assert(retry?.type === "message.dispatch");
+        if (scenario === "resume") {
+          assert.notEqual(retry!.commandId, resume!.commandId);
+        } else {
+          assert.equal(
+            restartedShell.limitRecovery?.requestId,
+            after.thread.limitRecovery?.requestId,
+          );
+        }
+        if (retry !== null) {
+          yield* orchestrator.dispatch(retry);
+          yield* orchestrator.dispatch(retry);
+        }
+        const resumed = yield* orchestrator.getThreadProjection(threadId);
+        const visible = createOrchestrationV2TurnItemVisibility({
+          runs: resumed.runs,
+          attempts: resumed.attempts,
+          items: resumed.turnItems,
+        });
+        assert.deepEqual(
+          resumed.turnItems.flatMap((item) =>
+            item.type === "user_message" && visible(item) ? [item.runId] : [],
+          ),
+          [run.id, resumed.runs.at(-1)!.id],
+        );
+        assert.deepEqual(
+          resumed.runs.map((row) => row.status),
+          scenario === "resume" ? ["failed", "cancelled", "starting"] : ["failed", "cancelled"],
+        );
+      }
       assert.lengthOf(
         after.runs,
         before.runs.length +
           (scenario === "resume" ||
+          scenario === "resume-started" ||
+          scenario === "resume-untagged" ||
           stopBeforeArm ||
           scenario === "queued-resume" ||
           scenario === "snooze-resume" ||
@@ -8526,6 +9049,8 @@ it.layer(layerTest)("usage-limit recovery", (it) => {
         after.messages,
         before.messages.length +
           (scenario === "resume" ||
+          scenario === "resume-started" ||
+          scenario === "resume-untagged" ||
           stopBeforeArm ||
           scenario === "queued-resume" ||
           scenario === "snooze-resume" ||

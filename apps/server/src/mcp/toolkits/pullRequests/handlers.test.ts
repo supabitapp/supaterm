@@ -12,7 +12,7 @@ import {
   SourceControlProviderKind,
 } from "@supaterm/contracts";
 import { describe, expect, it } from "@effect/vitest";
-import * as Crypto from "effect/Crypto";
+import * as SecureRandom from "effect/crypto/SecureRandom";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
@@ -38,10 +38,7 @@ import { PullRequestsToolkit } from "./tools.ts";
 const PROJECT_ID = ProjectId.make("project-1");
 const THREAD_ID = ThreadId.make("thread-1");
 
-const testCrypto = Crypto.make({
-  randomBytes: (size) => new Uint8Array(size).fill(7),
-  digest: (_algorithm, data) => Effect.succeed(data),
-});
+const testCrypto = SecureRandom.make((size) => new Uint8Array(size).fill(7));
 
 const invocation = (
   capabilities: ReadonlyArray<McpInvocationContext.McpCapability>,
@@ -199,10 +196,10 @@ const makeHarness = Effect.fn("makePullRequestsToolkitHarness")(function* (
     }),
     Layer.mock(Orchestrator.OrchestratorV2)({
       getThreadShell: (id) =>
-        Effect.succeed(id === THREAD_ID && thread ? v2PullRequestThread(thread) : null),
+        Effect.succeed(id === thread?.id ? v2PullRequestThread(thread) : null),
       dispatch,
     }),
-    Layer.succeed(Crypto.Crypto, testCrypto),
+    Layer.succeed(SecureRandom.SecureRandom, testCrypto),
     McpToolAccessTestkit.liveThreadsLayer,
   );
   const toolkit = yield* PullRequestsToolkit.pipe(
@@ -244,6 +241,21 @@ describe("pull request toolkit handlers", () => {
         capability: "pull-requests",
         threadId: THREAD_ID,
       });
+      expect(yield* Ref.get(harness.commands)).toEqual([]);
+    }),
+  );
+
+  it.effect("points a bare thread uuid at the mcp: thread it belongs to", () =>
+    Effect.gen(function* () {
+      const bareId = ThreadId.make("5d0b4a3e-8c1f-4a52-9d37-2f6c7e1b9a04");
+      const harness = yield* makeHarness({
+        thread: { ...makeThread([]), id: ThreadId.make(`mcp:${bareId}`) },
+      });
+      const error = yield* harness
+        .call("link_pull_request", { threadId: bareId, number: 123 })
+        .pipe(Effect.flip);
+      expect(error.message).toBe(`Thread ${bareId} was not found. Did you mean \`mcp:${bareId}\`?`);
+      expect(error).toMatchObject({ _tag: "OrchestratorMcpFailure", code: "thread_not_found" });
       expect(yield* Ref.get(harness.commands)).toEqual([]);
     }),
   );
@@ -559,6 +571,20 @@ describe("pull request toolkit handlers", () => {
       expect(yield* Ref.get(harness.commands)).toMatchObject([
         { type: "thread.pull-request.unlink", number: 5 },
       ]);
+    }),
+  );
+
+  it.effect("reports a dismissed stack member as not linked and leaves it dismissed", () =>
+    Effect.gen(function* () {
+      const harness = yield* makeHarness({
+        thread: makeThread([makeLink(9, { source: "stack-dismissed" })]),
+      });
+      const result = yield* harness.call("unlink_pull_request", {
+        repository: "supabitapp/supaterm",
+        number: 9,
+      });
+      expect(result.wasLinked).toBe(false);
+      expect(yield* Ref.get(harness.commands)).toEqual([]);
     }),
   );
 

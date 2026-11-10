@@ -203,6 +203,17 @@ export function useShellOmitsThreads(environmentId: EnvironmentId): boolean {
   return useAtomValue(shellOmitsThreadsAtom(environmentId));
 }
 
+const threadLinkMetadataAtom = Atom.family((environmentId: EnvironmentId) =>
+  Atom.make(
+    (get) => get(serverEnvironment.configValueAtom(environmentId))?.threadLinkMetadata === true,
+  ).pipe(Atom.withLabel(`web-thread-link-metadata:${environmentId}`)),
+);
+
+/** Whether this environment answers thread link lookups, which tell a deleted thread from an unloaded one. */
+export function useThreadLinkMetadataSupported(environmentId: EnvironmentId): boolean {
+  return useAtomValue(threadLinkMetadataAtom(environmentId));
+}
+
 /** Includes threads still being created from a pending send. */
 export function useSidebarThreadShell(ref: ScopedThreadRef): EnvironmentThreadShell | null {
   return useAtomValue(sidebarThreadShells.threadShellAtom(ref));

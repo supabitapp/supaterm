@@ -108,6 +108,15 @@ function subscribeToNothing() {
   return () => {};
 }
 
+const blobKeys = new WeakMap<Blob, string>();
+let nextBlobKey = 0;
+
+function blobKey(blob: Blob) {
+  const key = blobKeys.get(blob) ?? `blob:${nextBlobKey++}`;
+  blobKeys.set(blob, key);
+  return key;
+}
+
 export function ReadOnlySourcePreview(props: { name: string; text: string; wordWrap?: boolean }) {
   return (
     <Suspense fallback={<FileSurfaceLoading className="p-4" />}>
@@ -415,6 +424,17 @@ export function AttachmentFilePreview(props: {
       pdf={kind === "pdf"}
       htmlRender={props.htmlRender === true}
       threadRef={props.threadRef}
+      // Each mount signs or creates a new URL, so the URL cannot identify the file across visits.
+      // A draft keeps its Blob key after upload, so finishing the upload does not reload the PDF.
+      documentKey={
+        kind !== "pdf"
+          ? undefined
+          : props.file
+            ? blobKey(props.file)
+            : props.asset && "attachmentId" in props.asset
+              ? `${props.asset.environmentId}:${props.asset.attachmentId}`
+              : undefined
+      }
     />
   ) : kind === "audio" ? (
     <AudioPreview src={url} name={props.name} onError={() => setError("Unable to load audio.")} />

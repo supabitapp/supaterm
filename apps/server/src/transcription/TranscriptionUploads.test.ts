@@ -3,6 +3,8 @@ import * as NodeFS from "node:fs";
 import * as NodePath from "node:path";
 
 import * as NodeServices from "@effect/platform-node/NodeServices";
+import * as NodeCrypto from "@effect/platform-node/NodeCrypto";
+import * as AssetSigner from "../assets/AssetSigner.ts";
 import {
   CommandId,
   MessageId,
@@ -55,11 +57,12 @@ type LivePlan =
       readonly result: Effect.Effect<{ text: string }, TranscriptionError>;
     };
 
-const environment = ServerSecretStore.layer.pipe(
+const environment = AssetSigner.layer.pipe(
+  Layer.provideMerge(ServerSecretStore.layer),
   Layer.provideMerge(
     ServerConfig.layerTest(process.cwd(), { prefix: "supaterm-transcription-uploads-" }),
   ),
-  Layer.provideMerge(NodeServices.layer),
+  Layer.provideMerge(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer)),
 );
 
 const makeHarness = Effect.gen(function* () {
@@ -270,7 +273,7 @@ describe("TranscriptionUploads", () => {
     Effect.gen(function* () {
       const harness = yield* makeHarness;
       yield* Effect.gen(function* () {
-        const target = { ...submit("command-1"), delivery: "queue" as const };
+        const target = { ...submit("command-1"), delivery: "queue" as const, freshContext: true };
         const prepared = yield* prepare({ submit: target });
         expect(prepared.uploadId).toBe("command-1");
         const pending = yield* Effect.forkChild(upload(tokenOf(prepared.relativeUrl), AUDIO_BODY));
@@ -287,6 +290,7 @@ describe("TranscriptionUploads", () => {
           creationSource: "web",
           text: "fix the build",
           attachments: [],
+          freshContext: true,
           dispatchMode: { type: "queue_after_active" },
         });
         expect((yield* Ref.get(harness.transcriptions))[0]?.context).toEqual({ threadId: THREAD });

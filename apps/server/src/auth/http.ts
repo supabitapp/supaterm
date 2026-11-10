@@ -34,6 +34,7 @@ import * as HttpApiBuilder from "effect/http-api/HttpApiBuilder";
 import * as EnvironmentAuth from "./EnvironmentAuth.ts";
 import * as SessionStore from "./SessionStore.ts";
 import { deriveAuthClientMetadata } from "./utils.ts";
+import { requestUrl } from "../requestUrl.ts";
 
 const CREDENTIAL_RESPONSE_HEADERS = {
   "cache-control": "no-store",
@@ -53,7 +54,7 @@ export const annotateEnvironmentRequest =
   /* Request instrumentation already owns the span; keep this helper in that context. */
   Effect.fnUntraced(function* (endpoint: string) {
     const request = yield* HttpServerRequest.HttpServerRequest;
-    const url = HttpServerRequest.toURL(request);
+    const url = requestUrl(request);
     const traceId = yield* currentEnvironmentTraceId;
 
     yield* Effect.addFinalizer((exit) =>
@@ -356,7 +357,9 @@ export const layer = HttpApiBuilder.group(
           function* (args) {
             yield* annotateEnvironmentRequest(args.endpoint.name);
             const session = yield* requireEnvironmentScope(AuthAccessWriteScope);
-            const delegatedScopes = args.payload.scopes ?? AuthStandardClientScopes;
+            const delegatedScopes = args.payload.access
+              ? EnvironmentAuth.mcpClientScopes(args.payload.access)
+              : (args.payload.scopes ?? AuthStandardClientScopes);
             if (
               delegatedScopes.length === 0 ||
               new Set<AuthEnvironmentScope>(delegatedScopes).size !== delegatedScopes.length

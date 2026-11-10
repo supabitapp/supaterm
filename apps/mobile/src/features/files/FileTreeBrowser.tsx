@@ -5,13 +5,12 @@ import type { ProjectEntry } from "@supaterm/contracts";
 import { AppActivityIndicator } from "../../components/ui/AppActivityIndicator";
 import { DisclosureChevron } from "../../components/ui/DisclosureChevron";
 import { useEffect, useRef, useState } from "react";
-import { Platform, Pressable, RefreshControl, View } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { Pressable, RefreshControl, View } from "react-native";
 
 import { AppText as Text } from "../../components/ui/AppText";
 import { PierreEntryIcon } from "../../components/PierreEntryIcon";
 import { cn } from "../../lib/cn";
-import { useNativeColumnLayoutMetrics } from "../../native/native-layout-metrics";
+import { useContentBottomInset, useContentTopInset } from "../../components/ui/useBarInset";
 import {
   buildFileTree,
   flattenFileTree,
@@ -122,9 +121,8 @@ export function FileTreeBrowser(props: {
     readonly path: string;
     readonly selectedPathAtPress: string | null;
   } | null>(null);
-  const insets = useSafeAreaInsets();
-  const columnMetrics = useNativeColumnLayoutMetrics();
-  const headerInset = Platform.OS === "ios" ? (columnMetrics?.safeArea.top ?? insets.top) : 0;
+  const headerInset = useContentTopInset();
+  const bottomInset = useContentBottomInset();
   const {
     onLoadDirectory,
     onPreviewFile,
@@ -215,14 +213,14 @@ export function FileTreeBrowser(props: {
 
   return (
     <LegendList
-      renderScrollComponent={Platform.OS === "ios" ? NativeScrollView : undefined}
-      contentInsetStartAdjustment={headerInset}
+      renderScrollComponent={NativeScrollView}
+      contentInset={{ top: headerInset, bottom: bottomInset }}
       alwaysBounceVertical
       className="flex-1"
       data={visibleNodes}
       keyExtractor={(item) => item.node.path}
-      contentInsetAdjustmentBehavior={Platform.OS === "ios" ? "automatic" : "never"}
-      automaticallyAdjustsScrollIndicatorInsets={Platform.OS === "ios"}
+      contentInsetAdjustmentBehavior="never"
+      automaticallyAdjustsScrollIndicatorInsets
       keyboardDismissMode="on-drag"
       keyboardShouldPersistTaps="handled"
       estimatedItemSize={42}

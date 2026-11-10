@@ -425,8 +425,23 @@ export const recordPinnedRuntimeLauncher = Effect.fn("cloud.pinned_runtime.recor
   },
 );
 
+/** Whether `candidate` is a version's own executable, `<versionsDir>/<version>/supaterm[.exe]`. */
+export function isVersionExecutable(
+  path: Path.Path,
+  versionsDir: string,
+  candidate: string,
+): boolean {
+  const relative = path.relative(versionsDir, path.resolve(candidate));
+  // On another Windows drive, relative() returns the absolute path, like `D:\supaterm.exe`.
+  return !path.isAbsolute(relative) && /^(?!\.\.)[^\\/]+[\\/]supaterm(?:\.exe)?$/i.test(relative);
+}
+
 /** The executable a `supaterm.cmd` shim written by the install script or `supaterm update` runs. */
 export const windowsShimTarget = (contents: string) => /^"([^"]+)"/m.exec(contents)?.[1];
+
+/** Like {@link windowsShimTarget}, but only for a shim exactly as written; never a user's wrapper. */
+export const generatedWindowsShimTarget = (contents: string) =>
+  /^@echo off\r?\n"([^"]+)" %\*\s*$/.exec(contents)?.[1];
 
 /** Where the `supaterm` launchers written by the install scripts and `supaterm update` point. */
 const shellLauncherTargets = Effect.fn("cloud.pinned_runtime.shell_launcher_targets")(function* (

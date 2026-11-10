@@ -12,6 +12,7 @@ import {
   makeProviderMaintenanceCapabilities,
   type ProviderMaintenanceCapabilities,
   type ProviderMaintenanceCapabilitiesResolver,
+  resolveMiseProviderMaintenance,
 } from "@supaterm/provider-core/server/maintenanceResolver";
 import * as ProviderLatestVersions from "@supaterm/provider-core/server/ProviderLatestVersions";
 import { parseGenericCliVersion } from "@supaterm/provider-core/server/snapshotProbe";
@@ -45,6 +46,12 @@ export const museMaintenance: ProviderMaintenanceCapabilitiesResolver = {
       compareVersions: compareMuseVersions,
     };
     if (!context || context.platform === "win32") return manual;
+    const mise = yield* resolveMiseProviderMaintenance(
+      { provider: DRIVER, packageName: null },
+      { tool: "muse" },
+      context,
+    );
+    if (mise) return { ...mise, compareVersions: compareMuseVersions };
     const fs = yield* FileSystem.FileSystem;
     const isLauncher = yield* Effect.gen(function* () {
       const stat = yield* fs.stat(context.realCommandPath);
@@ -118,6 +125,15 @@ export const enrichMuseSnapshot = Effect.fn("enrichMuseSnapshot")(function* (inp
   readonly environment: NodeJS.ProcessEnv;
 }) {
   const { snapshot } = input;
+  const options = { enableProviderUpdateChecks: input.enableProviderUpdateChecks };
+  // Mise names the version it would install, so its answer alone counts.
+  if (input.maintenanceCapabilities.lookupLatestVersion) {
+    return yield* enrichProviderSnapshotWithVersionAdvisory(
+      snapshot,
+      input.maintenanceCapabilities,
+      options,
+    );
+  }
   const latestVersion =
     input.enableProviderUpdateChecks && snapshot.enabled && snapshot.installed && snapshot.version
       ? yield* latestMuseVersion(input.environment)
@@ -125,6 +141,6 @@ export const enrichMuseSnapshot = Effect.fn("enrichMuseSnapshot")(function* (inp
   return yield* enrichProviderSnapshotWithVersionAdvisory(
     snapshot,
     { ...input.maintenanceCapabilities, latestVersion },
-    { enableProviderUpdateChecks: input.enableProviderUpdateChecks },
+    options,
   );
 });

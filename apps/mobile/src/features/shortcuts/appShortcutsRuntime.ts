@@ -14,7 +14,7 @@ import { uuidv4 } from "../../lib/uuid";
 import { appAtomRegistry } from "../../state/atom-registry";
 import { environmentThreadShells } from "../../state/threads";
 import { readStartNewTaskDestination } from "../threads/use-start-new-task";
-import { selectWorkspaceDetail } from "../workspace/workspace-detail-selection";
+import { selectWorkspaceDetail } from "../layout/workspace/workspace-detail-selection";
 import {
   activeThreadRef,
   buildShortcutActions,

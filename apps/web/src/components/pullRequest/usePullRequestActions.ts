@@ -11,6 +11,7 @@ import type {
   PullRequestDetail,
   PullRequestMergeMethod,
   PullRequestRef,
+  PullRequestSummary,
   ScopedThreadRef,
 } from "@supaterm/contracts";
 import { useRef, useState } from "react";
@@ -22,7 +23,7 @@ import {
 import { resolveProjectSettings } from "@supaterm/shared/projectSettings";
 import { useEnvironmentSettings } from "~/hooks/useSettings";
 
-import { composerTargetKey, type DraftId, useComposerDraftStore } from "~/composerDraftStore";
+import { type DraftId, useComposerDraftStore } from "~/composerDraftStore";
 import { useNewThreadHandler } from "~/hooks/useHandleNewThread";
 import { usePreparePullRequestThreadAction } from "~/state/sourceControlActions";
 import type { ReviewCommentContext } from "~/reviewCommentContext";
@@ -32,10 +33,8 @@ import { toastManager } from "../ui/toast";
 import { offHeadPullRequestCheckoutToast } from "./pullRequestCheckoutToast";
 import {
   checkoutFailureDescription,
-  handoffPrompt,
-  handoffReviewComments,
+  appendHandoff,
   readableFailure,
-  stripPullRequestHandoffReferences,
 } from "./pullRequestDetail.logic";
 import { pullRequestEntryKey, type EnvironmentPullRequestEntry } from "./pullRequestList.logic";
 
@@ -109,20 +108,32 @@ export function usePullRequestActionRunner({
   environmentId: EnvironmentId;
   reference: PullRequestRef | null;
   terminology: ChangeRequestTerminology;
-  onSuccess?: (action: PullRequestAction) => void;
+  onSuccess?: (action: PullRequestAction, reply: PullRequestSummary | undefined) => void;
   /** Small surfaces resolve repository settings on the click, not for every visible row. */
   resolveMergeMethod?: (detail: PullRequestDetail) => PullRequestMergeMethod;
 }) {
   const runAction = useAtomCommand(pullRequestEnvironment.runAction, {
     reportFailure: false,
   });
-  const [pendingAction, setPendingAction] = useState<PullRequestAction | null>(null);
-  const pendingRef = useRef(false);
+  const pendingRef = useRef(new Map<string, PullRequestAction>());
+  const [pendingActions, setPendingActions] = useState<ReadonlyMap<string, PullRequestAction>>(
+    () => new Map(),
+  );
+  const actionKey =
+    reference === null
+      ? null
+      : JSON.stringify([
+          environmentId,
+          reference.host ?? null,
+          reference.repository,
+          reference.number,
+        ]);
+  const pendingAction = actionKey === null ? null : (pendingActions.get(actionKey) ?? null);
 
   const perform = async (action: PullRequestAction, method?: PullRequestMergeMethod) => {
-    if (pendingRef.current || reference === null) return false;
-    pendingRef.current = true;
-    setPendingAction(action);
+    if (actionKey === null || reference === null || pendingRef.current.has(actionKey)) return false;
+    pendingRef.current.set(actionKey, action);
+    setPendingActions(new Map(pendingRef.current));
     const result = await runAction({
       environmentId,
       input: {
@@ -131,8 +142,8 @@ export function usePullRequestActionRunner({
         ...(method ? { mergeMethod: method } : resolveMergeMethod ? { resolveMergeMethod } : {}),
       },
     });
-    pendingRef.current = false;
-    setPendingAction(null);
+    pendingRef.current.delete(actionKey);
+    setPendingActions(new Map(pendingRef.current));
     if (result._tag === "Failure") {
       toastManager.add({
         type: "error",
@@ -145,14 +156,16 @@ export function usePullRequestActionRunner({
       return false;
     }
     toastManager.add({ type: "success", title: actionSuccessLabels(terminology.singular)[action] });
-    onSuccess?.(action);
+    onSuccess?.(action, result.value);
     return true;
   };
 
   return { actionPending: pendingAction !== null, pendingAction, perform };
 }
 
-export function usePullRequestCloseBatch(onClosed: (entry: EnvironmentPullRequestEntry) => void) {
+export function usePullRequestCloseBatch(
+  onClosed: (entry: EnvironmentPullRequestEntry, reply: PullRequestSummary | undefined) => void,
+) {
   const runAction = useAtomCommand(pullRequestEnvironment.runAction, { reportFailure: false });
   const pending = useRef(new Set<string>());
   const [closingKeys, setClosingKeys] = useState<ReadonlySet<string>>(() => new Set());
@@ -186,7 +199,7 @@ export function usePullRequestCloseBatch(onClosed: (entry: EnvironmentPullReques
           );
           return;
         }
-        onClosed(entry);
+        onClosed(entry, result.value);
         return true;
       }),
     );
@@ -208,58 +221,24 @@ export interface PullRequestThreadTask {
   reviewComments?: ReadonlyArray<ReviewCommentContext>;
 }
 
-export type PullRequestHandoffDetail = Pick<
-  PullRequestDetail,
-  "projectId" | "workspaceRoot" | "url"
->;
-
-/**
- * What the last hand-off wrote into each draft, kept outside React because the surface that wrote
- * it may be gone by the time the next one arrives. It is how a prompt the reader has since edited
- * is told apart from the one they were handed: only the sentence still exactly as written may be
- * replaced.
- */
-const lastHandoffPromptByDraft = new Map<string, string>();
-
-export function writePullRequestTaskToComposer(
+export function writeHandoffToComposer(
   target: ScopedThreadRef | DraftId,
   task: PullRequestThreadTask,
 ) {
   const store = useComposerDraftStore.getState();
   const draft = store.getComposerDraft(target);
-  const key = composerTargetKey(target);
-  const previousCommentIds = new Set((draft?.reviewComments ?? []).map((comment) => comment.id));
-  const repeatedCommentIds = new Set(
-    (task.reviewComments ?? [])
-      .filter((comment) => previousCommentIds.has(comment.id))
-      .map((comment) => comment.id),
+  const next = appendHandoff(
+    { prompt: draft?.prompt ?? "", reviewComments: draft?.reviewComments ?? [] },
+    task,
   );
-  const promptWithoutPreviousHandoff = stripPullRequestHandoffReferences(
-    draft?.prompt ?? "",
-    draft?.reviewComments ?? [],
-    repeatedCommentIds,
-  );
-  const prompt = handoffPrompt(
-    {
-      prompt: promptWithoutPreviousHandoff,
-      lastHandoffPrompt: lastHandoffPromptByDraft.get(key),
-    },
-    task.prompt,
-  );
-  lastHandoffPromptByDraft.set(key, task.prompt);
-  store.setPrompt(target, prompt);
-  store.setReviewComments(
-    target,
-    handoffReviewComments(draft?.reviewComments ?? [], task.reviewComments ?? []),
-  );
-  for (const comment of task.reviewComments ?? []) {
-    if (!repeatedCommentIds.has(comment.id)) continue;
-    store.addReviewComment(target, comment, {
-      allowDuplicateReference: true,
-      insertAtCaret: false,
-    });
-  }
+  store.setPrompt(target, next.prompt);
+  store.setReviewComments(target, next.reviewComments);
 }
+
+export type PullRequestHandoffDetail = Pick<
+  PullRequestDetail,
+  "projectId" | "workspaceRoot" | "url"
+>;
 
 export function usePullRequestHandoffs({
   environmentId,
@@ -297,7 +276,7 @@ export function usePullRequestHandoffs({
         () => null,
       ));
     if (session === null) return null;
-    if (task !== null) writePullRequestTaskToComposer(session.draftId, task);
+    if (task !== null) writeHandoffToComposer(session.draftId, task);
     return session;
   };
 

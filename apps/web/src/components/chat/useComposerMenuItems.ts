@@ -86,6 +86,7 @@ export function useComposerMenuItems({
   modelOptionsByInstance,
   compactSlashCommandAvailable,
   sideChatAvailable,
+  freshSessionAvailable,
   selectedProvider,
   selectedProviderSkills,
   selectedProviderSlashCommands,
@@ -103,6 +104,7 @@ export function useComposerMenuItems({
   readonly modelOptionsByInstance: ReadonlyMap<ProviderInstanceId, ReadonlyArray<AppModelOption>>;
   readonly compactSlashCommandAvailable: boolean;
   readonly sideChatAvailable: boolean;
+  readonly freshSessionAvailable: boolean;
   readonly selectedProvider: ProviderDriverKind;
   readonly selectedProviderSkills: ServerProvider["skills"];
   readonly selectedProviderSlashCommands: ServerProvider["slashCommands"];
@@ -245,6 +247,17 @@ export function useComposerMenuItems({
               },
             ] as const)
           : []),
+        ...(freshSessionAvailable
+          ? ([
+              {
+                id: "slash:clear",
+                type: "slash-command",
+                command: "clear",
+                label: "/clear",
+                description: "Start a fresh session; earlier messages stay visible",
+              },
+            ] as const)
+          : []),
       ] satisfies ReadonlyArray<Extract<ComposerCommandItem, { type: "slash-command" }>>;
       const slashMenuSkills = getProviderSkillsForSlashMenu(
         selectedProviderSkills,
@@ -273,8 +286,11 @@ export function useComposerMenuItems({
           skill.description ??
           (skill.scope ? `${skill.scope} skill` : ""),
       }));
+      // Supaterm's `/clear` replaces the provider's, which would clear a session Supaterm still treats as live.
       const visibleProviderSlashCommandItems = providerSlashCommandItems.filter(
-        (item) => item.command.name !== "compact" || compactSlashCommandAvailable,
+        (item) =>
+          (item.command.name !== "compact" || compactSlashCommandAvailable) &&
+          (item.command.name !== "clear" || !freshSessionAvailable),
       );
       return searchSlashCommandItems(
         [...builtInSlashCommandItems, ...visibleProviderSlashCommandItems, ...skillItems],

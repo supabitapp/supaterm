@@ -8,7 +8,7 @@ import {
   getSpeedToggle,
   SPEED_TOGGLE_LABELS,
 } from "@supaterm/client-runtime/provider-speed-toggle";
-import { useAtomValue } from "@effect/atom-react";
+import { useAtomMount, useAtomValue } from "@effect/atom-react";
 import { isEnvironmentConnected } from "@supaterm/client-runtime/connection";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
@@ -17,9 +17,11 @@ import {
   hasQueuedTurnStart,
   QUEUED_TURN_START_GRACE_MS,
 } from "@supaterm/client-runtime/state/thread-snooze";
-import { resolveDoneThreadTimestamp } from "@supaterm/client-runtime/state/thread-sort";
+import {
+  resolveDoneThreadTimestamp,
+  resolveThreadActivityTimestamp,
+} from "@supaterm/client-runtime/state/thread-sort";
 import { resolveThreadProviderStack } from "@supaterm/client-runtime/state/models";
-import { resolveThreadRowStatus } from "@supaterm/client-runtime/state/thread-row-status";
 import { scopeThreadRef, scopedThreadKey } from "@supaterm/client-runtime/environment";
 import {
   AuthOrchestrationOperateScope,
@@ -64,7 +66,7 @@ import { useSidebarThreadShell, useThreadShell } from "../../state/entities";
 import { useNowSecond } from "../../hooks/useNowSecond";
 import { useDeadlinePassed } from "../../hooks/useDeadline";
 import { environmentPresentations } from "../../state/presentation";
-import { vcsEnvironment } from "../../state/vcs";
+import { vcsBranchRevalidation, vcsEnvironment } from "../../state/vcs";
 import { useEnvironmentQuery } from "../../state/query";
 import { readEnvironmentScope, useEnvironmentScope } from "../../state/session";
 import { formatRelativeTimeLabel, parseTimestampDate } from "../../timestampFormat";
@@ -80,6 +82,7 @@ import {
   resolveSidebarRowAccessibility,
   type SidebarDropVerb,
   type SidebarSweepAction,
+  resolveSidebarThreadStatus,
   resolveSidebarV2DurationStartedAt,
   resolveSidebarV2TopStatus,
   resolveThreadTotalWorkMs,
@@ -135,10 +138,6 @@ function compactSidebarTimeLabel(label: string): string {
   return label.endsWith(" ago") ? label.slice(0, -4) : label;
 }
 
-function threadTimeTimestamp(thread: SidebarThreadSummary): string {
-  return thread.latestUserMessageAt ?? thread.updatedAt;
-}
-
 // Subscribes to the minute tick itself, so the label keeps counting while the
 // memoized row stays cached on its thread.
 function CompactRelativeTimeLabel(props: { timestamp: string | null }) {
@@ -156,6 +155,7 @@ function JumpHintBadge(props: { label: string }) {
   return (
     <span
       aria-hidden
+      data-jump-hint
       className="pointer-events-none absolute right-1.5 top-1/2 z-10 inline-flex h-5 -translate-y-1/2 items-center rounded-full border border-border/80 bg-background/95 px-1.5 font-mono text-3xs font-medium tracking-tight text-foreground shadow-sm"
     >
       {props.label}
@@ -168,10 +168,11 @@ function SidebarRelativeTime({
   timestamp,
   className,
 }: {
-  timestamp: string;
+  timestamp: string | null;
   className?: string | undefined;
 }) {
   const nowMinute = useNowMinute();
+  if (timestamp === null) return null;
   return (
     <time
       dateTime={timestamp}
@@ -305,7 +306,7 @@ function SidebarThreadTooltip({
         selections: thread.modelSelection.options,
       })
     : [];
-  const speedToggle = getSpeedToggle(driverKind, descriptors);
+  const speedToggle = getSpeedToggle(descriptors);
   const previousProviderNames = thread.providerInstanceHistory
     .filter((instanceId) => instanceId !== modelInstanceId)
     .map((instanceId) => providerEntryByInstanceId.get(instanceId)?.displayName ?? instanceId);
@@ -712,14 +713,19 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
     thread.branchPullRequest,
     leaseLiveStatus,
   );
-  const gitStatus = useEnvironmentQuery(
+  const branchTarget =
     leaseLiveStatus && (thread.branch != null || thread.worktreePath !== null) && gitCwd !== null
-      ? vcsEnvironment.status({
-          environmentId: thread.environmentId,
-          input: { cwd: gitCwd, includeRemote: false },
-        })
-      : null,
+      ? { environmentId: thread.environmentId, cwd: gitCwd }
+      : null;
+  const gitStatus = useEnvironmentQuery(
+    branchTarget === null
+      ? null
+      : vcsEnvironment.branch({
+          environmentId: branchTarget.environmentId,
+          input: { cwd: branchTarget.cwd },
+        }),
   );
+  useAtomMount(vcsBranchRevalidation(branchTarget));
   const visibleGitStatus = useRetainedValue(
     JSON.stringify([thread.environmentId, gitCwd]),
     gitStatus.data,
@@ -730,7 +736,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
   // Never-visited threads count as read so historical threads do not light up
   // as unread on first load.
   const isUnread = hasUnseenCompletion({ ...thread, lastVisitedAt });
-  const status = resolveThreadRowStatus(thread);
+  const status = resolveSidebarThreadStatus(thread);
   const showDuration = environmentConnected && shouldShowSidebarV2Duration(status);
   // A woken thread keeps its static sort position, so the pill carries the signal and clears only
   // when the user re-engages; timer wakes survive a mere visit. An unparseable visit timestamp
@@ -767,7 +773,12 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
       ? { label: "Connecting", icon: null, className: "text-secondary-label" }
       : topStatusKind === "working"
         ? {
-            label: thread.goal?.status === "active" ? "Goal" : "Working",
+            label:
+              status === "preparing"
+                ? "Setting up"
+                : thread.goal?.status === "active"
+                  ? "Goal"
+                  : "Working",
             icon: "working" as const,
             className: "text-info-foreground",
           }
@@ -1022,7 +1033,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
             ? "text-sidebar-muted-foreground/75 hover:bg-sidebar-row-hover hover:text-sidebar-foreground"
             : "bg-transparent text-sidebar-foreground hover:bg-sidebar-row-hover",
     shouldRecede &&
-      (status === "working" || status === "waiting") &&
+      (status === "preparing" || status === "working" || status === "waiting") &&
       "opacity-70 transition-opacity hover:opacity-100 focus-within:opacity-100 motion-reduce:transition-none",
     isFileDragOver && "ring-1 ring-inset ring-primary/70",
     isFileDragOver && !props.isActive && !isSelected && "bg-sidebar-row-hover",
@@ -1184,7 +1195,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
         {...sortableRootProps}
         {...(fileDropHandlers ?? {})}
         className={cn(
-          "list-none [content-visibility:auto] [contain-intrinsic-size:auto_36px]",
+          "list-none [content-visibility:auto] [contain-intrinsic-size:auto_--spacing(9)]",
           sortable?.isDragging && "relative z-20",
         )}
       >
@@ -1193,8 +1204,8 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
             render={
               <div
                 ref={rowRef}
-                role="treeitem"
-                tabIndex={-1}
+                role="button"
+                tabIndex={0}
                 data-sidebar-row={threadKey}
                 data-sidebar-parent={props.navigationParent}
                 aria-label={accessibility.label}
@@ -1289,7 +1300,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
                         timestamp={
                           variantAction === "reopen"
                             ? resolveDoneThreadTimestamp(thread)
-                            : threadTimeTimestamp(thread)
+                            : resolveThreadActivityTimestamp(thread)
                         }
                       />
                     </span>
@@ -1366,7 +1377,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
       {...sortableRootProps}
       {...(fileDropHandlers ?? {})}
       className={cn(
-        "list-none [content-visibility:auto] [contain-intrinsic-size:auto_48px]",
+        "list-none [content-visibility:auto] [contain-intrinsic-size:auto_--spacing(12)]",
         sortable?.isDragging && "relative z-20",
       )}
     >
@@ -1375,8 +1386,8 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
           render={
             <div
               ref={rowRef}
-              role="treeitem"
-              tabIndex={-1}
+              role="button"
+              tabIndex={0}
               data-sidebar-row={threadKey}
               data-sidebar-parent={props.navigationParent}
               aria-label={accessibility.label}
@@ -1444,9 +1455,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
                       ) : null}
                     </span>
                   ) : (
-                    <SidebarRelativeTime
-                      timestamp={thread.latestUserMessageAt ?? thread.updatedAt}
-                    />
+                    <SidebarRelativeTime timestamp={resolveThreadActivityTimestamp(thread)} />
                   )}
                 </span>
                 <span

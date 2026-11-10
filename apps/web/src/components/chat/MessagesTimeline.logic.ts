@@ -444,6 +444,19 @@ export function resolveTimelineMinimapCurrentIndex(input: {
   return precedingIndex;
 }
 
+/** A held key steps from its last target; the scroll it started has not moved the current turn yet. */
+export function resolveTimelineTurnStep<Item extends { readonly id: string }>(input: {
+  readonly items: ReadonlyArray<Item>;
+  readonly currentIndex: number | null;
+  readonly heldItemId: string | null;
+  readonly delta: -1 | 1;
+}): Item | null {
+  const heldIndex = input.items.findIndex((item) => item.id === input.heldItemId);
+  const base = heldIndex === -1 ? input.currentIndex : heldIndex;
+  if (base === null) return null;
+  return input.items[base + input.delta] ?? null;
+}
+
 function resolveTimelineSideGutter(viewportWidth: number, contentWidth: number): number {
   if (!Number.isFinite(viewportWidth) || viewportWidth <= 0 || !Number.isFinite(contentWidth)) {
     return 0;
@@ -1547,6 +1560,7 @@ export function deriveMessagesTimelineRows(input: {
         entry.entry.sourceActivityKind === "runtime.error" ||
         entry.entry.itemType === "system_notice" ||
         entry.entry.itemType === "notification" ||
+        entry.entry.itemType === "todo_list" ||
         entry.entry.questionAnswer !== undefined ||
         !runIdIsActiveResponse(entry.entry.runId) ||
         entry.entry.sourceActivityKind === "context-compaction" ||
@@ -1804,6 +1818,7 @@ export function deriveMessagesTimelineRows(input: {
         timelineEntry.entry.sourceActivityKind === "runtime.error" ||
         timelineEntry.entry.itemType === "system_notice" ||
         timelineEntry.entry.itemType === "notification" ||
+        timelineEntry.entry.itemType === "todo_list" ||
         timelineEntry.entry.questionAnswer !== undefined
       ) {
         nextRows.push({
@@ -1829,6 +1844,7 @@ export function deriveMessagesTimelineRows(input: {
           nextEntry.entry.sourceActivityKind === "runtime.error" ||
           nextEntry.entry.itemType === "system_notice" ||
           nextEntry.entry.itemType === "notification" ||
+          nextEntry.entry.itemType === "todo_list" ||
           nextEntry.entry.questionAnswer !== undefined ||
           activeWorkEntryIds.has(nextEntry.id) ||
           collapsedEntryIds.has(nextEntry.id) ||

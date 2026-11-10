@@ -1,10 +1,8 @@
 import { presentThreadShell } from "@supaterm/client-runtime/state/models";
 import { isThreadWorking as isSidebarThreadWorking } from "@supaterm/client-runtime/state/thread-inbox";
 import * as DateTime from "effect/DateTime";
-import { resolveThreadRowStatus } from "@supaterm/client-runtime/state/thread-row-status";
-import { describe, expect, it, vi } from "vite-plus/test";
+import { describe, expect, it } from "vite-plus/test";
 import {
-  archiveSelectedThreadEntries,
   formatWorkingDurationLabel,
   getFallbackThreadIdAfterDelete,
   hasUnseenCompletion,
@@ -12,6 +10,7 @@ import {
   pinOrderKeyBetween,
   resolveSidebarSweepKeys,
   resolveSidebarV2DurationStartedAt,
+  resolveSidebarThreadStatus,
   resolveSidebarV2TopStatus,
   resolveThreadStatusPill,
   resolveThreadTotalWorkMs,
@@ -22,7 +21,6 @@ import {
   planSidebarThreadDrop,
   resolveSidebarReorderableThreadKeys,
   sortPinnedThreadsForSidebar,
-  sortProjectsForSidebar,
   sortScopedProjectsForSidebar,
   sortSidebarV2ProjectGroups,
   shouldNavigateAfterThreadPark,
@@ -45,43 +43,6 @@ import {
 } from "./sidebar/routeReveal";
 
 const localEnvironmentId = EnvironmentId.make("environment-local");
-
-describe("archiveSelectedThreadEntries", () => {
-  const entries = [{ threadKey: "one" }, { threadKey: "two" }, { threadKey: "three" }] as const;
-  const success = { _tag: "Success" } as const;
-  const failure = { _tag: "Failure" } as const;
-
-  it("stops at a mutation failure and retains prior successes", async () => {
-    const archive = vi.fn(async (entry: (typeof entries)[number], onArchived: () => void) => {
-      if (entry.threadKey === "two") return failure;
-      onArchived();
-      return success;
-    });
-    const outcome = await archiveSelectedThreadEntries({ entries, archive });
-
-    expect(archive).toHaveBeenCalledTimes(2);
-    expect(outcome).toEqual({
-      archivedThreadKeys: ["one"],
-      mutationFailure: failure,
-      followupFailures: [],
-    });
-  });
-
-  it("continues after a post-archive failure", async () => {
-    const archive = vi.fn(async (entry: (typeof entries)[number], onArchived: () => void) => {
-      onArchived();
-      return entry.threadKey === "two" ? failure : success;
-    });
-    const outcome = await archiveSelectedThreadEntries({ entries, archive });
-
-    expect(archive).toHaveBeenCalledTimes(3);
-    expect(outcome).toEqual({
-      archivedThreadKeys: ["one", "two", "three"],
-      mutationFailure: null,
-      followupFailures: [failure],
-    });
-  });
-});
 
 describe("sidebar thread lineage helpers", () => {
   it("maps an open subagent to its nearest visible ancestor's sidebar row", () => {
@@ -160,6 +121,16 @@ describe("sidebar row status presentation", () => {
         isSelected: false,
       }),
     ).toBe(false);
+  });
+
+  it("reports worktree setup as preparing", () => {
+    const thread = presentThreadShell(localEnvironmentId, {
+      ...makeThreadFixture().source,
+      latestRunId: RunId.make("run-worktree-setup"),
+      status: "preparing",
+    });
+
+    expect(resolveSidebarThreadStatus(thread)).toBe("preparing");
   });
 
   it("keeps a waiting runtime visible ahead of unread and woke presentation", () => {
@@ -550,60 +521,67 @@ describe("getFallbackThreadIdAfterDelete", () => {
       deletedThreadId: ThreadId.make("thread-active"),
       deletedThreadIds: new Set([ThreadId.make("thread-active"), ThreadId.make("thread-newest")]),
       sortOrder: "created_at",
+      now: "2026-03-09T10:10:00.000Z",
     });
 
     expect(fallbackThreadId).toBe(ThreadId.make("thread-next"));
   });
-});
-describe("sortProjectsForSidebar", () => {
-  it("sorts projects by the most recent user message across their threads", () => {
-    const projects = [
-      makeProject({ id: ProjectId.make("project-1"), title: "Older project" }),
-      makeProject({ id: ProjectId.make("project-2"), title: "Newer project" }),
-    ];
-    const threads = [
-      makeThread({
-        projectId: ProjectId.make("project-1"),
-        updatedAt: "2026-03-09T10:20:00.000Z",
-        messages: [
-          {
-            id: "message-1" as never,
-            role: "user",
-            text: "older project user message",
-            runId: null,
-            createdAt: "2026-03-09T10:01:00.000Z",
-            updatedAt: "2026-03-09T10:01:00.000Z",
-            streaming: false,
-          },
-        ],
-      }),
-      makeThread({
-        id: ThreadId.make("thread-2"),
-        projectId: ProjectId.make("project-2"),
-        updatedAt: "2026-03-09T10:05:00.000Z",
-        messages: [
-          {
-            id: "message-2" as never,
-            role: "user",
-            text: "newer project user message",
-            runId: null,
-            createdAt: "2026-03-09T10:05:00.000Z",
-            updatedAt: "2026-03-09T10:05:00.000Z",
-            streaming: false,
-          },
-        ],
-      }),
-    ];
 
-    const sorted = sortProjectsForSidebar(projects, threads, "updated_at");
+  it.each([
+    [
+      "snoozed",
+      { snoozedUntil: "2099-01-01T00:00:00.000Z", snoozedAt: "2026-03-09T10:06:00.000Z" },
+    ],
+    ["done", { doneOverride: "done", doneAt: "2026-03-09T10:06:00.000Z" }],
+    [
+      "side chat",
+      {
+        lineage: {
+          rootThreadId: ThreadId.make("thread-visible"),
+          parentThreadId: ThreadId.make("thread-visible"),
+          relationshipToParent: "fork",
+          sideChat: true,
+        },
+      },
+    ],
+    [
+      "subagent",
+      {
+        lineage: {
+          rootThreadId: ThreadId.make("thread-visible"),
+          parentThreadId: ThreadId.make("thread-visible"),
+          relationshipToParent: "subagent",
+        },
+      },
+    ],
+  ] as const)("skips a %s thread the sidebar does not list", (_state, parked) => {
+    const fallbackThreadId = getFallbackThreadIdAfterDelete({
+      threads: [
+        makeThread({
+          id: ThreadId.make("thread-visible"),
+          createdAt: "2026-03-09T10:01:00.000Z",
+          updatedAt: "2026-03-09T10:01:00.000Z",
+        }),
+        makeThread({
+          id: ThreadId.make("thread-parked"),
+          createdAt: "2026-03-09T10:02:00.000Z",
+          updatedAt: "2026-03-09T10:06:00.000Z",
+          ...parked,
+        }),
+        makeThread({
+          id: ThreadId.make("thread-active"),
+          createdAt: "2026-03-09T10:03:00.000Z",
+          updatedAt: "2026-03-09T10:03:00.000Z",
+        }),
+      ],
+      deletedThreadId: ThreadId.make("thread-active"),
+      sortOrder: "created_at",
+      now: "2026-03-09T10:10:00.000Z",
+    });
 
-    expect(sorted.map((project) => project.id)).toEqual([
-      ProjectId.make("project-2"),
-      ProjectId.make("project-1"),
-    ]);
+    expect(fallbackThreadId).toBe(ThreadId.make("thread-visible"));
   });
 });
-
 describe("sortScopedProjectsForSidebar", () => {
   it("keeps identical project ids in different environments separate", () => {
     const remoteEnvironmentId = EnvironmentId.make("environment-remote");
@@ -871,7 +849,7 @@ describe("unseen completion with background work", () => {
       lastVisitedAt: DateTime.makeUnsafe("2026-06-20T00:59:00.000Z"),
       pendingBackgroundTasks: [{ taskId: "background-work", ...expected.task }],
     });
-    const status = resolveThreadRowStatus(thread);
+    const status = resolveSidebarThreadStatus(thread);
     const isUnread = hasUnseenCompletion(thread);
 
     expect(isUnread).toBe(true);

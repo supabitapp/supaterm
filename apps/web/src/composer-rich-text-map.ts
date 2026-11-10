@@ -5,6 +5,7 @@ import type { Transaction } from "@tiptap/pm/state";
 import { splitPromptIntoComposerSegments } from "~/composer-editor-mentions";
 import {
   MARK_NESTING_ORDER,
+  MARKDOWN_SOURCE_MARK,
   TIPTAP_TO_MARK,
   RICH_TEXT_DELIMITERS,
   type RichTextMark,
@@ -42,11 +43,12 @@ export interface RichRun {
   nodeName?: string;
 }
 
+// Shared by every caller that serializes the same doc, so it must not be mutated.
 export interface RichDocMap {
-  value: string;
-  runs: RichRun[];
-  docLength: number;
-  contextIds: string[];
+  readonly value: string;
+  readonly runs: ReadonlyArray<Readonly<RichRun>>;
+  readonly docLength: number;
+  readonly contextIds: ReadonlyArray<string>;
 }
 
 function readAtomSource(node: ProseMirrorNode): string {
@@ -409,7 +411,20 @@ export function serializeSelection(doc: ProseMirrorNode, from: number, to: numbe
   return serializeEditorDoc(doc.type.create(null, content)).value;
 }
 
+// Docs are immutable, and one keystroke serializes the same doc from the marker
+// plugin, onUpdate, and onSelectionUpdate.
+const serializedDocs = new WeakMap<ProseMirrorNode, RichDocMap>();
+
 export function serializeEditorDoc(doc: ProseMirrorNode): RichDocMap {
+  let map = serializedDocs.get(doc);
+  if (!map) {
+    map = serializeDoc(doc);
+    serializedDocs.set(doc, map);
+  }
+  return map;
+}
+
+function serializeDoc(doc: ProseMirrorNode): RichDocMap {
   const acc: RichAccumulator = { runs: [], value: "", flat: 0, collapsed: 0, md: 0 };
   const blocks: ProseMirrorNode[] = [];
   doc.content.forEach((node) => {
@@ -533,19 +548,23 @@ export function pmToFlat(map: RichDocMap, pmPos: number): number {
   return Math.max(0, Math.min(best, map.docLength));
 }
 
-// Markers are decorations, not text, so a styled edge is a single document position. The caret
-// gets two stops there, picked by stored marks, so a pasted `**bold**` at the start of a line can
-// still be typed in front of.
+// A styled edge is a single document position. The caret gets two stops there, picked by stored
+// marks, so a pasted `**bold**` at the start of a line can still be typed in front of.
+
+// Shown Markdown source has real characters at its edges, so it needs no extra stop.
+function styleMarks(marks: readonly Mark[]): readonly Mark[] {
+  return marks.filter((mark) => mark.type.name !== MARKDOWN_SOURCE_MARK);
+}
 
 function styledEdge(state: EditorState) {
   const { selection } = state;
   if (!selection.empty) return null;
   const { $from } = selection;
   if (!$from.parent.inlineContent) return null;
-  const before = $from.nodeBefore?.marks ?? Mark.none;
-  const after = $from.nodeAfter?.marks ?? Mark.none;
+  const before = styleMarks($from.nodeBefore?.marks ?? Mark.none);
+  const after = styleMarks($from.nodeAfter?.marks ?? Mark.none);
   if (Mark.sameSet(before, after)) return null;
-  return { before, after, current: state.storedMarks ?? $from.marks() };
+  return { before, after, current: styleMarks(state.storedMarks ?? $from.marks()) };
 }
 
 /** True when the caret sits on a styled edge and types with the marks before it. */

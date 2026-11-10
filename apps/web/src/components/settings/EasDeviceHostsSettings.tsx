@@ -92,7 +92,7 @@ export function EasDeviceHostsSettings(props: { environmentId: EnvironmentId | n
       title="EAS Simulator"
       serverScoped
       settingKeys={["easDeviceHosts"]}
-      description="Run iOS Simulators in Expo's cloud from this environment. Sessions bill the Expo account until they stop, so each host limits how many run and for how long. Editing or removing a host stops its running sessions."
+      description="Run iOS Simulators in Expo's cloud from this environment. Sessions bill the Expo account until they stop, so each host caps how many run and how long. Editing or removing a host stops its sessions."
       control={
         <Button
           size="sm"

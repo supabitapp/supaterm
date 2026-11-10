@@ -1,12 +1,11 @@
 import * as Cause from "effect/Cause";
-import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
 import * as Ref from "effect/Ref";
 import * as Schema from "effect/Schema";
 
 import * as NetService from "@supaterm/shared/Net";
-import * as Crypto from "effect/Crypto";
+import * as SecureRandom from "effect/crypto/SecureRandom";
 import * as ElectronApp from "../electron/ElectronApp.ts";
 import * as ElectronDialog from "../electron/ElectronDialog.ts";
 import * as ElectronProtocol from "../electron/ElectronProtocol.ts";
@@ -21,6 +20,7 @@ import * as DesktopDeepLinks from "./DesktopDeepLinks.ts";
 import * as DesktopCliCommand from "./DesktopCliCommand.ts";
 import * as DesktopApplicationMenu from "../window/DesktopApplicationMenu.ts";
 import * as DesktopWindow from "../window/DesktopWindow.ts";
+import * as DesktopBackendManager from "../backend/DesktopBackendManager.ts";
 import * as DesktopBackendPool from "../backend/DesktopBackendPool.ts";
 import * as DesktopEnvironment from "./DesktopEnvironment.ts";
 import * as DesktopLaunchIcon from "./DesktopLaunchIcon.ts";
@@ -43,8 +43,8 @@ import * as HostProcess from "@supaterm/shared/HostProcess";
 const MAX_TCP_PORT = 65_535;
 const DESKTOP_BACKEND_PORT_PROBE_HOSTS = ["127.0.0.1", "0.0.0.0", "::"] as const;
 
-const makeDesktopRunId = Crypto.Crypto.pipe(
-  Effect.flatMap((crypto) => crypto.randomUUIDv4()),
+const makeDesktopRunId = SecureRandom.SecureRandom.pipe(
+  Effect.flatMap((random) => random.uuidV4()),
   Effect.map((value) => value.replaceAll("-", "").slice(0, 12)),
 );
 
@@ -155,7 +155,7 @@ const stopAllPoolInstances = Effect.fn("desktop.app.stopAllPoolInstances")(
     const instances = yield* pool.list;
     yield* Effect.forEach(
       instances,
-      (instance) => instance.stop({ timeout: Duration.seconds(5) }),
+      (instance) => instance.stop({ timeout: DesktopBackendManager.BACKEND_QUIT_STOP_TIMEOUT }),
       { concurrency: "unbounded" },
     );
   },
@@ -244,6 +244,16 @@ const bootstrap = Effect.gen(function* () {
     }
     yield* primaryBackend.start;
     yield* logBootstrapInfo("bootstrap backend start requested");
+    // WSL-only fallback can change the primary endpoint before readiness.
+    const config = yield* primaryBackend.currentConfig;
+    if (
+      !environment.isDevelopment &&
+      !settings.wslOnly &&
+      Option.isSome(config) &&
+      Option.isNone(config.value.preflightFailure)
+    ) {
+      yield* desktopWindow.ensureMain;
+    }
     yield* appActivation.start.pipe(
       Effect.tap(() => logBootstrapInfo("desktop app control socket ready")),
       Effect.catch((error) => logStartupError("desktop app control socket unavailable", { error })),
@@ -323,11 +333,22 @@ const startup = Effect.gen(function* () {
   }
   yield* appIdentity.configure;
   yield* applicationMenu.configure;
-  yield* Effect.forkScoped(cliCommand.installAutomatically);
+  // Only the user's own login shell PATH shows every supaterm a new terminal runs; a fresh install has
+  // no cached one. Without it, the command is left to Settings.
+  yield* Effect.forkScoped(
+    shellEnvironment.awaitUserShellDiscovery.pipe(
+      Effect.flatMap((found) =>
+        found || environment.platform === "win32"
+          ? cliCommand.installAutomatically
+          : logStartupInfo("skipped installing the supaterm command without the shell PATH"),
+      ),
+    ),
+  );
   yield* updates.configure;
   yield* DesktopRemoteUpdates.listen;
   yield* DesktopStartupRecovery.listen;
-  yield* linuxUrlHandler.register;
+  // Portal identity is prepared pre-ready; MIME helpers must not gate the backend or window.
+  yield* linuxUrlHandler.register.pipe(Effect.forkScoped);
   yield* bootstrap.pipe(Effect.catchCause((cause) => fatalStartupCause("bootstrap", cause)));
 }).pipe(Effect.withSpan("desktop.startup"));
 
@@ -343,7 +364,10 @@ const scopedProgram = Effect.scoped(
       // Stop every pool backend, not just the primary: electronApp.quit() can race ahead of
       // the layer-scope cascade, so the WSL child would be hard-killed instead of getting
       // SIGTERM and grace.
-      stopAllPoolInstances().pipe(Effect.ensuring(shutdown.markComplete)),
+      stopAllPoolInstances().pipe(
+        Effect.ensuring(shutdown.markComplete),
+        Effect.withSpan("desktop.app.shutdown"),
+      ),
     );
 
     yield* startup;

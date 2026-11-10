@@ -15,7 +15,7 @@ import {
   type RuntimeMode,
 } from "@supaterm/contracts";
 import { GrokSettings } from "../settings.ts";
-import * as Crypto from "effect/Crypto";
+import * as SecureRandom from "effect/crypto/SecureRandom";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
 import * as Path from "effect/Path";
@@ -129,7 +129,7 @@ export interface GrokAdapterV2Options {
   ) => Effect.Effect<
     AcpSessionRuntime.AcpSessionRuntime["Service"],
     EffectAcpErrors.AcpError,
-    ChildProcessSpawner.ChildProcessSpawner | Crypto.Crypto | Scope.Scope
+    ChildProcessSpawner.ChildProcessSpawner | SecureRandom.SecureRandom | Scope.Scope
   >;
   readonly assertComplete?: Effect.Effect<void, EffectAcpErrors.AcpError>;
 }
@@ -367,7 +367,7 @@ export const makeGrokAdapterV2 = Effect.fn("makeGrokAdapterV2")(function* (
 
 export type GrokAdapterV2DriverEnv =
   | ChildProcessSpawner.ChildProcessSpawner
-  | Crypto.Crypto
+  | SecureRandom.SecureRandom
   | FileSystem.FileSystem
   | IdAllocator.IdAllocatorV2
   | Path.Path

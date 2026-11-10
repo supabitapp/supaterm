@@ -36,10 +36,12 @@ import { resolveThreadRowStatus } from "@supaterm/client-runtime/state/thread-ro
 import {
   sortActiveThreadsByOrderKey,
   resolveDoneThreadTimestamp,
+  resolveThreadActivityTimestamp,
   sortPinnedThreadsByOrderKey,
   sortDoneThreads,
 } from "@supaterm/client-runtime/state/thread-sort";
 import { isListedThreadLineage, type EnvironmentId, type ProjectId } from "@supaterm/contracts";
+import type { MenuAction } from "@react-native-menu/menu";
 
 import type { ThreadListProvider } from "../../state/thread-list-environments";
 
@@ -118,6 +120,42 @@ export function resolveThreadListV2SwipeActions(input: {
   };
 }
 
+// Nested keeps iOS menus short: UIKit scrolls a taller menu, and that scroll
+// cancels press-drag-release selection.
+export function layoutThreadListV2RowMenuActions(input: {
+  readonly nested: boolean;
+  readonly direct: readonly MenuAction[];
+  readonly reorder: readonly MenuAction[];
+  readonly pin: readonly MenuAction[];
+  readonly secondary: readonly MenuAction[];
+}): MenuAction[] {
+  if (!input.nested) {
+    return [...input.direct, ...input.reorder, ...input.pin, ...input.secondary];
+  }
+  return [
+    ...input.direct,
+    ...input.pin,
+    {
+      id: "more",
+      title: "More",
+      image: "ellipsis.circle",
+      subactions: [
+        ...(input.reorder.length > 1
+          ? [
+              {
+                id: "arrange-menu",
+                title: "Arrange",
+                image: "arrow.up.arrow.down",
+                subactions: [...input.reorder],
+              },
+            ]
+          : input.reorder),
+        ...input.secondary,
+      ],
+    },
+  ];
+}
+
 export function resolveThreadListV2SnoozeGateExpiryMs(
   thread: Pick<
     EnvironmentThreadShell,
@@ -130,7 +168,7 @@ export function resolveThreadListV2SnoozeGateExpiryMs(
   >,
   options: { readonly now: string },
 ): number | null {
-  if (thread.hasPendingApprovals || thread.hasPendingUserInput) return null;
+  if (thread.hasPendingApprovals) return null;
   if (thread.pendingSubagentRequest != null) return null;
   if (!hasQueuedTurnStart(thread, options)) return null;
   const messageAtMs = Date.parse(thread.latestUserMessageAt ?? "");
@@ -150,6 +188,27 @@ export function nextSnoozeWakeAfter(
     if (wakeAtMs > nowMs && (next === null || wakeAtMs < next)) next = wakeAtMs;
   }
   return next;
+}
+
+// Outside search, the clock only changes list membership/order at snooze deadlines.
+export function threadListV2LayoutTime(input: {
+  readonly threads: ReadonlyArray<{ readonly snoozedUntil?: string | null }>;
+  readonly now: string;
+  readonly searchQuery: string;
+}) {
+  if (input.searchQuery !== "") return input.now;
+  const nowMs = Date.parse(input.now);
+  if (!Number.isFinite(nowMs)) return input.now;
+  let previousWakeAt: number | undefined;
+  let nextWakeAt: number | undefined;
+  for (const thread of input.threads) {
+    if (thread.snoozedUntil == null) continue;
+    const wakeAt = Date.parse(thread.snoozedUntil);
+    if (!Number.isFinite(wakeAt)) continue;
+    if (wakeAt <= nowMs) previousWakeAt = Math.max(previousWakeAt ?? wakeAt, wakeAt);
+    else nextWakeAt = Math.min(nextWakeAt ?? wakeAt, wakeAt);
+  }
+  return new Date(previousWakeAt ?? (nextWakeAt === undefined ? 0 : nextWakeAt - 1)).toISOString();
 }
 
 // Done-tail paging: recent history is the common lookup; the deep tail
@@ -464,9 +523,7 @@ function resolveThreadListV2ItemTimeLabel(
   )
     return "";
   const doneTimestamp = variant === "slim" && !snoozed ? resolveDoneThreadTimestamp(thread) : null;
-  return relativeTime(
-    doneTimestamp ?? thread.latestUserMessageAt ?? thread.updatedAt ?? thread.createdAt,
-  );
+  return relativeTime(doneTimestamp ?? resolveThreadActivityTimestamp(thread) ?? thread.createdAt);
 }
 
 interface ThreadListV2ListOptions {

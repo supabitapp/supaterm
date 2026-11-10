@@ -1,7 +1,8 @@
 import { AuthStandardClientScopes } from "@supaterm/contracts";
+import * as NodeCrypto from "@effect/platform-node/NodeCrypto";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { expect, it } from "@effect/vitest";
-import * as Crypto from "effect/Crypto";
+import * as SecureRandom from "effect/crypto/SecureRandom";
 import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
@@ -47,7 +48,7 @@ const layerPairingGrantStore = (
     Layer.provide(layerServerConfig(overrides)),
   );
 
-it.layer(NodeServices.layer)("PairingGrantStore.layer", (it) => {
+it.layer(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer))("PairingGrantStore.layer", (it) => {
   it.effect("accepts lowercase one-time tokens exactly once", () =>
     Effect.gen(function* () {
       const bootstrapCredentials = yield* PairingGrantStore.PairingGrantStore;
@@ -65,12 +66,9 @@ it.layer(NodeServices.layer)("PairingGrantStore.layer", (it) => {
       expect(second.message).toContain("Unknown bootstrap credential");
     }).pipe(
       Effect.provide(layerPairingGrantStore()),
-      Effect.provideServiceEffect(
-        Crypto.Crypto,
-        Effect.map(Crypto.Crypto, (crypto) => ({
-          ...crypto,
-          randomBytes: (size) => Effect.succeed(new Uint8Array(size).fill(8)),
-        })),
+      Effect.provideService(
+        SecureRandom.SecureRandom,
+        SecureRandom.make((size) => new Uint8Array(size).fill(8)),
       ),
     ),
   );
@@ -112,15 +110,17 @@ it.layer(NodeServices.layer)("PairingGrantStore.layer", (it) => {
       yield* TestClock.adjust(Duration.days(5));
       const now = 5 * 24 * 60 * 60 * 1000;
       const current = yield* bootstrapCredentials.consume(
-        currentDesktopBootstrapToken("desktop-secret", now),
+        yield* currentDesktopBootstrapToken("desktop-secret", now).pipe(
+          Effect.provide(NodeCrypto.layerMac),
+        ),
       );
       expect(current.method).toBe("desktop-bootstrap");
 
-      const stale = yield* Effect.flip(
-        bootstrapCredentials.consume(
-          currentDesktopBootstrapToken("desktop-secret", now - 2 * window),
-        ),
-      );
+      const staleToken = yield* currentDesktopBootstrapToken(
+        "desktop-secret",
+        now - 2 * window,
+      ).pipe(Effect.provide(NodeCrypto.layerMac));
+      const stale = yield* Effect.flip(bootstrapCredentials.consume(staleToken));
       expect(stale._tag).toBe("UnknownBootstrapCredentialError");
 
       const launch = yield* Effect.flip(bootstrapCredentials.consume("desktop-bootstrap-token"));
@@ -146,6 +146,9 @@ it.layer(NodeServices.layer)("PairingGrantStore.layer", (it) => {
         Stream.runForEach((change) => Queue.offer(changes, change)),
         Effect.forkScoped({ startImmediately: true }),
       );
+      // An app approval code sends no update, issued or spent; the next belongs to a plain code.
+      const approval = yield* grants.issueOneTimeToken({ mcpApproval: "auto" });
+      yield* grants.consume(approval.credential, { mcpApproval: "auto" });
       for (const input of [{}, { label: "Synthetic phone" }]) {
         const issued = yield* grants.issueOneTimeToken(input);
         const change = yield* Queue.take(changes);

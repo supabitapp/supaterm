@@ -1,0 +1,528 @@
+diff --git a/react-native.js b/react-native.js
+index 4af685d..d8df1dd 100644
+--- a/react-native.js
++++ b/react-native.js
+@@ -1795,7 +1795,35 @@ function resolvePendingNativeMVCPAdjust(ctx, newScroll) {
+   }
+   return false;
+ }
++// Supaterm patch: while following the end, a size-only change keeps the end in the same pass that
++// repositions the items. Native end following otherwise runs a frame later, after MVCP has
++// anchored the top row, so the feed visibly jumps twice.
++function shouldHoldEndOnSizeChange(ctx, dataChanged) {
++  const state = ctx.state;
++  return !dataChanged && !!state.props.maintainScrollAtEnd && !!state.didFinishInitialScroll && !state.endFollowInterrupted && !state.visibleContentAnchor && state.scrollingTo === void 0 && !state.isDragging && state.userScrollContentSize === void 0 && !!peek$(ctx, "isFollowingEnd");
++}
+ function prepareMVCP(ctx, dataChanged, adjustmentSource) {
++  const restore = prepareDefaultMVCP(ctx, dataChanged, adjustmentSource);
++  if (!shouldHoldEndOnSizeChange(ctx, dataChanged)) {
++    return restore;
++  }
++  return () => {
++    if (!shouldHoldEndOnSizeChange(ctx, dataChanged)) {
++      restore == null ? void 0 : restore();
++      return;
++    }
++    // Content that shrinks under an offset past its new end pulls the native offset back by itself.
++    const endOffset = getScrollRangeEnd(ctx);
++    if (ctx.state.scroll > endOffset) {
++      ctx.state.scroll = endOffset;
++    }
++    const positionDiff = endOffset - ctx.state.scroll;
++    if (Math.abs(positionDiff) > MVCP_POSITION_EPSILON) {
++      requestAdjust(ctx, positionDiff, adjustmentSource);
++    }
++  };
++}
++function prepareDefaultMVCP(ctx, dataChanged, adjustmentSource) {
+   var _a3, _b, _c;
+   const state = ctx.state;
+   const { idsInView, positions, props } = state;
+@@ -3441,7 +3469,10 @@ function evaluateBootstrapInitialScroll(ctx) {
+     queueBootstrapInitialScrollReevaluation(state);
+     return;
+   }
+-  if (Platform.OS !== "web" && Platform.OS !== "android" && Math.abs(bootstrapInitialScroll.seedContentOffset - resolvedOffset) <= 1 && Math.abs(getObservedBootstrapInitialScrollOffset(state) - resolvedOffset) <= 1) {
++  // Supaterm patch: a re-armed session keeps its mount seed, but a native scroll event at the target
++  // proves the landing too. Dispatching there would wait out the fallback for an event UIKit never sends.
++  const didNativeReachResolvedOffset = typeof state.lastNativeScroll === "number" && Math.abs(state.lastNativeScroll - resolvedOffset) <= 1;
++  if (Platform.OS !== "web" && Platform.OS !== "android" && (Math.abs(bootstrapInitialScroll.seedContentOffset - resolvedOffset) <= 1 || didNativeReachResolvedOffset) && Math.abs(getObservedBootstrapInitialScrollOffset(state) - resolvedOffset) <= 1) {
+     finishBootstrapInitialScrollWithoutScroll(ctx, resolvedOffset);
+   } else {
+     clearBootstrapInitialScrollSession(state);
+diff --git a/react-native.mjs b/react-native.mjs
+index 9ebfddc..c7448c6 100644
+--- a/react-native.mjs
++++ b/react-native.mjs
+@@ -1774,7 +1774,35 @@ function resolvePendingNativeMVCPAdjust(ctx, newScroll) {
+   }
+   return false;
+ }
++// Supaterm patch: while following the end, a size-only change keeps the end in the same pass that
++// repositions the items. Native end following otherwise runs a frame later, after MVCP has
++// anchored the top row, so the feed visibly jumps twice.
++function shouldHoldEndOnSizeChange(ctx, dataChanged) {
++  const state = ctx.state;
++  return !dataChanged && !!state.props.maintainScrollAtEnd && !!state.didFinishInitialScroll && !state.endFollowInterrupted && !state.visibleContentAnchor && state.scrollingTo === void 0 && !state.isDragging && state.userScrollContentSize === void 0 && !!peek$(ctx, "isFollowingEnd");
++}
+ function prepareMVCP(ctx, dataChanged, adjustmentSource) {
++  const restore = prepareDefaultMVCP(ctx, dataChanged, adjustmentSource);
++  if (!shouldHoldEndOnSizeChange(ctx, dataChanged)) {
++    return restore;
++  }
++  return () => {
++    if (!shouldHoldEndOnSizeChange(ctx, dataChanged)) {
++      restore == null ? void 0 : restore();
++      return;
++    }
++    // Content that shrinks under an offset past its new end pulls the native offset back by itself.
++    const endOffset = getScrollRangeEnd(ctx);
++    if (ctx.state.scroll > endOffset) {
++      ctx.state.scroll = endOffset;
++    }
++    const positionDiff = endOffset - ctx.state.scroll;
++    if (Math.abs(positionDiff) > MVCP_POSITION_EPSILON) {
++      requestAdjust(ctx, positionDiff, adjustmentSource);
++    }
++  };
++}
++function prepareDefaultMVCP(ctx, dataChanged, adjustmentSource) {
+   var _a3, _b, _c;
+   const state = ctx.state;
+   const { idsInView, positions, props } = state;
+@@ -3420,7 +3448,10 @@ function evaluateBootstrapInitialScroll(ctx) {
+     queueBootstrapInitialScrollReevaluation(state);
+     return;
+   }
+-  if (Platform.OS !== "web" && Platform.OS !== "android" && Math.abs(bootstrapInitialScroll.seedContentOffset - resolvedOffset) <= 1 && Math.abs(getObservedBootstrapInitialScrollOffset(state) - resolvedOffset) <= 1) {
++  // Supaterm patch: a re-armed session keeps its mount seed, but a native scroll event at the target
++  // proves the landing too. Dispatching there would wait out the fallback for an event UIKit never sends.
++  const didNativeReachResolvedOffset = typeof state.lastNativeScroll === "number" && Math.abs(state.lastNativeScroll - resolvedOffset) <= 1;
++  if (Platform.OS !== "web" && Platform.OS !== "android" && (Math.abs(bootstrapInitialScroll.seedContentOffset - resolvedOffset) <= 1 || didNativeReachResolvedOffset) && Math.abs(getObservedBootstrapInitialScrollOffset(state) - resolvedOffset) <= 1) {
+     finishBootstrapInitialScrollWithoutScroll(ctx, resolvedOffset);
+   } else {
+     clearBootstrapInitialScrollSession(state);
+diff --git a/react-native.web.js b/react-native.web.js
+index 5155454..3cc9265 100644
+--- a/react-native.web.js
++++ b/react-native.web.js
+@@ -5646,8 +5646,11 @@ function measureContainersInLayoutEffect(ctx, targetContainerIds = null) {
+     const element = viewRef == null ? void 0 : viewRef.current;
+     if (itemKey !== void 0 && element && isContainerItemCurrent(ctx, containerId, itemKey)) {
+       const generation = (_b = ctx.state.containerItemGenerations[containerId]) != null ? _b : 0;
+-      const rect = element.getBoundingClientRect();
++      // Supaterm patch: layout box sizes ignore ancestor transforms (a popup's zoom-in), like
++      // ResizeObserver, so a measurement here can be compared with its last delivery.
++      const rect = { height: element.offsetHeight, width: element.offsetWidth };
+       setContainerLayoutBaseline(element, rect);
++      resyncResizeObserver(element, rect);
+       measurements.push({
+         containerId,
+         generation,
+@@ -6133,15 +6136,41 @@ function Separator({ ItemSeparatorComponent, leadingItem }) {
+ 
+ // src/hooks/createResizeObserver.ts
+ var globalResizeObserver = null;
++// Supaterm patch: a layout measurement that differs from the last observer delivery requests a
++// fresh delivery, so an intermediate size cannot stay cached after the DOM returns to the size
++// the observer last saw.
++var resizeObserverRects = /* @__PURE__ */ new WeakMap();
++var forcedResizeObservations = /* @__PURE__ */ new WeakSet();
++function getResizeObserverRect(entry) {
++  const target = entry.target instanceof HTMLElement ? entry.target : void 0;
++  const borderBoxSize = Array.isArray(entry.borderBoxSize) ? entry.borderBoxSize[0] : entry.borderBoxSize;
++  return borderBoxSize ? {
++    height: borderBoxSize.blockSize,
++    left: entry.contentRect.left,
++    top: entry.contentRect.top,
++    width: borderBoxSize.inlineSize
++  } : target ? target.getBoundingClientRect() : entry.contentRect;
++}
++function resyncResizeObserver(element, rect) {
++  const observed = resizeObserverRects.get(element);
++  if (observed && callbackMap.has(element) && (Math.round(observed.height) !== Math.round(rect.height) || Math.round(observed.width) !== Math.round(rect.width))) {
++    forcedResizeObservations.add(element);
++    const observer = getGlobalResizeObserver();
++    observer.unobserve(element);
++    observer.observe(element, { box: "border-box" });
++  }
++}
+ function getGlobalResizeObserver() {
+   if (!globalResizeObserver) {
+     globalResizeObserver = new ResizeObserver((entries) => {
+       batchItemSizeUpdates(() => {
+         for (const entry of entries) {
++          resizeObserverRects.set(entry.target, getResizeObserverRect(entry));
++          const forceLayout = forcedResizeObservations.delete(entry.target);
+           const callbacks = callbackMap.get(entry.target);
+           if (callbacks) {
+             for (const callback of callbacks) {
+-              callback(entry);
++              callback(entry, forceLayout);
+             }
+           }
+         }
+@@ -6168,6 +6197,8 @@ function createResizeObserver(element, callback) {
+     callbacks.delete(callback);
+     if (callbacks.size === 0) {
+       callbackMap.delete(element);
++      resizeObserverRects.delete(element);
++      forcedResizeObservations.delete(element);
+       observer.unobserve(element);
+     }
+   };
+@@ -6218,18 +6249,11 @@ function useOnLayoutSync({
+       emit(toLayout(rect), true);
+       prevRect = rect;
+     }
+-    return createResizeObserver(element, (entry) => {
+-      var _a4, _b2, _c;
+-      const target = entry.target instanceof HTMLElement ? entry.target : void 0;
+-      const borderBoxSize = Array.isArray(entry.borderBoxSize) ? entry.borderBoxSize[0] : entry.borderBoxSize;
+-      const rectObserved = borderBoxSize ? {
+-        height: borderBoxSize.blockSize,
+-        left: entry.contentRect.left,
+-        top: entry.contentRect.top,
+-        width: borderBoxSize.inlineSize
+-      } : (_a4 = target == null ? void 0 : target.getBoundingClientRect()) != null ? _a4 : entry.contentRect;
+-      const previousRect = prevRect != null ? prevRect : getContainerLayoutBaseline(element);
+-      const didSizeChange = previousRect === void 0 || rectObserved.width !== previousRect.width || rectObserved.height !== previousRect.height;
++    return createResizeObserver(element, (entry, forceLayout) => {
++      var _b2, _c;
++      const rectObserved = getResizeObserverRect(entry);
++      const previousRect = prevRect;
++      const didSizeChange = forceLayout || previousRect === void 0 || rectObserved.width !== previousRect.width || rectObserved.height !== previousRect.height;
+       prevRect = rectObserved;
+       const shouldResyncLayout = !!((_c = (_b2 = callbacks.current).webLayoutResync) == null ? void 0 : _c.call(_b2));
+       if (didSizeChange || shouldResyncLayout) {
+@@ -6295,11 +6319,7 @@ function processContainerLayout({ containerId, ctx, rectangle, ref, state }) {
+     scheduleWebShrinkMeasurement(state, () => {
+       var _a4;
+       if (state.itemKey === currentItemKey) {
+-        const element = ref.current;
+-        const rect = (_a4 = element == null ? void 0 : element.getBoundingClientRect) == null ? void 0 : _a4.call(element);
+-        if (rect) {
+-          layout = { height: rect.height, width: rect.width };
+-        }
++        // Supaterm patch: keep the observer's layout size; a fresh client rect includes transforms.
+         applyLayout();
+       }
+     });
+diff --git a/react-native.web.mjs b/react-native.web.mjs
+index ce08abe..8cffae1 100644
+--- a/react-native.web.mjs
++++ b/react-native.web.mjs
+@@ -5625,8 +5625,11 @@ function measureContainersInLayoutEffect(ctx, targetContainerIds = null) {
+     const element = viewRef == null ? void 0 : viewRef.current;
+     if (itemKey !== void 0 && element && isContainerItemCurrent(ctx, containerId, itemKey)) {
+       const generation = (_b = ctx.state.containerItemGenerations[containerId]) != null ? _b : 0;
+-      const rect = element.getBoundingClientRect();
++      // Supaterm patch: layout box sizes ignore ancestor transforms (a popup's zoom-in), like
++      // ResizeObserver, so a measurement here can be compared with its last delivery.
++      const rect = { height: element.offsetHeight, width: element.offsetWidth };
+       setContainerLayoutBaseline(element, rect);
++      resyncResizeObserver(element, rect);
+       measurements.push({
+         containerId,
+         generation,
+@@ -6112,15 +6115,41 @@ function Separator({ ItemSeparatorComponent, leadingItem }) {
+ 
+ // src/hooks/createResizeObserver.ts
+ var globalResizeObserver = null;
++// Supaterm patch: a layout measurement that differs from the last observer delivery requests a
++// fresh delivery, so an intermediate size cannot stay cached after the DOM returns to the size
++// the observer last saw.
++var resizeObserverRects = /* @__PURE__ */ new WeakMap();
++var forcedResizeObservations = /* @__PURE__ */ new WeakSet();
++function getResizeObserverRect(entry) {
++  const target = entry.target instanceof HTMLElement ? entry.target : void 0;
++  const borderBoxSize = Array.isArray(entry.borderBoxSize) ? entry.borderBoxSize[0] : entry.borderBoxSize;
++  return borderBoxSize ? {
++    height: borderBoxSize.blockSize,
++    left: entry.contentRect.left,
++    top: entry.contentRect.top,
++    width: borderBoxSize.inlineSize
++  } : target ? target.getBoundingClientRect() : entry.contentRect;
++}
++function resyncResizeObserver(element, rect) {
++  const observed = resizeObserverRects.get(element);
++  if (observed && callbackMap.has(element) && (Math.round(observed.height) !== Math.round(rect.height) || Math.round(observed.width) !== Math.round(rect.width))) {
++    forcedResizeObservations.add(element);
++    const observer = getGlobalResizeObserver();
++    observer.unobserve(element);
++    observer.observe(element, { box: "border-box" });
++  }
++}
+ function getGlobalResizeObserver() {
+   if (!globalResizeObserver) {
+     globalResizeObserver = new ResizeObserver((entries) => {
+       batchItemSizeUpdates(() => {
+         for (const entry of entries) {
++          resizeObserverRects.set(entry.target, getResizeObserverRect(entry));
++          const forceLayout = forcedResizeObservations.delete(entry.target);
+           const callbacks = callbackMap.get(entry.target);
+           if (callbacks) {
+             for (const callback of callbacks) {
+-              callback(entry);
++              callback(entry, forceLayout);
+             }
+           }
+         }
+@@ -6147,6 +6176,8 @@ function createResizeObserver(element, callback) {
+     callbacks.delete(callback);
+     if (callbacks.size === 0) {
+       callbackMap.delete(element);
++      resizeObserverRects.delete(element);
++      forcedResizeObservations.delete(element);
+       observer.unobserve(element);
+     }
+   };
+@@ -6197,18 +6228,11 @@ function useOnLayoutSync({
+       emit(toLayout(rect), true);
+       prevRect = rect;
+     }
+-    return createResizeObserver(element, (entry) => {
+-      var _a4, _b2, _c;
+-      const target = entry.target instanceof HTMLElement ? entry.target : void 0;
+-      const borderBoxSize = Array.isArray(entry.borderBoxSize) ? entry.borderBoxSize[0] : entry.borderBoxSize;
+-      const rectObserved = borderBoxSize ? {
+-        height: borderBoxSize.blockSize,
+-        left: entry.contentRect.left,
+-        top: entry.contentRect.top,
+-        width: borderBoxSize.inlineSize
+-      } : (_a4 = target == null ? void 0 : target.getBoundingClientRect()) != null ? _a4 : entry.contentRect;
+-      const previousRect = prevRect != null ? prevRect : getContainerLayoutBaseline(element);
+-      const didSizeChange = previousRect === void 0 || rectObserved.width !== previousRect.width || rectObserved.height !== previousRect.height;
++    return createResizeObserver(element, (entry, forceLayout) => {
++      var _b2, _c;
++      const rectObserved = getResizeObserverRect(entry);
++      const previousRect = prevRect;
++      const didSizeChange = forceLayout || previousRect === void 0 || rectObserved.width !== previousRect.width || rectObserved.height !== previousRect.height;
+       prevRect = rectObserved;
+       const shouldResyncLayout = !!((_c = (_b2 = callbacks.current).webLayoutResync) == null ? void 0 : _c.call(_b2));
+       if (didSizeChange || shouldResyncLayout) {
+@@ -6274,11 +6298,7 @@ function processContainerLayout({ containerId, ctx, rectangle, ref, state }) {
+     scheduleWebShrinkMeasurement(state, () => {
+       var _a4;
+       if (state.itemKey === currentItemKey) {
+-        const element = ref.current;
+-        const rect = (_a4 = element == null ? void 0 : element.getBoundingClientRect) == null ? void 0 : _a4.call(element);
+-        if (rect) {
+-          layout = { height: rect.height, width: rect.width };
+-        }
++        // Supaterm patch: keep the observer's layout size; a fresh client rect includes transforms.
+         applyLayout();
+       }
+     });
+diff --git a/react.js b/react.js
+index 5155454..3cc9265 100644
+--- a/react.js
++++ b/react.js
+@@ -5646,8 +5646,11 @@ function measureContainersInLayoutEffect(ctx, targetContainerIds = null) {
+     const element = viewRef == null ? void 0 : viewRef.current;
+     if (itemKey !== void 0 && element && isContainerItemCurrent(ctx, containerId, itemKey)) {
+       const generation = (_b = ctx.state.containerItemGenerations[containerId]) != null ? _b : 0;
+-      const rect = element.getBoundingClientRect();
++      // Supaterm patch: layout box sizes ignore ancestor transforms (a popup's zoom-in), like
++      // ResizeObserver, so a measurement here can be compared with its last delivery.
++      const rect = { height: element.offsetHeight, width: element.offsetWidth };
+       setContainerLayoutBaseline(element, rect);
++      resyncResizeObserver(element, rect);
+       measurements.push({
+         containerId,
+         generation,
+@@ -6133,15 +6136,41 @@ function Separator({ ItemSeparatorComponent, leadingItem }) {
+ 
+ // src/hooks/createResizeObserver.ts
+ var globalResizeObserver = null;
++// Supaterm patch: a layout measurement that differs from the last observer delivery requests a
++// fresh delivery, so an intermediate size cannot stay cached after the DOM returns to the size
++// the observer last saw.
++var resizeObserverRects = /* @__PURE__ */ new WeakMap();
++var forcedResizeObservations = /* @__PURE__ */ new WeakSet();
++function getResizeObserverRect(entry) {
++  const target = entry.target instanceof HTMLElement ? entry.target : void 0;
++  const borderBoxSize = Array.isArray(entry.borderBoxSize) ? entry.borderBoxSize[0] : entry.borderBoxSize;
++  return borderBoxSize ? {
++    height: borderBoxSize.blockSize,
++    left: entry.contentRect.left,
++    top: entry.contentRect.top,
++    width: borderBoxSize.inlineSize
++  } : target ? target.getBoundingClientRect() : entry.contentRect;
++}
++function resyncResizeObserver(element, rect) {
++  const observed = resizeObserverRects.get(element);
++  if (observed && callbackMap.has(element) && (Math.round(observed.height) !== Math.round(rect.height) || Math.round(observed.width) !== Math.round(rect.width))) {
++    forcedResizeObservations.add(element);
++    const observer = getGlobalResizeObserver();
++    observer.unobserve(element);
++    observer.observe(element, { box: "border-box" });
++  }
++}
+ function getGlobalResizeObserver() {
+   if (!globalResizeObserver) {
+     globalResizeObserver = new ResizeObserver((entries) => {
+       batchItemSizeUpdates(() => {
+         for (const entry of entries) {
++          resizeObserverRects.set(entry.target, getResizeObserverRect(entry));
++          const forceLayout = forcedResizeObservations.delete(entry.target);
+           const callbacks = callbackMap.get(entry.target);
+           if (callbacks) {
+             for (const callback of callbacks) {
+-              callback(entry);
++              callback(entry, forceLayout);
+             }
+           }
+         }
+@@ -6168,6 +6197,8 @@ function createResizeObserver(element, callback) {
+     callbacks.delete(callback);
+     if (callbacks.size === 0) {
+       callbackMap.delete(element);
++      resizeObserverRects.delete(element);
++      forcedResizeObservations.delete(element);
+       observer.unobserve(element);
+     }
+   };
+@@ -6218,18 +6249,11 @@ function useOnLayoutSync({
+       emit(toLayout(rect), true);
+       prevRect = rect;
+     }
+-    return createResizeObserver(element, (entry) => {
+-      var _a4, _b2, _c;
+-      const target = entry.target instanceof HTMLElement ? entry.target : void 0;
+-      const borderBoxSize = Array.isArray(entry.borderBoxSize) ? entry.borderBoxSize[0] : entry.borderBoxSize;
+-      const rectObserved = borderBoxSize ? {
+-        height: borderBoxSize.blockSize,
+-        left: entry.contentRect.left,
+-        top: entry.contentRect.top,
+-        width: borderBoxSize.inlineSize
+-      } : (_a4 = target == null ? void 0 : target.getBoundingClientRect()) != null ? _a4 : entry.contentRect;
+-      const previousRect = prevRect != null ? prevRect : getContainerLayoutBaseline(element);
+-      const didSizeChange = previousRect === void 0 || rectObserved.width !== previousRect.width || rectObserved.height !== previousRect.height;
++    return createResizeObserver(element, (entry, forceLayout) => {
++      var _b2, _c;
++      const rectObserved = getResizeObserverRect(entry);
++      const previousRect = prevRect;
++      const didSizeChange = forceLayout || previousRect === void 0 || rectObserved.width !== previousRect.width || rectObserved.height !== previousRect.height;
+       prevRect = rectObserved;
+       const shouldResyncLayout = !!((_c = (_b2 = callbacks.current).webLayoutResync) == null ? void 0 : _c.call(_b2));
+       if (didSizeChange || shouldResyncLayout) {
+@@ -6295,11 +6319,7 @@ function processContainerLayout({ containerId, ctx, rectangle, ref, state }) {
+     scheduleWebShrinkMeasurement(state, () => {
+       var _a4;
+       if (state.itemKey === currentItemKey) {
+-        const element = ref.current;
+-        const rect = (_a4 = element == null ? void 0 : element.getBoundingClientRect) == null ? void 0 : _a4.call(element);
+-        if (rect) {
+-          layout = { height: rect.height, width: rect.width };
+-        }
++        // Supaterm patch: keep the observer's layout size; a fresh client rect includes transforms.
+         applyLayout();
+       }
+     });
+diff --git a/react.mjs b/react.mjs
+index ce08abe..8cffae1 100644
+--- a/react.mjs
++++ b/react.mjs
+@@ -5625,8 +5625,11 @@ function measureContainersInLayoutEffect(ctx, targetContainerIds = null) {
+     const element = viewRef == null ? void 0 : viewRef.current;
+     if (itemKey !== void 0 && element && isContainerItemCurrent(ctx, containerId, itemKey)) {
+       const generation = (_b = ctx.state.containerItemGenerations[containerId]) != null ? _b : 0;
+-      const rect = element.getBoundingClientRect();
++      // Supaterm patch: layout box sizes ignore ancestor transforms (a popup's zoom-in), like
++      // ResizeObserver, so a measurement here can be compared with its last delivery.
++      const rect = { height: element.offsetHeight, width: element.offsetWidth };
+       setContainerLayoutBaseline(element, rect);
++      resyncResizeObserver(element, rect);
+       measurements.push({
+         containerId,
+         generation,
+@@ -6112,15 +6115,41 @@ function Separator({ ItemSeparatorComponent, leadingItem }) {
+ 
+ // src/hooks/createResizeObserver.ts
+ var globalResizeObserver = null;
++// Supaterm patch: a layout measurement that differs from the last observer delivery requests a
++// fresh delivery, so an intermediate size cannot stay cached after the DOM returns to the size
++// the observer last saw.
++var resizeObserverRects = /* @__PURE__ */ new WeakMap();
++var forcedResizeObservations = /* @__PURE__ */ new WeakSet();
++function getResizeObserverRect(entry) {
++  const target = entry.target instanceof HTMLElement ? entry.target : void 0;
++  const borderBoxSize = Array.isArray(entry.borderBoxSize) ? entry.borderBoxSize[0] : entry.borderBoxSize;
++  return borderBoxSize ? {
++    height: borderBoxSize.blockSize,
++    left: entry.contentRect.left,
++    top: entry.contentRect.top,
++    width: borderBoxSize.inlineSize
++  } : target ? target.getBoundingClientRect() : entry.contentRect;
++}
++function resyncResizeObserver(element, rect) {
++  const observed = resizeObserverRects.get(element);
++  if (observed && callbackMap.has(element) && (Math.round(observed.height) !== Math.round(rect.height) || Math.round(observed.width) !== Math.round(rect.width))) {
++    forcedResizeObservations.add(element);
++    const observer = getGlobalResizeObserver();
++    observer.unobserve(element);
++    observer.observe(element, { box: "border-box" });
++  }
++}
+ function getGlobalResizeObserver() {
+   if (!globalResizeObserver) {
+     globalResizeObserver = new ResizeObserver((entries) => {
+       batchItemSizeUpdates(() => {
+         for (const entry of entries) {
++          resizeObserverRects.set(entry.target, getResizeObserverRect(entry));
++          const forceLayout = forcedResizeObservations.delete(entry.target);
+           const callbacks = callbackMap.get(entry.target);
+           if (callbacks) {
+             for (const callback of callbacks) {
+-              callback(entry);
++              callback(entry, forceLayout);
+             }
+           }
+         }
+@@ -6147,6 +6176,8 @@ function createResizeObserver(element, callback) {
+     callbacks.delete(callback);
+     if (callbacks.size === 0) {
+       callbackMap.delete(element);
++      resizeObserverRects.delete(element);
++      forcedResizeObservations.delete(element);
+       observer.unobserve(element);
+     }
+   };
+@@ -6197,18 +6228,11 @@ function useOnLayoutSync({
+       emit(toLayout(rect), true);
+       prevRect = rect;
+     }
+-    return createResizeObserver(element, (entry) => {
+-      var _a4, _b2, _c;
+-      const target = entry.target instanceof HTMLElement ? entry.target : void 0;
+-      const borderBoxSize = Array.isArray(entry.borderBoxSize) ? entry.borderBoxSize[0] : entry.borderBoxSize;
+-      const rectObserved = borderBoxSize ? {
+-        height: borderBoxSize.blockSize,
+-        left: entry.contentRect.left,
+-        top: entry.contentRect.top,
+-        width: borderBoxSize.inlineSize
+-      } : (_a4 = target == null ? void 0 : target.getBoundingClientRect()) != null ? _a4 : entry.contentRect;
+-      const previousRect = prevRect != null ? prevRect : getContainerLayoutBaseline(element);
+-      const didSizeChange = previousRect === void 0 || rectObserved.width !== previousRect.width || rectObserved.height !== previousRect.height;
++    return createResizeObserver(element, (entry, forceLayout) => {
++      var _b2, _c;
++      const rectObserved = getResizeObserverRect(entry);
++      const previousRect = prevRect;
++      const didSizeChange = forceLayout || previousRect === void 0 || rectObserved.width !== previousRect.width || rectObserved.height !== previousRect.height;
+       prevRect = rectObserved;
+       const shouldResyncLayout = !!((_c = (_b2 = callbacks.current).webLayoutResync) == null ? void 0 : _c.call(_b2));
+       if (didSizeChange || shouldResyncLayout) {
+@@ -6274,11 +6298,7 @@ function processContainerLayout({ containerId, ctx, rectangle, ref, state }) {
+     scheduleWebShrinkMeasurement(state, () => {
+       var _a4;
+       if (state.itemKey === currentItemKey) {
+-        const element = ref.current;
+-        const rect = (_a4 = element == null ? void 0 : element.getBoundingClientRect) == null ? void 0 : _a4.call(element);
+-        if (rect) {
+-          layout = { height: rect.height, width: rect.width };
+-        }
++        // Supaterm patch: keep the observer's layout size; a fresh client rect includes transforms.
+         applyLayout();
+       }
+     });

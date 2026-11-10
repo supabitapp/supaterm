@@ -17,6 +17,7 @@ import {
   type DesktopSshEnvironmentTarget,
   type DesktopUpdateState,
   type DesktopWslState,
+  type EnvironmentId,
   type RelayConnectionInfo,
   type ServerSettings,
   normalizeRelayServerUrl,
@@ -107,13 +108,19 @@ export function isQrShareableEndpoint(endpoint: AdvertisedEndpoint): boolean {
 export function resolveTailscaleHttpsRow(input: {
   readonly endpoint: AdvertisedEndpoint | null;
   readonly serveEnabled: boolean;
+  readonly error?: string | null;
 }) {
-  const { endpoint, serveEnabled } = input;
+  const { endpoint, serveEnabled, error } = input;
   return {
-    description: serveEnabled
-      ? (endpoint?.httpBaseUrl ?? "Start Tailscale to set up HTTPS access through MagicDNS.")
-      : "Use Tailscale Serve to expose this backend through a MagicDNS HTTPS URL.",
-    unreachable: serveEnabled && endpoint !== null && endpoint.status !== "available",
+    description:
+      serveEnabled && endpoint
+        ? endpoint.httpBaseUrl
+        : "Use Tailscale Serve to expose this backend through a MagicDNS HTTPS URL.",
+    status:
+      serveEnabled && (error || endpoint?.status !== "available")
+        ? (error ??
+          "Tailscale HTTPS is unavailable. Check that Tailscale is running and its command works, then restart Supaterm.")
+        : null,
   };
 }
 
@@ -443,4 +450,23 @@ export function endpointShareHint(endpoint: AdvertisedEndpoint, url: string): st
     case "loopback":
       return "Clients on this machine";
   }
+}
+
+/** An explicit choice while it is listed, else the primary, else a connected environment. */
+export function resolveAccessEnvironmentId(input: {
+  readonly primaryEnvironmentId: EnvironmentId | null;
+  readonly environments: ReadonlyArray<{
+    readonly environmentId: EnvironmentId;
+    readonly connected: boolean;
+  }>;
+  readonly selected: EnvironmentId | null;
+}): EnvironmentId | null {
+  const isListed = (environmentId: EnvironmentId | null) =>
+    input.environments.some((environment) => environment.environmentId === environmentId);
+  if (isListed(input.selected)) return input.selected;
+  if (isListed(input.primaryEnvironmentId)) return input.primaryEnvironmentId;
+  return (
+    (input.environments.find((environment) => environment.connected) ?? input.environments[0])
+      ?.environmentId ?? null
+  );
 }

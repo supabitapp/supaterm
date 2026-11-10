@@ -1,39 +1,14 @@
 import { describe, expect, it, vi } from "vite-plus/test";
 import { EnvironmentId, ThreadId } from "@supaterm/contracts";
-import type { FilePreviewItem } from "../components/FilePreviewModal.types";
+import type { FilePreviewItem } from "../components/ui/FilePreviewModal.types";
 import type { DraftComposerAttachment } from "./composerImages";
 import { composerImageGallery } from "./composerImageGallery";
 import { messageImageGallery } from "../features/threads/messageImageGallery";
-import { filePreviewGallery, filePreviewKey, settlePreviewGallery } from "./filePreviewGallery";
+import { filePreviewGallery, filePreviewKey } from "./filePreviewGallery";
 
 vi.mock("./uuid", () => ({}));
 
 describe("image preview groups", () => {
-  it("waits for every sibling, then opens without the ones that failed to resolve", async () => {
-    const third = Promise.withResolvers<{ uri: string } | null>();
-    let settled = false;
-    const opening = settlePreviewGallery(
-      [Promise.resolve({ uri: "first" }), Promise.reject(new Error("moved")), third.promise],
-      0,
-    ).finally(() => {
-      settled = true;
-    });
-    await Promise.resolve();
-    expect(settled).toBe(false);
-    third.resolve({ uri: "third" });
-    await expect(opening).resolves.toEqual({
-      selected: { uri: "first" },
-      gallery: [{ uri: "first" }, { uri: "third" }],
-    });
-  });
-
-  it("fails at once when the selected item cannot resolve", async () => {
-    const sibling = Promise.withResolvers<{ uri: string } | null>();
-    await expect(
-      settlePreviewGallery([sibling.promise, Promise.reject(new Error("deleted"))], 1),
-    ).rejects.toThrow("deleted");
-  });
-
   it.each([false, true])(
     "keeps one entry per image through upload and delivery (file: %s)",
     (fileBacked) => {

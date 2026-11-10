@@ -2,6 +2,7 @@ import type {
   EnvironmentId,
   OrchestrationV2PendingBackgroundTask,
   OrchestrationV2ProviderGoal,
+  OrchestrationV2ProviderSession,
   ProjectId,
   ThreadId,
   ThreadPullRequestLink,
@@ -19,6 +20,7 @@ import { formatDuration } from "@supaterm/shared/orchestrationTiming";
 import {
   GitBranchIcon,
   MessageCircleIcon,
+  PuzzleIcon,
   ShieldAlertIcon,
   StopFilledIcon,
   TargetIcon,
@@ -27,6 +29,7 @@ import {
 import { Fragment } from "react";
 import { tickTextContent } from "~/lib/tickTextContent";
 import { InlineConfirmButton } from "../InlineConfirm";
+import { BackgroundWorkDetails } from "./BackgroundWorkDetails";
 import { Button, InlineButton } from "../ui/button";
 import { PopoverTrigger } from "../ui/popover";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
@@ -40,6 +43,18 @@ import {
   type WatchedPullRequest,
 } from "./BackgroundWork";
 import type { ComposerBannerStackItem } from "./ComposerBannerStack";
+
+export function extensionStatusBannerItem(
+  statuses: NonNullable<OrchestrationV2ProviderSession["extensionStatuses"]>,
+): ComposerBannerStackItem | null {
+  if (statuses.length === 0) return null;
+  return {
+    id: "pi-extension-status",
+    variant: "default",
+    icon: <PuzzleIcon />,
+    title: <output>{`Pi · ${statuses.map((status) => status.text).join(" · ")}`}</output>,
+  };
+}
 
 /** Subagents waiting on the user, unless the parent is itself waiting on them. */
 export function childInputBannerItem(input: {
@@ -262,6 +277,12 @@ export function backgroundWorkBannerItem(input: {
     actions: (
       <>
         <BackgroundTaskOutputPopover handle={input.outputHandle} />
+        <BackgroundWorkDetails
+          environmentId={input.environmentId}
+          threadId={input.threadId}
+          tasks={input.tasks}
+          onOpenThread={onOpenThread}
+        />
         <Button
           size="xs"
           variant="ghost"

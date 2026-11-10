@@ -87,7 +87,7 @@ function VoiceTranscriptionSettingRow(props: {
       serverScoped
       settingKeys={["transcriptionProviderInstanceId"]}
       {...searchableSetting("voice-transcription")}
-      description="Voice input sent to this environment is transcribed with this login, which is charged for it. Automatic uses the first ready login, Claude's first. A login you choose is never swapped for another account."
+      description="Voice input sent to this environment is transcribed and charged to this login. Automatic uses the first ready login, Claude's first. A login you choose is never swapped for another account."
       resetAction={
         selectedId !== DEFAULT_UNIFIED_SETTINGS.transcriptionProviderInstanceId ? (
           <SettingResetButton

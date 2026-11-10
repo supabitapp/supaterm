@@ -5,10 +5,11 @@ import * as Fiber from "effect/Fiber";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import * as Ref from "effect/Ref";
+import * as Semaphore from "effect/Semaphore";
 
 import * as Electron from "electron";
 
-import { type DesktopSnapShotEvent, DEFAULT_CLIENT_SETTINGS } from "@supaterm/contracts";
+import type { DesktopSnapShotEvent } from "@supaterm/contracts";
 
 import * as DesktopAssets from "../app/DesktopAssets.ts";
 import * as DesktopLaunchIcon from "../app/DesktopLaunchIcon.ts";
@@ -22,7 +23,6 @@ import * as ElectronTheme from "../electron/ElectronTheme.ts";
 import * as ElectronWindow from "../electron/ElectronWindow.ts";
 import {
   MENU_ACTION_CHANNEL,
-  QUIT_SHORTCUT_CHANNEL,
   SNAP_SHOT_EVENT_CHANNEL,
   TRACKPAD_SCROLL_BEGIN_CHANNEL,
   TRACKPAD_SCROLL_END_CHANNEL,
@@ -30,9 +30,6 @@ import {
 } from "../ipc/channels.ts";
 import * as PreviewManager from "../preview/Manager.ts";
 import * as DesktopAppSettings from "../settings/DesktopAppSettings.ts";
-import * as DesktopClientSettings from "../settings/DesktopClientSettings.ts";
-import * as ElectronApp from "../electron/ElectronApp.ts";
-import { makeQuitShortcutHandler } from "./QuitHold.ts";
 import { copyContextMenuImage } from "./ContextMenuImage.ts";
 
 const TITLEBAR_HEIGHT = 40;
@@ -72,8 +69,6 @@ type DesktopWindowRuntimeServices =
   | DesktopState.DesktopState
   | DesktopAssets.DesktopAssets
   | DesktopAppSettings.DesktopAppSettings
-  | DesktopClientSettings.DesktopClientSettings
-  | ElectronApp.ElectronApp
   | ElectronMenu.ElectronMenu
   | ElectronShell.ElectronShell
   | ElectronTheme.ElectronTheme
@@ -138,15 +133,19 @@ function getInitialWindowBackgroundColor(shouldUseDarkColors: boolean): string {
 
 type DisplayBounds = Pick<Electron.Rectangle, "x" | "y" | "width" | "height">;
 
+// A window snapped to a display edge can be reported 1px past that edge.
+const SAVED_BOUNDS_EDGE_TOLERANCE_PX = 1;
+
 function windowFitsWithinDisplay(
   windowBounds: DesktopAppSettings.DesktopWindowBounds,
   displayBounds: DisplayBounds,
 ): boolean {
+  const tolerance = SAVED_BOUNDS_EDGE_TOLERANCE_PX;
   return (
-    windowBounds.x >= displayBounds.x &&
-    windowBounds.y >= displayBounds.y &&
-    windowBounds.x + windowBounds.width <= displayBounds.x + displayBounds.width &&
-    windowBounds.y + windowBounds.height <= displayBounds.y + displayBounds.height
+    windowBounds.x >= displayBounds.x - tolerance &&
+    windowBounds.y >= displayBounds.y - tolerance &&
+    windowBounds.x + windowBounds.width <= displayBounds.x + displayBounds.width + tolerance &&
+    windowBounds.y + windowBounds.height <= displayBounds.y + displayBounds.height + tolerance
   );
 }
 
@@ -216,21 +215,6 @@ function isRetryableDevelopmentRendererLoadFailure(input: {
       navigationUrl: input.validatedUrl,
     })
   );
-}
-
-function concealPendingQuitWindow(
-  window: Pick<
-    Electron.BrowserWindow,
-    "isDestroyed" | "isFullScreen" | "setFullScreen" | "setOpacity"
-  >,
-): void {
-  if (window.isDestroyed()) return;
-  if (window.isFullScreen()) {
-    window.setFullScreen(false);
-  }
-  // Electron implements window opacity on macOS and Windows. Linux keeps the
-  // release-gated quit behavior but cannot make the pending window disappear.
-  window.setOpacity(0);
 }
 
 function getWindowTitleBarOptions(
@@ -304,13 +288,18 @@ export const make = Effect.gen(function* () {
   const electronWindow = yield* ElectronWindow.ElectronWindow;
   const previewManager = yield* PreviewManager.PreviewManager;
   const desktopSettings = yield* DesktopAppSettings.DesktopAppSettings;
-  const clientSettings = yield* DesktopClientSettings.DesktopClientSettings;
-  const electronApp = yield* ElectronApp.ElectronApp;
   const backendReadyRef = yield* Ref.make(false);
+  let backendHasStarted = false;
+  let mainClosedDuringStartup = false;
   const splashWindowRef = yield* Ref.make<Option.Option<Electron.BrowserWindow>>(Option.none());
   const context = yield* Effect.context<DesktopWindowRuntimeServices>();
   const runFork = Effect.runForkWith(context);
   const runPromise = Effect.runPromiseWith(context);
+  const mainWindowMutex = yield* Semaphore.make(1);
+  const pendingMainReveals = new WeakMap<Electron.BrowserWindow, Effect.Effect<void>>();
+  const revealMain = Effect.fn("desktop.window.revealMain")((window: Electron.BrowserWindow) =>
+    Effect.suspend(() => pendingMainReveals.get(window) ?? electronWindow.reveal(window)),
+  );
   let flushMainWindowBounds: Effect.Effect<void> = Effect.void;
 
   const dismissConnectingSplash = Effect.gen(function* () {
@@ -386,8 +375,8 @@ export const make = Effect.gen(function* () {
     if (yield* Ref.get(desktopState.quitting)) return Option.none();
     const window = yield* electronWindow.create({
       ...initialBounds,
-      minWidth: 840,
-      minHeight: 620,
+      minWidth: DesktopAppSettings.MIN_MAIN_WINDOW_SIZE.width,
+      minHeight: DesktopAppSettings.MIN_MAIN_WINDOW_SIZE.height,
       show: false,
       autoHideMenuBar: true,
       ...(environment.platform === "darwin" ? { disableAutoHideCursor: true } : {}),
@@ -415,6 +404,7 @@ export const make = Effect.gen(function* () {
       return Option.none();
     }
 
+    pendingMainReveals.set(window, Effect.void);
     if (environment.platform === "darwin") {
       window.setAutoHideCursor(false);
     }
@@ -629,32 +619,14 @@ export const make = Effect.gen(function* () {
       }
     });
 
-    const quitShortcutHandler = makeQuitShortcutHandler({
-      platform: environment.platform,
-      getMode: () =>
-        runPromise(
-          Effect.map(
-            clientSettings.get,
-            Option.match({
-              onNone: () => DEFAULT_CLIENT_SETTINGS.confirmQuit,
-              onSome: (settings) => settings.confirmQuit,
-            }),
-          ),
-        ),
-      notify: (hint) => {
-        if (!window.isDestroyed()) {
-          window.webContents.send(QUIT_SHORTCUT_CHANNEL, hint);
-        }
-      },
-      // Keep the transparent window focused until the physical shortcut is
-      // released so its remaining repeats cannot reach the next app.
-      concealWindow: () => concealPendingQuitWindow(window),
-      quit: () => {
-        void runPromise(electronApp.quit);
-      },
-    });
     window.webContents.on("before-input-event", (event, input) => {
-      quitShortcutHandler(event, input);
+      // Cmd/Ctrl+W reaches the renderer; DevTools uses the native menu shortcut.
+      window.webContents.setIgnoreMenuShortcuts(
+        (environment.platform === "darwin" ? input.meta : input.control) &&
+          !input.alt &&
+          !input.shift &&
+          input.key.toLowerCase() === "w",
+      );
       // A held Cmd/Ctrl+W closes one tab or terminal, not each one behind it.
       if (input.type !== "keyDown" || !input.isAutoRepeat) return;
       const modifier = environment.platform === "darwin" ? input.meta : input.control;
@@ -827,18 +799,28 @@ export const make = Effect.gen(function* () {
     if (environment.platform === "linux") {
       revealSubscribers.push((fire) => window.webContents.once("did-finish-load", fire));
     }
+    let rendererReady = false;
+    let firstRevealComplete = false;
+    const revealWhenReady = Effect.gen(function* () {
+      if (
+        !rendererReady ||
+        firstRevealComplete ||
+        window.isDestroyed() ||
+        (yield* Ref.get(desktopState.quitting))
+      )
+        return;
+      firstRevealComplete = true;
+      pendingMainReveals.delete(window);
+      window.webContents.setBackgroundThrottling(true);
+      if (persistedSettings.mainWindowMaximized) window.maximize();
+      yield* electronWindow.reveal(window);
+      yield* dismissConnectingSplash;
+      yield* launchIcon.settle;
+    });
+    pendingMainReveals.set(window, revealWhenReady);
     bindFirstRevealTrigger(revealSubscribers, () => {
-      if (!window.isDestroyed()) {
-        window.webContents.setBackgroundThrottling(true);
-      }
-      if (persistedSettings.mainWindowMaximized) {
-        window.maximize();
-      }
-      void runPromise(
-        electronWindow
-          .reveal(window)
-          .pipe(Effect.andThen(dismissConnectingSplash), Effect.andThen(launchIcon.settle)),
-      );
+      rendererReady = true;
+      void runPromise(revealWhenReady);
     });
 
     loadApplication();
@@ -847,6 +829,7 @@ export const make = Effect.gen(function* () {
     }
 
     window.on("closed", () => {
+      if (!backendHasStarted) mainClosedDuringStartup = true;
       clearDevelopmentLoadRetry();
       clearBoundsPersist();
       void runPromise(electronWindow.clearMain(Option.some(window)));
@@ -859,6 +842,7 @@ export const make = Effect.gen(function* () {
     const window = yield* createWindow();
     if (Option.isSome(window)) {
       yield* electronWindow.setMain(window.value);
+      mainClosedDuringStartup = false;
       yield* logWindowInfo("main window created");
     }
     return window;
@@ -871,7 +855,7 @@ export const make = Effect.gen(function* () {
       return existingWindow;
     }
     return yield* createMain;
-  }).pipe(Effect.withSpan("desktop.window.ensureMain"));
+  }).pipe(mainWindowMutex.withPermits(1), Effect.withSpan("desktop.window.ensureMain"));
 
   const requireWindow = (window: Option.Option<Electron.BrowserWindow>) =>
     Option.match(window, {
@@ -881,7 +865,7 @@ export const make = Effect.gen(function* () {
 
   const revealOrCreateMain = Effect.gen(function* () {
     const window = yield* ensureMain.pipe(Effect.flatMap(requireWindow));
-    yield* electronWindow.reveal(window);
+    yield* revealMain(window);
     return window;
   }).pipe(Effect.withSpan("desktop.window.revealOrCreateMain"));
 
@@ -893,9 +877,7 @@ export const make = Effect.gen(function* () {
   const createMainIfBackendReady = Effect.gen(function* () {
     if (yield* Ref.get(desktopState.quitting)) return;
     if (yield* waitingForBackend) return;
-    const existingWindow = yield* currentMainWindow;
-    if (Option.isSome(existingWindow)) return;
-    yield* createMain;
+    yield* ensureMain;
   }).pipe(Effect.withSpan("desktop.window.createMainIfBackendReady"));
 
   const showConnectingSplash = Effect.gen(function* () {
@@ -965,7 +947,7 @@ export const make = Effect.gen(function* () {
     // The renderer must learn about the event even when another process refuses to
     // yield the foreground, so send first and treat the reveal as best effort.
     const dispatch = reveal
-      ? send.pipe(Effect.andThen(electronWindow.reveal(targetWindow).pipe(Effect.ignoreCause)))
+      ? send.pipe(Effect.andThen(revealMain(targetWindow).pipe(Effect.ignoreCause)))
       : send;
     if (targetWindow.webContents.isLoadingMainFrame()) {
       targetWindow.webContents.once("did-finish-load", () => void runPromise(dispatch));
@@ -980,7 +962,7 @@ export const make = Effect.gen(function* () {
     revealOrCreateMain,
     prepareCaptureReveal: Effect.gen(function* () {
       const existingWindow = yield* currentMainWindow;
-      if (Option.isSome(existingWindow)) {
+      if (Option.isSome(existingWindow) && !pendingMainReveals.has(existingWindow.value)) {
         yield* electronWindow.prepareReveal(existingWindow.value);
       }
     }),
@@ -988,7 +970,11 @@ export const make = Effect.gen(function* () {
       if (yield* Ref.get(desktopState.quitting)) return;
       const existingWindow = yield* currentMainWindow;
       if (Option.isSome(existingWindow)) {
-        yield* electronWindow.reveal(existingWindow.value);
+        yield* revealMain(existingWindow.value);
+        return;
+      }
+      if (mainClosedDuringStartup) {
+        yield* ensureMain;
         return;
       }
       const backendReady = yield* Ref.get(backendReadyRef);
@@ -1004,9 +990,10 @@ export const make = Effect.gen(function* () {
     createMainIfBackendReady,
     showConnectingSplash,
     handleBackendReady: Effect.fn("desktop.window.handleBackendReady")(function* (httpBaseUrl) {
+      backendHasStarted = true;
       yield* Ref.set(backendReadyRef, true);
       yield* logWindowInfo("backend ready", { source: "http", url: httpBaseUrl.href });
-      yield* createMainIfBackendReady;
+      if (!mainClosedDuringStartup) yield* createMainIfBackendReady;
     }),
     handleBackendNotReady: Ref.set(backendReadyRef, false).pipe(
       Effect.withSpan("desktop.window.handleBackendNotReady"),

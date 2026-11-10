@@ -21,6 +21,7 @@ import {
   setComposerDraftContext,
   setComposerContextImporting,
   useComposerDraft,
+  useComposerDraftResetGeneration,
 } from "../state/use-composer-drafts";
 import { importComposerContextClipboard } from "../lib/composerContextClipboard";
 import { startComposerDraftOperation } from "../state/composerDraftOperations";
@@ -56,6 +57,7 @@ export function ComposerEditor({
   ...props
 }: ComposerEditorProps) {
   const draft = useComposerDraft(draftKey ?? null);
+  const readResetGeneration = useComposerDraftResetGeneration(draftKey ?? null);
   const preferencesResult = useAtomValue(mobilePreferencesAtom);
   const preferredEnterBehavior = AsyncResult.isSuccess(preferencesResult)
     ? preferencesResult.value.composerEnterBehavior
@@ -186,6 +188,7 @@ export function ComposerEditor({
         {...props}
         enterBehavior={props.enterBehavior ?? preferredEnterBehavior}
         onChangeText={changeText}
+        readResetGeneration={readResetGeneration}
         readOnly={props.readOnly || importing}
         onSubmit={importing ? undefined : props.onSubmit}
         clipboardFragment={clipboardFragment ?? undefined}

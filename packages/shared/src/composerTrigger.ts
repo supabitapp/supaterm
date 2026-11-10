@@ -4,7 +4,7 @@ export type ComposerTriggerKind =
   | "slash-command"
   | "skill"
   | "slash-skill";
-export type ComposerSlashCommand = "model" | "plan" | "default" | "side" | "btw";
+export type ComposerSlashCommand = "model" | "plan" | "default" | "side" | "btw" | "clear";
 
 export interface ComposerTrigger {
   kind: ComposerTriggerKind;
@@ -159,4 +159,9 @@ export function replaceTextRange(
   const safeEnd = Math.max(safeStart, Math.min(text.length, rangeEnd));
   const nextText = `${text.slice(0, safeStart)}${replacement}${text.slice(safeEnd)}`;
   return { text: nextText, cursor: safeStart + replacement.length };
+}
+
+/** `/clear` as the whole message arms a fresh session instead of sending. */
+export function isClearComposerCommand(text: string): boolean {
+  return /^\/clear\s*$/i.test(text.trim());
 }

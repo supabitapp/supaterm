@@ -8,6 +8,9 @@ import Migration0003 from "./Migrations/003_ActiveTurnItemIndexes.ts";
 import Migration0004 from "./Migrations/004_ExcludeAttachmentPlaceholdersFromSearch.ts";
 import Migration0005 from "./Migrations/005_SubagentDeliveryState.ts";
 import Migration0006 from "./Migrations/006_ProjectionProjectsPinArchive.ts";
+import Migration0007 from "./Migrations/007_DropOrchestrationEventCorrelationIndex.ts";
+import Migration0008 from "./Migrations/008_DelegatedRecoveryIndexes.ts";
+import Migration0009 from "./Migrations/009_ScheduledTaskThreadMode.ts";
 
 /**
  * Add a schema change as a new entry with the next id. Never edit, renumber, or
@@ -21,6 +24,9 @@ const migrationEntries = [
   [4, "ExcludeAttachmentPlaceholdersFromSearch", Migration0004],
   [5, "SubagentDeliveryState", Migration0005],
   [6, "ProjectionProjectsPinArchive", Migration0006],
+  [7, "DropOrchestrationEventCorrelationIndex", Migration0007],
+  [8, "DelegatedRecoveryIndexes", Migration0008],
+  [9, "ScheduledTaskThreadMode", Migration0009],
 ] as const;
 
 export const migrationManifest = migrationEntries.map(([id, name]) => [id, name] as const);

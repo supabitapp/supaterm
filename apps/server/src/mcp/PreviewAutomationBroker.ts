@@ -28,7 +28,7 @@ import {
 } from "@supaterm/contracts";
 import * as Context from "effect/Context";
 import type * as Cause from "effect/Cause";
-import * as Crypto from "effect/Crypto";
+import * as SecureRandom from "effect/crypto/SecureRandom";
 import * as Deferred from "effect/Deferred";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
@@ -207,6 +207,14 @@ const readRemoteTimeoutMs = (detail: unknown): number | undefined => {
     : undefined;
 };
 
+const readRemoteReason = (detail: unknown): string | undefined =>
+  typeof detail === "object" &&
+  detail !== null &&
+  "reason" in detail &&
+  typeof detail.reason === "string"
+    ? detail.reason
+    : undefined;
+
 const MAX_REASON_CHARS = 500;
 
 const classifyResponseError = (
@@ -257,9 +265,13 @@ const classifyResponseError = (
       });
     case "PreviewAutomationTimeoutError": {
       const remoteTimeoutMs = readRemoteTimeoutMs(error.detail);
+      const remoteReason = readRemoteReason(error.detail);
       return new PreviewAutomationTimeoutError({
         ...context,
         ...remoteDiagnostics,
+        ...(context.clientId === SERVER_BROWSER_AUTOMATION_CLIENT_ID && remoteReason !== undefined
+          ? { reason: remoteReason.slice(0, MAX_REASON_CHARS) }
+          : {}),
         ...(remoteTimeoutMs === undefined
           ? {}
           : { timeoutMs: Math.min(context.timeoutMs, remoteTimeoutMs) }),
@@ -349,7 +361,7 @@ const classifyResponseError = (
 };
 
 export const make = Effect.gen(function* PreviewAutomationBrokerMake() {
-  const crypto = yield* Crypto.Crypto;
+  const random = yield* SecureRandom.SecureRandom;
   const state = yield* SynchronizedRef.make<BrokerState>({
     clients: new Map(),
     assignments: new Map(),
@@ -402,7 +414,7 @@ export const make = Effect.gen(function* PreviewAutomationBrokerMake() {
   ) {
     const clientId = host.clientId;
     const queue = yield* Queue.unbounded<PreviewAutomationStreamEvent, Cause.Done>();
-    const connectionId = yield* crypto.randomUUIDv4().pipe(Effect.orDie);
+    const connectionId = yield* random.uuidV4();
     yield* Queue.offer(queue, { type: "connected", connectionId });
     const connection: ClientConnection = {
       clientId,

@@ -10,7 +10,10 @@ import {
   isOrchestrationV2RunNotYetRunning,
 } from "@supaterm/contracts";
 import type { SidebarProjectSortOrder, SidebarThreadSortOrder } from "@supaterm/contracts/settings";
-import type { ThreadRowStatus } from "@supaterm/client-runtime/state/thread-row-status";
+import {
+  resolveThreadRowStatus,
+  type ThreadRowStatus,
+} from "@supaterm/client-runtime/state/thread-row-status";
 import {
   effectiveSnoozed,
   type ThreadSnoozeShell,
@@ -514,38 +517,6 @@ type LogicalSidebarProject = SidebarProject & {
 
 type ThreadTraversalDirection = "previous" | "next";
 
-export async function archiveSelectedThreadEntries<
-  TEntry extends { readonly threadKey: string },
-  TResult extends { readonly _tag: "Success" | "Failure" },
->(input: {
-  entries: readonly TEntry[];
-  archive: (entry: TEntry, onArchived: () => void) => Promise<TResult>;
-}): Promise<{
-  archivedThreadKeys: readonly string[];
-  mutationFailure: Extract<TResult, { readonly _tag: "Failure" }> | null;
-  followupFailures: readonly Extract<TResult, { readonly _tag: "Failure" }>[];
-}> {
-  const archivedThreadKeys: string[] = [];
-  const followupFailures: Extract<TResult, { readonly _tag: "Failure" }>[] = [];
-
-  for (const entry of input.entries) {
-    let didArchive = false;
-    const result = await input.archive(entry, () => {
-      didArchive = true;
-    });
-    if (didArchive || result._tag === "Success") archivedThreadKeys.push(entry.threadKey);
-    if (result._tag === "Success") continue;
-    const failure = result as Extract<TResult, { readonly _tag: "Failure" }>;
-    if (didArchive) {
-      followupFailures.push(failure);
-      continue;
-    }
-    return { archivedThreadKeys, mutationFailure: failure, followupFailures };
-  }
-
-  return { archivedThreadKeys, mutationFailure: null, followupFailures };
-}
-
 export function isSidebarHiddenThread(thread: Pick<SidebarThreadSummary, "lineage">): boolean {
   return !isListedThreadLineage(thread.lineage);
 }
@@ -749,19 +720,31 @@ export function resolveAdjacentThreadId<T>(input: {
   return currentIndex < threadIds.length - 1 ? (threadIds[currentIndex + 1] ?? null) : null;
 }
 
+export type SidebarThreadStatus = ThreadRowStatus | "preparing";
+
 export function shouldRecedeSidebarThread(input: {
-  status: ThreadRowStatus;
+  status: SidebarThreadStatus;
   isUnread: boolean;
   isWoke: boolean;
   isActive: boolean;
   isSelected: boolean;
 }): boolean {
   if (input.isActive || input.isSelected || input.status === "input") return false;
-  if (input.status === "working" || input.status === "waiting") return true;
+  if (input.status === "preparing" || input.status === "working" || input.status === "waiting") {
+    return true;
+  }
   if (input.status === "ready" || input.status === "approval") {
     return !input.isUnread && !input.isWoke;
   }
   return false;
+}
+
+/** The shared row status, with worktree setup told apart from other work on web. */
+export function resolveSidebarThreadStatus(
+  thread: Parameters<typeof resolveThreadRowStatus>[0],
+): SidebarThreadStatus {
+  const status = resolveThreadRowStatus(thread);
+  return status === "working" && thread.runtime?.status === "preparing" ? "preparing" : status;
 }
 
 export type SidebarV2TopStatusKind =
@@ -777,12 +760,12 @@ export type SidebarV2TopStatusKind =
 
 export function resolveSidebarV2TopStatus(input: {
   readonly environmentConnected: boolean;
-  readonly status: ThreadRowStatus;
+  readonly status: SidebarThreadStatus;
   readonly isUnread: boolean;
   readonly isWoke: boolean;
 }): SidebarV2TopStatusKind | null {
   if (!input.environmentConnected) return "connecting";
-  if (input.status === "working") {
+  if (input.status === "preparing" || input.status === "working") {
     return "working";
   }
   if (input.status === "waiting") {
@@ -803,8 +786,8 @@ export function resolveSidebarV2TopStatus(input: {
   return input.isUnread ? "ready" : null;
 }
 
-export function shouldShowSidebarV2Duration(status: ThreadRowStatus): boolean {
-  return status === "working" || status === "waiting";
+export function shouldShowSidebarV2Duration(status: SidebarThreadStatus): boolean {
+  return status === "preparing" || status === "working" || status === "waiting";
 }
 
 export function firstValidTimestampMs(
@@ -925,14 +908,20 @@ export function resolveThreadStatusPill(input: {
 }
 
 export function getFallbackThreadIdAfterDelete<
-  T extends Pick<Thread, "id" | "projectId" | "createdAt" | "updatedAt"> & ThreadSortInput,
+  T extends Pick<
+    Thread,
+    "id" | "projectId" | "createdAt" | "updatedAt" | "doneOverride" | "lineage"
+  > &
+    ThreadSortInput &
+    ThreadSnoozeShell,
 >(input: {
   threads: readonly T[];
   deletedThreadId: T["id"];
   sortOrder: SidebarThreadSortOrder;
+  now: string;
   deletedThreadIds?: ReadonlySet<T["id"]>;
 }): T["id"] | null {
-  const { deletedThreadId, deletedThreadIds, sortOrder, threads } = input;
+  const { deletedThreadId, deletedThreadIds, sortOrder, now, threads } = input;
   const deletedThread = threads.find((thread) => thread.id === deletedThreadId);
   if (!deletedThread) {
     return null;
@@ -944,7 +933,10 @@ export function getFallbackThreadIdAfterDelete<
         (thread) =>
           thread.projectId === deletedThread.projectId &&
           thread.id !== deletedThreadId &&
-          !deletedThreadIds?.has(thread.id),
+          !deletedThreadIds?.has(thread.id) &&
+          thread.doneOverride !== "done" &&
+          !effectiveSnoozed(thread, { now }) &&
+          !isSidebarHiddenThread(thread),
       ),
       sortOrder,
     )[0]?.id ?? null
@@ -991,29 +983,6 @@ function sortProjectsByActivity<TProject extends SidebarProject>(
       return byTimestamp || compareTies(left.project, right.project);
     })
     .map(({ project }) => project);
-}
-
-export function sortProjectsForSidebar<
-  TProject extends SidebarProject,
-  TThread extends Pick<Thread, "projectId" | "createdAt" | "updatedAt"> & ThreadSortInput,
->(
-  projects: readonly TProject[],
-  threads: readonly TThread[],
-  sortOrder: SidebarProjectSortOrder,
-): TProject[] {
-  const threadsByProjectId = new Map<string, TThread[]>();
-  for (const thread of threads) {
-    const existing = threadsByProjectId.get(thread.projectId) ?? [];
-    existing.push(thread);
-    threadsByProjectId.set(thread.projectId, existing);
-  }
-
-  return sortProjectsByActivity(
-    projects,
-    sortOrder,
-    (project) => threadsByProjectId.get(project.id) ?? [],
-    (left, right) => left.title.localeCompare(right.title) || left.id.localeCompare(right.id),
-  );
 }
 
 export function sortLogicalProjectsForSidebar<

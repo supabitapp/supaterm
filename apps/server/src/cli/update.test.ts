@@ -5,16 +5,20 @@ import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
 import * as Exit from "effect/Exit";
 import * as FileSystem from "effect/FileSystem";
+import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import * as Path from "effect/Path";
 import * as TestClock from "effect/testing/TestClock";
+import * as TestConsole from "effect/testing/TestConsole";
 import { HttpClient, HttpClientResponse } from "effect/http";
 import * as ChildProcessSpawner from "effect/process/ChildProcessSpawner";
 import { afterEach, vi } from "vite-plus/test";
 
-import { prunePinnedRuntimes } from "../service/pinnedRuntime.ts";
+import packageJson from "../../package.json" with { type: "json" };
+import * as BootService from "../service/bootService.ts";
+import { pinnedRuntimePaths, prunePinnedRuntimes } from "../service/pinnedRuntime.ts";
 import * as ProcessRunner from "../processRunner.ts";
-import { repointLauncher, resolveLauncherPath, resolveNewestVersion } from "./update.ts";
+import { repointLauncher, resolveLauncherPath, resolveNewestVersion, runUpdate } from "./update.ts";
 
 // lsof listing one process, so prune sees a process list in which no runtime is running.
 const unrelatedLsof = ProcessRunner.ProcessRunner.of({
@@ -271,6 +275,7 @@ it.layer(NodeServices.layer)("supaterm update launcher", (it) => {
     Effect.gen(function* () {
       const fs = yield* FileSystem.FileSystem;
       const path = yield* Path.Path;
+      const delimiter = (yield* HostProcess.Platform) === "win32" ? ";" : ":";
       const root = yield* fs.makeTempDirectoryScoped({ prefix: "supaterm-update-" });
       const launcher = path.join(root, "bin/supaterm");
       yield* fs.makeDirectory(path.dirname(launcher), { recursive: true });
@@ -279,7 +284,7 @@ it.layer(NodeServices.layer)("supaterm update launcher", (it) => {
       const bare = yield* resolveLauncherPath.pipe(
         Effect.provideService(HostProcess.InvokedAs, "supaterm"),
         Effect.provideService(HostProcess.Environment, {
-          PATH: `${path.join(root, "missing")}:${path.join(root, "bin")}`,
+          PATH: [path.join(root, "missing"), path.join(root, "bin")].join(delimiter),
         }),
         Effect.provideService(HostProcess.WorkingDirectory, root),
       );
@@ -297,6 +302,98 @@ it.layer(NodeServices.layer)("supaterm update launcher", (it) => {
       assert.equal(bare, launcher);
       assert.equal(relative, launcher);
       assert.equal(absent, undefined);
-    }).pipe(Effect.scoped, Effect.provideService(HostProcess.Platform, "linux")),
+    }).pipe(Effect.scoped),
+  );
+});
+
+// Without terminals, update skips its restart prompt whatever runs the test.
+const withoutTerminals = Effect.acquireRelease(
+  Effect.sync(() =>
+    [process.stdin, process.stdout].map((stream) => {
+      const descriptor = Object.getOwnPropertyDescriptor(stream, "isTTY");
+      Object.defineProperty(stream, "isTTY", { configurable: true, value: false });
+      return { stream, descriptor };
+    }),
+  ),
+  (saved) =>
+    Effect.sync(() => {
+      for (const { stream, descriptor } of saved) {
+        if (descriptor === undefined) Reflect.deleteProperty(stream, "isTTY");
+        else Object.defineProperty(stream, "isTTY", descriptor);
+      }
+    }),
+);
+
+it.layer(NodeServices.layer)("supaterm update with a background service", (it) => {
+  it.effect("names the version a service with a pending restart still runs", () =>
+    Effect.gen(function* () {
+      yield* withoutTerminals;
+      const fs = yield* FileSystem.FileSystem;
+      const path = yield* Path.Path;
+      const baseDir = yield* fs.makeTempDirectoryScoped({ prefix: "supaterm-update-" });
+      const version = packageJson.version;
+      const runtime = pinnedRuntimePaths(path, baseDir, version, "linux");
+      yield* fs.makeDirectory(runtime.versionDir, { recursive: true });
+      yield* fs.writeFileString(runtime.entryPath, "");
+      yield* fs.writeFileString(runtime.sentinelPath, `${version}\n`);
+      const unitPath = path.join(baseDir, "supaterm.service");
+      const logPath = path.join(baseDir, "boot-service.log");
+      // An earlier `supaterm update` pointed the service at this version without restarting it.
+      const service = Layer.mock(BootService.BootService, {
+        status: Effect.succeed<BootService.BootServiceStatus>({
+          supported: true,
+          installed: true,
+          current: false,
+          installedVersion: version,
+          installedBaseDir: baseDir,
+          problems: ["restart-pending"],
+          unitPath,
+          logPath,
+        }),
+        install: () => Effect.succeed({ program: [runtime.entryPath], baseDir, unitPath, logPath }),
+      });
+      vi.spyOn(BootService, "layer").mockReturnValue(service);
+      const runner = ProcessRunner.ProcessRunner.of({
+        run: (input) =>
+          input.args?.includes("--version") === true
+            ? unrelatedLsof
+                .run(input)
+                .pipe(Effect.map((result) => ({ ...result, stdout: `supaterm v${version}\n` })))
+            : unrelatedLsof.run(input),
+      });
+
+      const output = yield* runUpdate({
+        baseDir,
+        logsDir: baseDir,
+        serverRuntimeStatePath: path.join(baseDir, "server-runtime.json"),
+        channel: undefined,
+        requestedVersion: version,
+        allowDowngrade: false,
+        assumeYes: false,
+      }).pipe(
+        Effect.andThen(TestConsole.logLines),
+        Effect.map((lines) => lines.join("\n")),
+        Effect.provide(
+          Layer.mergeAll(
+            service,
+            Layer.succeed(ProcessRunner.ProcessRunner, runner),
+            Layer.succeed(
+              HttpClient.HttpClient,
+              HttpClient.make(() => Effect.die("unexpected release lookup")),
+            ),
+            Layer.fresh(TestConsole.layer),
+          ),
+        ),
+      );
+
+      assert.include(
+        output,
+        `Background service still running the version before ${version}. Run \`supaterm service restart\` when you are ready to switch it to ${version}.`,
+      );
+    }).pipe(
+      Effect.scoped,
+      Effect.provideService(HostProcess.Platform, "linux"),
+      Effect.provideService(HostProcess.Environment, { PATH: "" }),
+    ),
   );
 });

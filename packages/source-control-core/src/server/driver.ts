@@ -1,5 +1,5 @@
 import type { SourceControlProviderKind } from "@supaterm/contracts";
-import type * as Crypto from "effect/Crypto";
+import type * as Digest from "effect/crypto/Digest";
 import * as Effect from "effect/Effect";
 import type * as FileSystem from "effect/FileSystem";
 import type { HttpClient, HttpClientError, HttpClientResponse } from "effect/http";
@@ -19,6 +19,8 @@ export interface SourceControlMediaRequest {
   readonly url: string;
   /** Request headers to forward, such as `range`. */
   readonly headers: Readonly<Record<string, string>>;
+  /** `owner/name` of the change request the media is in, else of the checkout it was shown in. */
+  readonly repository?: string;
 }
 
 export interface SourceControlDriverInstance {
@@ -45,7 +47,7 @@ export type SourceControlDriverServices =
   | SourceControlRateLimit.SourceControlRateLimit
   | HttpClient.HttpClient
   | FileSystem.FileSystem
-  | Crypto.Crypto;
+  | Digest.Digest;
 
 export interface SourceControlDriver {
   readonly kind: SourceControlProviderKind;

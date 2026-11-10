@@ -1,5 +1,9 @@
 import { scopedProjectKey } from "@supaterm/client-runtime/environment";
-import type { EnvironmentId, ScopedProjectRef } from "@supaterm/contracts";
+import type {
+  EnvironmentId,
+  ScopedProjectRef,
+  SidebarProjectGroupingMode,
+} from "@supaterm/contracts";
 import {
   buildProjectGroups,
   derivePhysicalProjectKey,
@@ -7,6 +11,23 @@ import {
   type ProjectGroupingSettings,
 } from "@supaterm/client-runtime/state/project-grouping";
 import type { Project } from "./types";
+
+export const PROJECT_GROUPING_MODE_LABELS: Record<SidebarProjectGroupingMode, string> = {
+  repository: "Group by repository",
+  repository_path: "Group by repository path",
+  separate: "Keep separate",
+};
+
+export function withProjectGroupingOverride(
+  overrides: Readonly<Record<string, SidebarProjectGroupingMode>> | undefined,
+  overrideKey: string,
+  selection: SidebarProjectGroupingMode | "inherit",
+): Record<string, SidebarProjectGroupingMode> {
+  const next = { ...overrides };
+  if (selection === "inherit") delete next[overrideKey];
+  else next[overrideKey] = selection;
+  return next;
+}
 
 export type EnvironmentPresence = "local-only" | "remote-only" | "mixed";
 
@@ -255,10 +276,8 @@ export function buildSidebarProjectPickerEntries(input: {
 
     return [{ group, targetProject, isPreferred }];
   });
-  // The preferred project leads the unpinned ones; pinned projects stay first.
+  // The current project leads, even ahead of pinned projects.
   const preferred = entries.find((entry) => entry.isPreferred);
-  if (!preferred || preferred.group.pinned) return entries;
-  const rest = entries.filter((entry) => entry !== preferred);
-  const pinnedCount = rest.filter((entry) => entry.group.pinned).length;
-  return [...rest.slice(0, pinnedCount), preferred, ...rest.slice(pinnedCount)];
+  if (!preferred) return entries;
+  return [preferred, ...entries.filter((entry) => entry !== preferred)];
 }
