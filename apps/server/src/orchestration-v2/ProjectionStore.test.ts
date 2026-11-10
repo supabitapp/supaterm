@@ -508,6 +508,53 @@ it.effect("record reads restrict provider histories to delivery identities", () 
   }).pipe(Effect.provide(layerTest)),
 );
 
+it.effect("user-only message reads find ordinals through the user-message index", () =>
+  Effect.gen(function* () {
+    const store = yield* ProjectionStore.ProjectionStoreV2;
+    const threadId = yield* addRolledBackRecoveryCandidate("user-message-ordinals");
+    const at = (yield* store.getThreadProjection(threadId)).updatedAt;
+    for (const id of ["first", "second"]) {
+      yield* store.apply({
+        id: EventId.make(`event:user-message-ordinals:${id}`),
+        type: "message.updated",
+        threadId,
+        occurredAt: at,
+        payload: {
+          id: MessageId.make(`message:user-message-ordinals:${id}`),
+          threadId,
+          runId: null,
+          nodeId: null,
+          createdBy: "user",
+          creationSource: "web",
+          role: "user",
+          text: id,
+          attachments: [],
+          streaming: false,
+          createdAt: at,
+          updatedAt: at,
+        },
+      });
+    }
+    const { statements, tracer } = traceSqlStatements();
+    const userMessages = yield* store
+      .getThreadRecords(threadId, ["messages"], { messageRoles: ["user"] })
+      .pipe(Effect.withTracer(tracer));
+    assert.lengthOf(userMessages.messages, 2);
+    const ordinalLookup = statements.find((statement) => statement.includes("MIN(ordinal)"));
+    assert.isDefined(ordinalLookup);
+    const sql = yield* SqlClient.SqlClient;
+    const plan = (yield* sql.unsafe<{ readonly detail: string }>(
+      `EXPLAIN QUERY PLAN ${ordinalLookup}`,
+      [threadId, "[]"],
+    )).map((row) => row.detail);
+    // User-only reads must stay on the partial index instead of scanning every turn item.
+    assert.isTrue(
+      plan.some((detail) => detail.includes("turn_items_user_message_idx")),
+      plan.join("\n"),
+    );
+  }).pipe(Effect.provide(layerTest)),
+);
+
 it.effect("shells flag a latest run triggered by a provider background wake", () =>
   Effect.gen(function* () {
     const store = yield* ProjectionStore.ProjectionStoreV2;
