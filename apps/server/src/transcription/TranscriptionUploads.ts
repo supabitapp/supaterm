@@ -189,6 +189,7 @@ const messageDispatch = (
     text,
     attachments: [],
     ...(submit.modelSelection === undefined ? {} : { modelSelection: submit.modelSelection }),
+    ...(submit.freshContext ? { freshContext: true } : {}),
     ...(delivery === "queue" ? {} : { deliveryIntent: delivery }),
     dispatchMode:
       delivery === "queue" ? { type: "queue_after_active" } : { type: "start_immediately" },

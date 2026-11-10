@@ -273,7 +273,7 @@ describe("TranscriptionUploads", () => {
     Effect.gen(function* () {
       const harness = yield* makeHarness;
       yield* Effect.gen(function* () {
-        const target = { ...submit("command-1"), delivery: "queue" as const };
+        const target = { ...submit("command-1"), delivery: "queue" as const, freshContext: true };
         const prepared = yield* prepare({ submit: target });
         expect(prepared.uploadId).toBe("command-1");
         const pending = yield* Effect.forkChild(upload(tokenOf(prepared.relativeUrl), AUDIO_BODY));
@@ -290,6 +290,7 @@ describe("TranscriptionUploads", () => {
           creationSource: "web",
           text: "fix the build",
           attachments: [],
+          freshContext: true,
           dispatchMode: { type: "queue_after_active" },
         });
         expect((yield* Ref.get(harness.transcriptions))[0]?.context).toEqual({ threadId: THREAD });
