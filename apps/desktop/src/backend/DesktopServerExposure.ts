@@ -8,6 +8,7 @@ import {
   type AdvertisedEndpointProvider,
   type DesktopServerExposureMode,
   type DesktopServerExposureState,
+  type DesktopServerExposureStatus,
 } from "@supaterm/contracts";
 import { isTailscaleIpv4Address, readTailscaleStatus } from "@supaterm/tailscale";
 import * as Cache from "effect/Cache";
@@ -272,7 +273,7 @@ export interface DesktopServerExposureChange {
 export class DesktopServerExposure extends Context.Service<
   DesktopServerExposure,
   {
-    readonly getState: Effect.Effect<DesktopServerExposureState>;
+    readonly getState: Effect.Effect<DesktopServerExposureStatus>;
     readonly backendConfig: Effect.Effect<DesktopServerExposureBackendConfig>;
     readonly configureFromSettings: (input: {
       readonly port: number;
@@ -474,7 +475,6 @@ export const make = Effect.gen(function* () {
     timeToLive: TAILSCALE_STATUS_CACHE_TTL,
     lookup: (_addresses: string) =>
       readTailscaleStatus.pipe(
-        Effect.orElseSucceed(() => null),
         Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, childProcessSpawner),
       ),
   });
@@ -488,10 +488,18 @@ export const make = Effect.gen(function* () {
       ),
     );
 
-  const getState = readNetworkInterfaces.pipe(
-    Effect.flatMap(readCurrentState),
-    Effect.map(toContractState),
-  );
+  const getState = Effect.gen(function* () {
+    const interfaces = yield* readNetworkInterfaces;
+    const state = yield* readCurrentState(interfaces);
+    const contractState = { ...toContractState(state), tailscaleError: null };
+    if (!state.tailscaleServeEnabled) return contractState;
+    return yield* Cache.get(tailscaleStatusCache, tailscaleIpv4AddressKey(interfaces)).pipe(
+      Effect.match({
+        onSuccess: () => contractState,
+        onFailure: (error) => ({ ...contractState, tailscaleError: error.message }),
+      }),
+    );
+  });
   const backendConfig = Ref.get(stateRef).pipe(Effect.map(toBackendConfig));
 
   const configureFromSettings = Effect.fn("desktop.serverExposure.configureFromSettings")(
@@ -611,7 +619,7 @@ export const make = Effect.gen(function* () {
       readStatus: Cache.get(
         tailscaleStatusCache,
         tailscaleIpv4AddressKey(currentNetworkInterfaces),
-      ),
+      ).pipe(Effect.orElseSucceed(() => null)),
     }).pipe(
       Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, childProcessSpawner),
       Effect.provideService(HttpClient.HttpClient, httpClient),

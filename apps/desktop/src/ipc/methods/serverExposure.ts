@@ -2,6 +2,7 @@ import {
   AdvertisedEndpoint,
   DesktopServerExposureModeSchema,
   DesktopServerExposureStateSchema,
+  DesktopServerExposureStatusSchema,
 } from "@supaterm/contracts";
 import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
@@ -19,7 +20,7 @@ const SetTailscaleServeEnabledInput = Schema.Struct({
 export const getServerExposureState = DesktopIpc.makeIpcMethod({
   channel: IpcChannels.GET_SERVER_EXPOSURE_STATE_CHANNEL,
   payload: Schema.Void,
-  result: DesktopServerExposureStateSchema,
+  result: DesktopServerExposureStatusSchema,
   handler: Effect.fn("desktop.ipc.serverExposure.getState")(function* () {
     const serverExposure = yield* DesktopServerExposure.DesktopServerExposure;
     return yield* serverExposure.getState;
