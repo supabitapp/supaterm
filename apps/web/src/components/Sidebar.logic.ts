@@ -4,7 +4,12 @@ import { backgroundWorkHoldsCompletion } from "@supaterm/shared/orchestrationV2P
 import { threadPullRequestSearchTerms } from "@supaterm/shared/threadPullRequests";
 import * as React from "react";
 import { defaultAnimateLayoutChanges, type AnimateLayoutChanges } from "@dnd-kit/sortable";
-import { isListedThreadLineage, type ContextMenuItem } from "@supaterm/contracts";
+import {
+  isListedThreadLineage,
+  type ContextMenuItem,
+  isOrchestrationV2RunUnsettled,
+  isOrchestrationV2RunAwaitingTurn,
+} from "@supaterm/contracts";
 import type { SidebarProjectSortOrder, SidebarThreadSortOrder } from "@supaterm/contracts/settings";
 import {
   effectiveSnoozed,
@@ -787,10 +792,7 @@ export function resolveSidebarThreadStatus(thread: SidebarThreadStatusInput): Si
   if (thread.runtime?.status === "running" && thread.blockedOnThreadWait === true) {
     return "waiting";
   }
-  if (
-    thread.runtime !== null &&
-    ["preparing", "queued", "starting", "running", "waiting"].includes(thread.runtime.status)
-  ) {
+  if (isOrchestrationV2RunUnsettled(thread.runtime?.status)) {
     return "working";
   }
   if (thread.runtime?.status === "idle") {
@@ -920,11 +922,7 @@ export function resolveThreadStatusPill(input: {
     };
   }
 
-  if (
-    thread.runtime?.status === "preparing" ||
-    thread.runtime?.status === "starting" ||
-    thread.runtime?.status === "queued"
-  ) {
+  if (isOrchestrationV2RunAwaitingTurn(thread.runtime?.status)) {
     return {
       label: "Connecting",
       colorClass: "text-sky-600 dark:text-sky-300/80",

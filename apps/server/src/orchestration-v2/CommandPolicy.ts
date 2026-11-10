@@ -10,6 +10,7 @@ import {
   OrchestrationV2ThreadProjection,
   ProviderInstanceId,
   ThreadId,
+  isOrchestrationV2RunActive,
 } from "@supaterm/contracts";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
@@ -118,12 +119,7 @@ export function resolveMessageDispatchIntent(
 
 /** A run that still owns the thread's provider turn. */
 export function isActiveRun(run: OrchestrationV2Run): boolean {
-  return (
-    run.status === "preparing" ||
-    run.status === "starting" ||
-    run.status === "running" ||
-    run.status === "waiting"
-  );
+  return isOrchestrationV2RunActive(run.status);
 }
 
 function providerTurnCapabilities(

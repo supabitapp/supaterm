@@ -1,9 +1,9 @@
 import { applyThreadPullRequestLinkUpdate } from "../threadPullRequests.ts";
-import type {
-  OrchestrationV2DomainEvent,
-  OrchestrationV2Run,
-  OrchestrationV2ThreadProjection,
-  OrchestrationV2TurnItem,
+import {
+  isOrchestrationV2RunUnsettled,
+  type OrchestrationV2DomainEvent,
+  type OrchestrationV2ThreadProjection,
+  type OrchestrationV2TurnItem,
 } from "@supaterm/contracts";
 import {
   restoreSubagentBodies,
@@ -133,14 +133,6 @@ function oldestLocalTurnOrdinal(
   return oldest;
 }
 
-const UNFINISHED_RUN_STATUSES: ReadonlySet<OrchestrationV2Run["status"]> = new Set([
-  "preparing",
-  "queued",
-  "starting",
-  "running",
-  "waiting",
-]);
-
 function shouldDropMissingPartialTurnItem(
   projection: OrchestrationV2ThreadProjection,
   item: OrchestrationV2TurnItem,
@@ -157,7 +149,9 @@ function shouldDropMissingPartialTurnItem(
   // new, not unloaded history: the first lands while the run is still queued,
   // and a bounded window can start after the ones before it.
   if (
-    projection.runs.some((run) => run.id === item.runId && UNFINISHED_RUN_STATUSES.has(run.status))
+    projection.runs.some(
+      (run) => run.id === item.runId && isOrchestrationV2RunUnsettled(run.status),
+    )
   ) {
     return false;
   }

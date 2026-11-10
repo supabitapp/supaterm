@@ -1,5 +1,5 @@
 import { useAtomValue } from "@effect/atom-react";
-import { EnvironmentId } from "@supaterm/contracts";
+import { EnvironmentId, isOrchestrationV2RunWorking } from "@supaterm/contracts";
 import { Atom } from "effect/reactivity";
 import { ChevronRightIcon } from "@supaterm/icons";
 import { Fragment, type RefObject, useRef } from "react";
@@ -20,9 +20,6 @@ import { MiddleTruncate } from "../ui/middle-truncate";
 import { ScrollArea } from "../ui/scroll-area";
 import type { RestartingMachine, UpdateEverythingRow } from "./updateEverything.logic";
 
-const isRunning = (status: string) =>
-  status === "preparing" || status === "starting" || status === "running";
-
 const runningThreadCountAtom = Atom.family((environmentIds: string) =>
   Atom.make((get) =>
     environmentIds
@@ -32,7 +29,7 @@ const runningThreadCountAtom = Atom.family((environmentIds: string) =>
         (count, id) =>
           count +
           get(environmentThreadShells.environmentThreadsAtom(EnvironmentId.make(id))).filter(
-            (thread) => isRunning(thread.status),
+            (thread) => isOrchestrationV2RunWorking(thread.status),
           ).length,
         0,
       ),

@@ -1,20 +1,22 @@
 import { backgroundWorkHoldsCompletion } from "@supaterm/shared/orchestrationV2PendingBackgroundWork";
 import { threadPullRequestsOf } from "../threadPullRequests.ts";
-import type {
-  ThreadLinkedPullRequest,
-  EnvironmentId,
-  MessageId,
-  OrchestrationProjectShell,
-  OrchestrationV2ProviderGoal,
-  OrchestrationV2RunStatus,
-  OrchestrationV2ProviderFailureClass,
-  OrchestrationV2ThreadProjection,
-  OrchestrationV2ThreadShell,
-  PlanId,
-  ProjectId,
-  ProviderInstanceId,
-  RunId,
-  ThreadId,
+import {
+  isOrchestrationV2RunWorking,
+  isOrchestrationV2RunUnsettled,
+  type ThreadLinkedPullRequest,
+  type EnvironmentId,
+  type MessageId,
+  type OrchestrationProjectShell,
+  type OrchestrationV2ProviderGoal,
+  type OrchestrationV2RunStatus,
+  type OrchestrationV2ProviderFailureClass,
+  type OrchestrationV2ThreadProjection,
+  type OrchestrationV2ThreadShell,
+  type PlanId,
+  type ProjectId,
+  type ProviderInstanceId,
+  type RunId,
+  type ThreadId,
 } from "@supaterm/contracts";
 import * as DateTime from "effect/DateTime";
 
@@ -108,26 +110,12 @@ export interface ThreadRuntimeSummary {
 export type ThreadStructureRuntime = Omit<ThreadRuntimeSummary, "updatedAt">;
 
 export function threadRuntimeIsActive(runtime: ThreadStructureRuntime | null | undefined): boolean {
-  return runtime !== null && runtime !== undefined && threadRunStatusIsActive(runtime.status);
+  return isOrchestrationV2RunUnsettled(runtime?.status);
 }
 
 export function threadRuntimeCanArchive(runtime: ThreadRuntimeSummary | null | undefined): boolean {
   if (runtime?.status === "queued") return runtime.activeRunId === null;
-  return (
-    runtime?.status !== "preparing" &&
-    runtime?.status !== "starting" &&
-    runtime?.status !== "running"
-  );
-}
-
-function threadRunStatusIsActive(status: ThreadRuntimeSummary["status"]): boolean {
-  return (
-    status === "preparing" ||
-    status === "queued" ||
-    status === "starting" ||
-    status === "running" ||
-    status === "waiting"
-  );
+  return !isOrchestrationV2RunWorking(runtime?.status);
 }
 
 export interface EnvironmentThreadShell {
@@ -199,16 +187,6 @@ function nullableIso(value: DateTime.Utc | null): string | null {
   return value === null ? null : iso(value);
 }
 
-function terminalRunStatus(status: OrchestrationV2RunStatus): boolean {
-  return (
-    status === "completed" ||
-    status === "interrupted" ||
-    status === "failed" ||
-    status === "cancelled" ||
-    status === "rolled_back"
-  );
-}
-
 // Only work the agent waits on holds it: commands and monitors it left running
 // unmarked, such as a dev server, present the run's own status. The
 // server suppresses the roster while an interruptible activity run exists, so a
@@ -268,7 +246,7 @@ export function presentThreadShell(
           startedAt: nullableIso(thread.latestRunStartedAt ?? null),
           completedAt:
             thread.latestRunCompletedAt === undefined
-              ? thread.status === "idle" || terminalRunStatus(thread.status)
+              ? !isOrchestrationV2RunUnsettled(thread.status)
                 ? updatedAt
                 : null
               : nullableIso(thread.latestRunCompletedAt),

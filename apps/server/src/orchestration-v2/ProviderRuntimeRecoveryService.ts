@@ -10,6 +10,7 @@ import {
   type OrchestrationV2ThreadProjection,
   isOrchestrationV2WorkActive,
   ThreadId,
+  isOrchestrationV2RunActive,
 } from "@supaterm/contracts";
 import * as Cause from "effect/Cause";
 import * as Context from "effect/Context";
@@ -78,15 +79,7 @@ export class ProviderRuntimeRecoveryService extends Context.Service<
 >()("supaterm/orchestration-v2/ProviderRuntimeRecoveryService") {}
 
 function nonterminalRuns(projection: ProjectionStore.ProjectionRuntimeRecoveryState) {
-  return projection.runs.filter((run) => {
-    const status: string = run.status;
-    return (
-      status === "preparing" ||
-      run.status === "starting" ||
-      run.status === "running" ||
-      run.status === "waiting"
-    );
-  });
+  return projection.runs.filter((run) => isOrchestrationV2RunActive(run.status));
 }
 
 function isBackgroundCapableTurnItemType(type: string): boolean {

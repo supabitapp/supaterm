@@ -4,6 +4,7 @@ import {
   type OrchestrationV2DomainEvent,
   type OrchestrationV2RuntimeRequest,
   type OrchestrationV2Subagent,
+  isOrchestrationV2RunWorking,
 } from "@supaterm/contracts";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
@@ -146,11 +147,7 @@ const make = Effect.gen(function* () {
       if (
         task.completionWake === "settled_only" &&
         event.payload.responseCapability.type === "live" &&
-        parent.runs.some(
-          (run) =>
-            run.id === task.runId &&
-            (run.status === "preparing" || run.status === "starting" || run.status === "running"),
-        )
+        parent.runs.some((run) => run.id === task.runId && isOrchestrationV2RunWorking(run.status))
       ) {
         return;
       }

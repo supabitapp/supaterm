@@ -1,4 +1,5 @@
 // @effect-diagnostics globalTimers:off - Shelf placement timers run in web and native clients, outside an Effect runtime.
+import { isOrchestrationV2RunUnsettled } from "@supaterm/contracts";
 import { threadRuntimeIsActive, type EnvironmentThreadShell } from "./models.ts";
 import { toSortableTimestamp } from "./threadSort.ts";
 import { effectiveSnoozed } from "./threadSnooze.ts";
@@ -24,11 +25,7 @@ export function isThreadWorking(thread: WorkingThreadInput): boolean {
   const run = thread.latestRun;
   const runSettled =
     run !== null &&
-    run.status !== "preparing" &&
-    run.status !== "queued" &&
-    run.status !== "starting" &&
-    run.status !== "running" &&
-    run.status !== "waiting" &&
+    !isOrchestrationV2RunUnsettled(run.status) &&
     thread.runtime?.activeRunId !== run.runId;
   return !(thread.interactionMode === "plan" && thread.hasActionableProposedPlan && runSettled);
 }

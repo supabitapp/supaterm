@@ -40,6 +40,8 @@ import {
   type ScheduledTaskId,
   ThreadId,
   type TurnItemId,
+  isOrchestrationV2RunActive,
+  isOrchestrationV2RunSettled,
 } from "@supaterm/contracts";
 import { threadTranscriptHeader } from "@supaterm/shared/threadTranscript";
 import { AgentScope } from "@supaterm/shared/AgentScope";
@@ -451,27 +453,6 @@ export class ThreadManagementService extends Context.Service<
   ThreadManagementServiceShape
 >()("supaterm/orchestration-v2/ThreadManagementService") {}
 
-export function isActiveRun(run: OrchestrationV2Run): boolean {
-  return (
-    run.status === "preparing" ||
-    run.status === "starting" ||
-    run.status === "running" ||
-    run.status === "waiting"
-  );
-}
-
-export function isTerminalRunStatus(
-  status: OrchestrationV2Run["status"],
-): status is ThreadManagementTerminalRunStatus {
-  return (
-    status === "completed" ||
-    status === "failed" ||
-    status === "cancelled" ||
-    status === "interrupted" ||
-    status === "rolled_back"
-  );
-}
-
 export function latestRun(
   projection: Pick<OrchestrationV2ThreadProjection, "runs">,
 ): OrchestrationV2Run | undefined {
@@ -495,7 +476,7 @@ export function latestActiveRun(
   projection: Pick<OrchestrationV2ThreadProjection, "runs">,
 ): OrchestrationV2Run | undefined {
   return projection.runs
-    .filter(isActiveRun)
+    .filter((run) => isOrchestrationV2RunActive(run.status))
     .toSorted((left, right) => right.ordinal - left.ordinal)[0];
 }
 
@@ -818,8 +799,9 @@ const make = Effect.gen(function* () {
       }
       const run = latestRestartContinuation(runs, current);
       const pending =
-        isTerminalRunStatus(run.status) && (yield* orchestrator.restartContinuationPending(run));
-      return { run, pending, settled: isTerminalRunStatus(run.status) && !pending };
+        isOrchestrationV2RunSettled(run.status) &&
+        (yield* orchestrator.restartContinuationPending(run));
+      return { run, pending, settled: isOrchestrationV2RunSettled(run.status) && !pending };
     });
     const initial = yield* outcome(target.runs);
     if (initial.settled) {
@@ -919,7 +901,7 @@ const make = Effect.gen(function* () {
         runId: input.runId,
       });
     }
-    if (explicitRun !== undefined && isTerminalRunStatus(explicitRun.status)) {
+    if (explicitRun !== undefined && isOrchestrationV2RunSettled(explicitRun.status)) {
       return {
         type: "already_terminal",
         run: explicitRun as OrchestrationV2Run & {
@@ -999,7 +981,7 @@ const make = Effect.gen(function* () {
       // A run that already ended may still hold background work; settling it is a no-op otherwise.
       const run = target;
       if (run !== undefined) {
-        const active = isActiveRun(run);
+        const active = isOrchestrationV2RunActive(run.status);
         const providerTurn = records.providerTurns.findLast(
           (turn) =>
             turn.runAttemptId === run.activeAttemptId && (!active || turn.status === "running"),

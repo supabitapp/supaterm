@@ -562,6 +562,47 @@ export const OrchestrationV2RunStatus = Schema.Literals([
 ]);
 export type OrchestrationV2RunStatus = typeof OrchestrationV2RunStatus.Type;
 
+// The one place a run status is given its place in the run's life; every predicate below reads it.
+const RUN_STAGE = {
+  queued: "queued",
+  preparing: "setup",
+  starting: "setup",
+  running: "running",
+  waiting: "draining",
+  completed: "settled",
+  interrupted: "settled",
+  failed: "settled",
+  cancelled: "settled",
+  rolled_back: "settled",
+} as const satisfies Record<OrchestrationV2RunStatus, string>;
+
+type RunStage = (typeof RUN_STAGE)[OrchestrationV2RunStatus];
+type RunStatusIn<Stage extends RunStage> = {
+  [Status in OrchestrationV2RunStatus]: (typeof RUN_STAGE)[Status] extends Stage ? Status : never;
+}[OrchestrationV2RunStatus];
+
+const runStatusIn =
+  <Stage extends RunStage>(...stages: ReadonlyArray<Stage>) =>
+  (status: OrchestrationV2RunStatus | "idle" | null | undefined): status is RunStatusIn<Stage> =>
+    status != null &&
+    status !== "idle" &&
+    (stages as ReadonlyArray<RunStage>).includes(RUN_STAGE[status]);
+
+/** The agent turn is in progress: the run can still produce output and be interrupted. */
+export const isOrchestrationV2RunWorking = runStatusIn("setup", "running");
+
+/** Working, or draining follow-up work such as checkpoints after the agent turn ended. */
+export const isOrchestrationV2RunActive = runStatusIn("setup", "running", "draining");
+
+/** Accepted and not final yet: queued or active. */
+export const isOrchestrationV2RunUnsettled = runStatusIn("queued", "setup", "running", "draining");
+
+/** Reached a final status. A thread with no run is idle, not settled. */
+export const isOrchestrationV2RunSettled = runStatusIn("settled");
+
+/** Accepted, but the agent has not begun producing output: queued, preparing, or starting. */
+export const isOrchestrationV2RunAwaitingTurn = runStatusIn("queued", "setup");
+
 export const OrchestrationV2DelegatedCompletionTaskDeliveryState = Schema.Literals([
   "pending",
   "claimed",
@@ -2086,14 +2127,6 @@ export const OrchestrationV2ThreadShell = Schema.Struct({
 });
 export type OrchestrationV2ThreadShell = typeof OrchestrationV2ThreadShell.Type;
 
-const LIVE_SHELL_STATUSES: ReadonlySet<OrchestrationV2ShellThreadStatus> = new Set([
-  "queued",
-  "preparing",
-  "starting",
-  "running",
-  "waiting",
-]);
-
 /**
  * A subagent child that can still need the user or hold its parent. Shells that omit idle children
  * keep these, so every reader of live child rows (pending requests, working parents, background
@@ -2107,7 +2140,7 @@ export function isLiveSubagentShell(
 ): boolean {
   return (
     (thread.activityRunStatus ?? null) !== null ||
-    LIVE_SHELL_STATUSES.has(thread.status) ||
+    isOrchestrationV2RunUnsettled(thread.status) ||
     thread.pendingRuntimeRequest !== null ||
     (thread.pendingBackgroundTasks?.length ?? 0) > 0
   );

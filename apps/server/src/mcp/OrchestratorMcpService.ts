@@ -66,6 +66,8 @@ import {
   ThreadId,
   isOrchestrationV2WorkActive,
   TurnItemId,
+  isOrchestrationV2RunActive,
+  isOrchestrationV2RunSettled,
 } from "@supaterm/contracts";
 import { getProviderOptionCurrentValue } from "@supaterm/shared/model";
 import { runRanAfter } from "@supaterm/shared/orchestrationV2ThreadError";
@@ -496,7 +498,7 @@ function hasPendingChildRuns(
 ): boolean {
   return childProjection.runs.some(
     (run) =>
-      !ThreadManagementService.isTerminalRunStatus(run.status) &&
+      !isOrchestrationV2RunSettled(run.status) &&
       !(run.status === "queued" && run.queueHeld === true) &&
       (delegatedRun === undefined || run.ordinal > delegatedRun.ordinal),
   );
@@ -532,7 +534,7 @@ function pendingTaskApproval(
     child.runs
       .filter(
         (run) =>
-          !ThreadManagementService.isTerminalRunStatus(run.status) &&
+          !isOrchestrationV2RunSettled(run.status) &&
           (run.delegatedTaskId === taskId ||
             // Legacy tasks own only their original run, not later turns in the child thread.
             (run.delegatedTaskId === undefined && run.id === originalRun?.id)),
@@ -680,7 +682,7 @@ function latestTerminalResultRun(
   return projection.runs
     .filter(
       (run) =>
-        ThreadManagementService.isTerminalRunStatus(run.status) &&
+        isOrchestrationV2RunSettled(run.status) &&
         !monitorRunIds.has(run.id) &&
         run.status !== "rolled_back" &&
         (run.id === delegatedRun?.id || run.startedAt !== null),
@@ -2129,10 +2131,7 @@ const make = Effect.gen(function* () {
             return item.secretStatus;
           }
           const current = projection.runs.find((candidate) => candidate.id === runId);
-          if (
-            current === undefined ||
-            ThreadManagementService.isTerminalRunStatus(current.status)
-          ) {
+          if (current === undefined || isOrchestrationV2RunSettled(current.status)) {
             yield* record("cancelled");
             return "cancelled" as const;
           }
@@ -2252,7 +2251,7 @@ const make = Effect.gen(function* () {
     delegateTask: Effect.fn("OrchestratorMcpService.delegateTask")(function* (callerScope, input) {
       const { scope, parent } = yield* loadThreadCaller(callerScope, "delegate_task");
       const parentRun = parent.runs
-        .filter(ThreadManagementService.isActiveRun)
+        .filter((run) => isOrchestrationV2RunActive(run.status))
         .toSorted((left, right) => right.ordinal - left.ordinal)[0];
       if (
         parentRun === undefined ||

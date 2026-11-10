@@ -38,7 +38,12 @@ import {
   sortPinnedThreadsByOrderKey,
   sortDoneThreads,
 } from "@supaterm/client-runtime/state/thread-sort";
-import { isListedThreadLineage, type EnvironmentId, type ProjectId } from "@supaterm/contracts";
+import {
+  isListedThreadLineage,
+  type EnvironmentId,
+  type ProjectId,
+  isOrchestrationV2RunUnsettled,
+} from "@supaterm/contracts";
 
 import type { ThreadListProvider } from "../../state/thread-list-environments";
 
@@ -215,10 +220,7 @@ export function resolveThreadListV2Status(
   if (thread.runtime?.status === "running" && thread.blockedOnThreadWait === true) {
     return "waiting";
   }
-  if (
-    thread.runtime !== null &&
-    ["preparing", "queued", "starting", "running", "waiting"].includes(thread.runtime.status)
-  ) {
+  if (isOrchestrationV2RunUnsettled(thread.runtime?.status)) {
     return "working";
   }
   if (thread.runtime?.status === "idle") {

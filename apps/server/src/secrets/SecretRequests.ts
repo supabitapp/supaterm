@@ -6,6 +6,7 @@ import {
   SecretRequestError,
   type SecretRequestAnswerInput,
   type ThreadId,
+  isOrchestrationV2RunSettled,
 } from "@supaterm/contracts";
 // @effect-diagnostics-next-line nodeBuiltinImport:off -- Effect's Crypto has no createHmac.
 import * as NodeCrypto from "node:crypto";
@@ -86,7 +87,7 @@ const make = Effect.gen(function* () {
         return yield* new SecretRequestError({ reason: "already_answered" });
       }
       const run = records.runs.find((candidate) => candidate.id === item.runId);
-      if (run === undefined || ThreadManagementService.isTerminalRunStatus(run.status)) {
+      if (run === undefined || isOrchestrationV2RunSettled(run.status)) {
         return yield* new SecretRequestError({ reason: "agent_stopped" });
       }
       // Create before recording so racing answers cannot overwrite values or show saved before storage.

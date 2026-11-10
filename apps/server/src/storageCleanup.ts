@@ -2,6 +2,7 @@ import {
   GitCommandError,
   OrchestrationV2AppThreadJson,
   OrchestrationV2ProviderSessionJson,
+  isOrchestrationV2RunUnsettled,
 } from "@supaterm/contracts";
 import * as Schema from "effect/Schema";
 import * as SqlClient from "effect/sql/SqlClient";
@@ -130,12 +131,7 @@ export function storageCleanupThreadIdle(
   return (
     thread.worktreePath !== null &&
     thread.activeRunId === null &&
-    (thread.status === "idle" ||
-      thread.status === "completed" ||
-      thread.status === "interrupted" ||
-      thread.status === "failed" ||
-      thread.status === "cancelled" ||
-      thread.status === "rolled_back") &&
+    !isOrchestrationV2RunUnsettled(thread.status) &&
     (thread.pendingBackgroundTasks?.length ?? 0) === 0 &&
     thread.pendingRuntimeRequest === null &&
     !threadHasQueuedTurnStart(thread, now) &&

@@ -70,6 +70,8 @@ import {
   ProviderInstanceId,
   RuntimeRequestId,
   userInputAutoDismissAt,
+  isOrchestrationV2RunWorking,
+  isOrchestrationV2RunActive,
 } from "@supaterm/contracts";
 import {
   createOrchestrationV2TurnItemVisibility,
@@ -1611,7 +1613,7 @@ function activeProviderGoalForShell(
 }
 
 function isInterruptibleRunForShell(run: OrchestrationV2ThreadProjection["runs"][number]): boolean {
-  return run.status === "preparing" || run.status === "starting" || run.status === "running";
+  return isOrchestrationV2RunWorking(run.status);
 }
 
 type ShellActivityRunStatus = "preparing" | "running" | "starting" | "waiting";
@@ -1621,7 +1623,7 @@ function isActivityRunForShell(
 ): run is OrchestrationV2ThreadProjection["runs"][number] & {
   readonly status: ShellActivityRunStatus;
 } {
-  return isInterruptibleRunForShell(run) || run.status === "waiting";
+  return isOrchestrationV2RunActive(run.status);
 }
 
 type ShellWorkSession = { readonly workStartedAt: number; readonly completedAt: number };

@@ -9,6 +9,8 @@ import {
   type OrchestrationV2Command,
   type EnvironmentId,
   type OrchestrationV2ShellSnapshot,
+  isOrchestrationV2RunUnsettled,
+  isOrchestrationV2RunAwaitingTurn,
 } from "@supaterm/contracts";
 
 import { createOptimisticThreadLifecycle } from "./threadLifecycle.ts";
@@ -405,9 +407,7 @@ export function createThreadEnvironmentAtoms<R, E>(
     markDone: optimistic.wrap(commands.markDone, (thread, _input, now, accepted) =>
       !accepted &&
       (thread.pendingRuntimeRequest !== null ||
-        ["preparing", "queued", "starting", "running", "waiting"].includes(
-          thread.activityRunStatus ?? thread.status,
-        ))
+        isOrchestrationV2RunUnsettled(thread.activityRunStatus ?? thread.status))
         ? thread
         : {
             ...thread,
@@ -431,7 +431,7 @@ export function createThreadEnvironmentAtoms<R, E>(
     snooze: optimistic.wrap(commands.snooze, (thread, input, now, accepted) =>
       (!accepted &&
         (thread.pendingRuntimeRequest !== null ||
-          ["preparing", "queued", "starting"].includes(thread.status))) ||
+          isOrchestrationV2RunAwaitingTurn(thread.status))) ||
       !(Date.parse(input.snoozedUntil) > DateTime.toEpochMillis(now))
         ? thread
         : {

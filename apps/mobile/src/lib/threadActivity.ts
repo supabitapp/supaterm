@@ -52,7 +52,12 @@ import type {
   ScheduledTaskId,
   TurnItemId,
 } from "@supaterm/contracts";
-import { isCompactionCommandMessage, RunId, ThreadId } from "@supaterm/contracts";
+import {
+  isCompactionCommandMessage,
+  RunId,
+  ThreadId,
+  isOrchestrationV2RunActive,
+} from "@supaterm/contracts";
 import {
   classifyToolActivity,
   collectToolFilePaths,
@@ -972,13 +977,7 @@ export function threadFeedRunIsUnsettled(
   run: ThreadFeedLatestRun | null,
 ): run is ThreadFeedLatestRun {
   if (run === null || run.status === "queued") return false;
-  return (
-    run.completedAt === null ||
-    run.status === "preparing" ||
-    run.status === "starting" ||
-    run.status === "running" ||
-    run.status === "waiting"
-  );
+  return run.completedAt === null || isOrchestrationV2RunActive(run.status);
 }
 
 export function threadFeedActivityIsVisible(
