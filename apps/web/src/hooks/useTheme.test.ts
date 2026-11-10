@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 // hundred modules. Importing it inside the test spent the test's whole timeout on a loaded run.
 vi.mock(import("../state/server"), async () => {
   const { Atom } = await import("effect/reactivity");
-  return { primaryServerEnvironmentThemesAtom: Atom.make([]) } as never;
+  return { themeServerEnvironmentThemesAtom: Atom.make([]) } as never;
 });
 
 function createStorage(overrides: Partial<Storage> = {}): Storage {
