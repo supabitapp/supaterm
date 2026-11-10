@@ -29,6 +29,7 @@ import {
 import { Fragment } from "react";
 import { tickTextContent } from "~/lib/tickTextContent";
 import { InlineConfirmButton } from "../InlineConfirm";
+import { BackgroundWorkDetails } from "./BackgroundWorkDetails";
 import { Button, InlineButton } from "../ui/button";
 import { PopoverTrigger } from "../ui/popover";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
@@ -276,6 +277,12 @@ export function backgroundWorkBannerItem(input: {
     actions: (
       <>
         <BackgroundTaskOutputPopover handle={input.outputHandle} />
+        <BackgroundWorkDetails
+          environmentId={input.environmentId}
+          threadId={input.threadId}
+          tasks={input.tasks}
+          onOpenThread={onOpenThread}
+        />
         <Button
           size="xs"
           variant="ghost"
