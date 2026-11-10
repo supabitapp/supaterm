@@ -18,6 +18,7 @@ import * as ProviderHost from "@supaterm/provider-core/server/ProviderHost";
 import type * as IdAllocator from "@supaterm/provider-core/server/IdAllocator";
 import type * as McpProviderSessions from "@supaterm/provider-core/server/McpProviderSessions";
 import { expandHomePath } from "@supaterm/provider-core/server/pathExpansion";
+import { compareSemverVersions } from "@supaterm/shared/semver";
 import * as OpenCode2AdapterV2 from "./v2/adapter.ts";
 import * as ProviderAdapter from "@supaterm/provider-core/server/ProviderAdapter";
 import type { ProviderTextGeneration } from "@supaterm/provider-core/server/textGeneration";
@@ -210,6 +211,21 @@ export const OpenCodeDriver: ProviderDriver<
     );
     const orchestrationAdapter: ProviderAdapter.ProviderAdapterV2["Service"] = {
       ...openCode2Adapter,
+      getCapabilities: Effect.fn("OpenCodeDriver.getCapabilities")(function* () {
+        const probed = Option.getOrUndefined(yield* runtimeProbe.lastSuccess);
+        const capabilities = yield* openCode2Adapter.getCapabilities();
+        return {
+          ...capabilities,
+          turns: {
+            ...capabilities.turns,
+            supportsNativeGoals:
+              capabilities.turns.supportsNativeGoals ??
+              (probed !== undefined &&
+                !isOpenCode1(probed) &&
+                compareSemverVersions(probed.version, "2.2.5") >= 0),
+          },
+        };
+      }),
       openSession: (session) =>
         Effect.flatMap(detectsOpenCode1, (unsupported) =>
           unsupported
