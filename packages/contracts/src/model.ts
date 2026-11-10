@@ -2,9 +2,6 @@ import * as Schema from "effect/Schema";
 import { TrimmedNonEmptyString } from "./baseSchemas.ts";
 import { ProviderDriverKind } from "./providerInstance.ts";
 
-export const ProviderOptionDescriptorType = Schema.Literals(["select", "boolean"]);
-export type ProviderOptionDescriptorType = typeof ProviderOptionDescriptorType.Type;
-
 export const ProviderOptionChoice = Schema.Struct({
   id: TrimmedNonEmptyString,
   label: TrimmedNonEmptyString,

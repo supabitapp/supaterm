@@ -412,7 +412,6 @@ interface ComposerDraftStoreState {
   getPromotedDraftRedirect: (draftId: DraftId) => ScopedThreadRef | null;
   getDraftThreadByRef: (threadRef: ScopedThreadRef) => DraftThreadState | null;
   getDraftThread: (threadRef: ComposerThreadTarget) => DraftThreadState | null;
-  listDraftThreadKeys: () => string[];
   hasDraftThreadsInEnvironment: (environmentId: EnvironmentId) => boolean;
   setLogicalProjectDraftThreadId: (
     logicalProjectKey: string,
@@ -552,16 +551,11 @@ interface ComposerDraftStoreState {
     contexts: TerminalContextDraft[],
     options?: ComposerContextAddOptions,
   ) => void;
-  removeTerminalContext: (threadRef: ComposerThreadTarget, contextId: string) => void;
   clearTerminalContexts: (threadRef: ComposerThreadTarget) => void;
   addPreviewAnnotation: (
     threadRef: ComposerThreadTarget,
     annotation: PreviewAnnotationPayload,
     options?: ComposerContextAddOptions,
-  ) => void;
-  setPreviewAnnotations: (
-    threadRef: ComposerThreadTarget,
-    annotations: ReadonlyArray<PreviewAnnotationPayload>,
   ) => void;
   removePreviewAnnotation: (threadRef: ComposerThreadTarget, annotationId: string) => void;
   addReviewComment: (
@@ -1961,10 +1955,6 @@ const composerDraftStore = create<ComposerDraftStoreState>()(
         getDraftThreadByRef: (threadRef) => {
           return get().getDraftSessionByRef(threadRef);
         },
-        listDraftThreadKeys: () =>
-          Object.values(get().draftThreadsByThreadKey).map((draftThread) =>
-            scopedThreadKey(scopeThreadRef(draftThread.environmentId, draftThread.threadId)),
-          ),
         hasDraftThreadsInEnvironment: (environmentId) =>
           Object.values(get().draftThreadsByThreadKey).some(
             (draftThread) => draftThread.environmentId === environmentId,
@@ -3017,35 +3007,6 @@ const composerDraftStore = create<ComposerDraftStoreState>()(
             };
           });
         },
-        removeTerminalContext: (threadRef, contextId) => {
-          const threadKey = resolveComposerDraftKey(get(), threadRef) ?? "";
-          if (threadKey.length === 0 || contextId.length === 0) {
-            return;
-          }
-          set((state) => {
-            const current = state.draftsByThreadKey[threadKey];
-            if (!current) {
-              return state;
-            }
-            const nextDraft: ComposerThreadDraftState = {
-              ...current,
-              prompt: removeInlineContextReference(
-                current.prompt,
-                toKindScopedComposerContextId("terminal", contextId),
-              ).prompt,
-              terminalContexts: current.terminalContexts.filter(
-                (context) => context.id !== contextId,
-              ),
-            };
-            const nextDraftsByThreadKey = { ...state.draftsByThreadKey };
-            if (shouldRemoveDraft(nextDraft)) {
-              delete nextDraftsByThreadKey[threadKey];
-            } else {
-              nextDraftsByThreadKey[threadKey] = nextDraft;
-            }
-            return { draftsByThreadKey: nextDraftsByThreadKey };
-          });
-        },
         clearTerminalContexts: (threadRef) => {
           const threadKey = resolveComposerDraftKey(get(), threadRef) ?? "";
           if (threadKey.length === 0) {
@@ -3111,31 +3072,6 @@ const composerDraftStore = create<ComposerDraftStoreState>()(
                 },
               },
             };
-          });
-        },
-        setPreviewAnnotations: (threadRef, annotations) => {
-          const threadKey = resolveComposerDraftKey(get(), threadRef);
-          if (!threadKey) return;
-          set((state) => {
-            const existing = state.draftsByThreadKey[threadKey] ?? createEmptyThreadDraft();
-            const retainedIds = new Set(annotations.map((annotation) => annotation.id));
-            let prompt = existing.prompt;
-            for (const previous of existing.previewAnnotations) {
-              if (retainedIds.has(previous.id)) continue;
-              prompt = removeInlineContextReference(
-                prompt,
-                previewAnnotationContextId(previous.id),
-              ).prompt;
-            }
-            prompt = ensureInlineContextReferences(
-              prompt,
-              annotations.map(previewAnnotationContextReference),
-            );
-            const nextDraft = { ...existing, prompt, previewAnnotations: [...annotations] };
-            const nextDraftsByThreadKey = { ...state.draftsByThreadKey };
-            if (shouldRemoveDraft(nextDraft)) delete nextDraftsByThreadKey[threadKey];
-            else nextDraftsByThreadKey[threadKey] = nextDraft;
-            return { draftsByThreadKey: nextDraftsByThreadKey };
           });
         },
         removePreviewAnnotation: (threadRef, annotationId) => {

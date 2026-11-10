@@ -55,10 +55,7 @@ import {
   type TurnItemId,
 } from "@supaterm/contracts";
 import type { ThreadRunSummary } from "@supaterm/client-runtime/state/shell";
-import {
-  resolveSupatermMcpToolDefinition,
-  resolveSupatermMcpToolPresentation,
-} from "@supaterm/shared/supatermMcpToolPresentation";
+import { resolveSupatermMcpToolDefinition } from "@supaterm/shared/supatermMcpToolPresentation";
 import { compactDynamicToolOutput } from "@supaterm/shared/toolOutput";
 import { htmlRenderReferencesEqual, type HtmlRenderReference } from "@supaterm/shared/htmlRender";
 import { mcpAppReferencesEqual, type McpAppReference } from "@supaterm/shared/mcpApp";
@@ -684,7 +681,6 @@ function workGroupId(timelineEntryId: string): string {
   return `work-group:${timelineEntryId}`;
 }
 
-export const resolveTimelineToolPresentation = resolveSupatermMcpToolPresentation;
 function expandedWorkGroupRow(
   groupId: string,
   createdAt: string,

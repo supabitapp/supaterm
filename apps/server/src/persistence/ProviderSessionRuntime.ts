@@ -43,9 +43,6 @@ export type ProviderSessionRuntime = typeof ProviderSessionRuntime.Type;
 export const GetProviderSessionRuntimeInput = Schema.Struct({ threadId: ThreadId });
 export type GetProviderSessionRuntimeInput = typeof GetProviderSessionRuntimeInput.Type;
 
-export const DeleteProviderSessionRuntimeInput = Schema.Struct({ threadId: ThreadId });
-export type DeleteProviderSessionRuntimeInput = typeof DeleteProviderSessionRuntimeInput.Type;
-
 export const RecordImportedTranscriptInput = Schema.Struct({
   threadId: ThreadId,
   source: AgentSessionImportSource,
@@ -81,10 +78,6 @@ export class ProviderSessionRuntimeRepository extends Context.Service<
       ReadonlyArray<ProviderSessionRuntime>,
       ProviderSessionRuntimeRepositoryError
     >;
-
-    readonly deleteByThreadId: (
-      input: DeleteProviderSessionRuntimeInput,
-    ) => Effect.Effect<void, ProviderSessionRuntimeRepositoryError>;
   }
 >()("supaterm/persistence/ProviderSessionRuntime/ProviderSessionRuntimeRepository") {}
 
@@ -112,8 +105,6 @@ const decodeRuntimeRow = Schema.decodeUnknownEffect(ProviderSessionRuntimeDbRowS
 const GetRuntimeRequestSchema = Schema.Struct({
   threadId: ThreadId,
 });
-
-const DeleteRuntimeRequestSchema = GetRuntimeRequestSchema;
 
 const RecordImportedTranscriptRequestSchema = RecordImportedTranscriptInput.mapFields(
   Struct.assign({ source: Schema.fromJsonString(AgentSessionImportSource) }),
@@ -323,15 +314,6 @@ export const make = Effect.gen(function* () {
       `,
   });
 
-  const deleteRuntimeByThreadId = SqlSchema.void({
-    Request: DeleteRuntimeRequestSchema,
-    execute: ({ threadId }) =>
-      sql`
-        DELETE FROM provider_session_runtime
-        WHERE thread_id = ${threadId}
-      `,
-  });
-
   const upsert: ProviderSessionRuntimeRepository["Service"]["upsert"] = (runtime, options) =>
     (options?.onConflict === "ignore" ? insertRuntimeRow(runtime) : upsertRuntimeRow(runtime)).pipe(
       Effect.mapError(
@@ -416,26 +398,11 @@ export const make = Effect.gen(function* () {
       ),
     );
 
-  const deleteByThreadId: ProviderSessionRuntimeRepository["Service"]["deleteByThreadId"] = (
-    input,
-  ) =>
-    deleteRuntimeByThreadId(input).pipe(
-      Effect.mapError(
-        (cause) =>
-          new PersistenceSqlError({
-            operation: "ProviderSessionRuntimeRepository.deleteByThreadId:query",
-            correlation: { threadId: input.threadId },
-            cause,
-          }),
-      ),
-    );
-
   return {
     upsert,
     recordImportedTranscript,
     getByThreadId,
     list,
-    deleteByThreadId,
   } satisfies ProviderSessionRuntimeRepository["Service"];
 });
 

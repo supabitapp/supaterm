@@ -411,7 +411,6 @@ export const PreviewAutomationActInputs = {
   press: PreviewAutomationPressInput,
   scroll: PreviewAutomationScrollInput,
 } as const;
-export type PreviewAutomationAction = keyof typeof PreviewAutomationActInputs;
 
 /** One flat shape for every page action. The server decodes it with the action's strict input. */
 export const PreviewAutomationActInput = Schema.Struct({

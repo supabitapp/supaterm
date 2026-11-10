@@ -8,7 +8,6 @@ import {
   type OrchestrationV2RunAttempt,
   type OrchestrationV2ThreadProjection,
   type OrchestrationV2TurnItem,
-  type PlanId,
   type RunId,
   type ToolActivitySurface,
   type ToolActivityIcon,
@@ -109,15 +108,6 @@ export interface ActivePlanState {
     readonly status: "pending" | "inProgress" | "completed";
     readonly durationMs?: number;
   }>;
-}
-
-export interface LatestProposedPlanState {
-  readonly id: PlanId;
-  readonly createdAt: string;
-  readonly updatedAt: string;
-  readonly runId: RunId | null;
-  readonly planMarkdown: string;
-  readonly status: OrchestrationV2PlanArtifact["status"];
 }
 
 export type TimelineAttempt = Pick<
@@ -316,38 +306,6 @@ function planItemTime(
   return DateTime.formatIso(
     run?.completedAt ?? run?.startedAt ?? run?.requestedAt ?? projection.thread.createdAt,
   );
-}
-
-function toLatestProposedPlanState(
-  projection: ThreadStructure,
-  plan: Extract<OrchestrationV2PlanArtifact, { readonly kind: "proposed_plan" }>,
-): LatestProposedPlanState {
-  const updatedAt = planItemTime(projection, plan);
-  return {
-    id: plan.id,
-    createdAt: updatedAt,
-    updatedAt,
-    runId: plan.runId,
-    planMarkdown: plan.markdown,
-    status: plan.status,
-  };
-}
-
-export function findLatestProposedPlan(
-  projection: ThreadStructure | null,
-  latestRunId: RunId | string | null | undefined,
-): LatestProposedPlanState | null {
-  if (projection === null) return null;
-  const plans = projection.plans.filter((plan) => plan.kind === "proposed_plan");
-  const candidates = latestRunId ? plans.filter((plan) => plan.runId === latestRunId) : plans;
-  const plan = [...(candidates.length > 0 ? candidates : plans)]
-    .toSorted(
-      (left, right) =>
-        planItemTime(projection, left).localeCompare(planItemTime(projection, right)) ||
-        left.id.localeCompare(right.id),
-    )
-    .at(-1);
-  return plan === undefined ? null : toLatestProposedPlanState(projection, plan);
 }
 
 const STANDALONE_V2_ITEM_TYPES = new Set<OrchestrationV2ProjectedTurnItem["item"]["type"]>([
