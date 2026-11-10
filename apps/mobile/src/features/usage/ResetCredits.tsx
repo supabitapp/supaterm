@@ -4,7 +4,7 @@ import type {
   ProviderConsumeResetCreditOutcome,
   ServerProviderResetCredits,
 } from "@supaterm/contracts";
-import { formatDuration } from "@supaterm/shared/usageLimits";
+import { type ResetCreditChoice, resetCreditChoices } from "@supaterm/shared/usageLimits";
 import { useState } from "react";
 import { Pressable, View } from "react-native";
 
@@ -39,24 +39,16 @@ export function ResetCredits(props: {
   });
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
-  const confirm = useInlineConfirm<"reset">();
-  const armed = confirm.armed === "reset";
+  const confirm = useInlineConfirm<string>();
   if (dense && credits.availableCount === 0 && status === null) return null;
 
-  const expiresIn = credits.nextExpiresAt
-    ? formatDuration(Date.parse(credits.nextExpiresAt) - now)
-    : null;
-  const summary =
-    credits.availableCount === 0
-      ? "No reset credits banked"
-      : `${credits.availableCount} ${credits.availableCount === 1 ? "reset credit" : "reset credits"} banked${
-          expiresIn ? ` · next expires in ${expiresIn}` : ""
-        }`;
+  const choices = resetCreditChoices(credits, input, now);
+  const armedChoice = choices.find((choice) => choice.key === confirm.armed);
 
-  const redeem = async () => {
+  const redeem = async (choice: ResetCreditChoice) => {
     setBusy(true);
     setStatus(null);
-    const result = await consume({ environmentId, input });
+    const result = await consume({ environmentId, input: choice.input });
     setBusy(false);
     if (result._tag === "Success") {
       setStatus(result.value.warning ?? OUTCOME_TEXT[result.value.outcome]);
@@ -70,35 +62,41 @@ export function ResetCredits(props: {
   };
 
   return (
-    <View className="flex-row flex-wrap items-center gap-x-3 gap-y-1">
-      <Text className="text-xs tabular-nums text-foreground-tertiary">{summary}</Text>
-      {credits.availableCount > 0 ? (
-        <Pressable
-          accessibilityRole="button"
-          accessibilityState={{ disabled: busy }}
-          disabled={busy}
-          {...confirm.bind("reset", () => void redeem())}
-          className={
-            dense
-              ? "rounded-full bg-subtle-strong px-2.5 py-1"
-              : "min-h-[44px] justify-center rounded-full bg-subtle-strong px-3 py-1.5"
-          }
-        >
-          <Text
-            className={
-              dense
-                ? "text-xs font-supaterm-medium text-foreground"
-                : "text-sm font-supaterm-medium text-foreground"
-            }
-          >
-            {busy ? "Using…" : armed ? "Confirm reset" : "Use reset"}
-          </Text>
-        </Pressable>
-      ) : null}
-      {armed ? (
-        <Text className="text-sm text-foreground-muted">
-          Uses one credit and clears the current rate-limit windows. This can't be undone.
-        </Text>
+    <View className="gap-1">
+      {choices.map((choice) => (
+        <View key={choice.key} className="flex-row flex-wrap items-center gap-x-3 gap-y-1">
+          <Text className="text-xs tabular-nums text-foreground-tertiary">{choice.summary}</Text>
+          {choice.availableCount > 0 ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityState={{ disabled: busy }}
+              disabled={busy}
+              {...confirm.bind(choice.key, () => void redeem(choice))}
+              className={
+                dense
+                  ? "rounded-full bg-subtle-strong px-2.5 py-1"
+                  : "min-h-[44px] justify-center rounded-full bg-subtle-strong px-3 py-1.5"
+              }
+            >
+              <Text
+                className={
+                  dense
+                    ? "text-xs font-supaterm-medium text-foreground"
+                    : "text-sm font-supaterm-medium text-foreground"
+                }
+              >
+                {busy
+                  ? "Using…"
+                  : confirm.armed === choice.key
+                    ? "Confirm reset"
+                    : choice.actionLabel}
+              </Text>
+            </Pressable>
+          ) : null}
+        </View>
+      ))}
+      {armedChoice ? (
+        <Text className="text-sm text-foreground-muted">{armedChoice.confirmDescription}</Text>
       ) : status ? (
         <Text className="text-sm text-foreground">{status}</Text>
       ) : null}
