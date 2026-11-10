@@ -393,11 +393,6 @@
                   }
                 ],
                 "promptInjectedValues": ["ultrathink"]
-              },
-              {
-                "id": "fastMode",
-                "label": "Fast Mode",
-                "type": "boolean"
               }
             ]
           },
@@ -442,11 +437,6 @@
                   }
                 ],
                 "promptInjectedValues": ["ultrathink"]
-              },
-              {
-                "id": "fastMode",
-                "label": "Fast Mode",
-                "type": "boolean"
               },
               {
                 "id": "contextWindow",
@@ -509,11 +499,6 @@
                     "label": "Max"
                   }
                 ]
-              },
-              {
-                "id": "fastMode",
-                "label": "Fast Mode",
-                "type": "boolean"
               }
             ]
           },
