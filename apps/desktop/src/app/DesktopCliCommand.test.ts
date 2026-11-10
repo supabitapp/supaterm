@@ -1,6 +1,7 @@
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { afterEach, beforeEach, expect, it } from "@effect/vitest";
 import * as Deferred from "effect/Deferred";
+import * as HostProcess from "@supaterm/shared/HostProcess";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
 import * as Option from "effect/Option";
@@ -51,12 +52,14 @@ const commandIn = (
 
 /** `inherited` stands in for the app's own environment, which `extendEnv` passes on. */
 const fakePowerShell = (initial: string, inherited: Record<string, string> = {}) => {
-  const registry = { path: initial, failReads: false, writes: 0 };
+  const registry = { path: initial, failReads: false, writes: 0, commands: [] as Array<string> };
   const spawner = ChildProcessSpawner.make((command) =>
     Effect.sync(() => {
-      const { options } = command as unknown as {
+      const { options, command: executable } = command as unknown as {
+        readonly command: string;
         readonly options: { readonly env?: Record<string, string>; readonly extendEnv?: boolean };
       };
+      registry.commands.push(executable);
       const env = { ...(options.extendEnv ? inherited : {}), ...options.env };
       let exitCode = 0;
       let stdout = "";
@@ -464,13 +467,18 @@ it.layer(NodeServices.layer)("DesktopCliCommand", (it) => {
       const home = yield* fs.makeTempDirectoryScoped();
       const userPath = "C:\\Users\\Me\\npm;%USERPROFILE%\\tools";
       const { registry, spawner } = fakePowerShell(userPath);
-      const command = yield* commandIn({ home, platform: "win32" }, spawner);
+      const command = yield* commandIn({ home, platform: "win32" }, spawner).pipe(
+        Effect.provideService(HostProcess.Environment, { SystemRoot: "C:\\Windows" }),
+      );
 
       registry.failReads = true;
       yield* command.installAutomatically;
       const error = yield* Effect.flip(command.install);
       expect(error.message).toContain("left unchanged");
       expect(registry).toMatchObject({ path: userPath, writes: 0 });
+      expect(new Set(registry.commands)).toEqual(
+        new Set(["C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe"]),
+      );
 
       registry.failReads = false;
       const launcherDir = DesktopCliShim.launcherPath(
