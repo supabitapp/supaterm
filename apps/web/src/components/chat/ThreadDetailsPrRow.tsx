@@ -109,7 +109,7 @@ export function ThreadDetailsPrRow({
   reference: linkedReference,
   status,
   project,
-  label,
+  title,
   openAriaLabel,
   composerTarget,
   onOpen,
@@ -122,7 +122,7 @@ export function ThreadDetailsPrRow({
   reference?: Pick<PullRequestRef, "host" | "repository" | "number"> | null;
   status: PrStatusIndicator | null;
   project: EnvironmentProject | null;
-  label: string;
+  title: string | null;
   openAriaLabel: string;
   composerTarget: ScopedThreadRef | DraftId;
   onOpen: (event: ReactMouseEvent<HTMLElement>) => void;
@@ -466,7 +466,13 @@ export function ThreadDetailsPrRow({
   const rowContent = (
     <>
       {icon}
-      <span className="min-w-0 flex-1 truncate text-left">{label}</span>
+      {/* The title wraps onto the clipped second line when it cannot show a few characters. */}
+      <span className="flex h-4 min-w-0 flex-1 flex-wrap overflow-hidden text-left">
+        <span className="shrink-0">#{number}</span>
+        {title ? (
+          <span className="min-w-8 flex-1 basis-0 truncate contain-inline-size">: {title}</span>
+        ) : null}
+      </span>
       {autoMergeArmed ? (
         <PullRequestGlyph.merged
           role="img"
@@ -490,7 +496,7 @@ export function ThreadDetailsPrRow({
                 type="button"
                 variant="ghost"
                 size="sm"
-                part={detail === null ? "secondary" : "checks"}
+                part={detail === null ? "secondary" : "icon-segment"}
                 className="group/watch"
                 aria-label={`Stop watching #${number}`}
                 onClick={onStopWatching}
@@ -599,6 +605,7 @@ export function ThreadDetailsPrRow({
                   variant="ghost"
                   size="sm"
                   part="link-primary"
+                  className="min-w-min"
                   aria-label={openAriaLabel}
                   onClick={onOpen}
                   onAuxClick={onOpen}
@@ -658,6 +665,7 @@ export function ThreadDetailsPrRow({
                   variant="ghost"
                   size="sm"
                   part="link-primary"
+                  className="min-w-min"
                   aria-label={openAriaLabel}
                   onClick={onOpen}
                   onAuxClick={onOpen}

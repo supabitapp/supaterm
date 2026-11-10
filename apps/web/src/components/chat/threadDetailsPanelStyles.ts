@@ -54,4 +54,6 @@ export const THREAD_DETAILS_PANEL_SPLIT_SECONDARY_CLASS = `${THREAD_DETAILS_PANE
 export const THREAD_DETAILS_PANEL_SPLIT_SEPARATOR_CLASS =
   "h-4 w-px shrink-0 bg-transparent group-hover/details-split:bg-border/65 group-has-[[data-popup-open]]/details-split:bg-border/65";
 
-export const THREAD_DETAILS_PANEL_SPLIT_CHECKS_CLASS = `${THREAD_DETAILS_PANEL_CONTROL_CLASS} min-w-6 pointer-coarse:min-w-11 justify-center gap-1.5 rounded-none ${THREAD_DETAILS_PANEL_SPLIT_BUTTON_SURFACE_CLASS}`;
+export const THREAD_DETAILS_PANEL_SPLIT_CHECKS_CLASS = `${THREAD_DETAILS_PANEL_CONTROL_CLASS} min-w-6 pointer-coarse:min-w-11 justify-center rounded-none ${THREAD_DETAILS_PANEL_SPLIT_BUTTON_SURFACE_CLASS}`;
+
+export const THREAD_DETAILS_PANEL_SPLIT_ICON_CLASS = `${THREAD_DETAILS_PANEL_CONTROL_CLASS} w-6 pointer-coarse:w-11 justify-center rounded-none px-0 ${THREAD_DETAILS_PANEL_SPLIT_BUTTON_SURFACE_CLASS}`;
