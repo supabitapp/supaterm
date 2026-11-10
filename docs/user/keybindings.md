@@ -194,6 +194,11 @@ Fast mode on or off for the selected model. `conversation.scrollUp`, `conversati
 and `conversation.scrollToEnd` scroll the focused thread. These are unbound by default; a
 [Codex Micro](./codex-micro.md) keyboard uses them.
 
+`conversation.previousTurn` (`alt+arrowup` by default) and `conversation.nextTurn`
+(`alt+arrowdown`) jump between your messages in the focused thread, like the arrows on the
+timeline's left edge. Hold the keys to keep stepping. They work while focus is outside a text
+field, so they leave caret movement in the composer alone.
+
 `pane.focus.1` through `pane.focus.4` (`mod+alt+1` to `mod+alt+4`) focus a pane
 when [threads are side by side](./thread-sidebar.md#open-threads-side-by-side),
 numbered top to bottom, then left to right. `pane.close` closes the focused pane

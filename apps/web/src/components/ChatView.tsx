@@ -285,7 +285,10 @@ import {
 } from "./chat/ChatOverlayHosts";
 import type { AssistantCitationRequest } from "./chat/AssistantCitationSource";
 import { useCitedHistory } from "./chat/citationProcedure";
-import type { MessagesTimelineHistoryControls } from "./chat/MessagesTimeline";
+import type {
+  MessagesTimelineHistoryControls,
+  TimelineTurnNavigation,
+} from "./chat/MessagesTimeline";
 import type { PinnableProjectedItem } from "./chat/PinnedMessages";
 import type { MessageJump, MessageJumpFailure } from "@supaterm/client-runtime/message-jump";
 import { ThreadTimeline } from "./chat/ThreadTimeline";
@@ -752,6 +755,7 @@ export default function ChatView(props: ChatViewProps) {
   const [terminalUiLaunchContext, setTerminalUiLaunchContext] =
     useState<TerminalLaunchContext | null>(null);
   const legendListRef = useRef<LegendListRef | null>(null);
+  const timelineTurnNavigationRef = useRef<TimelineTurnNavigation | null>(null);
   const getTimelineScrollableNode = () => legendListRef.current?.getScrollableNode() ?? null;
   const getTimelineScrollableNodeStable = useStableCallback(getTimelineScrollableNode);
   const [composerOverlayElement, setComposerOverlayElement] = useState<HTMLDivElement | null>(null);
@@ -2902,6 +2906,10 @@ export default function ChatView(props: ChatViewProps) {
       "pane.focus.2": () => focusPaneIndexFromKeyboard(1),
       "pane.focus.3": () => focusPaneIndexFromKeyboard(2),
       "pane.focus.4": () => focusPaneIndexFromKeyboard(3),
+      "conversation.previousTurn": ({ repeat }) =>
+        timelineTurnNavigationRef.current?.step(-1, repeat) ?? false,
+      "conversation.nextTurn": ({ repeat }) =>
+        timelineTurnNavigationRef.current?.step(1, repeat) ?? false,
       "thread.copyReference": ({ repeat }) => {
         if (!repeat) copyActiveThreadReferenceStable();
       },
@@ -3572,6 +3580,7 @@ export default function ChatView(props: ChatViewProps) {
                         )
                       }
                       listRef={legendListRef}
+                      turnNavigationRef={timelineTurnNavigationRef}
                       runs={serverProjection?.runs ?? []}
                       latestRun={activeActivityRun}
                       runningRunId={activeRunningTurnId}
