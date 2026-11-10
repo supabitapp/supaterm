@@ -115,8 +115,9 @@ export function useSideChat(input: {
   const openDraft = (prompt = "") => {
     const { parent } = input;
     if (!parent) return null;
-    const { runtimeMode = parent.runtimeMode, modelSelection = parent.modelSelection } =
-      input.readSettings();
+    const settings = input.readSettings();
+    const runtimeMode = settings.runtimeMode ?? parent.runtimeMode;
+    const modelSelection = settings.modelSelection ?? parent.modelSelection;
     const draftId = newDraftId();
     const threadId = newThreadId();
     const store = useComposerDraftStore.getState();
