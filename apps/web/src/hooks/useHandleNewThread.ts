@@ -40,9 +40,24 @@ import { environmentServerConfigsAtom } from "../state/server";
 import { resolveThreadRouteTarget } from "../threadRoutes";
 import { useUiStateStore } from "../uiStateStore";
 import { getClientSettings } from "./useSettings";
+import { getLocalStorageItem, useLocalStorage } from "./useLocalStorage";
+import * as Schema from "effect/Schema";
+import { useAtomValue } from "@effect/atom-react";
+import { defaultProjectFallbackReadyAtom } from "../state/projects";
 import { useThreadRouteTarget } from "./useThreadRouteTarget";
 import { resolveProjectDefaultProviderModelSelection } from "../providerInstances";
 import { resolveNewThreadModelSelection } from "@supaterm/shared/usageLimits";
+
+export const LAST_USED_PROJECT_STORAGE_KEY = "supaterm:last-used-project:v1";
+export const lastUsedProjectKeySchema = Schema.NullOr(Schema.String);
+
+export function readLastUsedProjectKey(): string | null {
+  try {
+    return getLocalStorageItem(LAST_USED_PROJECT_STORAGE_KEY, lastUsedProjectKeySchema);
+  } catch {
+    return null;
+  }
+}
 
 interface NewThreadWorkspaceOptions {
   branch?: string | null;
@@ -373,11 +388,23 @@ export function createNewThreadHandler(router: AnyRouter) {
   };
 }
 
-/** The first project in the user's sidebar order, where a new thread lands without other context. */
+/**
+ * Where a new thread lands without other context: the last used project, else the first in
+ * the user's sidebar order once the remembered project's environment has had a chance to load.
+ */
 export function resolveDefaultProjectRef(
   projects: ReturnType<typeof readProjects>,
   projectOrder: readonly string[],
+  lastUsedProjectKey: string | null,
+  fallbackReady = true,
 ): ScopedProjectRef | null {
+  const lastUsed = projects.find(
+    (project) =>
+      project.archivedAt == null &&
+      scopedProjectKey(scopeProjectRef(project.environmentId, project.id)) === lastUsedProjectKey,
+  );
+  if (lastUsed) return scopeProjectRef(lastUsed.environmentId, lastUsed.id);
+  if (!fallbackReady) return null;
   const [first] = orderItemsByPreferredIds({
     items: projects.filter((project) => project.archivedAt == null),
     preferredIds: projectOrder,
@@ -413,11 +440,14 @@ export function startNewThreadInCurrentProject(
   router: AnyRouter,
   handleNewThread: NewThreadHandler,
 ) {
+  const lastUsedProjectKey = readLastUsedProjectKey();
   return startNewThreadFromContext({
     ...readRouteThreadContext(router),
     defaultProjectRef: resolveDefaultProjectRef(
       readProjects(),
       useUiStateStore.getState().projectOrder,
+      lastUsedProjectKey,
+      appAtomRegistry.get(defaultProjectFallbackReadyAtom(lastUsedProjectKey)),
     ),
     handleNewThread,
   });
@@ -432,6 +462,14 @@ export function useStartNewThreadInCurrentProject() {
 
 export function useHandleNewThread() {
   const projectOrder = useUiStateStore((store) => store.projectOrder);
+  const [lastUsedProjectKey] = useLocalStorage(
+    LAST_USED_PROJECT_STORAGE_KEY,
+    null,
+    lastUsedProjectKeySchema,
+  );
+  const defaultProjectFallbackReady = useAtomValue(
+    defaultProjectFallbackReadyAtom(lastUsedProjectKey),
+  );
   const routeTarget = useThreadRouteTarget();
   const routeThreadRef = routeTarget?.kind === "server" ? routeTarget.threadRef : null;
   const routeDraftId = routeTarget?.kind === "draft" ? routeTarget.draftId : null;
@@ -446,12 +484,18 @@ export function useHandleNewThread() {
   );
   const projects = useProjects();
   const handleNewThread = useNewThreadHandler();
-  const defaultProjectRef = resolveDefaultProjectRef(projects, projectOrder);
+  const defaultProjectRef = resolveDefaultProjectRef(
+    projects,
+    projectOrder,
+    lastUsedProjectKey,
+    defaultProjectFallbackReady,
+  );
 
   return {
     activeDraftThread,
     activeThread,
     defaultProjectRef,
+    defaultProjectFallbackReady,
     handleNewThread,
     routeDraftId,
     routeThreadRef,
