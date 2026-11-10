@@ -135,11 +135,6 @@ export function useQuietSidebarThreadShells(): ReadonlyArray<EnvironmentThreadSh
   return useAtomValue(sidebarThreadShells.quietThreadShellsAtom);
 }
 
-/** Every thread shell, held through streaming ticks; see quietThreadShellAtom. */
-export function useQuietThreadShells(): ReadonlyArray<EnvironmentThreadShell> {
-  return useAtomValue(environmentThreadShells.quietThreadShellsAtom);
-}
-
 export function useAllEnvironmentShellsBootstrapped(): boolean {
   return useAtomValue(allEnvironmentShellsBootstrappedAtom);
 }
@@ -232,12 +227,6 @@ export function useChildThreadInputs(ref: ScopedThreadRef | null) {
   );
 }
 
-export function useSideChats(ref: ScopedThreadRef | null) {
-  return useAtomValue(
-    ref === null ? EMPTY_THREAD_SHELLS_ATOM : environmentThreadShells.sideChatsAtom(ref),
-  );
-}
-
 export function readSideChats(ref: ScopedThreadRef): ReadonlyArray<EnvironmentThreadShell> {
   return appAtomRegistry.get(environmentThreadShells.sideChatsAtom(ref));
 }
@@ -299,16 +288,6 @@ export function resolveThreadDetailRef(
   },
 ): ScopedThreadRef | null {
   return ref !== null && (!options.waitForShell || options.shellExists) ? ref : null;
-}
-
-export function useThreadVisibleTurnItems(
-  ref: ScopedThreadRef | null,
-): ReadonlyArray<OrchestrationV2ProjectedTurnItem> {
-  return useAtomValue(
-    ref === null
-      ? EMPTY_VISIBLE_TURN_ITEMS_ATOM
-      : environmentThreadDetails.visibleTurnItemsAtom(ref),
-  );
 }
 
 /** Visible turn items held through streamed assistant text; see useAssistantMessageText. */

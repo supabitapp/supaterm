@@ -3580,7 +3580,6 @@ export default function ChatView(props: ChatViewProps) {
                         displayedThreadRef?.environmentId ?? activeThread.environmentId
                       }
                       routeThreadKey={displayedTimelineKey}
-                      displayThreadKey={displayedTimelineKey}
                       onOpenToolDiff={onOpenToolDiffStable}
                       onOpenTurnDiff={onOpenTurnDiffStable}
                       onOpenThread={onOpenRelatedThreadStable}

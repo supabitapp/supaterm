@@ -37,8 +37,6 @@ import type { RunAttemptId } from "@supaterm/contracts";
 // Match the titlebar fade inset so draft promotion preserves the first row's position.
 export const CHAT_TIMELINE_ANCHOR_OFFSET = 24;
 
-export type TimelineScrollMode = "following-end" | "anchoring-new-turn" | "free-scrolling";
-
 interface TimelineListMeasurementState {
   readonly data: readonly unknown[];
   readonly scroll: number;

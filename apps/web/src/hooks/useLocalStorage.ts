@@ -1,5 +1,4 @@
 import * as Schema from "effect/Schema";
-import * as Record from "effect/Record";
 import { useSyncExternalStore } from "react";
 
 export class LocalStorageOperationError extends Schema.TaggedError<LocalStorageOperationError>()(
@@ -20,7 +19,7 @@ const fallbackStorage: Storage = (() => {
   return {
     clear: () => store.clear(),
     getItem: (_) => store.get(_) ?? null,
-    key: (_) => Record.keys(store).at(_) ?? null,
+    key: (_) => [...store.keys()].at(_) ?? null,
     get length() {
       return store.size;
     },

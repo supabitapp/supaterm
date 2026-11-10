@@ -264,7 +264,6 @@ interface MessagesTimelineProps {
   runningRunId?: RunId | null;
   turnDiffSummaries: ReadonlyArray<TurnDiffSummary>;
   routeThreadKey: string;
-  displayThreadKey?: string;
   /** Off where another region already speaks the thread's status, like a subagent's bar. */
   announceTurnStatus?: boolean;
   onOpenTurnDiff: (runId: RunId, filePath?: string) => void;
@@ -378,7 +377,6 @@ const ConversationTimeline = memo(function ConversationTimeline({
   runningRunId = null,
   turnDiffSummaries,
   routeThreadKey,
-  displayThreadKey,
   announceTurnStatus = true,
   onOpenToolDiff,
   onOpenTurnDiff,
@@ -425,7 +423,7 @@ const ConversationTimeline = memo(function ConversationTimeline({
   messageJump = null,
   onMessageJumpFailed = NOOP_MESSAGE_JUMP_FAILED,
 }: MessagesTimelineProps) {
-  const listIdentityKey = displayThreadKey ?? routeThreadKey;
+  const listIdentityKey = routeThreadKey;
   // Keys typed outside every list reach each pane's viewport; only the focused pane's reacts.
   const isPaneInputOwner = usePaneInputOwner();
   // The remembered position is a snapshot taken when the list identity changes;

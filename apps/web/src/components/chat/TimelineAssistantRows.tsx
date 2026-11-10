@@ -304,7 +304,6 @@ const AssistantChangedFilesSection = memo(function AssistantChangedFilesSection(
   turnSummary: TurnDiffSummary | undefined;
   routeThreadKey: string;
   resolvedTheme: "light" | "dark";
-  displayThreadKey?: string;
   onOpenTurnDiff: (runId: RunId, filePath?: string) => void;
 }) {
   if (!turnSummary) return null;
@@ -333,7 +332,6 @@ function AssistantChangedFilesSectionInner({
   checkpointFiles: TurnDiffSummary["files"];
   routeThreadKey: string;
   resolvedTheme: "light" | "dark";
-  displayThreadKey?: string;
   onOpenTurnDiff: (runId: RunId, filePath?: string) => void;
 }) {
   const ctx = use(TimelineRowCtx);

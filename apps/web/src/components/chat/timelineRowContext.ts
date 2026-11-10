@@ -44,7 +44,6 @@ export interface TimelineRowSharedState {
   onRunShellCommand: ((command: string) => void) | undefined;
   findActive: boolean;
   onImageExpand: (preview: ExpandedImagePreview) => void;
-  displayThreadKey?: string;
   onOpenTurnDiff: (runId: RunId, filePath?: string) => void;
   onOpenToolDiff: ((target: ToolCallDiffTarget) => void) | undefined;
   onOpenThread: (threadId: OrchestrationV2TurnItem["threadId"]) => void;
