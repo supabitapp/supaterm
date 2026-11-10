@@ -374,17 +374,17 @@ it.effect.each(["live", "no-session", "unsupported-runtime"] as const)(
 );
 
 it.effect.each([
-  { status: "completed" as const, followUp: "none", settles: true },
-  { status: "failed" as const, followUp: "none", settles: false },
-  { status: "interrupted" as const, followUp: "none", settles: false },
-  { status: "completed" as const, followUp: "notification", settles: true },
-  { status: "completed" as const, followUp: "replayed-notification", settles: true },
-  { status: "completed" as const, followUp: "delegated", settles: true },
-  { status: "completed" as const, followUp: "failed-notification", settles: false },
-  { status: "completed" as const, followUp: "held-notification", settles: true },
-  { status: "completed" as const, followUp: "user", settles: false },
-  { status: "completed" as const, followUp: "steered-notification", settles: false },
-])("markDoneAfterRun handles $status with $followUp follow-up", ({ status, followUp, settles }) =>
+  { status: "completed" as const, followUp: "none", marksDone: true },
+  { status: "failed" as const, followUp: "none", marksDone: false },
+  { status: "interrupted" as const, followUp: "none", marksDone: false },
+  { status: "completed" as const, followUp: "notification", marksDone: true },
+  { status: "completed" as const, followUp: "replayed-notification", marksDone: true },
+  { status: "completed" as const, followUp: "delegated", marksDone: true },
+  { status: "completed" as const, followUp: "failed-notification", marksDone: false },
+  { status: "completed" as const, followUp: "held-notification", marksDone: true },
+  { status: "completed" as const, followUp: "user", marksDone: false },
+  { status: "completed" as const, followUp: "steered-notification", marksDone: false },
+])("markDoneAfterRun handles $status with $followUp follow-up", ({ status, followUp, marksDone }) =>
   Effect.gen(function* () {
     const projectId = ProjectId.make("project:thread-management:mark-done-after-run");
     const threadId = ThreadId.make("thread:thread-management:mark-done-after-run");
@@ -514,7 +514,7 @@ it.effect.each([
       } as unknown as OrchestrationV2StoredEvent);
     }
     yield* Fiber.join(fiber);
-    expect(dispatched).toEqual(settles ? ["thread.mark-done"] : []);
+    expect(dispatched).toEqual(marksDone ? ["thread.mark-done"] : []);
   }),
 );
 
