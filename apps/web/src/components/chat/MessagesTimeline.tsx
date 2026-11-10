@@ -1239,7 +1239,17 @@ const ConversationTimeline = memo(function ConversationTimeline({
     const scrollNode: HTMLElement | null = list?.getScrollableNode() ?? null;
     registerTimeline?.(scrollNode);
     const viewport = scrollNode
-      ? attachTimelineViewport(scrollNode, { isInputOwner: isPaneInputOwner })
+      ? attachTimelineViewport(scrollNode, {
+          isInputOwner: isPaneInputOwner,
+          onFrameResize: (frame) => {
+            const rowId =
+              frame.closest<HTMLElement>("[data-timeline-row-id]")?.dataset.timelineRowId;
+            if (rowId && list) {
+              list.cancelScroll();
+              list.anchorVisibleContent({ key: rowId });
+            }
+          },
+        })
       : null;
     viewportRef.current = viewport;
     const detachViewport = viewport ? onViewportAttach?.(viewport) : undefined;

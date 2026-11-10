@@ -225,6 +225,59 @@ const TASK_ID = ScheduledTaskId.make("task-1");
 const AUTOMATION_PROMPT = "Triage the inbox\n\nLabel every new issue and close duplicates.";
 
 describe("MessagesTimeline work rows", () => {
+  it("keeps a tall HTML preview in place when its last accordion opens at the bottom", async () => {
+    const props = baseProps();
+    const html = injectHtmlRenderBootstrap(`<div style="height:1400px">Earlier preview content</div>
+      <details><summary>More rows</summary><div style="height:900px">More rows</div></details>
+      <script>addEventListener('message', e => { if(e.data === 'toggle') document.querySelector('details').open = !document.querySelector('details').open; });</script>`);
+    const src = URL.createObjectURL(new Blob([html], { type: "text/html" }));
+    using _url = { [Symbol.dispose]: () => URL.revokeObjectURL(src) };
+    renderAsset.url = src;
+    onTestFinished(() => {
+      renderAsset.url = "about:blank";
+    });
+    const container = document.createElement("div");
+    container.style.cssText = "height:600px;width:900px;display:flex;flex-direction:column";
+    await using screen = await render(
+      <MessagesTimeline
+        {...props}
+        timelineEntries={[
+          {
+            id: "preview",
+            kind: "html-render",
+            createdAt: CREATED_AT,
+            runId: RunId.make("preview-run"),
+            htmlRender: { attachmentId: "preview", title: "Tall preview", height: 1450 },
+          },
+          message("Done", { role: "assistant" }, "preview-done"),
+        ]}
+      />,
+      { container },
+    );
+    const viewport = props.listRef.current!.getScrollableNode()!;
+    const frame = screen.getByTitle("Tall preview").element() as HTMLIFrameElement;
+    await vi.waitFor(() => {
+      expect(frame.clientHeight).toBe(1437);
+      expect(viewport.scrollTop).toBeGreaterThan(0);
+      expect(viewport.scrollHeight - viewport.clientHeight - viewport.scrollTop).toBeLessThan(2);
+    });
+    const top = frame.getBoundingClientRect().top;
+    const contentTop = () => frame.getBoundingClientRect().top + viewport.scrollTop;
+    const anchor = contentTop();
+    frame.focus();
+    frame.contentWindow!.postMessage("toggle", "*");
+    await vi.waitFor(() => {
+      expect(frame.clientHeight).toBe(2337);
+      expect(frame.getBoundingClientRect().top).toBeCloseTo(top, 0);
+    });
+    frame.contentWindow!.postMessage("toggle", "*");
+    // Closing at the bottom can only clamp the scroll; the frame keeps its place in the content.
+    await vi.waitFor(() => {
+      expect(frame.clientHeight).toBe(1437);
+      expect(contentTop()).toBeCloseTo(anchor, 0);
+    });
+  });
+
   it("keeps the worked-for heading in place when expanded at the bottom", async () => {
     const props = baseProps();
     const runId = RunId.make("completed-run");
