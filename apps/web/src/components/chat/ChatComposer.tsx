@@ -2278,7 +2278,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     );
   };
   const handleSubmitMessageStable = useStableCallback(handleSubmitMessage);
-  const submitCitationAndSend = () => {
+  const submitCitationAndSend = () =>
     submitComposer(
       undefined,
       resolveComposerDispatchMode({
@@ -2287,8 +2287,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
         activeTurnDefault: followUpBehavior,
         canSteer: !isCompacting,
       }),
-    );
-  };
+    ) !== null;
   const submitCitationAndSendStable = useStableCallback(submitCitationAndSend);
   // A question took the editor while a citation comment was
   // unsaved. Keep the comment in the prompt that comes back afterward.
