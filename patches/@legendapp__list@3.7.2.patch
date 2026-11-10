@@ -1,8 +1,44 @@
 diff --git a/react-native.js b/react-native.js
-index 4af685dfb961eb0c8a4bf1ae9132c9304cf4fa4d..996760594fe5d4927c9cbcfb9f7558da6bbf2db4 100644
+index 4af685d..d8df1dd 100644
 --- a/react-native.js
 +++ b/react-native.js
-@@ -3441,7 +3441,10 @@ function evaluateBootstrapInitialScroll(ctx) {
+@@ -1795,7 +1795,35 @@ function resolvePendingNativeMVCPAdjust(ctx, newScroll) {
+   }
+   return false;
+ }
++// Supaterm patch: while following the end, a size-only change keeps the end in the same pass that
++// repositions the items. Native end following otherwise runs a frame later, after MVCP has
++// anchored the top row, so the feed visibly jumps twice.
++function shouldHoldEndOnSizeChange(ctx, dataChanged) {
++  const state = ctx.state;
++  return !dataChanged && !!state.props.maintainScrollAtEnd && !!state.didFinishInitialScroll && !state.endFollowInterrupted && !state.visibleContentAnchor && state.scrollingTo === void 0 && !state.isDragging && state.userScrollContentSize === void 0 && !!peek$(ctx, "isFollowingEnd");
++}
+ function prepareMVCP(ctx, dataChanged, adjustmentSource) {
++  const restore = prepareDefaultMVCP(ctx, dataChanged, adjustmentSource);
++  if (!shouldHoldEndOnSizeChange(ctx, dataChanged)) {
++    return restore;
++  }
++  return () => {
++    if (!shouldHoldEndOnSizeChange(ctx, dataChanged)) {
++      restore == null ? void 0 : restore();
++      return;
++    }
++    // Content that shrinks under an offset past its new end pulls the native offset back by itself.
++    const endOffset = getScrollRangeEnd(ctx);
++    if (ctx.state.scroll > endOffset) {
++      ctx.state.scroll = endOffset;
++    }
++    const positionDiff = endOffset - ctx.state.scroll;
++    if (Math.abs(positionDiff) > MVCP_POSITION_EPSILON) {
++      requestAdjust(ctx, positionDiff, adjustmentSource);
++    }
++  };
++}
++function prepareDefaultMVCP(ctx, dataChanged, adjustmentSource) {
+   var _a3, _b, _c;
+   const state = ctx.state;
+   const { idsInView, positions, props } = state;
+@@ -3441,7 +3469,10 @@ function evaluateBootstrapInitialScroll(ctx) {
      queueBootstrapInitialScrollReevaluation(state);
      return;
    }
@@ -15,10 +51,46 @@ index 4af685dfb961eb0c8a4bf1ae9132c9304cf4fa4d..996760594fe5d4927c9cbcfb9f7558da
    } else {
      clearBootstrapInitialScrollSession(state);
 diff --git a/react-native.mjs b/react-native.mjs
-index 9ebfddc183a9b202d35c990a387c9b628feeb185..0e3ed9b269b8c058a2682f009b8cf92e45491526 100644
+index 9ebfddc..c7448c6 100644
 --- a/react-native.mjs
 +++ b/react-native.mjs
-@@ -3420,7 +3420,10 @@ function evaluateBootstrapInitialScroll(ctx) {
+@@ -1774,7 +1774,35 @@ function resolvePendingNativeMVCPAdjust(ctx, newScroll) {
+   }
+   return false;
+ }
++// Supaterm patch: while following the end, a size-only change keeps the end in the same pass that
++// repositions the items. Native end following otherwise runs a frame later, after MVCP has
++// anchored the top row, so the feed visibly jumps twice.
++function shouldHoldEndOnSizeChange(ctx, dataChanged) {
++  const state = ctx.state;
++  return !dataChanged && !!state.props.maintainScrollAtEnd && !!state.didFinishInitialScroll && !state.endFollowInterrupted && !state.visibleContentAnchor && state.scrollingTo === void 0 && !state.isDragging && state.userScrollContentSize === void 0 && !!peek$(ctx, "isFollowingEnd");
++}
+ function prepareMVCP(ctx, dataChanged, adjustmentSource) {
++  const restore = prepareDefaultMVCP(ctx, dataChanged, adjustmentSource);
++  if (!shouldHoldEndOnSizeChange(ctx, dataChanged)) {
++    return restore;
++  }
++  return () => {
++    if (!shouldHoldEndOnSizeChange(ctx, dataChanged)) {
++      restore == null ? void 0 : restore();
++      return;
++    }
++    // Content that shrinks under an offset past its new end pulls the native offset back by itself.
++    const endOffset = getScrollRangeEnd(ctx);
++    if (ctx.state.scroll > endOffset) {
++      ctx.state.scroll = endOffset;
++    }
++    const positionDiff = endOffset - ctx.state.scroll;
++    if (Math.abs(positionDiff) > MVCP_POSITION_EPSILON) {
++      requestAdjust(ctx, positionDiff, adjustmentSource);
++    }
++  };
++}
++function prepareDefaultMVCP(ctx, dataChanged, adjustmentSource) {
+   var _a3, _b, _c;
+   const state = ctx.state;
+   const { idsInView, positions, props } = state;
+@@ -3420,7 +3448,10 @@ function evaluateBootstrapInitialScroll(ctx) {
      queueBootstrapInitialScrollReevaluation(state);
      return;
    }
@@ -31,7 +103,7 @@ index 9ebfddc183a9b202d35c990a387c9b628feeb185..0e3ed9b269b8c058a2682f009b8cf92e
    } else {
      clearBootstrapInitialScrollSession(state);
 diff --git a/react-native.web.js b/react-native.web.js
-index 515545471e08426fc90856256db9491db0ca4b92..3cc92658d86a4e8670537a6cd270c13f2e814a2f 100644
+index 5155454..3cc9265 100644
 --- a/react-native.web.js
 +++ b/react-native.web.js
 @@ -5646,8 +5646,11 @@ function measureContainersInLayoutEffect(ctx, targetContainerIds = null) {
@@ -137,7 +209,7 @@ index 515545471e08426fc90856256db9491db0ca4b92..3cc92658d86a4e8670537a6cd270c13f
        }
      });
 diff --git a/react-native.web.mjs b/react-native.web.mjs
-index ce08abe7ee62e8940f9c6ff169829244bd6bb736..8cffae10a22e8495feb47e2fc7427b42f241517d 100644
+index ce08abe..8cffae1 100644
 --- a/react-native.web.mjs
 +++ b/react-native.web.mjs
 @@ -5625,8 +5625,11 @@ function measureContainersInLayoutEffect(ctx, targetContainerIds = null) {
@@ -243,7 +315,7 @@ index ce08abe7ee62e8940f9c6ff169829244bd6bb736..8cffae10a22e8495feb47e2fc7427b42
        }
      });
 diff --git a/react.js b/react.js
-index 515545471e08426fc90856256db9491db0ca4b92..3cc92658d86a4e8670537a6cd270c13f2e814a2f 100644
+index 5155454..3cc9265 100644
 --- a/react.js
 +++ b/react.js
 @@ -5646,8 +5646,11 @@ function measureContainersInLayoutEffect(ctx, targetContainerIds = null) {
@@ -349,7 +421,7 @@ index 515545471e08426fc90856256db9491db0ca4b92..3cc92658d86a4e8670537a6cd270c13f
        }
      });
 diff --git a/react.mjs b/react.mjs
-index ce08abe7ee62e8940f9c6ff169829244bd6bb736..8cffae10a22e8495feb47e2fc7427b42f241517d 100644
+index ce08abe..8cffae1 100644
 --- a/react.mjs
 +++ b/react.mjs
 @@ -5625,8 +5625,11 @@ function measureContainersInLayoutEffect(ctx, targetContainerIds = null) {

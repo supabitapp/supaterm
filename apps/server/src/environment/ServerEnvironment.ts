@@ -222,6 +222,7 @@ export const make = Effect.gen(function* () {
       vcsBranchStatus: true,
       ...(hostPlatform === "darwin" ? { fastWorktreeCheckout: true } : {}),
       threadForceStop: true,
+      modelCatalogRefresh: true,
       ...(hostPlatform === "win32" ? {} : { localServerStop: true }),
       queuedRunStart: true,
       projectOrganization: true,
@@ -238,6 +239,7 @@ export const make = Effect.gen(function* () {
         ? { serverSelfUpdateProgress: true }
         : {}),
       ...(desktopAppUpdate ? { desktopAppUpdate: true, desktopAppChannelSwitch: true } : {}),
+      mcpApprovalCodes: true,
     },
   };
 

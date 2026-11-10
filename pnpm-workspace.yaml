@@ -83,6 +83,7 @@ minimumReleaseAgeExclude:
   - "@effect/vitest@4.1.2"
   - effect@4.1.2
   - "@legendapp/list@3.7.2"
+  - "@anthropic-ai/claude-agent-sdk@0.3.321"
   - "@expo/cli@58.1.1 || 58.1.9 || 58.1.11"
   - "@expo/env@2.5.1"
   - "@expo/metro-config@58.0.14"
@@ -181,25 +182,24 @@ overrides:
   micromark-extension-llm-math: 3.1.1-20250610
   micromark: 4.0.2
   mdast-util-to-hast: 13.2.1
-  expo-audio: 58.0.9
-  expo-network: 58.0.3
-  expo-sharing: 58.0.19
-  expo-video: 58.0.11
+  expo-audio: 58.0.11
+  expo-network: 58.0.4
+  expo-sharing: 58.0.22
+  expo-video: 58.0.13
   "@ff-labs/fff-node": 0.11.0
   "@legendapp/list": 3.7.2
   "@pierre/diffs": 1.6.1
   "@react-native-menu/menu": 2.0.0
   "@react-navigation/native-stack": 7.21.0
   node-pty: 1.2.0-beta.15
-  react-native-gesture-handler: 3.3.0
+  react-native-gesture-handler: 3.5.0
   react-native-reanimated: 4.7.1
-  react-native-keyboard-controller: 1.22.8
-  react-native-pdf-jsi: 5.0.0
+  react-native-keyboard-controller: 1.23.0
+  # 6.1.1 cannot build Android: it downloads PDFium from a release asset that was never published.
+  react-native-pdf-jsi: 6.1.0
   react-native-webview: 14.0.1
-  react-native-svg: 15.16.0
-  "@expo/ui": 58.0.20
-  expo-modules-core: 58.0.22
-  "@expo/fingerprint": 0.21.5
+  react-native-svg: 15.16.1
+  expo-modules-core: 58.0.30
   app-builder-lib: 26.17.0
   # Keep jsdom's optional peer consistent so Vite+ has one test-runner instance.
   "@exodus/bytes>@noble/hashes": "1.8.0"
@@ -223,10 +223,9 @@ overrides:
   "@effect/platform-node-shared": "catalog:"
   "@effect/vitest": "catalog:"
   "@expo/dom-webview": 58.0.2
-  "@expo/metro-config": 58.0.14
-  expo-constants: 58.0.12
+  expo-constants: 58.0.15
   expo-router: 58.0.20
-  "expo-sharing>@expo/config-plugins": 58.0.9
+  "expo-sharing>@expo/config-plugins": 58.0.12
   "expo-sharing>@expo/config-types": 58.0.3
   "@pierre/diffs>@shikijs/transformers": ^4.2.0
   # Resolve below remark-math so Vite, Metro and Node use the same tokenizer.
@@ -260,10 +259,9 @@ overrides:
   yaml: "catalog:"
 
 packageExtensions:
-  react-native-pdf-jsi@5.0.0:
+  react-native-pdf-jsi@6.1.0:
     dependencies:
-      "@expo/config-plugins": "58.0.9"
-      prop-types: ^15.8.1
+      "@expo/config-plugins": 58.0.12
     peerDependencies:
       "@types/react": "*"
   # Legend List omits devDependencies, so types-fixer cannot infer this missing type peer.
@@ -273,8 +271,8 @@ packageExtensions:
   # Its config plugin requires @expo/config-plugins but declares it only as a devDependency.
   expo-quick-actions@*:
     dependencies:
-      "@expo/config-plugins": 58.0.9
-  expo-widgets@58.0.20:
+      "@expo/config-plugins": 58.0.12
+  expo-widgets@58.0.27:
     dependencies:
       "@expo/spawn-async": ^1.8.0
       resolve-workspace-root: ^2.0.0
@@ -290,14 +288,14 @@ patchedDependencies:
   micromark-extension-gfm-table@2.1.2: patches/micromark-extension-gfm-table@2.1.2.patch
   micromark@4.0.2: patches/micromark@4.0.2.patch
   mdast-util-to-hast@13.2.1: patches/mdast-util-to-hast@13.2.1.patch
-  expo-audio@58.0.9: patches/expo-audio@58.0.9.patch
-  expo-video@58.0.11: patches/expo-video@58.0.11.patch
-  expo-network@58.0.3: patches/expo-network@58.0.3.patch
-  "@expo/metro-config@58.0.14": patches/@expo__metro-config@58.0.14.patch
-  expo-sharing@58.0.19: patches/expo-sharing@58.0.19.patch
+  expo-audio@58.0.11: patches/expo-audio@58.0.11.patch
+  expo-video@58.0.13: patches/expo-video@58.0.13.patch
+  expo-network@58.0.4: patches/expo-network@58.0.4.patch
+  expo-sharing@58.0.22: patches/expo-sharing@58.0.22.patch
   "@ff-labs/fff-node@0.11.0": patches/@ff-labs__fff-node@0.11.0.patch
-  # Re-requests a ResizeObserver delivery when a layout measurement disagrees with it, and lets a
-  # native scroll event at the target finish a re-armed initial bootstrap on iOS.
+  # Re-requests a ResizeObserver delivery when a layout measurement disagrees with it, lets a
+  # native scroll event at the target finish a re-armed initial bootstrap on iOS, and keeps a
+  # feed following its end at the end through a size-only reflow in one pass.
   "@legendapp/list@3.7.2": patches/@legendapp__list@3.7.2.patch
   # Exports the dependency-light subpaths mobile and the web diff parser import, and keeps
   # measured wrapped-row heights above an edit (fileEditorVirtualization.test.ts).
@@ -305,29 +303,26 @@ patchedDependencies:
   "@react-native-menu/menu@2.0.0": patches/@react-native-menu__menu@2.0.0.patch
   "@react-navigation/native-stack@7.21.0": patches/@react-navigation%2Fnative-stack@7.21.0.patch
   node-pty@1.2.0-beta.15: patches/node-pty@1.2.0-beta.15.patch
-  react-native-gesture-handler@3.3.0: patches/react-native-gesture-handler@3.3.0.patch
+  react-native-gesture-handler@3.5.0: patches/react-native-gesture-handler@3.5.0.patch
   # Screens v5 stack, split and tab screens leave at once, like legacy screens. Exiting animations
   # inside one otherwise hold its removal for a later mount, after its stack has moved on.
   # Upstream #10811: Android drops a one-frame entering animation's only frame and leaves the view
   # at opacity 0 (blank thread rows). Drop those hunks once a stable release includes it.
   react-native-reanimated@4.7.1: patches/react-native-reanimated@4.7.1.patch
-  react-native-keyboard-controller@1.22.8: patches/react-native-keyboard-controller@1.22.8.patch
-  react-native-pdf-jsi@5.0.0: patches/react-native-pdf-jsi@5.0.0.patch
+  react-native-keyboard-controller@1.23.0: patches/react-native-keyboard-controller@1.23.0.patch
   # Android: a nested WebView hands a vertical drag to its scrolling parent at the page's edge.
   react-native-webview@14.0.1: patches/react-native-webview@14.0.1.patch
   # Code blocks start with their lines wrapped; the header toggle unwraps a block.
   # A newline in a copied table cell becomes <br>, so Copy as Markdown keeps the row whole.
   react-native-enriched-markdown@1.2.0-supacode.19: patches/react-native-enriched-markdown@1.2.0-supacode.19.patch
-  "@expo/ui@58.0.20": patches/@expo__ui@58.0.20.patch
   # Android: a Compose host that requests layout in a mount (a new screen's app bar) is laid out
   # before that frame is drawn, instead of a frame later.
-  expo-modules-core@58.0.22: patches/expo-modules-core@58.0.22.patch
-  # Android: Maven-resolved gradle plugins (expo-widgets) have no sourceDir; without this
-  # skip, the fingerprint silently drops every Expo native module and OTAs reach stale binaries.
-  "@expo/fingerprint@0.21.5": patches/@expo__fingerprint@0.21.5.patch
+  expo-modules-core@58.0.30: patches/expo-modules-core@58.0.30.patch
   app-builder-lib@26.17.0: patches/app-builder-lib@26.17.0.patch
   # Android: a marker orient other than "auto" or a number (auto-start-reverse) no longer throws.
-  react-native-svg@15.16.0: patches/react-native-svg@15.16.0.patch
+  react-native-svg@15.16.1: patches/react-native-svg@15.16.1.patch
+  # Android: double-tap zoom no longer cancels itself, and taps near a link open it.
+  react-native-pdf-jsi@6.1.0: patches/react-native-pdf-jsi@6.1.0.patch
 
 peerDependencyRules:
   allowAny:

@@ -1,6 +1,7 @@
 import {
   AuthAccessTokenType,
   AuthAccessWriteScope,
+  AuthMcpClientAccess,
   AuthOrchestrationOperateScope,
   AuthOrchestrationReadScope,
   AuthSettingsWriteScope,
@@ -12,7 +13,6 @@ import {
   type AuthClientSession,
   type AuthCreatePairingCredentialInput,
   type AuthEnvironmentScope,
-  type AuthMcpClientAccess,
   type AuthPairingLink,
   type AuthPairingCredentialResult,
   type AuthSessionId,
@@ -44,6 +44,7 @@ import * as SessionStore from "./SessionStore.ts";
 import { REUSABLE_DEV_SESSION_EXPIRES_AT, resolveReusableDevAuth } from "./ReusableDevAuth.ts";
 import { DESKTOP_RENDERER_ORIGINS } from "../httpCors.ts";
 import * as SqlitePersistence from "../persistence/Sqlite.ts";
+import { MCP_APPROVAL_SUBJECT_PREFIX } from "../persistence/AuthPairingLinks.ts";
 import { requestUrl } from "../requestUrl.ts";
 
 const DEFAULT_SESSION_SUBJECT = "cli-issued-session";
@@ -375,6 +376,7 @@ export class EnvironmentAuth extends Context.Service<
       readonly scopes?: ReadonlyArray<AuthEnvironmentScope>;
       readonly subject?: string;
       readonly purpose?: "startup";
+      readonly mcpApproval?: AuthMcpClientAccess;
     }) => Effect.Effect<IssuedPairingLink, ServerAuthInternalError>;
     readonly issuePairingCredential: (
       input?: AuthCreatePairingCredentialInput,
@@ -441,15 +443,16 @@ export class EnvironmentAuth extends Context.Service<
       ServerAuthInternalError
     >;
     /**
-     * Spends a one-time pairing code as approval for an MCP client with the
-     * given access; the code must hold every scope that access grants.
-     * Proof-bound codes (Supaterm Connect) are refused without being spent, and
-     * desktop bootstrap grants never qualify.
+     * Spends a code covering all granted scopes and returns the level it approves. A level-bound
+     * code must name `access`. Rejects desktop grants and leaves refused codes unspent.
      */
     readonly consumeMcpApprovalCode: (
       code: string,
       access: AuthMcpClientAccess,
-    ) => Effect.Effect<void, ServerAuthMcpApprovalCodeError | ServerAuthInternalError>;
+    ) => Effect.Effect<
+      AuthMcpClientAccess,
+      ServerAuthMcpApprovalCodeError | ServerAuthInternalError
+    >;
     readonly authenticateBrowserSession: (
       request: HttpServerRequest.HttpServerRequest,
     ) => Effect.Effect<AuthenticatedSession, ServerAuthCredentialError | ServerAuthInternalError>;
@@ -748,6 +751,8 @@ export const make = Effect.gen(function* () {
     input?: {
       readonly requestedScopes?: ReadonlyArray<AuthEnvironmentScope>;
       readonly requiredScopes?: ReadonlyArray<AuthEnvironmentScope>;
+      /** Only an agent sign-in opts in to spending a code issued for it. */
+      readonly mcpApproval?: AuthMcpClientAccess;
     },
   ): Effect.Effect<
     ResolvedBootstrapGrant,
@@ -844,12 +849,14 @@ export const make = Effect.gen(function* () {
     readonly subject?: string;
     readonly label?: string;
     readonly purpose?: "startup";
+    readonly mcpApproval?: AuthMcpClientAccess;
   }) =>
     createPairingLink({
       scopes: input.scopes,
       ...(input.subject ? { subject: input.subject } : {}),
       ...(input.label ? { label: input.label } : {}),
       ...(input.purpose ? { purpose: input.purpose } : {}),
+      ...(input.mcpApproval ? { mcpApproval: input.mcpApproval } : {}),
     }).pipe(
       Effect.map(
         (issued) =>
@@ -859,6 +866,7 @@ export const make = Effect.gen(function* () {
             subject: issued.subject,
             ...(issued.label ? { label: issued.label } : {}),
             expiresAt: issued.expiresAt,
+            ...(input.mcpApproval ? { access: input.mcpApproval } : {}),
           }) satisfies AuthPairingCredentialResult,
       ),
     );
@@ -874,6 +882,7 @@ export const make = Effect.gen(function* () {
         ...(input?.ttl ? { ttl: input.ttl } : {}),
         ...(input?.label ? { label: input.label } : {}),
         ...(input?.purpose ? { purpose: input.purpose } : {}),
+        ...(input?.mcpApproval ? { mcpApproval: input.mcpApproval } : {}),
       });
       return {
         id: issued.id,
@@ -895,7 +904,11 @@ export const make = Effect.gen(function* () {
           INTERNAL_ADMINISTRATIVE_BOOTSTRAP_SUBJECT,
         ];
         return pairingLinks
-          .filter((pairingLink) => !excludedSubjects.includes(pairingLink.subject))
+          .filter(
+            (pairingLink) =>
+              !excludedSubjects.includes(pairingLink.subject) &&
+              !pairingLink.subject.startsWith(MCP_APPROVAL_SUBJECT_PREFIX),
+          )
           .map((link) => ({ ...link, ...authScopeResponse(link.scopes) }))
           .toSorted(
             (left, right) => right.createdAt.epochMilliseconds - left.createdAt.epochMilliseconds,
@@ -961,8 +974,11 @@ export const make = Effect.gen(function* () {
 
   const issuePairingCredential: EnvironmentAuth["Service"]["issuePairingCredential"] = (input) =>
     issuePairingCredentialForSubject({
-      scopes: input?.scopes ?? AuthStandardClientScopes,
+      scopes: input?.access
+        ? mcpClientScopes(input.access)
+        : (input?.scopes ?? AuthStandardClientScopes),
       ...(input?.label ? { label: input.label } : {}),
+      ...(input?.access ? { mcpApproval: input.access } : {}),
     }).pipe(Effect.withSpan("EnvironmentAuth.issuePairingCredential"));
 
   const issueStartupPairingCredential: EnvironmentAuth["Service"]["issueStartupPairingCredential"] =
@@ -1149,7 +1165,10 @@ export const make = Effect.gen(function* () {
     code,
     access,
   ) =>
-    resolveBootstrapGrant(code.trim(), { requiredScopes: mcpClientScopes(access) }).pipe(
+    resolveBootstrapGrant(code.trim(), {
+      requiredScopes: mcpClientScopes(access),
+      mcpApproval: access,
+    }).pipe(
       Effect.catchTags({
         ServerAuthInvalidCredentialError: () =>
           Effect.fail(new ServerAuthMcpApprovalCodeError({ reason: "unknown_or_used" })),
@@ -1159,7 +1178,7 @@ export const make = Effect.gen(function* () {
       Effect.flatMap((grant) =>
         grant.method !== "one-time-token" && grant.method !== "reusable-dev-token"
           ? Effect.fail(new ServerAuthMcpApprovalCodeError({ reason: "not_a_pairing_code" }))
-          : Effect.void,
+          : Effect.succeed(mcpApprovalLevel(grant.subject) ?? access),
       ),
       Effect.withSpan("EnvironmentAuth.consumeMcpApprovalCode"),
     );
@@ -1192,6 +1211,16 @@ export const make = Effect.gen(function* () {
     authenticateBrowserSession,
   });
 });
+
+const isMcpClientAccess = Schema.is(AuthMcpClientAccess);
+
+/** The level an approval code's subject names, or undefined for any other code. */
+const mcpApprovalLevel = (subject: string): AuthMcpClientAccess | undefined => {
+  const level = subject.startsWith(MCP_APPROVAL_SUBJECT_PREFIX)
+    ? subject.slice(MCP_APPROVAL_SUBJECT_PREFIX.length)
+    : undefined;
+  return isMcpClientAccess(level) ? level : undefined;
+};
 
 export const layer = Layer.effect(EnvironmentAuth, make).pipe(
   Layer.provideMerge(PairingGrantStore.layer),
