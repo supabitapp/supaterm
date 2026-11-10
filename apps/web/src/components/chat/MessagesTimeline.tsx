@@ -423,7 +423,6 @@ const ConversationTimeline = memo(function ConversationTimeline({
   messageJump = null,
   onMessageJumpFailed = NOOP_MESSAGE_JUMP_FAILED,
 }: MessagesTimelineProps) {
-  const listIdentityKey = routeThreadKey;
   // Keys typed outside every list reach each pane's viewport; only the focused pane's reacts.
   const isPaneInputOwner = usePaneInputOwner();
   // The remembered position is a snapshot taken when the list identity changes;
@@ -431,7 +430,7 @@ const ConversationTimeline = memo(function ConversationTimeline({
   // Find open at the opening is part of the snapshot: opening find later
   // announces its own navigation (threadFindStore's announceOpening).
   const [listState, setListState] = useState(() => ({
-    ...timelineListStateFor(listIdentityKey),
+    ...timelineListStateFor(routeThreadKey),
     findOpenAtOpening: findOpen,
   }));
   const [expandedRunIds, setExpandedRunIds] = useState<ReadonlySet<RunId>>(
@@ -446,11 +445,11 @@ const ConversationTimeline = memo(function ConversationTimeline({
   // A list that opens on a thread with find open takes the opening step below,
   // so the restore runs and releases follow once for find.
   const [positionedThreadKey, setPositionedThreadKey] = useState<string | null>(() =>
-    listState.rememberedPosition?.atEnd === false || findOpen ? null : listIdentityKey,
+    listState.rememberedPosition?.atEnd === false || findOpen ? null : routeThreadKey,
   );
-  const restoringThreadPosition = positionedThreadKey !== listIdentityKey;
+  const restoringThreadPosition = positionedThreadKey !== routeThreadKey;
   const prefersReducedMotion = useMediaQuery("(prefers-reduced-motion: reduce)");
-  const [settlingListIdentity, setSettlingListIdentity] = useState<string | null>(listIdentityKey);
+  const [settlingListIdentity, setSettlingListIdentity] = useState<string | null>(routeThreadKey);
   const [playingAudioRows, setPlayingAudioRows] = useState<ReadonlyMap<HTMLAudioElement, string>>(
     () => new Map(),
   );
@@ -458,20 +457,20 @@ const ConversationTimeline = memo(function ConversationTimeline({
   let paintedExpandedRunIds = expandedRunIds;
   let paintedExpandedWorkGroupIds = expandedWorkGroupIds;
   let paintedExpandedAttemptIds = expandedAttemptIds;
-  const identityChanged = listState.identity !== listIdentityKey;
+  const identityChanged = listState.identity !== routeThreadKey;
   const { rememberedPosition, workGroupViewState } = identityChanged
-    ? timelineListStateFor(listIdentityKey)
+    ? timelineListStateFor(routeThreadKey)
     : listState;
   if (identityChanged) {
     setPlayingAudioRows(new Map());
     setListState({
-      identity: listIdentityKey,
+      identity: routeThreadKey,
       rememberedPosition,
       workGroupViewState,
       findOpenAtOpening: findOpen,
     });
     setPositionedThreadKey(null);
-    setSettlingListIdentity(listIdentityKey);
+    setSettlingListIdentity(routeThreadKey);
     // A viewer pinned in another thread must not keep live follow off here,
     // nor when that thread comes back.
     setFullscreenAppRowId(null);
@@ -590,12 +589,12 @@ const ConversationTimeline = memo(function ConversationTimeline({
     });
   };
 
-  const previousLatestRunRef = useRef({ identity: listIdentityKey, run: latestRun });
+  const previousLatestRunRef = useRef({ identity: routeThreadKey, run: latestRun });
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- folds the superseded run and opens an interrupted one when the server's latest run changes; the previous run is a ref
   useEffect(() => {
     const { identity, run: previous } = previousLatestRunRef.current;
-    previousLatestRunRef.current = { identity: listIdentityKey, run: latestRun };
-    if (identity !== listIdentityKey || !latestRun || previous?.runId === undefined) {
+    previousLatestRunRef.current = { identity: routeThreadKey, run: latestRun };
+    if (identity !== routeThreadKey || !latestRun || previous?.runId === undefined) {
       return;
     }
     if (latestRun.runId === previous.runId) {
@@ -616,7 +615,7 @@ const ConversationTimeline = memo(function ConversationTimeline({
       next.delete(previous.runId);
       return next;
     });
-  }, [latestRun, listIdentityKey]);
+  }, [latestRun, routeThreadKey]);
 
   const findFoldRunIds = findActive
     ? timelineTurnFoldRunIdsByEntryId({
@@ -703,7 +702,7 @@ const ConversationTimeline = memo(function ConversationTimeline({
       ? new Set(paintedExpandedAttemptIds).add(activeFindAttemptId)
       : paintedExpandedAttemptIds;
 
-  const rawRows = useIncrementalTimelineRows(`${listIdentityKey}\0${workspaceRoot ?? ""}`, {
+  const rawRows = useIncrementalTimelineRows(`${routeThreadKey}\0${workspaceRoot ?? ""}`, {
     timelineEntries,
     latestRun,
     runningRunId,
@@ -720,7 +719,7 @@ const ConversationTimeline = memo(function ConversationTimeline({
     worktreeSetup,
     awaitingApproval: awaitingUser === "approval",
   });
-  const rows = useExitingWorktreeSetupRow(useStableRows(rawRows, listIdentityKey), listIdentityKey);
+  const rows = useExitingWorktreeSetupRow(useStableRows(rawRows, routeThreadKey), routeThreadKey);
   // Run status/timestamps churn on every stream event; the shared row context
   // must not change with them or every timeline row re-renders per event.
   const runs = useStableHandoffRuns(runsProp);
@@ -742,9 +741,9 @@ const ConversationTimeline = memo(function ConversationTimeline({
     footer === null;
   const listMounted = !showsEmptyState && !(timelineEntries.length === 0 && loading);
   const [listOpening, setListOpening] = useState<TimelineListOpening>(() =>
-    nextListOpening({ mounted: false }, listMounted, listIdentityKey),
+    nextListOpening({ mounted: false }, listMounted, routeThreadKey),
   );
-  const nextOpening = nextListOpening(listOpening, listMounted, listIdentityKey);
+  const nextOpening = nextListOpening(listOpening, listMounted, routeThreadKey);
   if (nextOpening !== listOpening) setListOpening(nextOpening);
   const listOpenedOn = nextOpening.mounted ? nextOpening.identity : null;
   const viewportRef = useRef<TimelineViewport | null>(null);
@@ -763,7 +762,7 @@ const ConversationTimeline = memo(function ConversationTimeline({
     return startTimelinePositionRestore({
       list,
       viewport,
-      listIdentityKey,
+      listIdentityKey: routeThreadKey,
       listOpenedOn,
       rememberedPosition,
       citationPending: citationRequest !== null,
@@ -773,7 +772,7 @@ const ConversationTimeline = memo(function ConversationTimeline({
   }, [
     citationRequest,
     findOpenAtOpening,
-    listIdentityKey,
+    routeThreadKey,
     listOpenedOn,
     listRef,
     rememberedPosition,
@@ -823,7 +822,7 @@ const ConversationTimeline = memo(function ConversationTimeline({
       state?.data !== rows
     )
       return;
-    prefetchHistory(listIdentityKey, historyControls, state);
+    prefetchHistory(routeThreadKey, historyControls, state);
   };
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- schedules a frame that prefetches older thread history from LegendList's rendered state
   useEffect(() => {
@@ -993,7 +992,7 @@ const ConversationTimeline = memo(function ConversationTimeline({
       const element = listRef.current?.getScrollableNode();
       if (row && element) {
         rememberTimelinePosition(
-          listIdentityKey,
+          routeThreadKey,
           {
             ...position,
             offsetWithinRow: element.getBoundingClientRect().top - row.getBoundingClientRect().top,
@@ -1154,7 +1153,7 @@ const ConversationTimeline = memo(function ConversationTimeline({
   // starts from a baseline instead of a fresh, silent region.
   const activityAnnouncer = (
     <ThreadActivityAnnouncer
-      threadKey={announceTurnStatus ? listIdentityKey : null}
+      threadKey={announceTurnStatus ? routeThreadKey : null}
       status={awaitingUser ?? (isWorking ? "working" : "idle")}
       requestId={awaitingRequestId}
       runId={announcedRun?.runId ?? null}
@@ -1236,7 +1235,7 @@ const ConversationTimeline = memo(function ConversationTimeline({
   }, [endFollowAllowed]);
 
   useThreadFindPositionReader({
-    threadKey: listIdentityKey,
+    threadKey: routeThreadKey,
     navigate: navigateTimeline,
     timelineViewportElement,
     findFoldRunIds,
@@ -1342,7 +1341,7 @@ const ConversationTimeline = memo(function ConversationTimeline({
       </div>
     </TimelineRowCtx>
   );
-  const listExtraData = { identity: listIdentityKey, rowCount: rows.length, sharedState };
+  const listExtraData = { identity: routeThreadKey, rowCount: rows.length, sharedState };
 
   const scrollToMinimapTurn = (item: TimelineMinimapItem) => {
     navigateTimeline();
@@ -1414,7 +1413,7 @@ const ConversationTimeline = memo(function ConversationTimeline({
                   !findActive && citationRequest === null && rememberedPosition?.atEnd !== false
                 }
                 // Legend needs a data refresh to mount new pins without a scroll event.
-                dataVersion={`${readyCitationRequest?.key ?? listIdentityKey}:${alwaysRenderKeys.join(",")}`}
+                dataVersion={`${readyCitationRequest?.key ?? routeThreadKey}:${alwaysRenderKeys.join(",")}`}
                 {...(alwaysRender ? { alwaysRender } : {})}
                 onLoad={handleListLoad}
                 {...(anchoredEndSpace ? { anchoredEndSpace } : {})}

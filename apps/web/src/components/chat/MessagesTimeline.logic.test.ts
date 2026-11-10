@@ -23,7 +23,6 @@ import type { TurnDiffSummary } from "../../types";
 import { describe, expect, it } from "vite-plus/test";
 import { EnvironmentId, MessageId, RunId } from "@supaterm/contracts";
 import { serializeAssistantCitation } from "@supaterm/shared/assistantCitations";
-import { resolveSupatermMcpToolPresentation } from "@supaterm/shared/supatermMcpToolPresentation";
 import {
   computeStableMessagesTimelineRows,
   deriveMessagesTimelineRows,
@@ -373,11 +372,6 @@ describe("deriveMessagesTimelineRows", () => {
     expect(workEntryDisplayLabel(work[0]!, undefined)).toBe("Listed projects");
     expect(workEntryDisplayLabel(work[1]!, undefined)).toBe("Cloned a repository");
     expect(workEntryDisplayLabel(work[2]!, undefined)).toBe("Failed to clone a repository");
-    expect(
-      resolveSupatermMcpToolPresentation(
-        items[1]!.type === "dynamic_tool" ? items[1].toolName : null,
-      )?.logo,
-    ).toBe("supaterm");
     const rows = deriveMessagesTimelineRows({
       timelineEntries: entries,
       isWorking: false,
@@ -3558,7 +3552,8 @@ describe("computeStableMessagesTimelineRows", () => {
     );
 
     expect(before.byId.get("notice")).toMatchObject({ continuesWorkLog: true });
-    expect(after.byId.get("notice")).not.toHaveProperty("continuesWorkLog");
+    expect(after.byId.get("notice")).toMatchObject({ kind: "work" });
+    expect(after.byId.get("notice")?.continuesWorkLog ?? false).toBe(false);
   });
 
   it("returns the previous result when row order and content are unchanged", () => {

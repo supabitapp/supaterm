@@ -72,9 +72,7 @@ export class ProviderSessionRuntimeRepository extends Context.Service<
       ProviderSessionRuntimeRepositoryError
     >;
 
-    readonly list: (options?: {
-      readonly excludeStopped?: boolean;
-    }) => Effect.Effect<
+    readonly list: () => Effect.Effect<
       ReadonlyArray<ProviderSessionRuntime>,
       ProviderSessionRuntimeRepositoryError
     >;
@@ -294,9 +292,9 @@ export const make = Effect.gen(function* () {
   });
 
   const listRuntimeRows = SqlSchema.findAll({
-    Request: Schema.Struct({ excludeStopped: Schema.Boolean }),
+    Request: Schema.Void,
     Result: ProviderSessionRuntimeRawDbRowSchema,
-    execute: ({ excludeStopped }) =>
+    execute: () =>
       sql`
         SELECT
           thread_id AS "threadId",
@@ -309,7 +307,6 @@ export const make = Effect.gen(function* () {
           resume_cursor_json AS "resumeCursor",
           runtime_payload_json AS "runtimePayload"
         FROM provider_session_runtime
-        ${excludeStopped ? sql`WHERE status != 'stopped'` : sql``}
         ORDER BY last_seen_at ASC, thread_id ASC
       `,
   });
@@ -365,8 +362,8 @@ export const make = Effect.gen(function* () {
       ),
     );
 
-  const list: ProviderSessionRuntimeRepository["Service"]["list"] = (options) =>
-    listRuntimeRows({ excludeStopped: options?.excludeStopped === true }).pipe(
+  const list: ProviderSessionRuntimeRepository["Service"]["list"] = () =>
+    listRuntimeRows().pipe(
       NodeSqliteClient.readOnly,
       Effect.mapError(
         toPersistenceSqlOrDecodeError(

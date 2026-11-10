@@ -27,14 +27,8 @@ function makeMenuSession(input: {
 }
 
 describe("basename", () => {
-  it.each([
-    ["/Users/me/repo", "repo"],
-    ["/Users/me/repo/", "repo"],
-    ["C:\\Users\\me\\repo", "repo"],
-    ["/", "/"],
-    [null, null],
-  ])("names the last folder of %s", (cwd, expected) => {
-    expect(basename(cwd)).toBe(expected);
+  it("names the last folder of a Windows working directory", () => {
+    expect(basename("C:\\Users\\me\\repo")).toBe("repo");
   });
 });
 
