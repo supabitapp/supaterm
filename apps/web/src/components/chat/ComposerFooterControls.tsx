@@ -4,7 +4,6 @@ import type {
   ResolvedKeybindingsConfig,
   RuntimeMode,
 } from "@supaterm/contracts";
-import type { UnifiedSettings } from "@supaterm/contracts/settings";
 import { createModelSelection } from "@supaterm/shared/model";
 import { type ComponentProps, memo } from "react";
 
@@ -17,7 +16,6 @@ import {
   ComposerSelectControl,
 } from "./ComposerControl";
 import { useComposerMenuProps } from "./composerEventScope";
-import { ComposerPrimaryActions } from "./ComposerPrimaryActions";
 import { resolveModelPickerSelectedModel } from "./ModelPickerContent";
 import { ProviderModelPicker } from "./ProviderModelPicker";
 import { runtimeModeConfig } from "./runtimeModeConfig";
@@ -97,71 +95,6 @@ export const ComposerFooterModeControls = memo(function ComposerFooterModeContro
           {runtimeModeOption.description}
         </TooltipPopup>
       </Tooltip>
-    </>
-  );
-});
-
-export const ComposerFooterPrimaryActions = memo(function ComposerFooterPrimaryActions(props: {
-  compact: boolean;
-  canOperateThread: boolean;
-  canQueueMessage: boolean;
-  isPreparingWorktree: boolean;
-  pendingAction: {
-    questionIndex: number;
-    isLastQuestion: boolean;
-    canAdvance: boolean;
-    isResponding: boolean;
-    isComplete: boolean;
-  } | null;
-  isRunning: boolean;
-  canInterrupt: boolean;
-  followUpBehavior: "queue" | "steer";
-  keybindings: ResolvedKeybindingsConfig;
-  canSteer: boolean;
-  isSendBusy: boolean;
-  sendDisabledReason: string | null;
-  isEnvironmentUnavailable: boolean;
-  hasSendableContent: boolean;
-  sendShortcut?: UnifiedSettings["sendShortcut"] | undefined;
-  isDraftThread?: boolean | undefined;
-  hasMultilinePrompt?: boolean | undefined;
-  canResume: boolean;
-  preserveComposerFocusOnPointerDown?: boolean;
-  isEditingQueuedMessage: boolean;
-  onSubmitMessage: React.MouseEventHandler<HTMLButtonElement>;
-  onResume: () => void;
-  onInterrupt: () => void;
-  onCompactContext?: (() => void) | undefined;
-  compactDisabled: boolean;
-  compactDisabledReason: string | null;
-}) {
-  return (
-    <>
-      <ComposerPrimaryActions
-        compact={props.compact}
-        canOperateThread={props.canOperateThread}
-        canQueueMessage={props.canQueueMessage}
-        pendingAction={props.pendingAction}
-        isRunning={props.isRunning}
-        canInterrupt={props.canInterrupt}
-        followUpBehavior={props.followUpBehavior}
-        keybindings={props.keybindings}
-        canSteer={props.canSteer}
-        isSendBusy={props.isSendBusy}
-        sendDisabledReason={props.sendDisabledReason}
-        isEnvironmentUnavailable={props.isEnvironmentUnavailable}
-        isPreparingWorktree={props.isPreparingWorktree}
-        hasSendableContent={props.hasSendableContent}
-        sendShortcut={props.sendShortcut}
-        isDraftThread={props.isDraftThread}
-        hasMultilinePrompt={props.hasMultilinePrompt}
-        canResume={props.canResume}
-        preserveComposerFocusOnPointerDown={props.preserveComposerFocusOnPointerDown ?? false}
-        isEditingQueuedMessage={props.isEditingQueuedMessage}
-        onSubmitMessage={props.onSubmitMessage}
-        onResume={props.onResume}
-        onInterrupt={props.onInterrupt}
-      />
     </>
   );
 });

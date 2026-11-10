@@ -3755,7 +3755,6 @@ export default function ChatView(props: ChatViewProps) {
                                   activeTaskSteps={activeComposerTaskSteps}
                                   compactThreadUnavailable={compactThreadUnavailable}
                                   compactDisabled={compactDisabled}
-                                  compactDisabledReason={compactDisabledReason}
                                   resolvedTheme={resolvedTheme}
                                   settings={settings}
                                   keybindings={keybindings}

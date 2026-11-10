@@ -81,7 +81,6 @@ function composerProps(
     activeProjectId: null,
     compactThreadUnavailable: false,
     compactDisabled: true,
-    compactDisabledReason: null,
     resolvedTheme: "light",
     settings: DEFAULT_UNIFIED_SETTINGS,
     keybindings: [],

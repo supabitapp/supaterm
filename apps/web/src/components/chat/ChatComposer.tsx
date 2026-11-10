@@ -236,7 +236,11 @@ import {
   ComposerRestingImagePreviews,
 } from "./ComposerAttachmentStrip";
 import { ComposerPrimaryActions } from "./ComposerPrimaryActions";
-import { ComposerFooterPrimaryActions } from "./ComposerFooterControls";
+import {
+  resolveComposerPrimaryAction,
+  type ComposerPendingAnswer,
+  type ComposerPrimaryActionInput,
+} from "./composerPrimaryAction.logic";
 import { ComposerPendingApprovalPanel } from "./ComposerPendingApprovalPanel";
 import { ComposerPendingUserInputPanel } from "./ComposerPendingUserInputPanel";
 import { resolveComposerMenuActiveItemId } from "./composerMenuHighlight";
@@ -247,7 +251,6 @@ import {
   getComposerSpeedToggleChange,
 } from "./composerProviderState";
 import { readPromptUltrathink } from "./TraitsPicker";
-import { providerSupportsManualCompaction } from "./ContextWindow.logic";
 import {
   buildAttachmentVideoPreview,
   buildExpandedImagePreview,
@@ -468,7 +471,6 @@ export interface ChatComposerProps {
 
   compactThreadUnavailable: boolean;
   compactDisabled: boolean;
-  compactDisabledReason: string | null;
 
   resolvedTheme: "light" | "dark";
   settings: UnifiedSettings;
@@ -607,7 +609,6 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     activeProjectId,
     compactThreadUnavailable,
     compactDisabled,
-    compactDisabledReason,
     resolvedTheme,
     settings,
     keybindings,
@@ -956,8 +957,6 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     selectedProviderEntry === undefined && multipleModelSelections === null;
   const providerCatalogPending = noProviderAvailable && !providerCatalogKnown;
   const showProviderUnavailable = noProviderAvailable && !providerCatalogPending;
-  const resolvedCompactDisabledReason =
-    compactDisabledReason ?? (noProviderAvailable ? "Compacting is unavailable right now" : null);
   const supportedRuntimeModes = selectedProviderEntry?.snapshot.supportedRuntimeModes;
   const compatibleRuntimeModeOptions =
     supportedRuntimeModes && supportedRuntimeModes.length > 0
@@ -989,7 +988,6 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
         (multipleModelSelections === null ? providerSendBlockReason : null)));
   const isSendDisabled = sendDisabledReason !== null;
   const selectedProviderStatus = selectedProviderEntry?.snapshot ?? null;
-  const compactCommandAvailable = providerSupportsManualCompaction(selectedProviderEntry);
   const selectedProviderSkills = selectedProviderStatus
     ? resolveProviderSkillsForCwd(selectedProviderStatus, gitCwd)
     : NO_PROVIDER_SKILLS;
@@ -1283,28 +1281,61 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     iconOnlyBlockCount: expandedControlsIconOnlyBlockCount,
   } = useRestingComposerControlsLayout(null, true);
   const pendingPrimaryAction = activePendingProgress
-    ? {
+    ? ({
         questionIndex: activePendingProgress.questionIndex,
         isLastQuestion: activePendingProgress.isLastQuestion,
         canAdvance:
           activePendingProgress.canAdvance &&
           !attachmentBlockReason &&
           !(questionPreparations[attachmentTargetKey] ?? 0),
-        isResponding: activePendingIsResponding,
+        // activePendingIsResponding is also set for a request that can no longer be answered.
+        response:
+          activePendingUserInput?.responseCapability === "not_resumable"
+            ? "not-resumable"
+            : activePendingIsResponding
+              ? "submitting"
+              : "ready",
         isComplete: Boolean(activePendingResolvedAnswers),
-      }
+      } satisfies ComposerPendingAnswer)
     : null;
   const showResumeAction =
     canResume && !composerDraftHasUserContent(composerDraft) && !isEditingQueuedMessage;
+  const composerPrimaryActionFacts = {
+    canOperateThread,
+    canQueueMessage,
+    pendingAction: pendingPrimaryAction,
+    isRunning: phase === "running",
+    canInterrupt,
+    followUpBehavior,
+    canSteer: !isCompacting,
+    isSendBusy,
+    sendDisabledReason,
+    isEnvironmentUnavailable: environmentUnavailable !== null,
+    providerQueue: canQueueSelectedProvider
+      ? "ready"
+      : showProviderUnavailable
+        ? "unavailable"
+        : "pending",
+    isProjectSelectionRequired: projectSelectionRequired,
+    isPreparingWorktree,
+    hasSendableContent: composerSendState.hasSendableContent,
+    canResume: showResumeAction,
+    isEditingQueuedMessage,
+  } satisfies Omit<ComposerPrimaryActionInput, "alternateModifier">;
+  // The collapsed row has no Stop control and stays inert during a run.
+  const collapsedComposerPrimaryAction = resolveComposerPrimaryAction({
+    ...composerPrimaryActionFacts,
+    canInterrupt: false,
+    alternateModifier: false,
+  });
   const collapsedComposerPrimaryActionDisabled =
     phase === "running" ||
-    isSendBusy ||
-    isSendDisabled ||
-    !canQueueSelectedProvider ||
-    projectSelectionRequired ||
-    (environmentUnavailable !== null && showResumeAction) ||
-    (!composerSendState.hasSendableContent && !showResumeAction);
-  const collapsedComposerPrimaryActionLabel = showResumeAction ? "Resume thread" : "Send message";
+    collapsedComposerPrimaryAction.busy ||
+    collapsedComposerPrimaryAction.blocked !== null;
+  const collapsedComposerResumes = collapsedComposerPrimaryAction.kind === "resume";
+  const collapsedComposerPrimaryActionLabel = collapsedComposerResumes
+    ? "Resume thread"
+    : "Send message";
   const showMobilePendingAnswerActions =
     isMobileViewport &&
     !isComposerCollapsedMobile &&
@@ -3741,20 +3772,8 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
                           <ComposerPrimaryActions
                             compact
                             keybindings={keybindings}
-                            canOperateThread={canOperateThread}
-                            canQueueMessage={canQueueMessage}
-                            pendingAction={pendingPrimaryAction}
-                            isRunning={false}
+                            {...composerPrimaryActionFacts}
                             canInterrupt={false}
-                            isSendBusy={isSendBusy}
-                            sendDisabledReason={sendDisabledReason}
-                            isEnvironmentUnavailable={
-                              environmentUnavailable !== null ||
-                              noProviderAvailable ||
-                              projectSelectionRequired
-                            }
-                            isPreparingWorktree={false}
-                            hasSendableContent={false}
                             preserveComposerFocusOnPointerDown
                             onInterrupt={handleInterruptPrimaryActionStable}
                           />
@@ -3834,11 +3853,11 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
                   onPointerDown={(event) => event.preventDefault()}
                   onClick={(event) => {
                     event.stopPropagation();
-                    if (showResumeAction) onResume();
+                    if (collapsedComposerResumes) onResume();
                     else submitComposer();
                   }}
                 >
-                  {showResumeAction ? (
+                  {collapsedComposerResumes ? (
                     <PlayIcon weight="fill" className="size-4" aria-hidden="true" />
                   ) : (
                     <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
@@ -4043,20 +4062,8 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
                     <ComposerPrimaryActions
                       compact
                       keybindings={keybindings}
-                      canOperateThread={canOperateThread}
-                      canQueueMessage={canQueueMessage}
-                      pendingAction={pendingPrimaryAction}
-                      isRunning={false}
+                      {...composerPrimaryActionFacts}
                       canInterrupt={false}
-                      isSendBusy={isSendBusy}
-                      sendDisabledReason={sendDisabledReason}
-                      isEnvironmentUnavailable={
-                        environmentUnavailable !== null ||
-                        noProviderAvailable ||
-                        projectSelectionRequired
-                      }
-                      isPreparingWorktree={false}
-                      hasSendableContent={false}
                       preserveComposerFocusOnPointerDown
                       onInterrupt={handleInterruptPrimaryActionStable}
                     />
@@ -4121,40 +4128,17 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
                           holdKeyLabel={holdToTalkKeyLabel(settings.voiceHoldToTalkKey)}
                         />
                       ) : null}
-                      <ComposerFooterPrimaryActions
+                      <ComposerPrimaryActions
                         compact={isComposerResting || isComposerPrimaryActionsCompact}
-                        canOperateThread={canOperateThread}
-                        canQueueMessage={canQueueMessage}
-                        pendingAction={pendingPrimaryAction}
-                        isRunning={phase === "running"}
-                        canInterrupt={canInterrupt}
-                        followUpBehavior={followUpBehavior}
                         keybindings={keybindings}
-                        canSteer={!isCompacting}
-                        isSendBusy={isSendBusy}
-                        sendDisabledReason={sendDisabledReason}
-                        isEnvironmentUnavailable={
-                          (environmentUnavailable !== null &&
-                            (activePendingProgress !== null || showResumeAction)) ||
-                          !canQueueSelectedProvider ||
-                          projectSelectionRequired
-                        }
-                        isPreparingWorktree={isPreparingWorktree}
-                        hasSendableContent={composerSendState.hasSendableContent}
+                        {...composerPrimaryActionFacts}
                         sendShortcut={settings.sendShortcut}
                         isDraftThread={_isLocalDraftThread}
                         hasMultilinePrompt={hasMultilinePrompt}
-                        canResume={showResumeAction}
                         preserveComposerFocusOnPointerDown={isMobileViewport || isComposerResting}
-                        isEditingQueuedMessage={isEditingQueuedMessage}
                         onSubmitMessage={handleSubmitMessageStable}
                         onResume={onResume}
                         onInterrupt={handleInterruptPrimaryActionStable}
-                        compactDisabled={compactDisabled || noProviderAvailable || isSendBusy}
-                        compactDisabledReason={resolvedCompactDisabledReason}
-                        {...(compactCommandAvailable
-                          ? { onCompactContext: compactThreadContextStable }
-                          : {})}
                       />
                     </>
                   )}

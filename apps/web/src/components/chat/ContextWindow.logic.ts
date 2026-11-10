@@ -10,7 +10,7 @@ export function usageFillColor(usedPercent: number): string {
     : "color-mix(in oklab, var(--color-muted-foreground) 72%, transparent)";
 }
 
-export function providerSupportsManualCompaction(
+function providerSupportsManualCompaction(
   provider: ProviderInstanceEntry | null | undefined,
 ): boolean {
   return provider?.snapshot.slashCommands.some((command) => command.name === "compact") ?? false;
