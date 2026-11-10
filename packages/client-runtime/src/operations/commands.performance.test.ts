@@ -3,12 +3,13 @@ import {
   EnvironmentId,
   MessageId,
   ORCHESTRATION_V2_WS_METHODS,
-  OrchestrationV2RpcSchemas,
   TurnItemId,
-  type OrchestrationV2Command,
+  OrchestrationV2Command,
   type OrchestrationV2ProjectedTurnItem,
-  type OrchestrationV2ThreadProjection,
+  OrchestrationV2ThreadProjection,
   type OrchestrationV2TurnItem,
+  OrchestrationV2DispatchCommandResult,
+  OrchestrationV2GetThreadProjectionInput,
 } from "@supaterm/contracts";
 import { describe, expect, it } from "@effect/vitest";
 import * as SecureRandom from "effect/crypto/SecureRandom";
@@ -46,16 +47,14 @@ const RPC_TRACE_CONTEXT = {
 } as const;
 
 const encodeGetThreadProjectionInput = Schema.encodeSync(
-  Schema.toCodecJson(OrchestrationV2RpcSchemas.getThreadProjection.input),
+  Schema.toCodecJson(OrchestrationV2GetThreadProjectionInput),
 );
 const encodeGetThreadProjectionOutput = Schema.encodeSync(
-  Schema.toCodecJson(OrchestrationV2RpcSchemas.getThreadProjection.output),
+  Schema.toCodecJson(OrchestrationV2ThreadProjection),
 );
-const encodeDispatchCommandInput = Schema.encodeSync(
-  Schema.toCodecJson(OrchestrationV2RpcSchemas.dispatchCommand.input),
-);
+const encodeDispatchCommandInput = Schema.encodeSync(Schema.toCodecJson(OrchestrationV2Command));
 const encodeDispatchCommandOutput = Schema.encodeSync(
-  Schema.toCodecJson(OrchestrationV2RpcSchemas.dispatchCommand.output),
+  Schema.toCodecJson(OrchestrationV2DispatchCommandResult),
 );
 
 function encodedBytes(value: unknown): number {

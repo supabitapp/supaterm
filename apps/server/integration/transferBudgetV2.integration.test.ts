@@ -15,7 +15,6 @@ import {
   EnvironmentAuthenticatedAuth,
   EnvironmentAuthenticatedPrincipal,
   ORCHESTRATION_V2_WS_METHODS,
-  OrchestrationV2RpcSchemas,
   OrchestrationV2ThreadBoundedSnapshot,
   OrchestrationV2ThreadDetailSnapshot,
   OrchestrationV2ThreadHistoryPage,
@@ -24,8 +23,10 @@ import {
   OrchestrationV2GetShellSnapshotError,
   ProviderDriverKind,
   type OrchestrationV2DomainEvent,
-  type OrchestrationV2ThreadStreamItem,
-  type OrchestrationV2ShellStreamItem,
+  OrchestrationV2ThreadStreamItem,
+  OrchestrationV2ShellStreamItem,
+  OrchestrationV2SubscribeShellInput,
+  OrchestrationV2SubscribeThreadInput,
 } from "@supaterm/contracts";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
@@ -168,14 +169,14 @@ const layerAuth = Layer.succeed(EnvironmentAuthenticatedAuth, (effect) =>
 );
 const group = RpcGroup.make(
   Rpc.make(ORCHESTRATION_V2_WS_METHODS.subscribeThread, {
-    payload: OrchestrationV2RpcSchemas.subscribeThread.input,
-    success: OrchestrationV2RpcSchemas.subscribeThread.output,
+    payload: OrchestrationV2SubscribeThreadInput,
+    success: OrchestrationV2ThreadStreamItem,
     error: OrchestrationV2GetThreadProjectionError,
     stream: true,
   }),
   Rpc.make(ORCHESTRATION_V2_WS_METHODS.subscribeShell, {
-    payload: OrchestrationV2RpcSchemas.subscribeShell.input,
-    success: OrchestrationV2RpcSchemas.subscribeShell.output,
+    payload: OrchestrationV2SubscribeShellInput,
+    success: OrchestrationV2ShellStreamItem,
     error: OrchestrationV2GetShellSnapshotError,
     stream: true,
   }),

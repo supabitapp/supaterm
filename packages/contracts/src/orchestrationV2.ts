@@ -43,12 +43,6 @@ import {
   OrchestrationSearchThreadsInput,
   OrchestrationSearchThreadsResult,
 } from "./threadSearch.ts";
-import {
-  OrchestrationGetFullThreadDiffInput,
-  OrchestrationGetFullThreadDiffResult,
-  OrchestrationGetTurnDiffInput,
-  OrchestrationGetTurnDiffResult,
-} from "./checkpointDiff.ts";
 import { ModelSelection } from "./modelSelection.ts";
 import {
   ThreadLinkedPullRequest,
@@ -4230,97 +4224,6 @@ export class OrchestrationV2SearchThreadError extends Schema.TaggedError<Orchest
     return "Could not search this thread. Please retry.";
   }
 }
-
-export const OrchestrationV2RpcSchemas = {
-  searchThread: {
-    input: OrchestrationV2SearchThreadInput,
-    output: OrchestrationV2SearchThreadResult,
-  },
-  dispatchCommand: {
-    input: OrchestrationV2Command,
-    output: OrchestrationV2DispatchCommandResult,
-  },
-  getTurnDiff: {
-    input: OrchestrationGetTurnDiffInput,
-    output: OrchestrationGetTurnDiffResult,
-  },
-  getFullThreadDiff: {
-    input: OrchestrationGetFullThreadDiffInput,
-    output: OrchestrationGetFullThreadDiffResult,
-  },
-  getArchivedShellSnapshot: {
-    input: Schema.Struct({}),
-    output: OrchestrationV2ArchivedShellSnapshot,
-  },
-  getThreadFamily: {
-    input: OrchestrationV2GetThreadFamilyInput,
-    output: OrchestrationV2ThreadFamily,
-  },
-  getThreadTitles: {
-    input: OrchestrationV2GetThreadTitlesInput,
-    output: OrchestrationV2ThreadTitles,
-  },
-  getThreadLinkMetadata: {
-    input: OrchestrationV2GetThreadTitlesInput,
-    output: Schema.Record(ThreadId, OrchestrationV2ThreadLinkMetadata),
-  },
-  getWorktreeThreadIds: {
-    input: OrchestrationV2GetWorktreeThreadIdsInput,
-    output: OrchestrationV2WorktreeThreadIds,
-  },
-  getOlderDoneThreads: {
-    input: OrchestrationV2GetOlderDoneThreadsInput,
-    output: OrchestrationV2OlderDoneThreadsPage,
-  },
-  getThreadProjection: {
-    input: OrchestrationV2GetThreadProjectionInput,
-    output: OrchestrationV2ThreadProjection,
-  },
-  stopWorkflow: {
-    input: OrchestrationV2StopWorkflowInput,
-    output: Schema.Void,
-  },
-  suggestNextPrompt: {
-    input: OrchestrationV2SuggestNextPromptInput,
-    output: OrchestrationV2SuggestNextPromptResult,
-  },
-  forceStopThread: {
-    input: OrchestrationV2ForceStopThreadInput,
-    output: OrchestrationV2ForceStopThreadResult,
-  },
-  getWorkflowScript: {
-    input: OrchestrationV2GetWorkflowScriptInput,
-    output: OrchestrationV2GetWorkflowScriptResult,
-  },
-  getNativeChildWork: {
-    input: OrchestrationV2GetNativeChildWorkInput,
-    output: OrchestrationV2GetNativeChildWorkResult,
-  },
-  getTurnItem: {
-    input: OrchestrationV2GetTurnItemInput,
-    output: OrchestrationV2GetTurnItemResult,
-  },
-  launchThread: {
-    input: OrchestrationV2ThreadLaunchInput,
-    output: OrchestrationV2ThreadLaunchResult,
-  },
-  subscribeShell: {
-    input: OrchestrationV2SubscribeShellInput,
-    output: OrchestrationV2ShellStreamItem,
-  },
-  subscribeThread: {
-    input: OrchestrationV2SubscribeThreadInput,
-    output: OrchestrationV2ThreadStreamItem,
-  },
-  subscribeCommandOutput: {
-    input: OrchestrationV2SubscribeCommandOutputInput,
-    output: OrchestrationV2CommandOutputFrame,
-  },
-  subscribeBackgroundTaskOutput: {
-    input: OrchestrationV2SubscribeBackgroundTaskOutputInput,
-    output: OrchestrationV2CommandOutputFrame,
-  },
-} as const;
 
 export const ProviderReplayEntry = Schema.Union([
   Schema.Struct({

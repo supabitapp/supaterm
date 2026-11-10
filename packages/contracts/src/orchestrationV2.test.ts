@@ -14,7 +14,6 @@ import {
   OrchestrationV2ProviderCapabilities,
   OrchestrationV2ProviderThread,
   OrchestrationV2ProviderThreadJson,
-  OrchestrationV2RpcSchemas,
   OrchestrationV2RunStatus,
   OrchestrationV2Subagent,
   OrchestrationV2ThreadShellJson,
@@ -23,6 +22,8 @@ import {
   OrchestrationV2ThreadShell,
   OrchestrationV2TurnItem,
   OrchestrationV2TurnItemJson,
+  OrchestrationV2ShellStreamItem,
+  OrchestrationV2ThreadStreamItem,
 } from "./orchestrationV2.ts";
 
 const now = DateTime.makeUnsafe("2026-04-20T00:00:00.000Z");
@@ -47,7 +48,7 @@ const decodeOrchestrationV2ProviderCapabilities = Schema.decodeUnknownSync(
 describe("orchestration V2 contracts", () => {
   it("decodes thread event types from a newer server as skippable items", () => {
     const decodeWireItems = Schema.decodeUnknownSync(
-      Schema.toCodecJson(Schema.Array(OrchestrationV2RpcSchemas.subscribeThread.output)),
+      Schema.toCodecJson(Schema.Array(OrchestrationV2ThreadStreamItem)),
     );
     const detached = (id: string, sequence: number) => ({
       kind: "event",
@@ -91,7 +92,7 @@ describe("orchestration V2 contracts", () => {
   });
 
   it("decodes shell stream kinds from a newer server as skippable items", () => {
-    const codec = Schema.toCodecJson(Schema.Array(OrchestrationV2RpcSchemas.subscribeShell.output));
+    const codec = Schema.toCodecJson(Schema.Array(OrchestrationV2ShellStreamItem));
     const decodeWireItems = Schema.decodeUnknownSync(codec);
     const removed = (sequence: number) => ({
       kind: "project.removed",
@@ -118,7 +119,7 @@ describe("orchestration V2 contracts", () => {
 
   it("skips turn item types from a newer server in snapshots and turn-item events", () => {
     const decodeWireItems = Schema.decodeUnknownSync(
-      Schema.toCodecJson(Schema.Array(OrchestrationV2RpcSchemas.subscribeThread.output)),
+      Schema.toCodecJson(Schema.Array(OrchestrationV2ThreadStreamItem)),
     );
     const decodeHistoryPage = Schema.decodeUnknownSync(
       Schema.toCodecJson(OrchestrationV2ThreadHistoryPage),
