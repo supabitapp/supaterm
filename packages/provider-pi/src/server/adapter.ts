@@ -408,6 +408,15 @@ function piApprovalRequestKind(title: string): "command" | "file-change" {
     : "command";
 }
 
+/** Pi 1.4.0 rejects prompts with this when they race a compaction it already started. */
+const PI_COMPACTING_PROMPT_REJECTION = "Cannot submit a prompt while compaction is in progress";
+
+interface PiPromptSend {
+  readonly providerTurnId: OrchestrationV2ProviderTurn["id"];
+  readonly kind: "turn_start" | "steer";
+  readonly record: PiRpcRecord;
+}
+
 interface PiThreadState {
   providerThread: OrchestrationV2ProviderThread;
   activeTurn: ActivePiTurn | null;
@@ -571,15 +580,31 @@ export const makePiAdapterV2 = Effect.fn("makePiAdapterV2")(function* (
       const modelContextWindows = new Map<string, number>();
       let modelsDiscovered = false;
       // Prompt responses carry no id. Keep their session-wide send order and
-      // owner so a late ack from a settled turn cannot affect the next turn.
-      const pendingPromptResponses: Array<{
-        readonly providerTurnId: OrchestrationV2ProviderTurn["id"];
-        readonly kind: "turn_start" | "steer";
-      }> = [];
+      // owner so a late ack from a done turn cannot affect the next turn.
+      const pendingPromptResponses: Array<PiPromptSend> = [];
       const pendingCompactResponses: Array<{
         readonly providerTurnId: OrchestrationV2ProviderTurn["id"];
         readonly kind: "turn_start" | "steer";
       }> = [];
+      // Pi rejects every prompt while it compacts, including compaction an
+      // extension starts after the turn done. Hold prompts until it ends.
+      let nativeCompacting = false;
+      const heldPrompts: Array<PiPromptSend> = [];
+      // Prompts sent before the pump observed compaction_start are rejected
+      // after it; they precede every prompt held since.
+      let rejectedHeldCount = 0;
+
+      const sendPrompt = Effect.fnUntraced(function* (prompt: PiPromptSend) {
+        if (nativeCompacting) {
+          heldPrompts.push(prompt);
+          return;
+        }
+        yield* connection.send(prompt.record);
+        pendingPromptResponses.push(prompt);
+      });
+      // A just-released prompt has not started its run yet, so a settle probe
+      // racing it would see Pi idle. Its ack re-arms the probe instead.
+      let releasedPromptTurnId: OrchestrationV2ProviderTurn["id"] | null = null;
 
       const compactRpcRecord = (command: PiCompactCommand): PiRpcRecord =>
         command.customInstructions === undefined
@@ -1846,7 +1871,10 @@ export const makePiAdapterV2 = Effect.fn("makePiAdapterV2")(function* (
             if (result === null || result === undefined) {
               if (event["aborted"] === true) {
                 yield* emitCompaction(turn, compaction, "cancelled");
-                if (turn.settleWhenIdle || !turn.sawAgentActivity) {
+                if (
+                  (turn.settleWhenIdle || !turn.sawAgentActivity) &&
+                  releasedPromptTurnId !== turn.providerTurn.id
+                ) {
                   yield* scheduleSettleProbe(turn, turn.settleWhenIdle);
                 }
                 return;
@@ -1856,7 +1884,10 @@ export const makePiAdapterV2 = Effect.fn("makePiAdapterV2")(function* (
               yield* emitCompaction(turn, compaction, "failed", {
                 summary: errorMessage.slice(0, 1_000),
               });
-              if (turn.settleWhenIdle || !turn.sawAgentActivity) {
+              if (
+                (turn.settleWhenIdle || !turn.sawAgentActivity) &&
+                releasedPromptTurnId !== turn.providerTurn.id
+              ) {
                 yield* scheduleSettleProbe(turn, turn.settleWhenIdle);
               }
               return;
@@ -1875,7 +1906,10 @@ export const makePiAdapterV2 = Effect.fn("makePiAdapterV2")(function* (
               ...(beforeTokenCount === undefined ? {} : { beforeTokenCount }),
               ...(afterTokenCount === undefined ? {} : { afterTokenCount }),
             });
-            if (turn.settleWhenIdle || !turn.sawAgentActivity) {
+            if (
+              (turn.settleWhenIdle || !turn.sawAgentActivity) &&
+              releasedPromptTurnId !== turn.providerTurn.id
+            ) {
               yield* scheduleSettleProbe(turn, turn.settleWhenIdle);
             }
             return;
@@ -2027,6 +2061,22 @@ export const makePiAdapterV2 = Effect.fn("makePiAdapterV2")(function* (
             const pendingPrompt = command === "prompt" ? pendingPromptResponses.shift() : undefined;
             const responseTurn =
               pendingPrompt?.providerTurnId === turn?.providerTurn.id ? turn : null;
+            if (
+              event["success"] === false &&
+              nativeCompacting &&
+              recordString(event, "error")?.startsWith(PI_COMPACTING_PROMPT_REJECTION) === true &&
+              pendingPrompt !== undefined &&
+              responseTurn !== null
+            ) {
+              heldPrompts.splice(rejectedHeldCount++, 0, pendingPrompt);
+              return;
+            }
+            // Settlement is not probed while a steer awaits its ack (see
+            // compaction_end); once Pi answers, the run it may have started is
+            // visible to get_state.
+            if (pendingPrompt?.kind === "steer" && responseTurn?.settleWhenIdle === true) {
+              yield* scheduleSettleProbe(responseTurn, true);
+            }
             if (event["success"] === true) {
               // Command-only prompts (extension slash commands) never emit `agent_settled`, so
               // probe for idleness. The probe result is re-queued behind events Pi emitted
@@ -2142,7 +2192,33 @@ export const makePiAdapterV2 = Effect.fn("makePiAdapterV2")(function* (
       yield* Effect.gen(function* () {
         while (true) {
           const event = yield* Queue.take(connection.events);
-          yield* sessionEventPermit.withPermits(1)(handleSessionEvent(event));
+          yield* sessionEventPermit.withPermits(1)(
+            Effect.gen(function* () {
+              // Tracked here rather than in handleSessionEvent, which also
+              // replays buffered wake events after they were observed.
+              if (event["type"] === "compaction_start") nativeCompacting = true;
+              if (event["type"] === "compaction_end") {
+                nativeCompacting = false;
+                // Send before the handler can probe settlement, so Pi sees the
+                // prompt first. Prompts whose turn ended or is stopping are dropped.
+                rejectedHeldCount = 0;
+                for (const held of heldPrompts.splice(0)) {
+                  const turn = threadState?.activeTurn;
+                  if (
+                    turn?.providerTurn.id !== held.providerTurnId ||
+                    turn.interrupted ||
+                    stopRequested
+                  )
+                    continue;
+                  yield* sendPrompt(held);
+                  releasedPromptTurnId = held.providerTurnId;
+                }
+              }
+              yield* handleSessionEvent(event).pipe(
+                Effect.ensuring(Effect.sync(() => (releasedPromptTurnId = null))),
+              );
+            }),
+          );
         }
       }).pipe(
         Effect.catchCause((cause) =>
@@ -2585,15 +2661,15 @@ export const makePiAdapterV2 = Effect.fn("makePiAdapterV2")(function* (
                   kind: "turn_start",
                 });
               } else if (payload !== null) {
-                yield* connection.send({
-                  type: "prompt",
-                  message: payload.message,
-                  streamingBehavior: "steer",
-                  ...(payload.images.length === 0 ? {} : { images: payload.images }),
-                });
-                pendingPromptResponses.push({
+                yield* sendPrompt({
                   providerTurnId: providerTurn.id,
                   kind: "turn_start",
+                  record: {
+                    type: "prompt",
+                    message: payload.message,
+                    streamingBehavior: "steer",
+                    ...(payload.images.length === 0 ? {} : { images: payload.images }),
+                  },
                 });
               }
               yield* emit({
@@ -2681,15 +2757,15 @@ export const makePiAdapterV2 = Effect.fn("makePiAdapterV2")(function* (
                     kind: "steer",
                   });
                 } else if (payload !== null) {
-                  yield* connection.send({
-                    type: "prompt",
-                    message: payload.message,
-                    streamingBehavior: "steer",
-                    ...(payload.images.length === 0 ? {} : { images: payload.images }),
-                  });
-                  pendingPromptResponses.push({
+                  yield* sendPrompt({
                     providerTurnId: turn.providerTurn.id,
                     kind: "steer",
+                    record: {
+                      type: "prompt",
+                      message: payload.message,
+                      streamingBehavior: "steer",
+                      ...(payload.images.length === 0 ? {} : { images: payload.images }),
+                    },
                   });
                 }
                 turn.settleProbeGeneration += 1;
@@ -2725,7 +2801,8 @@ export const makePiAdapterV2 = Effect.fn("makePiAdapterV2")(function* (
               interruptInput.requestRuntimeRestart === true ||
               turn.settleWhenIdle ||
               turn.activeCompaction !== null ||
-              turn.manualCompactInFlight
+              turn.manualCompactInFlight ||
+              nativeCompacting
             ) {
               // Pi's generic abort does not cancel manual compaction. Terminate
               // so Stop covers user /compact as well as detached recovery compact.
@@ -3061,6 +3138,7 @@ export const makePiAdapterV2 = Effect.fn("makePiAdapterV2")(function* (
               environment: options.environment,
               mcpSession: undefined,
               extensionPath: undefined,
+              shortLived: true,
               disableExtensions: true,
               disableTools: true,
             });
