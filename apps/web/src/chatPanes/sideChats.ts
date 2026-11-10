@@ -159,14 +159,48 @@ export function showParkedSideChat(
     return pane ? { ...shown, layout: focusPane(shown.layout, pane.id) } : null;
   }
   const rest = { ...state, parkedSideChats: dropParked(state.parkedSideChats, key) };
-  const besideId = sideChatPanes(state.layout, parentPane.id).at(-1)?.id ?? parentPane.id;
+  return placeSideChat(rest, parentPane.id, sideChat, workspace);
+}
+
+/**
+ * Shows `sideChat` tied to its parent's pane while the parent keeps focus. Null when the parent
+ * is not on screen or the side chat finds no place beside it.
+ */
+export function showSideChatBesideParent(
+  state: PaneArrangement,
+  parent: ThreadRouteTarget,
+  sideChat: ThreadRouteTarget,
+  workspace: PaneLayoutSize | null,
+): PaneArrangement | null {
+  const parentPane = findPaneByTarget(state.layout, parent);
+  if (!parentPane) return null;
+  const shown = findPaneByTarget(state.layout, sideChat);
+  const placed = shown
+    ? { ...state, layout: linkSideChatPane(state.layout, shown.id, parentPane.id) }
+    : placeSideChat(
+        { ...state, parkedSideChats: dropParked(state.parkedSideChats, paneTargetKey(sideChat)) },
+        parentPane.id,
+        sideChat,
+        workspace,
+      );
+  return placed && { ...placed, layout: focusPane(placed.layout, parentPane.id) };
+}
+
+/** After the parent's last side chat when there is room, else in that side chat's place. */
+function placeSideChat(
+  state: PaneArrangement,
+  parentPaneId: string,
+  sideChat: ThreadRouteTarget,
+  workspace: PaneLayoutSize | null,
+): PaneArrangement | null {
+  const besideId = sideChatPanes(state.layout, parentPaneId).at(-1)?.id ?? parentPaneId;
   const id = randomUUID();
   const split =
     workspace && canSplitPane(state.layout, besideId, "right", workspace)
       ? splitPane(state.layout, besideId, "right", sideChat, id, randomUUID)
       : null;
-  if (split) return { ...rest, layout: linkSideChatPane(split, id, parentPane.id) };
-  return swapInSideChat(rest, parentPane.id, sideChat);
+  if (split) return { ...state, layout: linkSideChatPane(split, id, parentPaneId) };
+  return swapInSideChat(state, parentPaneId, sideChat);
 }
 
 function dropParked(

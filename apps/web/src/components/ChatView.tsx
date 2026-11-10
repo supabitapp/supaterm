@@ -144,7 +144,10 @@ import {
 import { useLocation, useNavigate } from "@tanstack/react-router";
 import { BackgroundThreadContext } from "./chat/backgroundThread";
 import { WorkspaceMutationIdContext } from "./chat/ChatMarkdownMedia";
-import { assistantCitationFromLocation } from "../lib/assistantCitationNavigation";
+import {
+  assistantCitationFromLocation,
+  useSideChatCitationReveal,
+} from "../lib/assistantCitationNavigation";
 import type { AssistantCitationSourceAnchor } from "~/lib/assistantTextSelection";
 import { useStore } from "zustand";
 import { useShallow } from "zustand/react/shallow";
@@ -661,12 +664,19 @@ export default function ChatView(props: ChatViewProps) {
     select: (location) => location.state.assistantCitationActivation ?? location.state.__TSR_key,
   });
   const citationLocation = { href: citationHref, key: citationKey };
-  const citationRequest = ((): AssistantCitationRequest | null => {
-    const citation = assistantCitationFromLocation(citationLocation.href);
-    return citation && citation.environmentId === environmentId && citation.threadId === threadId
-      ? { citation, key: citationLocation.key ?? citationLocation.href }
+  const locationCitation = assistantCitationFromLocation(citationLocation.href);
+  const citationActivation = citationLocation.key ?? citationLocation.href;
+  const citationRequest: AssistantCitationRequest | null =
+    locationCitation &&
+    locationCitation.environmentId === environmentId &&
+    locationCitation.threadId === threadId
+      ? { citation: locationCitation, key: citationActivation }
       : null;
-  })();
+  useSideChatCitationReveal(
+    ownsPaneInput ? routeThreadRef : null,
+    locationCitation,
+    citationActivation,
+  );
   const citationHistory = useCitedHistory(citationRequest);
   const { resolvedTheme } = useTheme();
   const composerRuntimeMode = useComposerDraftStore(
