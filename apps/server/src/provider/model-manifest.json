@@ -598,7 +598,7 @@
           },
           "adapter": {
             "claudeCode": {
-              "effortMap": { "ultrathink": null },
+              "effortMap": { "ultracode": "xhigh", "ultrathink": null },
               "fixedContextWindowTokens": 1000000
             }
           }
@@ -697,7 +697,7 @@
           },
           "adapter": {
             "claudeCode": {
-              "effortMap": { "ultrathink": null },
+              "effortMap": { "ultracode": "xhigh", "ultrathink": null },
               "fixedContextWindowTokens": 1000000
             }
           }
