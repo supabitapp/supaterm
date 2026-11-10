@@ -528,9 +528,11 @@ export function useThreadComposerState() {
     }
     const draft = getComposerDraftSnapshot(threadKey);
     const dispatchMode = resolveFollowUpDispatchMode(followUpBehavior);
+    const freshContext = isFreshSessionPending(threadKey);
     const metadata = makeQueuedMessageMetadata();
     const messageId = MessageId.make(metadata.messageId);
     clearThreadComposerError(threadKey);
+    if (freshContext) setFreshSessionPending(threadKey, false);
     return enqueueVoiceThreadOutboxMessage(
       recordingUri,
       {
@@ -544,6 +546,7 @@ export function useThreadComposerState() {
         runtimeMode: draft.runtimeMode ?? thread.runtimeMode,
         interactionMode: DEFAULT_PROVIDER_INTERACTION_MODE,
         ...(dispatchMode === null ? {} : { dispatchMode }),
+        ...(freshContext ? { freshContext: true } : {}),
         createdAt: metadata.createdAt,
       },
       language,
@@ -551,6 +554,7 @@ export function useThreadComposerState() {
     ).then(
       () => messageId,
       (error: unknown) => {
+        if (freshContext) setFreshSessionPending(threadKey, true);
         if (error instanceof VoiceUploadError && error.reason === "audioTooShort") return null;
         setThreadComposerError(
           threadKey,

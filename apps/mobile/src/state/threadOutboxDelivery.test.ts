@@ -1243,6 +1243,18 @@ describe("queued voice message delivery", () => {
     });
   });
 
+  it("starts a fresh session for a recording sent while /clear was armed", async () => {
+    const message = await enqueue({ ...voiceMessage(), freshContext: true });
+    harness.uploadVoice.mockResolvedValue({
+      text: "ship it",
+      submission: { status: "sent", sequence: 3 },
+    });
+
+    await deliverQueuedVoiceMessage(message, modelSelection);
+
+    expect(harness.uploadVoice.mock.calls[0]?.[0].request.submit?.freshContext).toBe(true);
+  });
+
   it("collects a streamed recording without its audio only under the id it streamed with", async () => {
     harness.uploadVoice.mockResolvedValue({
       text: "ship it",

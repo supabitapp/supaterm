@@ -698,6 +698,7 @@ export async function deliverQueuedVoiceMessage(
               modelSelection,
               delivery: queuedMessage.dispatchMode ?? "auto",
               creationSource: "mobile",
+              ...(queuedMessage.freshContext ? { freshContext: true } : {}),
             },
           },
           ...(voice.streamedUploadId === queuedMessage.commandId ? { streamed: true } : {}),
