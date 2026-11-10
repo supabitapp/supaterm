@@ -83,6 +83,7 @@ import {
   type EnvironmentId,
   type MessageId,
   type ModelSelection,
+  type OrchestrationV2Run,
   type PreviewAnnotationPayload,
   type ServerProvider,
   type ScopedThreadRef,
@@ -399,6 +400,7 @@ import type { CodexArtifactTemplate } from "@supaterm/shared/codexArtifactTempla
 
 const EMPTY_FEEDBACK_SUBMISSIONS: ReadonlyArray<CodexFeedbackSubmission> = [];
 const EMPTY_PROVIDER_SKILLS: ServerProvider["skills"] = [];
+const EMPTY_RUNS: ReadonlyArray<OrchestrationV2Run> = [];
 const EMPTY_COMPOSER_BANNER_ITEMS: ReadonlyArray<ComposerBannerStackItem> = [];
 
 const EMPTY_PENDING_FILE_SURFACE_IDS: ReadonlySet<string> = new Set();
@@ -3770,6 +3772,7 @@ export default function ChatView(props: ChatViewProps) {
                                   activeThreadId={activeThreadId}
                                   activeThread={activeThread}
                                   activeThreadShell={activeThreadShell}
+                                  activeThreadRuns={serverProjection?.runs ?? EMPTY_RUNS}
                                   promptHistoryEntries={timelineEntries}
                                   isServerThread={isServerThread}
                                   isLocalDraftThread={isLocalDraftThread}

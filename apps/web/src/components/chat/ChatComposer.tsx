@@ -219,7 +219,11 @@ import { usePaneInputOwner } from "../../chatPanes/paneScope";
 import { useThreadContextDrop, threadContextDropTargetProps } from "./threadContextDrag";
 import { readThreadShell } from "~/state/entities";
 import { encodeComposerContextFragment } from "@supaterm/shared/composerContextClipboard";
-import type { ComposerContextRecord, ThreadPullRequestLink } from "@supaterm/contracts";
+import type {
+  ComposerContextRecord,
+  OrchestrationV2Run,
+  ThreadPullRequestLink,
+} from "@supaterm/contracts";
 import { threadContextAttachment } from "~/lib/threadContextAttachment";
 import {
   type ComposerCommandItem,
@@ -405,6 +409,7 @@ export interface ChatComposerProps {
   activeThreadId: ThreadId | null;
   activeThread: Thread | undefined;
   activeThreadShell: ThreadShell | null;
+  activeThreadRuns: ReadonlyArray<OrchestrationV2Run>;
   promptHistoryEntries: ReadonlyArray<TimelineEntry>;
   isServerThread: boolean;
   isLocalDraftThread: boolean;
@@ -573,6 +578,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     activeThreadId,
     activeThread,
     activeThreadShell,
+    activeThreadRuns,
     promptHistoryEntries,
     isServerThread,
     isLocalDraftThread: _isLocalDraftThread,
@@ -2337,6 +2343,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     threadId: routeKind === "server" ? activeThreadId : null,
     enabled: settings.nextPromptSuggestionsEnabled,
     latestRun: activeThreadShell?.latestRun,
+    runs: activeThreadRuns,
   });
   // Matches when the editor shows its placeholder, so a key never accepts text the user cannot see.
   const promptSuggestion =
