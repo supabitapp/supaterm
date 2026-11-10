@@ -8,8 +8,8 @@ export const BOLT_COMPUTER_STATES: readonly BoltComputerState[] = [
   "error",
 ];
 
-export const FACE_COLS = 28;
-export const FACE_ROWS = 25;
+const FACE_COLS = 28;
+const FACE_ROWS = 25;
 
 /** The LED matrix: the face area centred in a matrix that covers the whole glass. */
 export interface Grid {
