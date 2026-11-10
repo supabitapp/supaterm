@@ -163,7 +163,7 @@ function ReclaimRow({
       title={`${amount} on ${label}`}
       description={
         status.reclaimFailure === undefined
-          ? `Restarts Supaterm there. It is offline for about ${minutes} min.`
+          ? `Restarts Supaterm there. It will be offline for about ${minutes} min.`
           : `The last attempt failed: ${status.reclaimFailure}`
       }
       control={
@@ -184,8 +184,8 @@ function ReclaimRow({
                   Reclaim {amount} on {label}?
                 </AlertDialogTitle>
                 <AlertDialogDescription>
-                  Supaterm on {label} stops, rebuilds its database, and starts again. It is offline
-                  for about {minutes} min. Running agents stop when it restarts.
+                  Supaterm on {label} stops, rebuilds its database, and starts again. It will be
+                  offline for about {minutes} min. Running agents stop when it restarts.
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
