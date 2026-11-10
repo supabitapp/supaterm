@@ -103,8 +103,8 @@ describe("searchSettings", () => {
   });
 
   it("hides desktop-only settings from browser search", () => {
-    expect(SETTINGS_SEARCH_ITEMS.some((item) => item.id === "quit-confirmation")).toBe(true);
-    expect(searchSettings("hold to quit")).toEqual([]);
+    expect(SETTINGS_SEARCH_ITEMS.some((item) => item.id === "cli-command")).toBe(true);
+    expect(searchSettings("cli shell path")).toEqual([]);
     expect(searchSettings("wsl")).toEqual([]);
     expect(searchSettings("update track")).toEqual([]);
   });

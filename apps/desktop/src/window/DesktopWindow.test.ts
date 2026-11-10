@@ -39,8 +39,6 @@ import * as DesktopConfig from "../app/DesktopConfig.ts";
 import * as DesktopEnvironment from "../app/DesktopEnvironment.ts";
 import * as DesktopState from "../app/DesktopState.ts";
 import * as DesktopAppSettings from "../settings/DesktopAppSettings.ts";
-import * as DesktopClientSettings from "../settings/DesktopClientSettings.ts";
-import * as ElectronApp from "../electron/ElectronApp.ts";
 import * as ElectronMenu from "../electron/ElectronMenu.ts";
 import * as ElectronShell from "../electron/ElectronShell.ts";
 import * as ElectronTheme from "../electron/ElectronTheme.ts";
@@ -118,8 +116,6 @@ function makeFakeBrowserWindow() {
     restore: vi.fn(),
     setBackgroundColor: vi.fn(),
     setAutoHideCursor: vi.fn(),
-    setFullScreen: vi.fn(),
-    setOpacity: vi.fn(),
     setTitle: vi.fn(),
     setTitleBarOverlay: vi.fn(),
     setWindowButtonPosition: vi.fn(),
@@ -147,21 +143,11 @@ function makeFakeBrowserWindow() {
     setWindowButtonPosition: window.setWindowButtonPosition,
     setBackgroundThrottling: webContents.setBackgroundThrottling,
     setAutoHideCursor: window.setAutoHideCursor,
-    setFullScreen: window.setFullScreen,
-    setOpacity: window.setOpacity,
     webContentsListeners,
     webContentsOnce: webContents.once,
     windowListeners,
   };
 }
-
-const layerDesktopClientSettings = Layer.mock(DesktopClientSettings.DesktopClientSettings)({
-  get: Effect.succeedNone,
-});
-
-const layerElectronApp = Layer.mock(ElectronApp.ElectronApp)({
-  quit: Effect.void,
-});
 
 const layerDesktopAssets = Layer.succeed(DesktopAssets.DesktopAssets, {
   iconPaths: Effect.succeed({
@@ -311,10 +297,8 @@ function layerTest(input: {
         layerDesktopLaunchIcon,
         layerDesktopEnvironment,
         layerDesktopAppSettings,
-        layerDesktopClientSettings,
         layerDesktopServerExposure,
         DesktopState.layer,
-        layerElectronApp,
         Layer.succeed(ElectronMenu.ElectronMenu, {
           setApplicationMenu: () => Effect.void,
           showContextMenu: () => Effect.succeedNone,
@@ -423,10 +407,8 @@ const makeSplashScenario = (createOutcomes: readonly (Electron.BrowserWindow | n
           layerDesktopLaunchIcon,
           layerDesktopEnvironment,
           DesktopAppSettings.layerTest(),
-          layerDesktopClientSettings,
           layerDesktopServerExposure,
           DesktopState.layer,
-          layerElectronApp,
           layerElectronMenu,
           Layer.succeed(ElectronShell.ElectronShell, {
             openExternal: () => Effect.succeed(true),

@@ -251,27 +251,6 @@ contextBridge.exposeInMainWorld("desktopBridge", {
       ipcRenderer.removeListener(IpcChannels.SNAP_SHOT_EVENT_CHANNEL, wrappedListener);
     };
   },
-  onQuitShortcut: (listener) => {
-    const wrappedListener = (_event: Electron.IpcRendererEvent, hint: unknown) => {
-      if (typeof hint !== "object" || hint === null || !("state" in hint)) return;
-      if (hint.state === "up") {
-        listener({ state: "up" });
-        return;
-      }
-      if (
-        hint.state === "down" &&
-        "mode" in hint &&
-        (hint.mode === "hold" || hint.mode === "double-click")
-      ) {
-        listener({ state: "down", mode: hint.mode });
-      }
-    };
-
-    ipcRenderer.on(IpcChannels.QUIT_SHORTCUT_CHANNEL, wrappedListener);
-    return () => {
-      ipcRenderer.removeListener(IpcChannels.QUIT_SHORTCUT_CHANNEL, wrappedListener);
-    };
-  },
   getWindowFullscreenState: () =>
     ipcRenderer.sendSync(IpcChannels.GET_WINDOW_FULLSCREEN_STATE_CHANNEL) === true,
   getWindowZoomFactor: () => webFrame.getZoomFactor(),

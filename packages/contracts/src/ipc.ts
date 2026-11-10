@@ -12,7 +12,7 @@ import type {
 import { AuthAccessTokenResult, AuthSessionState } from "./auth.ts";
 import { AdvertisedEndpoint } from "./remoteAccess.ts";
 import { ExecutionEnvironmentDescriptor } from "./environment.ts";
-import { type ClientSettings, type QuitConfirmationMode, SnapShotShortcut } from "./settings.ts";
+import { type ClientSettings, SnapShotShortcut } from "./settings.ts";
 import type { EditorId } from "./editor.ts";
 import type { PreviewForwardedShortcut } from "./keybindings.ts";
 import type { DesktopCodexMicroBridge } from "./codexMicro.ts";
@@ -35,10 +35,6 @@ export interface ContextMenuItem<T extends string = string> {
   checked?: boolean;
   children?: readonly ContextMenuItem<T>[];
 }
-
-export type QuitShortcutHintEvent =
-  | { readonly state: "down"; readonly mode: Exclude<QuitConfirmationMode, "direct"> }
-  | { readonly state: "up" };
 
 export interface ContextMenuItemSchemaType {
   readonly id: string;
@@ -1121,7 +1117,6 @@ export interface DesktopBridge {
   pasteAsText: () => Promise<void>;
   onMenuAction: (listener: (action: string) => void) => () => void;
   onSnapShotEvent: (listener: (event: DesktopSnapShotEvent) => void) => () => void;
-  onQuitShortcut: (listener: (event: QuitShortcutHintEvent) => void) => () => void;
   getWindowFullscreenState: () => boolean;
   onWindowFullscreenStateChange: (listener: (fullscreen: boolean) => void) => () => void;
   /** The machine woke from sleep or was unlocked. */
