@@ -1,7 +1,7 @@
 import { useAtomRefresh, useAtomValue } from "@effect/atom-react";
 import {
   descriptionDraftInForce,
-  markDoneDescriptionSave,
+  settleDescriptionSave,
   startDescriptionSave,
   type DescriptionDraft,
 } from "@supaterm/client-runtime/pull-request-editing";
@@ -38,7 +38,7 @@ export function usePullRequestDescription(
     const response = await update({ ...target, input: { ...target.input, body: next } });
     savesRunning.current -= 1;
     const saved = !AsyncResult.isFailure(response);
-    setDraft((current) => markDoneDescriptionSave(current, detail.url, saved));
+    setDraft((current) => settleDescriptionSave(current, detail.url, saved));
     if (AsyncResult.isFailure(response)) {
       const cause = squashAtomCommandFailure(response);
       Dialog.alert(

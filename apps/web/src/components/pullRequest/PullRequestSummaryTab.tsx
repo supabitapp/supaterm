@@ -78,7 +78,7 @@ import {
   canEditPullRequestChangeRequest,
   canEditPullRequestComment,
   descriptionDraftInForce,
-  markDoneDescriptionSave,
+  settleDescriptionSave,
   startDescriptionSave,
   type DescriptionDraft,
 } from "@supaterm/client-runtime/pull-request-editing";
@@ -571,7 +571,7 @@ export function PullRequestSummaryTab({
     const result = await update({ environmentId, input: { ...reference, body } });
     descriptionSavesRunning.current -= 1;
     const saved = result._tag === "Success";
-    setDescriptionDraft((draft) => markDoneDescriptionSave(draft, key, saved));
+    setDescriptionDraft((draft) => settleDescriptionSave(draft, key, saved));
     if (!saved) toastManager.add({ type: "error", title: "Could not save the description" });
     if (descriptionSavesRunning.current === 0) onRefresh();
     return saved;

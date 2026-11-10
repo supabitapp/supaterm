@@ -1450,10 +1450,10 @@ export const layer: Layer.Layer<
           // A wake due by now has fired; a later deadline needs a new one.
           if (idleFlushWake !== undefined && idleFlushWake.at <= now) idleFlushWake = undefined;
           if (idleFlushClosed) return;
-          const rootDone = yield* Ref.get(rootRunFinalized);
+          const rootSettled = yield* Ref.get(rootRunFinalized);
           for (const event of assistantStreaming.takeIdleFlushes(now)) {
             // Settling the root run closed its messages; only children may still stream.
-            if (rootDone && streamedThreadId(event) === input.run.threadId) continue;
+            if (rootSettled && streamedThreadId(event) === input.run.threadId) continue;
             // The held text's child may have been handed to another run since it arrived.
             if (!routeProviderEvent(event, routeIdentity, yield* Ref.get(eventRouting))[0])
               continue;

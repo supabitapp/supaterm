@@ -91,7 +91,7 @@ export function startDescriptionSave(
 }
 
 /** Each save writes the whole body, so a failure only loses `body` when no later save is running. */
-export function markDoneDescriptionSave(
+export function settleDescriptionSave(
   draft: DescriptionDraft | null,
   key: string,
   saved: boolean,

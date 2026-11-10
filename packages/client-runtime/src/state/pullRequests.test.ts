@@ -2063,8 +2063,8 @@ it.effect("keeps live detail reads separate from reads that allow stale data", (
       expect(yield* AtomRegistry.getResult(registry, cached, { suspendOnWaiting: true })).toBe(
         first,
       );
-      const doneVersion = registry.get(reading);
-      expect(doneVersion).toBeGreaterThan(firstVersion);
+      const settledVersion = registry.get(reading);
+      expect(settledVersion).toBeGreaterThan(firstVersion);
       hold = false;
 
       yield* SubscriptionRef.update(supervisor.state, (state) => ({
@@ -2075,7 +2075,7 @@ it.effect("keeps live detail reads separate from reads that allow stale data", (
       registry.refresh(cached);
       const offline = yield* AtomRegistry.getResult(registry, cached, { suspendOnWaiting: true });
       expect(offline.observedAt).toBeUndefined();
-      expect(registry.get(reading)).toBe(doneVersion);
+      expect(registry.get(reading)).toBe(settledVersion);
       expect(reads).toBe(3);
 
       yield* SubscriptionRef.update(supervisor.state, (state) => ({
@@ -2087,7 +2087,7 @@ it.effect("keeps live detail reads separate from reads that allow stale data", (
       const reread = yield* AtomRegistry.getResult(registry, cached, { suspendOnWaiting: true });
       expect(reread).toBe(first);
       expect(reread.observedAt).toBeUndefined();
-      expect(registry.get(reading)).toBeGreaterThan(doneVersion);
+      expect(registry.get(reading)).toBeGreaterThan(settledVersion);
 
       hostStamp = 27;
       registry.refresh(cached);

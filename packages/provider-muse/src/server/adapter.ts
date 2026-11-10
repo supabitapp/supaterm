@@ -516,7 +516,7 @@ export const makeMuseAdapterV2 = Effect.fn("makeMuseAdapterV2")(function* (
         });
       });
       // Muse sends no recovered event, so model output or the turn's end closes open retry rows.
-      const markDoneRetries = Effect.fnUntraced(function* (
+      const settleRetries = Effect.fnUntraced(function* (
         turn: ActiveTurn,
         status: "completed" | "interrupted",
       ) {
@@ -1052,7 +1052,7 @@ export const makeMuseAdapterV2 = Effect.fn("makeMuseAdapterV2")(function* (
         }
         turn.dirty.clear();
         // A failed turn has its own failure row; its retry rows only record that retrying stopped.
-        yield* markDoneRetries(turn, status === "completed" ? "completed" : "interrupted");
+        yield* settleRetries(turn, status === "completed" ? "completed" : "interrupted");
         for (const entry of pending.values())
           if (entry.request.providerTurnId !== null) yield* resolvePending(entry, "cancelled");
         turn.providerTurn = { ...turn.providerTurn, status, completedAt };
@@ -1493,7 +1493,7 @@ export const makeMuseAdapterV2 = Effect.fn("makeMuseAdapterV2")(function* (
             const previous = turn.items.get(item.itemId);
             if (previous && previous.revision >= item.revision) return;
             if (method === "item/started" && MODEL_OUTPUT_KINDS.has(item.kind))
-              yield* markDoneRetries(turn, "completed");
+              yield* settleRetries(turn, "completed");
             turn.items.set(item.itemId, item);
             turn.dirty.delete(item.itemId);
             yield* publishItem(turn, item);
@@ -1588,7 +1588,7 @@ export const makeMuseAdapterV2 = Effect.fn("makeMuseAdapterV2")(function* (
             break;
           case "session/tokenUsage": {
             const usage = yield* decode(MuseTokenUsageEvent, params);
-            yield* markDoneRetries(turn, "completed");
+            yield* settleRetries(turn, "completed");
             const previous = turn.providerTurn.turnTokenUsage;
             const contextUsage = thread?.contextUsage;
             turn.providerTurn = {

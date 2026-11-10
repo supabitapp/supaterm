@@ -12,7 +12,7 @@ import {
   canEditPullRequestComment,
   canResolvePullRequestThread,
   descriptionDraftInForce,
-  markDoneDescriptionSave,
+  settleDescriptionSave,
   startDescriptionSave,
   type DescriptionDraft,
 } from "./pullRequestEditing.ts";
@@ -218,9 +218,9 @@ describe("description drafts", () => {
     draft = startDescriptionSave(draft, { url, observedAt: 1 }, unticked);
     expect(descriptionDraftInForce(draft, url, 2)?.body).toBe(unticked);
     draft = descriptionDraftInForce(draft, url, 2);
-    draft = markDoneDescriptionSave(draft, url, true);
+    draft = settleDescriptionSave(draft, url, true);
     expect(descriptionDraftInForce(draft, url, 2)?.body).toBe(unticked);
-    draft = markDoneDescriptionSave(draft, url, true);
+    draft = settleDescriptionSave(draft, url, true);
     expect(descriptionDraftInForce(draft, url, 2)?.body).toBe(unticked);
     // The acknowledging reading ends the draft, so the host's later ticks show.
     expect(descriptionDraftInForce(draft, url, 3)).toBeNull();
@@ -230,12 +230,12 @@ describe("description drafts", () => {
     let draft: DescriptionDraft | null = startDescriptionSave(null, { url, observedAt: 1 }, ticked);
     draft = startDescriptionSave(draft, { url, observedAt: 1 }, unticked);
     // The save still running writes the whole body again.
-    draft = markDoneDescriptionSave(draft, url, false);
+    draft = settleDescriptionSave(draft, url, false);
     expect(descriptionDraftInForce(draft, url, 2)).toMatchObject({ body: unticked, saves: 1 });
     draft = descriptionDraftInForce(draft, url, 2);
-    draft = markDoneDescriptionSave(draft, url, false);
+    draft = settleDescriptionSave(draft, url, false);
     expect(descriptionDraftInForce(draft, url, 2)).toMatchObject({ body: null, saves: 0 });
-    expect(markDoneDescriptionSave(draft, url, true)).toBe(draft);
+    expect(settleDescriptionSave(draft, url, true)).toBe(draft);
     expect(descriptionDraftInForce(draft, url, 3)).toBeNull();
   });
 
@@ -243,7 +243,7 @@ describe("description drafts", () => {
     const draft = startDescriptionSave(null, { url, observedAt: 1 }, ticked);
     const other = "https://github.com/owner/repo/pull/2";
     expect(descriptionDraftInForce(draft, other, 1)).toBeNull();
-    expect(markDoneDescriptionSave(draft, other, false)).toBe(draft);
+    expect(settleDescriptionSave(draft, other, false)).toBe(draft);
     expect(startDescriptionSave(draft, { url: other, observedAt: 5 }, unticked).saves).toBe(1);
   });
 });
