@@ -171,11 +171,14 @@ export const probeOpenCodeRuntime = (
     ? probeOpenCodeServer(settings.serverUrl, settings.serverPassword)
     : probeOpenCodeBinary(settings.binaryPath, environment);
 
+// Only 2.x is kept: 1.x can be upgraded in place while Supaterm runs, and 2.x converts the shared
+// database, so going back is unsupported.
 export const makeOpenCodeRuntimeProbe = <E>(probe: Effect.Effect<ProbedOpenCode, E>) =>
   Effect.map(
     Cache.makeWith(() => probe, {
       capacity: 1,
-      timeToLive: (exit) => (Exit.isSuccess(exit) ? Duration.infinity : Duration.zero),
+      timeToLive: (exit) =>
+        Exit.isSuccess(exit) && exit.value.generation === "v2" ? Duration.infinity : Duration.zero,
     }),
     (cache) => ({
       get: Cache.get(cache, undefined),

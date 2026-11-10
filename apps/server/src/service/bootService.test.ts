@@ -107,10 +107,19 @@ const macInstallerPath =
 const makeHarness = Effect.fn("test.make_boot_service_harness")(function* (
   platform: NodeJS.Platform = "linux",
   installerPath = macInstallerPath,
+  xdgConfigHome?: string,
+  managerXdgConfigHome = xdgConfigHome,
 ) {
   const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
   const home = yield* fs.makeTempDirectoryScoped({ prefix: "supaterm-boot-service-test-" });
+  const managerUnitDir = path.join(
+    managerXdgConfigHome !== undefined && path.isAbsolute(managerXdgConfigHome)
+      ? managerXdgConfigHome
+      : path.join(home, ".config"),
+    "systemd",
+    "user",
+  );
   const baseDir = path.join(home, ".supaterm");
   const statePath = path.join(baseDir, "runtime", "service-state.json");
   const runtime = pinnedRuntimePaths(path, baseDir, "1.2.3", platform);
@@ -157,15 +166,26 @@ const makeHarness = Effect.fn("test.make_boot_service_harness")(function* (
       }
       return {
         stdout:
-          input.args[0] === "--version"
-            ? `supaterm v${/versions\/([^/]+)\//.exec(input.command)?.[1] ?? "1.2.3"}\n`
-            : input.command === "loginctl" && input.args[0] === "show-user"
-              ? `${control.linger}\n`
-              : input.args[1] === "is-enabled"
-                ? control.enabled
-                  ? "enabled\n"
-                  : "disabled\n"
-                : "",
+          input.command === "busctl"
+            ? JSON.stringify({
+                type: "as",
+                data: [
+                  "/usr/lib/systemd/user",
+                  `${managerUnitDir}.control`,
+                  "/run/user/501/systemd/transient",
+                  managerUnitDir,
+                  "/etc/systemd/user",
+                ],
+              })
+            : input.args[0] === "--version"
+              ? `supaterm v${/versions\/([^/]+)\//.exec(input.command)?.[1] ?? "1.2.3"}\n`
+              : input.command === "loginctl" && input.args[0] === "show-user"
+                ? `${control.linger}\n`
+                : input.args[1] === "is-enabled"
+                  ? control.enabled
+                    ? "enabled\n"
+                    : "disabled\n"
+                  : "",
         stderr: "",
         code: ChildProcessSpawner.ExitCode(
           failed ||
@@ -215,6 +235,7 @@ const makeHarness = Effect.fn("test.make_boot_service_harness")(function* (
             ConfigProvider.fromEnv({
               env: {
                 HOME: home,
+                ...(xdgConfigHome === undefined ? {} : { XDG_CONFIG_HOME: xdgConfigHome }),
                 ...(environmentPath === undefined || environmentPath === ""
                   ? {}
                   : { PATH: environmentPath }),
@@ -230,6 +251,7 @@ const makeHarness = Effect.fn("test.make_boot_service_harness")(function* (
     service,
     makeService,
     fs,
+    home,
     baseDir,
     statePath,
     commands,
@@ -332,10 +354,52 @@ it.layer(NodeServices.layer)("boot service install", (it) => {
     }),
   );
 
-  it.effect("installs, reports current state, and uninstalls", () =>
+  it.effect.each([
+    "unset",
+    "empty",
+    "relative",
+    "relocated",
+    "shell-only",
+    "manager-only",
+    "manager-unavailable",
+  ] as const)("installs, discovers, restarts, and uninstalls with $XDG_CONFIG_HOME %s", (setting) =>
     Effect.gen(function* () {
-      const { service, fs, statePath, timeouts, runtime } = yield* makeHarness();
+      const path = yield* Path.Path;
+      const fs = yield* FileSystem.FileSystem;
+      const configRoot = yield* fs.makeTempDirectoryScoped({ prefix: "supaterm-xdg-config-" });
+      const xdgConfigHome = {
+        unset: undefined,
+        empty: "",
+        relative: "relative-config",
+        relocated: path.join(configRoot, "config root"),
+        "shell-only": path.join(configRoot, "config root"),
+        "manager-only": undefined,
+        "manager-unavailable": path.join(configRoot, "config root"),
+      }[setting];
+      const managerXdgConfigHome =
+        setting === "shell-only"
+          ? ""
+          : setting === "manager-only"
+            ? path.join(configRoot, "config root")
+            : undefined;
+      const { service, makeService, home, statePath, timeouts, runtime, control } =
+        yield* makeHarness("linux", undefined, xdgConfigHome, managerXdgConfigHome);
+      const unitPath = path.join(
+        setting === "relocated" || setting === "manager-only" || setting === "manager-unavailable"
+          ? path.join(configRoot, "config root")
+          : path.join(home, ".config"),
+        "systemd",
+        "user",
+        "supaterm.service",
+      );
+      expect(yield* service.status).toMatchObject({ installed: false, unitPath });
       const plan = yield* service.install();
+      expect(plan.unitPath).toBe(unitPath);
+      if (setting === "manager-unavailable") {
+        control.failCommand =
+          "busctl --user --json=short get-property org.freedesktop.systemd1 /org/freedesktop/systemd1 org.freedesktop.systemd1.Manager UnitPath";
+      }
+      const discoveredService = yield* makeService();
 
       expect(parseServiceState(yield* fs.readFileString(statePath))).toEqual({
         protocol: SERVICE_LAUNCHER_PROTOCOL,
@@ -349,6 +413,12 @@ it.layer(NodeServices.layer)("boot service install", (it) => {
         current: true,
         installedVersion: "1.2.3",
       });
+      expect(yield* discoveredService.status).toMatchObject({
+        installed: true,
+        current: true,
+        unitPath,
+      });
+      expect(yield* discoveredService.restart).toBe("restarted");
       const pendingState = JSON.stringify({
         protocol: SERVICE_LAUNCHER_PROTOCOL,
         activeVersion: "1.2.3",
@@ -362,8 +432,9 @@ it.layer(NodeServices.layer)("boot service install", (it) => {
       });
       yield* fs.writeFileString(statePath, pendingState);
       expect((yield* service.status).current).toBe(false);
-      expect(yield* service.uninstall).toBe(true);
-      expect((yield* service.status).installed).toBe(false);
+      expect(yield* discoveredService.uninstall).toBe(true);
+      expect(yield* fs.exists(unitPath)).toBe(false);
+      expect((yield* discoveredService.status).installed).toBe(false);
       // The stop can block up to systemd's 90s TimeoutStopSec; the runner's
       // 60s default would cancel it mid-shutdown.
       expect(timeouts.get("systemctl --user disable --now supaterm.service")).toEqual(

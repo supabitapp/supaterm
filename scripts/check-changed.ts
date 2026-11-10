@@ -28,7 +28,8 @@ import { vitePlusCommand } from "./check-changed-command.ts";
 import { affectedPackages, readWorkspace } from "./lib/changed-packages.ts";
 
 const root = NodePath.resolve(import.meta.dirname, "..");
-const CODE = /\.[cm]?[jt]sx?$/;
+// CI's lint and knip also read Astro components' frontmatter.
+const CODE = /\.(?:[cm]?[jt]sx?|astro)$/;
 
 // Mirrors the mobile_native_changes gate in .github/workflows/ci.yml.
 const MOBILE_NATIVE =
@@ -390,7 +391,7 @@ const steps = [
     name: "format",
     args: ["fmt", "--check", "--no-error-on-unmatched-pattern", ...present],
   },
-  code.length > 0 && { name: "lint", args: ["lint", ...code] },
+  code.length > 0 && { name: "lint", args: ["lint", "--no-error-on-unmatched-pattern", ...code] },
   ...(runKnip ? knipPasses : []),
   ...graphql.map((dir) => ({
     name: `graphql (${dir})`,

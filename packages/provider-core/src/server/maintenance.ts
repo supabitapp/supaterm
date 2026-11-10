@@ -9,6 +9,8 @@ export interface ProviderMaintenanceCapabilities {
   readonly latestVersion?: string | null;
 
   readonly lookupLatestVersion?: Effect.Effect<string | null>;
+  /** Separates installer release channels that share an update command. */
+  readonly latestVersionCacheKey?: string;
   readonly compareVersions?: (current: string, latest: string) => number;
   readonly installPath?: string;
   /** Displayed for manual updates; never executed by Supaterm. */
