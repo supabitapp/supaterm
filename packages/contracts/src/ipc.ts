@@ -501,6 +501,12 @@ export const DesktopServerExposureStateSchema = Schema.Struct({
   tailscaleServePort: Schema.Number,
 });
 
+export const DesktopServerExposureStatusSchema = Schema.Struct({
+  ...DesktopServerExposureStateSchema.fields,
+  tailscaleError: Schema.NullOr(Schema.String),
+});
+export type DesktopServerExposureStatus = typeof DesktopServerExposureStatusSchema.Type;
+
 export interface PickFolderOptions {
   initialPath?: string | null;
   targetEnvironmentId?: string;
@@ -1105,7 +1111,7 @@ export interface DesktopBridge {
   fetchSshSessionState: (httpBaseUrl: string, bearerToken: string) => Promise<AuthSessionState>;
   onSshPasswordPrompt: (listener: (request: DesktopSshPasswordPromptRequest) => void) => () => void;
   resolveSshPasswordPrompt: (requestId: string, password: string | null) => Promise<void>;
-  getServerExposureState: () => Promise<DesktopServerExposureState>;
+  getServerExposureState: () => Promise<DesktopServerExposureStatus>;
   setServerExposureMode: (mode: DesktopServerExposureMode) => Promise<DesktopServerExposureState>;
   setTailscaleServeEnabled: (input: {
     readonly enabled: boolean;

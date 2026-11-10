@@ -210,15 +210,26 @@ describe("resolveTailscaleHttpsRow", () => {
   it("offers setup before Tailscale has reported a MagicDNS name", () => {
     expect(resolveTailscaleHttpsRow({ endpoint: null, serveEnabled: false })).toEqual({
       description: "Use Tailscale Serve to expose this backend through a MagicDNS HTTPS URL.",
-      unreachable: false,
+      status: null,
     });
   });
 
-  it("asks to start Tailscale when Serve is on but no MagicDNS name is reported", () => {
+  it("reports unavailable HTTPS when Serve is on but no MagicDNS name is reported", () => {
     expect(resolveTailscaleHttpsRow({ endpoint: null, serveEnabled: true })).toEqual({
-      description: "Start Tailscale to set up HTTPS access through MagicDNS.",
-      unreachable: false,
+      description: "Use Tailscale Serve to expose this backend through a MagicDNS HTTPS URL.",
+      status:
+        "Tailscale HTTPS is unavailable. Check that Tailscale is running and its command works, then restart Supaterm.",
     });
+  });
+
+  it("shows the command error and clears it when HTTPS is disabled", () => {
+    const error = "tailscale status exited with code 1.";
+    expect(resolveTailscaleHttpsRow({ endpoint: null, serveEnabled: true, error }).status).toBe(
+      error,
+    );
+    expect(
+      resolveTailscaleHttpsRow({ endpoint: null, serveEnabled: false, error }).status,
+    ).toBeNull();
   });
 
   it("shows the URL and flags it when this machine cannot reach it", () => {
@@ -227,7 +238,11 @@ describe("resolveTailscaleHttpsRow", () => {
         endpoint: { ...endpoint, status: "unavailable" },
         serveEnabled: true,
       }),
-    ).toEqual({ description: endpoint.httpBaseUrl, unreachable: true });
+    ).toEqual({
+      description: endpoint.httpBaseUrl,
+      status:
+        "Tailscale HTTPS is unavailable. Check that Tailscale is running and its command works, then restart Supaterm.",
+    });
   });
 });
 

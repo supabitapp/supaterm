@@ -1052,16 +1052,16 @@ function ConnectionsSettingsContent({
 
   const renderTailscaleRow = () => {
     const serveEnabled = desktopServerExposureState?.tailscaleServeEnabled === true;
-    const row = resolveTailscaleHttpsRow({ endpoint: tailscaleHttpsEndpoint, serveEnabled });
+    const row = resolveTailscaleHttpsRow({
+      endpoint: tailscaleHttpsEndpoint,
+      serveEnabled,
+      error: desktopServerExposureState?.tailscaleError ?? null,
+    });
     return (
       <SettingsRow
         title={searchableSetting("tailscale-https").title}
         description={row.description}
-        status={
-          row.unreachable
-            ? "This machine can't reach that URL yet, so pairing links won't offer it."
-            : null
-        }
+        status={row.status ? <span className="block text-destructive">{row.status}</span> : null}
         control={
           <Switch
             checked={serveEnabled}

@@ -108,13 +108,19 @@ export function isQrShareableEndpoint(endpoint: AdvertisedEndpoint): boolean {
 export function resolveTailscaleHttpsRow(input: {
   readonly endpoint: AdvertisedEndpoint | null;
   readonly serveEnabled: boolean;
+  readonly error?: string | null;
 }) {
-  const { endpoint, serveEnabled } = input;
+  const { endpoint, serveEnabled, error } = input;
   return {
-    description: serveEnabled
-      ? (endpoint?.httpBaseUrl ?? "Start Tailscale to set up HTTPS access through MagicDNS.")
-      : "Use Tailscale Serve to expose this backend through a MagicDNS HTTPS URL.",
-    unreachable: serveEnabled && endpoint !== null && endpoint.status !== "available",
+    description:
+      serveEnabled && endpoint
+        ? endpoint.httpBaseUrl
+        : "Use Tailscale Serve to expose this backend through a MagicDNS HTTPS URL.",
+    status:
+      serveEnabled && (error || endpoint?.status !== "available")
+        ? (error ??
+          "Tailscale HTTPS is unavailable. Check that Tailscale is running and its command works, then restart Supaterm.")
+        : null,
   };
 }
 
