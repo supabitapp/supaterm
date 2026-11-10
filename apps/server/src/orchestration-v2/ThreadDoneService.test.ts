@@ -1123,7 +1123,7 @@ describe("ThreadDoneServiceV2 worker", () => {
         });
 
         yield* Effect.gen(function* () {
-          const reactor = yield* ThreadDoneService.ThreadMarkDoneServiceV2;
+          const reactor = yield* ThreadDoneService.ThreadDoneServiceV2;
           yield* startHarness(reactor, fixture.activation, fixture.snapshotReads);
           const cwdByBranch = Object.fromEntries(
             (yield* Ref.get(fixture.branchCalls)).map((call) => [call.branch, call.cwd]),
@@ -1137,7 +1137,7 @@ describe("ThreadDoneServiceV2 worker", () => {
     ),
   );
 
-  it.effect("does not settle a thread whose worktree cannot be checked", () =>
+  it.effect("does not mark done a thread whose worktree cannot be checked", () =>
     Effect.scoped(
       Effect.gen(function* () {
         yield* TestClock.setTime(Date.parse(NOW));
@@ -1149,7 +1149,7 @@ describe("ThreadDoneServiceV2 worker", () => {
                 worktreePath: "/worktrees/unreadable",
                 latestUserMessageAt: DateTime.makeUnsafe("2026-08-27T00:00:00.000Z"),
               }),
-              // A merged linked pull request still needs the branch recheck before settling.
+              // A merged linked pull request still needs the branch recheck before marking done.
               makeThread("unreadable-linked-worktree", {
                 branch: "feature",
                 worktreePath: "/worktrees/unreadable-linked",
@@ -1198,7 +1198,7 @@ describe("ThreadDoneServiceV2 worker", () => {
         });
 
         yield* Effect.gen(function* () {
-          const reactor = yield* ThreadDoneService.ThreadMarkDoneServiceV2;
+          const reactor = yield* ThreadDoneService.ThreadDoneServiceV2;
           yield* startHarness(reactor, fixture.activation, fixture.snapshotReads);
           expect((yield* Ref.get(fixture.commands)).map((command) => command.threadId)).toEqual([
             ThreadId.make("readable-worktree"),

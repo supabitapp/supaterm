@@ -582,6 +582,7 @@ describe("ThreadPullRequestServiceV2 reads", () => {
             SecureRandom.make((size) => new Uint8Array(size).fill(1)),
           ),
           FileSystem.layerNoop({}),
+          Path.layer,
         );
 
         yield* Effect.gen(function* () {
