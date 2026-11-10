@@ -262,7 +262,7 @@ describe("resolveThreadListV2SwipeActions", () => {
       }).secondary,
     ).toBe("snooze");
 
-    const layout = buildThreadListV2Items({
+    const layout = buildShelfLayout({
       threads: [{ ...thread, snoozedAt: NOW, snoozedUntil: "2026-06-03T00:00:00.000Z" }],
       environmentId: null,
       searchQuery: "",
