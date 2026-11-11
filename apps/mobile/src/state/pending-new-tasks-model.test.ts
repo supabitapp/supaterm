@@ -1,14 +1,23 @@
 import { describe, expect, it } from "@effect/vitest";
-import { EnvironmentId, ProjectId } from "@supaterm/contracts";
+import {
+  CommandId,
+  EnvironmentId,
+  MessageId,
+  ProjectId,
+  ProviderInstanceId,
+  ThreadId,
+} from "@supaterm/contracts";
 
 import type { ComposerDraft, ComposerDraftWorkspaceSelection } from "./use-composer-drafts";
 import {
   applyHeldNewTaskDraft,
   buildPendingDraftTasks,
+  buildPendingQueuedTasks,
   type PendingDraftProjectDefaults,
   pendingDraftBranchNeedsRefs,
   resolvePendingDraftBranch,
 } from "./pending-new-tasks-model";
+import type { QueuedThreadMessage } from "./thread-outbox-model";
 
 const environmentId = EnvironmentId.make("env-1");
 const projectId = ProjectId.make("project-1");
@@ -185,5 +194,56 @@ describe("resolvePendingDraftBranch", () => {
     const chosen = draftWith({ mode: "local", branch: "release", worktreePath: null });
     expect(pendingDraftBranchNeedsRefs(chosen, localDefault)).toBe(false);
     expect(resolve({ draft: chosen, branches, projectCwd })).toBe("release");
+  });
+});
+
+function queuedCreation(environmentId: string): QueuedThreadMessage {
+  return {
+    environmentId: EnvironmentId.make(environmentId),
+    threadId: ThreadId.make(`thread-${environmentId}`),
+    messageId: MessageId.make(`message-${environmentId}`),
+    commandId: CommandId.make(`command-${environmentId}`),
+    text: "Test",
+    attachments: [],
+    modelSelection: { instanceId: ProviderInstanceId.make("codex"), model: "gpt-5.6-sol" },
+    creation: {
+      projectId: ProjectId.make("project-1"),
+      workspaceMode: "local",
+      branch: null,
+      worktreePath: null,
+    },
+    createdAt: "2026-11-10T01:10:00.000Z",
+  };
+}
+
+describe("buildPendingQueuedTasks", () => {
+  it("lists only creations the outbox is not sending yet", () => {
+    const sending = EnvironmentId.make("sending");
+    const syncing = EnvironmentId.make("syncing");
+    const readOnly = EnvironmentId.make("read-only");
+    const retrying = EnvironmentId.make("retrying");
+    const { modelSelection: _model, ...modelless } = queuedCreation("sending");
+    const tasks = buildPendingQueuedTasks(
+      [
+        ...["sending", "syncing", "read-only", "retrying", "offline"].map(queuedCreation),
+        { ...modelless, messageId: MessageId.make("message-modelless") },
+      ],
+      {
+        connectedEnvironmentIds: new Set([sending, syncing, readOnly, retrying]),
+        operableEnvironmentIds: new Set([sending, syncing, retrying]),
+        shellStatuses: new Map([
+          [sending, "live"],
+          [syncing, "synchronizing"],
+          [readOnly, "live"],
+          [retrying, "live"],
+        ]),
+        retryingMessageIds: { [MessageId.make("message-retrying")]: true },
+      },
+    );
+
+    expect(tasks).toHaveLength(5);
+    expect(new Set(tasks.map((task) => task.environmentId))).toEqual(
+      new Set(["syncing", "read-only", "retrying", "offline", "sending"]),
+    );
   });
 });

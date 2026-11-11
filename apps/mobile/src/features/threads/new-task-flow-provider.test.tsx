@@ -281,6 +281,12 @@ const pendingTask: QueuedThreadMessage = {
     worktreePath: null,
   },
 };
+const NOTHING_SENDING = {
+  connectedEnvironmentIds: new Set<EnvironmentId>(),
+  operableEnvironmentIds: new Set<EnvironmentId>(),
+  shellStatuses: new Map(),
+  retryingMessageIds: {},
+};
 
 type NewTaskFlow = ReturnType<typeof useNewTaskFlow>;
 interface TestDraftRoute {
@@ -392,7 +398,7 @@ function beginSwitch(environmentId = secondEnvironment!) {
 }
 
 function deletePendingTask() {
-  const task = buildPendingQueuedTasks([pendingTask])[0]!;
+  const task = buildPendingQueuedTasks([pendingTask], NOTHING_SENDING)[0]!;
   pendingActions.confirmDeletePendingTask(task);
   const confirmation = vi.mocked(Alert.alert).mock.calls.at(-1)?.[2];
   const deleteAction = confirmation?.find((action) => action.text === "Delete");
@@ -408,7 +414,7 @@ describe("pending task editor dismissal", () => {
   });
 
   it("opens a queued creation's reserved thread from the list", () => {
-    const task = buildPendingQueuedTasks([pendingTask])[0]!;
+    const task = buildPendingQueuedTasks([pendingTask], NOTHING_SENDING)[0]!;
     pendingActions.openPendingTask(task);
     expect(transport.navigate).toHaveBeenCalledWith("Thread", {
       environmentId: pendingTask.environmentId,
