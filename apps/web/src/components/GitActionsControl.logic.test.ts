@@ -5,6 +5,7 @@ import { assert, describe, it } from "vite-plus/test";
 import {
   buildMenuItems,
   hasChangesToReview,
+  hasUsableGitMenuContent,
   requiresDefaultBranchConfirmation,
   resolveChangesTotals,
   resolveDefaultBranchActionDialogCopy,
@@ -77,6 +78,29 @@ describe("when: ref is clean, up to date, and has no open PR", () => {
       buildMenuItems(dirtyFeature, false).find((item) => item.id === "pr")?.disabled,
       false,
     );
+  });
+
+  it("offers the actions menu only when something in it is usable", () => {
+    const hasContent = (
+      gitStatus: VcsStatusResult,
+      overrides: Partial<Parameters<typeof hasUsableGitMenuContent>[0]> = {},
+    ) =>
+      hasUsableGitMenuContent({
+        menuItems: buildMenuItems(gitStatus, false, gitStatus.hasPrimaryRemote),
+        canWriteSourceControl: true,
+        canPublishRepository: false,
+        hasNotice: false,
+        ...overrides,
+      });
+    const clean = status();
+    const dirty = status({ hasWorkingTreeChanges: true });
+
+    assert.isFalse(hasContent(clean));
+    assert.isTrue(hasContent(dirty));
+    assert.isTrue(hasContent(status({ aheadCount: 1 })));
+    assert.isFalse(hasContent(dirty, { canWriteSourceControl: false }));
+    assert.isTrue(hasContent(status({ hasPrimaryRemote: false }), { canPublishRepository: true }));
+    assert.isTrue(hasContent(clean, { hasNotice: true }));
   });
 });
 
