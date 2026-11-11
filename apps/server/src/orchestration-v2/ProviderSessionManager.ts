@@ -316,15 +316,21 @@ function providerThreadRuntimeKey(
 }
 
 function providerThreadLoadKey(input: {
+  readonly runtime: ProviderAdapter.ProviderAdapterV2SessionRuntime;
   readonly providerThread: Parameters<
     ProviderAdapter.ProviderAdapterV2SessionRuntime["resumeThread"]
   >[0]["providerThread"];
   readonly modelSelection?: ModelSelection;
   readonly runtimePolicy?: ProviderAdapter.ProviderAdapterV2RuntimePolicy;
 }): string {
+  const modelSelection =
+    input.modelSelection === undefined
+      ? undefined
+      : (input.runtime.normalizeThreadLoadModelSelection?.(input.modelSelection) ??
+        input.modelSelection);
   return JSON.stringify({
     providerThread: providerThreadRuntimeKey(input.providerThread),
-    modelSelection: input.modelSelection ?? null,
+    modelSelection: modelSelection ?? null,
     runtimePolicy: input.runtimePolicy ?? null,
   });
 }
@@ -1774,7 +1780,7 @@ export const layerWithOptions = (
         ) {
           const entry = yield* currentEntry(input.threadId);
           const loaded = entry.loadedProviderThreadsByThread.get(input.threadId);
-          const providerThreadKey = providerThreadLoadKey(input);
+          const providerThreadKey = providerThreadLoadKey({ ...input, runtime });
           const alreadyLoaded =
             input.modelSelection === undefined && input.runtimePolicy === undefined
               ? loaded?.runtimeKey === providerThreadRuntimeKey(input.providerThread)
@@ -1786,7 +1792,7 @@ export const layerWithOptions = (
             providerSessionId,
             threadId: input.threadId,
             providerThread,
-            providerThreadKey: providerThreadLoadKey({ ...input, providerThread }),
+            providerThreadKey: providerThreadLoadKey({ ...input, runtime, providerThread }),
           });
           return providerThread;
         });
@@ -1891,6 +1897,7 @@ export const layerWithOptions = (
                   threadId: input.threadId,
                   providerThread,
                   providerThreadKey: providerThreadLoadKey({
+                    runtime,
                     providerThread,
                     modelSelection: input.modelSelection,
                     runtimePolicy: input.runtimePolicy,
@@ -1931,6 +1938,7 @@ export const layerWithOptions = (
                   threadId: input.targetThreadId,
                   providerThread,
                   providerThreadKey: providerThreadLoadKey({
+                    runtime,
                     providerThread,
                     ...(input.modelSelection === undefined
                       ? {}
