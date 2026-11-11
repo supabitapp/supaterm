@@ -1288,6 +1288,8 @@ export function planComposerTurn(input: {
   readonly dispatchMode: ComposerDispatchMode;
   /** The turn starts a new provider session, so it cannot steer into the running one. */
   readonly freshContext: boolean;
+  /** The server holds a steer sent during setup until the turn runs; older servers reject it. */
+  readonly deferredSteering: boolean;
 }) {
   const shouldCreateWorktree =
     input.isLocalDraftThread && input.sendEnvMode === "worktree" && !input.worktreePath;
@@ -1301,7 +1303,10 @@ export function planComposerTurn(input: {
       environmentUnavailable: input.environmentUnavailable,
     }),
     baseBranchForWorktree: shouldCreateWorktree ? input.activeThreadBranch : null,
-    turnDispatchMode: input.sendQueuesBehindSetup ? ("queue" as const) : dispatchMode,
+    turnDispatchMode:
+      input.sendQueuesBehindSetup && !(input.deferredSteering && dispatchMode === "steer")
+        ? ("queue" as const)
+        : dispatchMode,
     shouldQueueBehindActiveRun:
       input.sendQueuesBehindSetup || (input.phase === "running" && dispatchMode === "queue"),
   };

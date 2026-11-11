@@ -144,6 +144,7 @@ interface ComposerSendInput {
   readonly threadDetailLoading: boolean;
   readonly activeEnvironmentUnavailable: boolean;
   readonly sendQueuesBehindSetup: boolean;
+  readonly deferredSteering: boolean;
   readonly isDraftHeroState: boolean;
   readonly panelAnimationsActive: boolean;
   readonly panelAnimationDurationMs: number;
@@ -213,6 +214,7 @@ export function useComposerSend(input: ComposerSendInput) {
     threadDetailLoading,
     activeEnvironmentUnavailable,
     sendQueuesBehindSetup,
+    deferredSteering,
     isDraftHeroState,
     panelAnimationsActive,
     panelAnimationDurationMs,
@@ -629,6 +631,7 @@ export function useComposerSend(input: ComposerSendInput) {
       phase,
       dispatchMode,
       freshContext: freshArm !== undefined,
+      deferredSteering,
     });
     if (missingWorktreeBaseBranch) {
       setThreadError(threadIdForSend, "Select a base branch before sending in New worktree mode.");
@@ -894,8 +897,12 @@ export function useComposerSend(input: ComposerSendInput) {
               titleSeed: title,
               runtimeMode,
               interactionMode: target.interactionMode,
-              // Like mobile, a delayed steer follows current server state at delivery.
-              dispatchMode: turnDispatchMode === "steer" ? ("auto" as const) : turnDispatchMode,
+              // Like mobile, a delayed steer follows current server state at delivery. A steer
+              // during setup stays a steer, so the server delivers it once the turn runs.
+              dispatchMode:
+                turnDispatchMode === "steer" && !sendQueuesBehindSetup
+                  ? ("auto" as const)
+                  : turnDispatchMode,
               ...(freshArm === undefined ? {} : { freshContext: true }),
               ...(bootstrap ? { bootstrap } : {}),
               createdAt: messageCreatedAt,

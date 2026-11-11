@@ -1530,6 +1530,7 @@ export default function ChatView(props: ChatViewProps) {
   const sendQueuesBehindSetup = isServerThread
     ? activeRunPreparing || activeActivityRun?.status === "starting"
     : pendingThreadCreation !== null;
+  const deferredSteering = serverConfig?.environment.capabilities.deferredSteering === true;
   const downloadFileAttachment = async (attachment: ChatFileAttachment) => {
     const connection = readPreparedConnection(environmentId);
     if (!connection) {
@@ -2872,7 +2873,7 @@ export default function ChatView(props: ChatViewProps) {
     modelPickerOpen: composerRef.current?.isModelPickerOpen() ?? false,
     composerFocus: document.activeElement?.getAttribute("data-testid") === "composer-editor",
     draftThreadRoute: routeKind === "draft",
-    turnRunning: phase === "running",
+    turnRunning: phase === "running" || (deferredSteering && phase === "connecting"),
     composerRequiresModifier: composerRequiresModifier(settings.sendShortcut, promptRef.current),
     paneClosable: paneSplit && !activeRightPanelSurface,
     isWeb: !isElectron,
@@ -3056,6 +3057,7 @@ export default function ChatView(props: ChatViewProps) {
     threadDetailLoading,
     activeEnvironmentUnavailable,
     sendQueuesBehindSetup,
+    deferredSteering,
     isDraftHeroState,
     panelAnimationsActive,
     panelAnimationDurationMs,
@@ -3125,6 +3127,7 @@ export default function ChatView(props: ChatViewProps) {
           })}
           environmentId={activeThread.environmentId}
           threadId={activeThread.id}
+          deferredSteering={deferredSteering}
           editingRunId={queuedRunEdit.editingRunId}
           editBlockedReason={queuedRunEditBlockedReason({
             openQuestionCount: pendingUserInputs.length,
@@ -3789,6 +3792,7 @@ export default function ChatView(props: ChatViewProps) {
                                     isLocalDraftThread && activeProject === null
                                   }
                                   phase={phase}
+                                  deferredSteering={deferredSteering}
                                   canSteer={!compactionBlocksSteer}
                                   canInterrupt={canInterruptRunningThread}
                                   isSendBusy={queuedRunEdit.isSaving || isResuming}

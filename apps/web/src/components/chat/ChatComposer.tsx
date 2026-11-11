@@ -419,6 +419,8 @@ export interface ChatComposerProps {
   projectSelectionRequired: boolean;
 
   phase: SessionPhase;
+  /** The server holds a steer sent while the turn is still being set up. */
+  deferredSteering: boolean;
   canInterrupt: boolean;
   isSendBusy: boolean;
   canResume: boolean;
@@ -587,6 +589,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     forceExpandedOnMobile,
     projectSelectionRequired,
     phase,
+    deferredSteering,
     canInterrupt,
     isSendBusy,
     canResume,
@@ -1314,11 +1317,12 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     : null;
   const showResumeAction =
     canResume && !composerDraftHasUserContent(composerDraft) && !isEditingQueuedMessage;
+  const turnRunning = phase === "running" || (deferredSteering && phase === "connecting");
   const composerPrimaryActionFacts = {
     canOperateThread,
     canQueueMessage,
     pendingAction: pendingPrimaryAction,
-    isRunning: phase === "running",
+    isRunning: turnRunning,
     canInterrupt,
     followUpBehavior,
     canSteer,
@@ -2250,7 +2254,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
           sendEvent,
           dispatchMode ??
             resolveComposerDispatchMode({
-              running: phase === "running",
+              running: turnRunning,
               alternateModifier: false,
               activeTurnDefault: followUpBehavior,
               canSteer,
@@ -2274,7 +2278,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     submitComposer(
       event,
       resolveComposerDispatchMode({
-        running: phase === "running",
+        running: turnRunning,
         alternateModifier: event.metaKey || event.ctrlKey,
         activeTurnDefault: followUpBehavior,
         canSteer,
@@ -2286,7 +2290,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     submitComposer(
       undefined,
       resolveComposerDispatchMode({
-        running: phase === "running",
+        running: turnRunning,
         alternateModifier: false,
         activeTurnDefault: followUpBehavior,
         canSteer,
@@ -2365,7 +2369,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
       keybindings,
       sendShortcut: settings.sendShortcut,
       routeKind,
-      phase,
+      turnRunning,
       canSteer,
       followUpBehavior,
       isSoftwareKeyboardOpen,

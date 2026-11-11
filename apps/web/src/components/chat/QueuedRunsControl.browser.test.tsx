@@ -55,6 +55,7 @@ function setup() {
 const baseProps = {
   environmentId: "environment:test" as never,
   threadId: "thread:test" as never,
+  deferredSteering: false,
   editingRunId: null,
   editBlockedReason: null,
   onEditQueuedRun: () => undefined,

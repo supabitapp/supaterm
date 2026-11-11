@@ -53,6 +53,7 @@ function composerProps(
     forceExpandedOnMobile: false,
     projectSelectionRequired: false,
     phase: "ready",
+    deferredSteering: false,
     canInterrupt: false,
     isSendBusy: false,
     canResume: false,

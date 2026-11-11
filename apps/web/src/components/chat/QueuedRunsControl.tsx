@@ -78,6 +78,8 @@ export function QueuedRunsControl({
   readonly editShortcutLabel?: string | null;
   readonly environmentId: EnvironmentId;
   readonly threadId: ThreadId;
+  /** The server advertises `deferredSteering`, so a queued message can steer a turn in setup. */
+  readonly deferredSteering: boolean;
   readonly editingRunId: RunId | null;
   /** Set while something else holds the composer, such as an open question. */
   readonly editBlockedReason: string | null;
@@ -100,7 +102,9 @@ export function QueuedRunsControl({
     props.environmentId,
     queuedImageAttachmentResources,
   );
-  const workflow = projection ? deriveThreadQueueWorkflowState(projection) : null;
+  const workflow = projection
+    ? deriveThreadQueueWorkflowState(projection, { deferredSteering: props.deferredSteering })
+    : null;
   const queued = workflow?.queuedRuns ?? [];
   const activeRun = workflow?.activeRun ?? null;
   // A fresh message starts its own turn: it may skip compaction, but not steer into a turn.

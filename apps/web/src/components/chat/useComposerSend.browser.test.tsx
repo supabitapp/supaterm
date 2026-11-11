@@ -132,6 +132,7 @@ function sendInput(
     threadDetailLoading: false,
     activeEnvironmentUnavailable: false,
     sendQueuesBehindSetup: false,
+    deferredSteering: false,
     isDraftHeroState: false,
     panelAnimationsActive: false,
     panelAnimationDurationMs: 0,
@@ -281,6 +282,40 @@ describe("useComposerSend with /clear", () => {
     expect(send.enqueued[1]).not.toHaveProperty("input.freshContext");
     expect(readFreshSessionArm(routeThreadKey)).toBeUndefined();
   });
+});
+
+describe("useComposerSend during worktree setup", () => {
+  it.each([
+    [false, "queue"],
+    [true, "steer"],
+  ] as const)(
+    "sends a steer with deferredSteering %s as %s",
+    async (deferredSteering, dispatchMode) => {
+      send.events = [];
+      send.enqueued = [];
+      let onSend: ReturnType<typeof useComposerSend>["onSend"] | undefined;
+      function Probe() {
+        const current = useComposerSend({
+          ...sendInput(async () => AsyncResult.success({ sequence: 1 })),
+          phase: "connecting",
+          pendingApprovals: [],
+          promptRef: { current: prompt },
+          sendQueuesBehindSetup: true,
+          deferredSteering,
+        });
+        useLayoutEffect(() => {
+          onSend = current.onSend;
+        });
+        return null;
+      }
+      await using _screen = await render(<Probe />);
+      await act(async () => {
+        await onSend?.(undefined, "steer");
+      });
+
+      expect(send.enqueued).toMatchObject([{ input: { message: { text: prompt }, dispatchMode } }]);
+    },
+  );
 });
 
 describe("useComposerSend over a pending approval", () => {

@@ -1126,6 +1126,7 @@ describe("planComposerTurn", () => {
     phase: "ready" as const,
     dispatchMode: "auto" as const,
     freshContext: false,
+    deferredSteering: false,
   };
 
   it("prepares a worktree from the selected branch on a new draft", () => {
@@ -1167,6 +1168,15 @@ describe("planComposerTurn", () => {
     expect(planComposerTurn({ ...running, dispatchMode: "steer" })).toMatchObject({
       turnDispatchMode: "steer",
       shouldQueueBehindActiveRun: false,
+    });
+    const settingUp = { ...running, sendQueuesBehindSetup: true, dispatchMode: "steer" as const };
+    expect(planComposerTurn(settingUp)).toMatchObject({
+      turnDispatchMode: "queue",
+      shouldQueueBehindActiveRun: true,
+    });
+    expect(planComposerTurn({ ...settingUp, deferredSteering: true })).toMatchObject({
+      turnDispatchMode: "steer",
+      shouldQueueBehindActiveRun: true,
     });
     // A fresh session cannot join the running turn.
     expect(
