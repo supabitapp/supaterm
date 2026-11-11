@@ -64,30 +64,21 @@ const TEXT_GENERATION_FALLBACK_DRIVERS = [
   "antigravity",
 ].map((driver) => ProviderDriverKind.make(driver));
 
-/**
- * `includeConfiguredInstances` is for the project-scoped caller only, so a project
- * that disabled every built-in instance can fall back to one it configured. Set at
- * machine level it would change behavior for every user.
- */
+/** Configured instances come after every default instance, so they only win when no default qualifies. */
 export function fallbackTextGenerationModelSelection(
   providerInstances: ServerSettings["providerInstances"],
   isEnabled: (instanceId: ProviderInstanceId, driver: ProviderDriverKind) => boolean,
-  options?: {
-    readonly includeConfiguredInstances?: boolean;
-    readonly defaultModelSelection?: ModelSelection | null;
-  },
+  options?: { readonly defaultModelSelection?: ModelSelection | null },
 ): ModelSelection | null {
   const candidates = [
     ...TEXT_GENERATION_FALLBACK_DRIVERS.map(
       (driver) => [defaultInstanceIdForDriver(driver), driver] as const,
     ),
-    ...(options?.includeConfiguredInstances === true
-      ? Object.entries(providerInstances).flatMap(([instanceId, instance]) =>
-          TEXT_GENERATION_FALLBACK_DRIVERS.includes(instance.driver)
-            ? [[ProviderInstanceId.make(instanceId), instance.driver] as const]
-            : [],
-        )
-      : []),
+    ...Object.entries(providerInstances).flatMap(([instanceId, instance]) =>
+      TEXT_GENERATION_FALLBACK_DRIVERS.includes(instance.driver)
+        ? [[ProviderInstanceId.make(instanceId), instance.driver] as const]
+        : [],
+    ),
   ];
   const match = candidates.find(([instanceId, driver]) => isEnabled(instanceId, driver));
   if (match === undefined) return null;
