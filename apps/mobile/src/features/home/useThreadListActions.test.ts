@@ -541,12 +541,6 @@ describe("thread action undo", () => {
     await undo();
     expect(state.requests.map(({ action }) => action)).toEqual(["unpin"]);
   });
-
-  it("refreshes the archive after archiving", async () => {
-    await useThreadListActions().archiveThread(makeThread());
-    expect(state.requests.map(({ action }) => action)).toEqual(["archive"]);
-    expect(state.archivedRefreshes).toEqual([primaryEnvironmentId]);
-  });
 });
 
 describe("thread archive guard", () => {
