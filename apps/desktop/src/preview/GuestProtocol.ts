@@ -11,3 +11,4 @@ export const RECORDING_CURSOR_CHANNEL = "preview:recording-cursor";
 export const RECORDING_POINTER_CHANNEL = "preview:recording-pointer";
 export const RECORDING_INPUT_CHANNEL = "preview:recording-input";
 export const RECORDING_CONTROLLER_CHANNEL = "preview:recording-controller";
+export const PRIMARY_PASTE_DISABLED_ARGUMENT = "--supaterm-preview-primary-paste-disabled";
