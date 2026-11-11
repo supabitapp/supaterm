@@ -40,7 +40,7 @@ import {
   SHOWCASE_THREAD_ID,
   showcaseReadinessKey,
   showcaseSceneOnScreen,
-  showcaseSceneShowsThread,
+  showcaseScreenScene,
   showcaseThemePatch,
   shouldNavigateToShowcaseScene,
   type ShowcaseNavigationTarget,
@@ -60,7 +60,7 @@ const SHOWCASE_ENABLED = process.env.EXPO_PUBLIC_SHOWCASE === "1";
 // Native launch requests (pairing links, scene switches) have no change event.
 const NATIVE_POLL_MS = 250;
 const READY_SETTLE_MS = 500;
-const SPLIT_VIEW = Platform.OS === "ios" && Platform.isPad;
+const SPLIT_VIEW_CAPTURE = Platform.OS === "ios" && Platform.isPad;
 type ShowcaseResetRoute = PartialState<NavigationState>["routes"][number];
 
 const readySceneListeners = new Set<() => void>();
@@ -82,7 +82,7 @@ function getReadyScene(): ShowcaseScene | null {
 }
 
 function showcaseNavigationAction(scene: ShowcaseScene, environmentId: string): NavigationAction {
-  if (scene === "threads" && !SPLIT_VIEW) return StackActions.popToTop();
+  if (scene === "threads") return StackActions.popToTop();
   const params = { environmentId, threadId: SHOWCASE_THREAD_ID };
   const routes: ShowcaseResetRoute[] = [{ name: "Home" }];
   if (scene === "environments") {
@@ -263,19 +263,19 @@ export function installShowcaseCapture(
     const hasFixture = hasServerFixture && pendingTasks === "seeded";
 
     const rootState = rootNavigationRef.isReady() ? rootNavigationRef.getRootState() : undefined;
-    const scene = rootState
-      ? showcaseSceneOnScreen(pathnameFromState(rootState), requestedScene, SPLIT_VIEW)
-      : null;
+    const scene = rootState ? showcaseSceneOnScreen(pathnameFromState(rootState)) : null;
+    const screenScene =
+      requestedScene === null ? null : showcaseScreenScene(requestedScene, SPLIT_VIEW_CAPTURE);
 
-    if (requestedScene !== null && hasFixture && showcaseThread && rootState) {
-      const navigation = { requestedScene, scene, thread: showcaseThread };
+    if (screenScene !== null && hasFixture && showcaseThread && rootState) {
+      const navigation = { requestedScene: screenScene, scene, thread: showcaseThread };
       // Arriving forgets the target, so leaving the scene again navigates back.
-      if (scene === requestedScene) {
+      if (scene === screenScene) {
         lastNavigation = null;
       } else if (shouldNavigateToShowcaseScene(lastNavigation, navigation)) {
         lastNavigation = navigation;
         rootNavigationRef.dispatch({
-          ...showcaseNavigationAction(requestedScene, String(showcaseThread.environmentId)),
+          ...showcaseNavigationAction(screenScene, String(showcaseThread.environmentId)),
           target: rootState.key,
         });
       }
@@ -283,7 +283,7 @@ export function installShowcaseCapture(
 
     // Read only while the thread screen keeps the thread mounted.
     const threadState =
-      showcaseSceneShowsThread(scene, SPLIT_VIEW) && showcaseThread
+      scene === "thread" && showcaseThread
         ? appAtomRegistry.get(
             environmentThreads.stateAtom(showcaseThread.environmentId, showcaseThread.id),
           )
@@ -293,20 +293,21 @@ export function installShowcaseCapture(
       AsyncResult.isSuccess(threadState) &&
       threadState.value.status === "live";
     const render = getShowcaseRenderSnapshot();
-    updateReadiness(
-      showcaseReadinessKey({
-        scene,
-        requestedScene,
-        hasFixture,
-        splitView: SPLIT_VIEW,
-        threadSynced,
-        orientationSettled,
-        themeApplied,
-        themeId,
-        renderSignal: render.signal,
-        renderReports: render.reports,
-      }),
+    const readinessKey = showcaseReadinessKey({
       scene,
+      requestedScene: screenScene,
+      hasFixture,
+      threadSynced,
+      orientationSettled,
+      themeApplied,
+      themeId,
+      renderSignal: render.signal,
+      renderReports: render.reports,
+    });
+    // The harness waits on the capture it requested, which can share a screen with another.
+    updateReadiness(
+      readinessKey === null ? null : `${requestedScene}|${readinessKey}`,
+      requestedScene,
     );
   };
 

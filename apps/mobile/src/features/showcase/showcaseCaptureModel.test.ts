@@ -4,6 +4,7 @@ import {
   isShowcaseThemeApplied,
   showcaseReadinessKey,
   showcaseSceneOnScreen,
+  showcaseScreenScene,
   showcaseThemePatch,
   shouldNavigateToShowcaseScene,
   type ShowcaseReadinessInput,
@@ -13,7 +14,6 @@ const ready: ShowcaseReadinessInput = {
   scene: "thread",
   requestedScene: "thread",
   hasFixture: true,
-  splitView: false,
   threadSynced: true,
   orientationSettled: true,
   themeApplied: true,
@@ -30,12 +30,13 @@ describe("showcaseSceneOnScreen", () => {
     expect(showcaseSceneOnScreen("/settings/environments")).toBe("environments");
     expect(showcaseSceneOnScreen("/projects")).toBeNull();
   });
+});
 
-  it("shows the thread list beside the showcase thread in a split view", () => {
-    expect(showcaseSceneOnScreen("/", "threads", true)).toBeNull();
-    expect(showcaseSceneOnScreen("/threads/env/thread", "threads", true)).toBe("threads");
-    expect(showcaseSceneOnScreen("/threads/env/thread", "thread", true)).toBe("thread");
-    expect(showcaseSceneOnScreen("/threads/env/thread/review", "threads", true)).toBe("review");
+describe("showcaseScreenScene", () => {
+  it("opens the showcase thread beside the list only for a split view's threads capture", () => {
+    expect(showcaseScreenScene("threads", true)).toBe("thread");
+    expect(showcaseScreenScene("threads", false)).toBe("threads");
+    expect(showcaseScreenScene("review", true)).toBe("review");
   });
 });
 
@@ -84,11 +85,6 @@ describe("showcaseReadinessKey", () => {
         threadSynced: false,
       }),
     ).not.toBeNull();
-    const splitThreads = { ...ready, scene: "threads", requestedScene: "threads" } as const;
-    expect(showcaseReadinessKey({ ...splitThreads, threadSynced: false })).not.toBeNull();
-    expect(
-      showcaseReadinessKey({ ...splitThreads, splitView: true, threadSynced: false }),
-    ).toBeNull();
     expect(showcaseReadinessKey({ ...ready, orientationSettled: false })).toBeNull();
     expect(showcaseReadinessKey({ ...ready, themeApplied: false })).toBeNull();
   });

@@ -57,8 +57,8 @@ verify process ownership. Concurrent screenshot harnesses in different worktrees
 collide or attach to the wrong Metro process.
 
 Every configured device defaults to dark appearance and the `supaterm` palette, so plain
-`pnpm screenshots:mobile` produces 35 dark PNGs. Pass `--appearance light`, `--appearance dark`, or
-`--appearance both` to override the configured appearance; `both` produces 70 PNGs.
+`pnpm screenshots:mobile` produces 34 dark PNGs. Pass `--appearance light`, `--appearance dark`, or
+`--appearance both` to override the configured appearance; `both` produces 68 PNGs.
 
 Pass `--theme <id>` (repeatable) or `--theme all` to capture the app's other palettes: `supaterm`,
 `supaterm-chat`, `grove`, `ocean`, `ember`, `iris`, and `zenbones`. The runner hands the palette to
