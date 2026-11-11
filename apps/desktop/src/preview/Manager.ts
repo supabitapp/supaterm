@@ -16,6 +16,7 @@ import type {
   DesktopPreviewAnnotationTheme,
   DesktopPreviewColorScheme,
   DesktopPreviewFavicon,
+  DesktopPreviewFindResultEvent,
   DesktopPreviewOpenLinkEvent,
   DesktopPreviewPointerEvent,
   PreviewAnnotationPayload,
@@ -76,6 +77,7 @@ import {
   ELEMENT_PICKED_CHANNEL,
   HUMAN_INPUT_CHANNEL,
   MOUSE_NAVIGATE_CHANNEL,
+  PAGE_UNHANDLED_SHORTCUT_CHANNEL,
   RECORDING_CURSOR_CHANNEL,
   RECORDING_INPUT_CHANNEL,
   RECORDING_CONTROLLER_CHANNEL,
@@ -438,6 +440,23 @@ type PointerEventListener = (event: DesktopPreviewPointerEvent) => Effect.Effect
 
 type OpenLinkListener = (event: DesktopPreviewOpenLinkEvent) => Effect.Effect<void>;
 
+type FindResultListener = (event: DesktopPreviewFindResultEvent) => Effect.Effect<void>;
+
+const PAGE_FIRST_FORWARDED_COMMANDS: ReadonlySet<PreviewForwardedShortcut["command"]> = new Set([
+  "preview.find",
+]);
+
+const decodePageShortcutKeys = Schema.decodeUnknownOption(
+  Schema.Struct({
+    key: Schema.String,
+    code: Schema.String,
+    metaKey: Schema.Boolean,
+    ctrlKey: Schema.Boolean,
+    shiftKey: Schema.Boolean,
+    altKey: Schema.Boolean,
+  }),
+);
+
 /**
  * `about:blank` stays out: Chromium skips browser-side navigation for it, so the child copies the
  * guest's `contextIsolation: false` and Electron cannot override it. Not `parseSafeExternalUrl`,
@@ -565,6 +584,7 @@ const makeNativeOperations = Effect.fn("PreviewManager.makeOperations")(function
   const listenersRef = yield* Ref.make<ReadonlySet<Listener>>(new Set());
   const pointerEventListenersRef = yield* Ref.make<ReadonlySet<PointerEventListener>>(new Set());
   const openLinkListenersRef = yield* Ref.make<ReadonlySet<OpenLinkListener>>(new Set());
+  const findResultListenersRef = yield* Ref.make<ReadonlySet<FindResultListener>>(new Set());
   const recordingInputListenersRef = yield* Ref.make<ReadonlySet<RecordingInputListener>>(
     new Set(),
   );
@@ -832,7 +852,7 @@ const makeNativeOperations = Effect.fn("PreviewManager.makeOperations")(function
   });
 
   const deliverEvent = (
-    eventKind: "state-change" | "recording-input" | "pointer-event" | "open-link",
+    eventKind: "state-change" | "recording-input" | "pointer-event" | "open-link" | "find-result",
     tabId: string,
     delivery: () => Effect.Effect<void>,
   ) =>
@@ -1426,6 +1446,17 @@ const makeNativeOperations = Effect.fn("PreviewManager.makeOperations")(function
         }),
       );
     };
+    // Chromium splits one search across several updates (the ordinal and the
+    // final count can land separately), so every update is forwarded.
+    const foundInPage = (_event: unknown, result: Electron.Result): void => {
+      runFork(
+        emitFindResult({
+          tabId,
+          activeMatchOrdinal: result.activeMatchOrdinal,
+          matches: result.matches,
+        }),
+      );
+    };
     const humanInput = (_event: unknown, rawSignal?: unknown): void => {
       runFork(handleHumanInput(rawSignal));
     };
@@ -1464,6 +1495,20 @@ const makeNativeOperations = Effect.fn("PreviewManager.makeOperations")(function
         syncMenuShortcuts(window.webContents, input);
       });
     };
+    const findForwardedShortcut = (keys: Parameters<typeof matchesKeybindingShortcut>[0]) =>
+      !(
+        hostPlatform !== "darwin" &&
+        keys.ctrlKey &&
+        keys.altKey &&
+        /^(?:[^a-zA-Z0-9]|Dead)$/u.test(keys.key)
+      ) &&
+      forwardedShortcuts.find(({ shortcut }) =>
+        matchesKeybindingShortcut(
+          keys,
+          shortcut,
+          hostPlatform === "darwin" ? "MacIntel" : hostPlatform,
+        ),
+      );
     const beforeInput = (event: Electron.Event, input: Electron.Input): void => {
       syncMenuShortcuts(wc, input);
       const host = wc.hostWebContents;
@@ -1473,27 +1518,18 @@ const makeNativeOperations = Effect.fn("PreviewManager.makeOperations")(function
         host &&
         !host.isDestroyed() &&
         holdsKeyboardFocus(wc) &&
-        !(
-          hostPlatform !== "darwin" &&
-          input.control &&
-          input.alt &&
-          /^(?:[^a-zA-Z0-9]|Dead)$/u.test(input.key)
-        ) &&
-        forwardedShortcuts.find(({ shortcut }) =>
-          matchesKeybindingShortcut(
-            {
-              key: input.key,
-              code: input.code,
-              metaKey: input.meta,
-              ctrlKey: input.control,
-              shiftKey: input.shift,
-              altKey: input.alt,
-            },
-            shortcut,
-            hostPlatform === "darwin" ? "MacIntel" : hostPlatform,
-          ),
-        );
+        findForwardedShortcut({
+          key: input.key,
+          code: input.code,
+          metaKey: input.meta,
+          ctrlKey: input.control,
+          shiftKey: input.shift,
+          altKey: input.alt,
+        });
       if (forwarded && host) {
+        // The page keeps these keys. Only the main-frame preload can report one it
+        // left unhandled, so a focused iframe (e.g. Google Docs' input) keeps its own find.
+        if (PAGE_FIRST_FORWARDED_COMMANDS.has(forwarded.command)) return;
         event.preventDefault();
         if (!input.isAutoRepeat) {
           if (
@@ -1518,6 +1554,15 @@ const makeNativeOperations = Effect.fn("PreviewManager.makeOperations")(function
         return;
       }
     };
+    const pageUnhandledShortcut = (_event: unknown, rawKeys?: unknown): void => {
+      const host = wc.hostWebContents;
+      if (!host || host.isDestroyed() || !holdsKeyboardFocus(wc)) return;
+      const keys = decodePageShortcutKeys(rawKeys);
+      if (Option.isNone(keys)) return;
+      const forwarded = findForwardedShortcut(keys.value);
+      if (!forwarded || !PAGE_FIRST_FORWARDED_COMMANDS.has(forwarded.command)) return;
+      host.send(MENU_ACTION_CHANNEL, forwarded.command);
+    };
     yield* Scope.addFinalizer(
       scope,
       attempt({ operation: "detachListeners", tabId, webContentsId: wc.id }, () => {
@@ -1532,11 +1577,13 @@ const makeNativeOperations = Effect.fn("PreviewManager.makeOperations")(function
         wc.off("dom-ready", restoreRecordingCursor);
         wc.off("did-fail-load", failed as never);
         wc.off("audio-state-changed", audioStateChanged);
+        wc.off("found-in-page", foundInPage as never);
         wc.off("did-create-window", windowCreated);
         wc.off("before-input-event", beforeInput);
         wc.ipc.off(HUMAN_INPUT_CHANNEL, humanInput);
         wc.ipc.off(RECORDING_INPUT_CHANNEL, recordingInput);
         wc.ipc.off(MOUSE_NAVIGATE_CHANNEL, mouseNavigate);
+        wc.ipc.off(PAGE_UNHANDLED_SHORTCUT_CHANNEL, pageUnhandledShortcut);
       }).pipe(Effect.ignore),
     );
     const install = Effect.fn("PreviewManager.installWebContentsListeners")(function* () {
@@ -1552,9 +1599,11 @@ const makeNativeOperations = Effect.fn("PreviewManager.makeOperations")(function
         wc.on("dom-ready", restoreRecordingCursor);
         wc.on("did-fail-load", failed as never);
         wc.on("audio-state-changed", audioStateChanged);
+        wc.on("found-in-page", foundInPage as never);
         wc.ipc.on(HUMAN_INPUT_CHANNEL, humanInput);
         wc.ipc.on(RECORDING_INPUT_CHANNEL, recordingInput);
         wc.ipc.on(MOUSE_NAVIGATE_CHANNEL, mouseNavigate);
+        wc.ipc.on(PAGE_UNHANDLED_SHORTCUT_CHANNEL, pageUnhandledShortcut);
         wc.setWindowOpenHandler((details) => {
           const action = previewWindowOpenAction(details);
           if (action === "popup") {
@@ -2064,6 +2113,22 @@ const makeNativeOperations = Effect.fn("PreviewManager.makeOperations")(function
   const refresh = (tabId: string) => withWebContents("refresh", tabId, (wc) => wc.reload());
   const hardReload = (tabId: string) =>
     withWebContents("hardReload", tabId, (wc) => wc.reloadIgnoringCache());
+  const findInPage = (
+    tabId: string,
+    text: string,
+    options: { readonly forward: boolean; readonly newSession: boolean },
+  ) =>
+    withWebContents("findInPage", tabId, (wc) => {
+      // Electron's `findNext` means "begin a new session", not "go to the next match".
+      wc.findInPage(text, { forward: options.forward, findNext: options.newSession });
+    });
+  const stopFindInPage = (tabId: string) =>
+    withWebContents("stopFindInPage", tabId, (wc) => wc.stopFindInPage("clearSelection")).pipe(
+      Effect.catchTags({
+        PreviewTabNotFoundError: () => Effect.void,
+        PreviewWebContentsNotFoundError: () => Effect.void,
+      }),
+    );
 
   const openDevTools = Effect.fn("PreviewManager.openDevTools")(function* (tabId: string) {
     const wc = yield* requireWebContents(tabId);
@@ -3329,6 +3394,16 @@ const makeNativeOperations = Effect.fn("PreviewManager.makeOperations")(function
       { discard: true },
     );
   });
+  const emitFindResult = Effect.fn("PreviewManager.emitFindResult")(function* (
+    event: DesktopPreviewFindResultEvent,
+  ) {
+    const listeners = yield* Ref.get(findResultListenersRef);
+    yield* Effect.forEach(
+      listeners,
+      (listener) => deliverEvent("find-result", event.tabId, () => listener(event)),
+      { discard: true },
+    );
+  });
   const subscribe = <A>(
     ref: Ref.Ref<ReadonlySet<A>>,
     listener: A,
@@ -3351,6 +3426,7 @@ const makeNativeOperations = Effect.fn("PreviewManager.makeOperations")(function
         Ref.set(listenersRef, new Set()),
         Ref.set(pointerEventListenersRef, new Set()),
         Ref.set(openLinkListenersRef, new Set()),
+        Ref.set(findResultListenersRef, new Set()),
         Ref.set(recordingInputListenersRef, new Set()),
       ],
       { discard: true },
@@ -3365,6 +3441,7 @@ const makeNativeOperations = Effect.fn("PreviewManager.makeOperations")(function
     closeTab,
     copyArtifactToClipboard,
     createTab,
+    findInPage,
     goBack,
     goForward,
     hardReload,
@@ -3393,10 +3470,13 @@ const makeNativeOperations = Effect.fn("PreviewManager.makeOperations")(function
       }),
     startRecording,
     closePictureInPicture,
+    stopFindInPage,
     stopRecording,
     subscribePointerEvents: (listener: PointerEventListener) =>
       subscribe(pointerEventListenersRef, listener),
     subscribeOpenLinks: (listener: OpenLinkListener) => subscribe(openLinkListenersRef, listener),
+    subscribeFindResults: (listener: FindResultListener) =>
+      subscribe(findResultListenersRef, listener),
     subscribeRecordingInputs: (listener: RecordingInputListener) =>
       subscribe(recordingInputListenersRef, listener),
     subscribeStateChanges: (listener: Listener) => subscribe(listenersRef, listener),
@@ -3578,6 +3658,12 @@ export class PreviewManager extends Context.Service<
     readonly resetZoom: (tabId: string) => Effect.Effect<void, PreviewManagerError>;
     readonly reapplyZoom: () => Effect.Effect<void>;
     readonly hardReload: (tabId: string) => Effect.Effect<void, PreviewManagerError>;
+    readonly findInPage: (
+      tabId: string,
+      text: string,
+      options: { readonly forward: boolean; readonly newSession: boolean },
+    ) => Effect.Effect<void, PreviewManagerError>;
+    readonly stopFindInPage: (tabId: string) => Effect.Effect<void, PreviewManagerError>;
     readonly setColorScheme: (
       tabId: string,
       colorScheme: DesktopPreviewColorScheme,
@@ -3637,6 +3723,9 @@ export class PreviewManager extends Context.Service<
     ) => Effect.Effect<void, never, Scope.Scope>;
     readonly subscribeOpenLinks: (
       listener: OpenLinkListener,
+    ) => Effect.Effect<void, never, Scope.Scope>;
+    readonly subscribeFindResults: (
+      listener: FindResultListener,
     ) => Effect.Effect<void, never, Scope.Scope>;
     readonly subscribeRecordingInputs: (
       listener: RecordingInputListener,
@@ -3740,6 +3829,8 @@ export const make = Effect.gen(function* PreviewManagerMake() {
     resetZoom: operations.resetZoom,
     reapplyZoom: operations.reapplyZoom,
     hardReload: operations.hardReload,
+    findInPage: operations.findInPage,
+    stopFindInPage: operations.stopFindInPage,
     setColorScheme: operations.setColorScheme,
     setZoomFactor: operations.setZoomFactor,
     setAudioMuted: operations.setAudioMuted,
@@ -3787,6 +3878,7 @@ export const make = Effect.gen(function* PreviewManagerMake() {
     subscribeStateChanges: operations.subscribeStateChanges,
     subscribePointerEvents: operations.subscribePointerEvents,
     subscribeOpenLinks: operations.subscribeOpenLinks,
+    subscribeFindResults: operations.subscribeFindResults,
     subscribeRecordingInputs: operations.subscribeRecordingInputs,
   });
 }).pipe(Effect.withSpan("PreviewManager.make"));

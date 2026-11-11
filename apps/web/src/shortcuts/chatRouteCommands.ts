@@ -31,6 +31,7 @@ const PREVIEW_ACTION_BY_COMMAND: Partial<Record<KeybindingCommand, PreviewAction
   "preview.zoomIn": "zoom-in",
   "preview.zoomOut": "zoom-out",
   "preview.resetZoom": "reset-zoom",
+  "preview.find": "find",
 };
 
 function leavePullRequestsPage(router: AnyRouter) {

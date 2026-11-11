@@ -54,6 +54,7 @@ const PREVIEW_FORWARDED_COMMANDS = [
   "pane.focusPrevious",
   ...PANE_FOCUS_KEYBINDING_COMMANDS,
   "preview.focusUrl",
+  "preview.find",
 ] as const;
 
 const isGlobalPullRequests = (ref: ScopedThreadRef) =>
