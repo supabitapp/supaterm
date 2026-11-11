@@ -201,9 +201,13 @@ export function startThreadNotifications(
       const needsAttention =
         status === "input" || status === "approval" || status === "failed" || status === "limited";
       const requestId = needsAttention ? resolveBackgroundThreadRequest(thread).requestId : null;
-      const attention = needsAttention
-        ? `${thread.latestRun?.runId ?? ""}:${status}:${requestId ?? ""}`
-        : null;
+      // Queued messages become the latest run while a request stays pending, so a request
+      // with an id is keyed by that id alone and announces once.
+      const attention = !needsAttention
+        ? null
+        : requestId !== null
+          ? `${status}:${requestId}`
+          : `${thread.latestRun?.runId ?? ""}:${status}`;
       const completedAt = Date.parse(thread.latestRun?.completedAt ?? "");
       const settled =
         status === "ready" &&
