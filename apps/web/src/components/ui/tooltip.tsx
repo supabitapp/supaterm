@@ -47,7 +47,9 @@ function TooltipScrollDismissArea({ onScrollCapture, ...props }: ComponentProps<
         onScrollCapture={(event) => {
           onScrollCapture?.(event);
           const tooltip = hovered.get();
-          if (!tooltip || tooltip.trigger.contains(tooltip.trigger.ownerDocument.activeElement)) {
+          if (!tooltip) return;
+          const focused = tooltip.trigger.ownerDocument.activeElement;
+          if (focused && tooltip.trigger.contains(focused) && focused.matches(":focus-visible")) {
             return;
           }
           hovered.clear(tooltip.actionsRef);
