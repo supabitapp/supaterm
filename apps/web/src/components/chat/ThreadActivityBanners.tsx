@@ -190,13 +190,17 @@ export function backgroundWorkBannerItem(input: {
   const { onOpenThread } = input;
   const presentation = presentPendingBackgroundWork(input.tasks);
   if (presentation === null) return null;
-  const outputTarget = (item: PendingBackgroundWorkItem): BackgroundTaskOutputTarget => ({
-    environmentId: input.environmentId,
-    threadId: input.threadId,
-    taskId: item.taskId,
-    label: item.label,
-    command: input.tasks.find((task) => task.taskId === item.taskId)?.command,
-  });
+  const outputTarget = (item: PendingBackgroundWorkItem): BackgroundTaskOutputTarget => {
+    const task = input.tasks.find((candidate) => candidate.taskId === item.taskId);
+    return {
+      environmentId: input.environmentId,
+      threadId: input.threadId,
+      taskId: item.taskId,
+      label: item.label,
+      command: task?.command,
+      awaited: task?.awaited === true,
+    };
+  };
   const [only] = presentation.items;
   const onlyChildThreadId = presentation.items.length === 1 ? only?.childThreadId : undefined;
   const titleAction: BackgroundWorkTitleAction | null =

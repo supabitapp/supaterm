@@ -1,5 +1,5 @@
 import "~/index.css";
-import { EnvironmentId, ThreadId } from "@supaterm/contracts";
+import { EnvironmentId, ProjectId, ThreadId } from "@supaterm/contracts";
 import { expect, it, vi } from "vite-plus/test";
 import { page } from "vite-plus/test/browser";
 vi.mock(import("./CommandOutputPanel"), () => ({
@@ -9,37 +9,36 @@ vi.mock(import("./CommandOutputPanel"), () => ({
 
 import { render } from "../../../test/render";
 import { PopoverCreateHandle } from "../ui/popover";
-import {
-  BackgroundTaskOutputPopover,
-  type BackgroundTaskOutputTarget,
-  BackgroundWorkTitle,
-} from "./BackgroundWork";
+import type { BackgroundTaskOutputTarget } from "./BackgroundWork";
+import { backgroundWorkBannerItem } from "./ThreadActivityBanners";
 
-it("opens the full command behind a short title, with its output", async () => {
-  const command = "python3 audit.py -j 6\n> scratch/audit.log 2>&1";
-  const handle = PopoverCreateHandle<BackgroundTaskOutputTarget>();
-  const view = (label: string) => (
+it("opens each listed command's full text and output from the banner", async () => {
+  const audit = "python3 audit.py -j 6\n> scratch/audit.log 2>&1";
+  const item = backgroundWorkBannerItem({
+    environmentId: EnvironmentId.make("test"),
+    threadId: ThreadId.make("thread"),
+    projectId: ProjectId.make("project"),
+    pullRequests: [],
+    tasks: [
+      { taskId: "serve", kind: "command", command: "vp run dev", description: "Serve" },
+      { taskId: "audit", kind: "command", command: audit, description: "Audit", awaited: true },
+    ],
+    outputHandle: PopoverCreateHandle<BackgroundTaskOutputTarget>(),
+    stopDisabled: false,
+    stopping: false,
+    onStop: async () => {},
+    onOpenThread: () => {},
+  });
+  await using screen = await render(
     <>
-      <BackgroundWorkTitle
-        title={label}
-        action={{
-          kind: "output",
-          handle,
-          target: {
-            environmentId: EnvironmentId.make("test"),
-            threadId: ThreadId.make("thread"),
-            taskId: "native-task",
-            label,
-            command,
-          },
-        }}
-      />
-      <BackgroundTaskOutputPopover handle={handle} />
-    </>
+      {item?.description}
+      {item?.actions}
+    </>,
   );
-  await using screen = await render(view("Audit"));
+  await expect.element(screen.getByRole("button", { name: "Details" })).not.toBeInTheDocument();
   await screen.getByRole("button", { name: "Audit" }).click();
   const popup = page.getByRole("dialog", { name: "Output: Audit" });
-  await vi.waitFor(() => expect(popup.element().textContent).toContain(command));
+  await vi.waitFor(() => expect(popup.element().textContent).toContain(audit));
   await expect.element(page.getByText("Command output stream")).toBeVisible();
+  await expect.element(popup.getByText("Waiting", { exact: true })).toBeVisible();
 });

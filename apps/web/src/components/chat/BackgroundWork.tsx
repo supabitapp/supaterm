@@ -83,6 +83,7 @@ export interface BackgroundTaskOutputTarget {
   readonly taskId: string;
   readonly label: string;
   readonly command: string | undefined;
+  readonly awaited: boolean;
 }
 
 export type BackgroundTaskOutputHandle = ReturnType<
@@ -102,8 +103,15 @@ export function BackgroundTaskOutputPopover({ handle }: { handle: BackgroundTask
       {({ payload }) =>
         payload === undefined ? null : (
           <PopoverPopup side="top" align="start" width="xl" aria-label={`Output: ${payload.label}`}>
-            <div className="mb-2 truncate font-medium text-xs">{payload.label}</div>
-            {payload.command !== undefined && payload.command.trim() !== payload.label ? (
+            <div className="mb-2 flex items-baseline justify-between gap-3 text-xs">
+              <span className="truncate font-medium">
+                {payload.command?.trim() === payload.label ? "Command" : payload.label}
+              </span>
+              <span className="shrink-0 text-muted-foreground">
+                {payload.awaited ? "Waiting" : "Running"}
+              </span>
+            </div>
+            {payload.command !== undefined ? (
               <div className="mb-2 max-h-32 overflow-y-auto rounded-md border border-border bg-muted/20 p-2 font-mono text-(length:--font-size-code,var(--text-2xs)) whitespace-pre-wrap break-words select-text">
                 <ShellCommandBlock command={payload.command} />
               </div>
