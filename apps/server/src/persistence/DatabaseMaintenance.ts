@@ -73,6 +73,8 @@ export class DiskSpaceCheckError extends Schema.TaggedError<DiskSpaceCheckError>
   }
 }
 
+export type DatabaseCompactStep = "compact-events" | "vacuum" | "rebuild-search" | "checkpoint";
+
 /** Offline inspection and repair of a Supaterm state database, for `supaterm doctor`. */
 export class DatabaseMaintenance extends Context.Service<
   DatabaseMaintenance,
@@ -85,8 +87,14 @@ export class DatabaseMaintenance extends Context.Service<
       },
       DatabaseMissingError | DatabaseInspectError
     >;
-    /** Compacts history, then VACUUMs into incremental auto_vacuum. Refuses while a server has it open. */
-    readonly compact: (databasePath: string) => Effect.Effect<
+    /**
+     * Compacts history, then VACUUMs into incremental auto_vacuum. Refuses while a server has it open.
+     * Calls `onStep` as each step starts; VACUUM time grows with the whole database size.
+     */
+    readonly compact: (
+      databasePath: string,
+      onStep?: (step: DatabaseCompactStep) => Effect.Effect<void>,
+    ) => Effect.Effect<
       {
         readonly beforeBytes: number;
         readonly afterBytes: number;
@@ -143,7 +151,10 @@ const make = Effect.gen(function* () {
   );
 
   const compact = Effect.fn("DatabaseMaintenance.compact")(
-    function* (databasePath: string) {
+    function* (
+      databasePath: string,
+      onStep: (step: DatabaseCompactStep) => Effect.Effect<void> = () => Effect.void,
+    ) {
       yield* locate(databasePath);
       const beforeBytes = Number((yield* fs.stat(databasePath)).size);
       const result = yield* Effect.gen(function* () {
@@ -165,6 +176,7 @@ const make = Effect.gen(function* () {
         );
         yield* sql`COMMIT`;
         const maintenance = yield* ProjectionMaintenance.ProjectionMaintenanceV2;
+        yield* onStep("compact-events");
         if (!(yield* maintenance.verify).valid) {
           return yield* new DatabaseProjectionsInvalidError({ path: databasePath });
         }
@@ -172,11 +184,14 @@ const make = Effect.gen(function* () {
         if (!(yield* maintenance.verify).valid) {
           return yield* new DatabaseProjectionsInvalidError({ path: databasePath });
         }
+        yield* onStep("vacuum");
         // VACUUM rebuilds the file, which is the only way to switch an existing
         // database to incremental auto_vacuum; the server reclaims online after.
         yield* sql`PRAGMA auto_vacuum = INCREMENTAL`;
         yield* sql`VACUUM`;
+        yield* onStep("rebuild-search");
         yield* rebuildMessageSearch(sql);
+        yield* onStep("checkpoint");
         yield* sql`PRAGMA wal_checkpoint(TRUNCATE)`;
         return summary;
       }).pipe(
