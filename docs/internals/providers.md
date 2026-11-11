@@ -96,8 +96,9 @@ mise tool; mise must resolve the binary and list it in an active install of that
 path must be a shim or under the tool's `latest` link, which the upgrade repoints: a version
 directory (including one `mise activate` put on `PATH`) would keep running the old binary until mise
 prunes it. Everything else mise touches (fixed version paths, pinned tools, wrappers) stays
-manual-only, so Supaterm never edits mise config. A detected OpenCode 1.x gets no update from any
-installer: 2.x converts the shared OpenCode database in place, so that move is the user's to make.
+manual-only, so Supaterm never edits mise config. Nix store installs stay manual-only too, since the
+store is read-only. A detected OpenCode 1.x gets no update from any installer: 2.x converts the
+shared OpenCode database in place, so that move is the user's to make.
 `mise latest` supplies the version, because settings such as
 `minimum_release_age` can hold mise behind npm. A Grok cask whose Homebrew prefix
 cannot be verified also stays manual-only: `grok update` would install a second copy. npm updates pin `--prefix` because the
