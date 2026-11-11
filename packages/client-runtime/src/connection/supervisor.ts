@@ -625,6 +625,9 @@ export const make = Effect.fn("EnvironmentSupervisor.make")(function* (
     }
   };
 
+  const isForegroundProbe = (next: SupervisorSignal) =>
+    next._tag === "Wakeup" && next.reason === "application-active";
+
   // Ends "silent" when the host answers a fresh request while the socket
   // delivers nothing, as when iOS kills a suspended socket without a close
   // event, and "alive" once the socket delivers a frame. A slow or
@@ -706,7 +709,11 @@ export const make = Effect.fn("EnvironmentSupervisor.make")(function* (
       // A probe for an older signal can answer after the wake armed recovery.
       if (next._tag === "Wakeup" && next.reason === "system-resumed")
         yield* Ref.set(wakeRecoveryPending, true);
-      const probe = yield* Effect.forkChild(lease.session.probe);
+      let probe = yield* Effect.forkChild(lease.session.probe);
+      // A busy server can miss one foreground probe while the socket is still
+      // healthy, so the first miss asks again and only the follow-up's miss
+      // replaces the session.
+      let toleratesMiss = isForegroundProbe(next);
       let replacementFiber =
         next._tag === "Wakeup" &&
         next.afterLongBackground === true &&
@@ -725,7 +732,7 @@ export const make = Effect.fn("EnvironmentSupervisor.make")(function* (
       // The web and desktop foreground probe allows a busy host 15 seconds,
       // and a busy host can answer a fresh request before a queued probe.
       const armSilentSocketCheck = Effect.fnUntraced(function* (signal: SupervisorSignal) {
-        if (signal._tag === "Wakeup" && signal.reason === "application-active") return;
+        if (isForegroundProbe(signal)) return;
         if (silentSocket !== undefined) {
           recheck = true;
           return;
@@ -793,6 +800,13 @@ export const make = Effect.fn("EnvironmentSupervisor.make")(function* (
           return true;
         }
         if (probeEvent._tag === "TimedOut") {
+          if (toleratesMiss) {
+            toleratesMiss = false;
+            yield* Fiber.interrupt(probe);
+            probe = yield* Effect.forkChild(lease.session.probe);
+            deadline = (yield* Clock.monotonicTimeNanos) + Duration.toNanosUnsafe(probeTimeout);
+            continue;
+          }
           yield* stopProbe;
           return yield* new ConnectionTransientError({
             reason: "timeout",
@@ -827,6 +841,9 @@ export const make = Effect.fn("EnvironmentSupervisor.make")(function* (
           yield* Ref.set(pendingProbe, "mobile-resume");
         const signalTimeout = probeTimeoutFor(probeEvent.signal, routeKind);
         if (signalTimeout !== undefined) {
+          // A retry or network signal wants a definite answer, even when its
+          // own deadline lands after the foreground one.
+          if (!isForegroundProbe(probeEvent.signal)) toleratesMiss = false;
           if (isLongResume(probeEvent.signal) && !longResume) {
             longResume = true;
             longResumeStartedAt = yield* Clock.monotonicTimeNanos;
