@@ -73,13 +73,17 @@ function availabilityBlock(
   };
 }
 
+// An answer responds to the open request rather than starting a turn, so provider and project
+// state cannot block it; only its connection and its own attachments can.
 function answerBlock(
   input: ComposerPrimaryActionInput,
   pendingAction: ComposerPendingAnswer,
 ): ComposerPrimaryActionBlock | null {
   if (pendingAction.response === "not-resumable") return { reason: "question-not-answerable" };
-  const unavailable = availabilityBlock(input, true);
-  if (unavailable) return unavailable;
+  if (input.isEnvironmentUnavailable) return { reason: "environment-disconnected" };
+  if (input.sendDisabledReason !== null) {
+    return { reason: "send-disabled", message: input.sendDisabledReason };
+  }
   if (!input.canOperateThread) return { reason: "not-permitted" };
   const answered = pendingAction.isLastQuestion
     ? pendingAction.isComplete

@@ -153,6 +153,20 @@ describe("resolveComposerPrimaryAction", () => {
       { kind: "resume", blocked: "not-permitted" },
     ],
     [
+      "answers while no provider can take a new turn",
+      {
+        pendingAction: question,
+        providerAvailability: "unavailable",
+        isProjectSelectionRequired: true,
+      },
+      { kind: "answer" },
+    ],
+    [
+      "holds an answer whose attachments cannot be sent",
+      { pendingAction: question, sendDisabledReason: "Update this server" },
+      { kind: "answer", blocked: "send-disabled" },
+    ],
+    [
       "needs thread-operate permission to answer",
       { pendingAction: question, canOperateThread: false },
       { kind: "answer", blocked: "not-permitted" },

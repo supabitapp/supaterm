@@ -265,6 +265,7 @@ import { cn, isMacPlatform, randomUUID } from "~/lib/utils";
 import {
   getComposerPromptLengthValidationMessage,
   getComposerSubmissionValidationMessage,
+  isComposerSubmissionBlocked,
   submitComposerDraft,
 } from "./composerSubmission";
 import { ComposerPromptLengthValidation } from "./ComposerPromptLengthValidation";
@@ -990,7 +991,14 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
       ? attachmentBlockReason
       : (attachmentBlockReason ??
         (multipleModelSelections === null ? providerSendBlockReason : null)));
-  const isSendDisabled = sendDisabledReason !== null;
+  const submissionTarget = activePendingProgress ? "pending-user-input" : "provider-turn";
+  const submissionBlocked = isComposerSubmissionBlocked({
+    submissionTarget,
+    noProviderAvailable: !canQueueSelectedProvider,
+    sendDisabledReason,
+    attachmentBlockReason,
+    environmentUnavailable: environmentUnavailable !== null,
+  });
   const selectedProviderStatus = selectedProviderEntry?.snapshot ?? null;
   const selectedProviderSkills = selectedProviderStatus
     ? resolveProviderSkillsForCwd(selectedProviderStatus, gitCwd)
@@ -1314,7 +1322,8 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     followUpBehavior,
     canSteer: !isCompacting,
     isSendBusy,
-    sendDisabledReason,
+    // An answer follows only its own blockers, as submitComposer does.
+    sendDisabledReason: activePendingProgress ? attachmentBlockReason : sendDisabledReason,
     isEnvironmentUnavailable: environmentUnavailable !== null,
     providerAvailability: canQueueSelectedProvider
       ? "ready"
@@ -2178,13 +2187,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
 
   const shouldBlurMobileComposerOnSubmit = () => {
     if (!isSoftwareKeyboardOpen) return false;
-    if (
-      isSendBusy ||
-      isSendDisabled ||
-      !canQueueSelectedProvider ||
-      (environmentUnavailable !== null && activePendingProgress !== null) ||
-      phase === "running"
-    ) {
+    if (isSendBusy || submissionBlocked || phase === "running") {
       return false;
     }
     if (activePendingProgress) {
@@ -2205,8 +2208,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     }
     if (
       voice.busy ||
-      !canQueueSelectedProvider ||
-      isSendDisabled ||
+      submissionBlocked ||
       !(activePendingProgress
         ? readEnvironmentScope(environmentId, AuthOrchestrationOperateScope)
         : readCanQueueComposerMessage(environmentId))
@@ -2238,7 +2240,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     let sending: Promise<void> | null = null;
     const submission = submitComposerDraft({
       prompt: promptRef.current,
-      submissionTarget: activePendingProgress ? "pending-user-input" : "provider-turn",
+      submissionTarget,
       event,
       onSend: (sendEvent) => {
         providerInputRejectedRef.current = false;
