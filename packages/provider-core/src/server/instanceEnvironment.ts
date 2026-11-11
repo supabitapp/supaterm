@@ -2,7 +2,7 @@ import type { ProviderInstanceEnvironment } from "@supaterm/contracts";
 import * as HostProcess from "@supaterm/shared/HostProcess";
 import * as Effect from "effect/Effect";
 
-import { expandHomePath } from "./pathExpansion.ts";
+import { expandHomeVariable } from "./pathExpansion.ts";
 
 export const mergeProviderInstanceEnvironment = Effect.fn(function* (
   environment: ProviderInstanceEnvironment | undefined,
@@ -15,10 +15,7 @@ export const mergeProviderInstanceEnvironment = Effect.fn(function* (
   const home = yield* HostProcess.HomeDirectory;
   const next: NodeJS.ProcessEnv = { ...baseEnv };
   for (const variable of environment) {
-    next[variable.name] =
-      variable.name === "CODEX_HOME" || variable.name === "CLAUDE_CONFIG_DIR"
-        ? expandHomePath(variable.value, home)
-        : variable.value;
+    next[variable.name] = expandHomeVariable(variable.name, variable.value, home);
   }
   return next;
 });
