@@ -15,6 +15,7 @@ import {
 import {
   THINKING_PREVIEW_PLUGINS,
   THOUGHT_PREVIEW_PLUGINS,
+  THOUGHT_PREVIEW_SOURCE_MAX_LENGTH,
   workEntryIconName,
   toolGroupSummaryIconName,
 } from "./TimelineWorkEntryRow.logic";
@@ -522,7 +523,9 @@ export function LiveWorkEntryTimelineRow({
 
   const failed = workEntryDisplayIndicatesToolFailure(row.entry);
 
-  const thoughtLine = row.thought ? liveThoughtLine(row.thought.detail ?? "") : "";
+  const thoughtLine = row.thought
+    ? liveThoughtLine((row.thought.detail ?? "").slice(0, THOUGHT_PREVIEW_SOURCE_MAX_LENGTH))
+    : "";
   const thoughtShown = thoughtLine !== "" && !row.expanded;
 
   const thoughtIsStatus = thoughtShown && row.entry === row.thought;
@@ -594,7 +597,7 @@ export function LiveWorkEntryTimelineRow({
           ) : row.entry.itemType === "reasoning" ? (
             <ChatMarkdown
               inline
-              text={row.entry.detail ?? label}
+              text={(row.entry.detail ?? label).slice(0, THOUGHT_PREVIEW_SOURCE_MAX_LENGTH)}
               cwd={ctx.markdownCwd}
               parseRawHtml={false}
               extraRemarkPlugins={row.active ? THINKING_PREVIEW_PLUGINS : THOUGHT_PREVIEW_PLUGINS}

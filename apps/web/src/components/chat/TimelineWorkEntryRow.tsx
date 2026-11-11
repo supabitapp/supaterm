@@ -17,6 +17,7 @@ import {
   workEntryRawCommand,
   THINKING_PREVIEW_PLUGINS,
   THOUGHT_PREVIEW_PLUGINS,
+  THOUGHT_PREVIEW_SOURCE_MAX_LENGTH,
   buildToolCallExpandedBody,
 } from "./TimelineWorkEntryRow.logic";
 import {
@@ -455,7 +456,10 @@ function WorkEntryLogRow(props: WorkEntryRowProps) {
               {isReasoning && !expanded ? (
                 <ChatMarkdown
                   inline
-                  text={workEntry.detail ?? previewText}
+                  text={(workEntry.detail ?? previewText).slice(
+                    0,
+                    THOUGHT_PREVIEW_SOURCE_MAX_LENGTH,
+                  )}
                   cwd={ctx.markdownCwd}
                   parseRawHtml={false}
                   extraRemarkPlugins={

@@ -38,7 +38,8 @@ import { shouldRefocusComposerOnWindowFocus } from "../ChatView.logic";
 import { resolveTimelineIsAtEnd } from "./MessagesTimeline.logic";
 import { makeStreamingTimelineFixture } from "../../test-fixtures";
 import { deriveTimelineEntriesFromVisibleTurnItems } from "../../session-logic";
-import { remarkThoughtPreview } from "./TimelineWorkEntryRow.logic";
+import type { Root } from "mdast";
+import { remarkThoughtPreview, THOUGHT_PREVIEW_MAX_LENGTH } from "./TimelineWorkEntryRow.logic";
 import { parseMarkdownWithMath } from "@supaterm/shared/markdownMath";
 import { collectThreadFindRanges } from "./threadFindHighlights";
 import { toastManager } from "../ui/toast";
@@ -1765,6 +1766,44 @@ describe("compact reasoning math", () => {
     expect(tree.children.map((node) => [node.type, "value" in node ? node.value : null])).toEqual(
       expected,
     );
+  });
+
+  it("stops reading the tree once the preview is full", () => {
+    const beyondCap = (): string => {
+      throw new Error("read beyond cap");
+    };
+    const head = "x".repeat(THOUGHT_PREVIEW_MAX_LENGTH - 2);
+    const tree: Root = {
+      type: "root",
+      children: [
+        {
+          type: "paragraph",
+          children: [
+            { type: "text", value: head },
+            { type: "strong", children: [{ type: "text", value: "yz beyond" }] },
+            {
+              type: "inlineMath",
+              get value() {
+                return beyondCap();
+              },
+            },
+          ],
+        },
+        {
+          type: "paragraph",
+          children: [
+            {
+              type: "text",
+              get value() {
+                return beyondCap();
+              },
+            },
+          ],
+        },
+      ],
+    };
+    remarkThoughtPreview("Reasoning")(tree);
+    expect(tree.children).toEqual([{ type: "text", value: `${head}yz` }]);
   });
 });
 
