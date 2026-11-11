@@ -758,6 +758,9 @@ export const make = Effect.gen(function* () {
             ended.add(item.id);
             return Effect.andThen(linked, refreshUnmergedLinks(event.threadId));
           }
+          // Done threads are not swept, so read their links once to keep fresh status.
+          case "thread.marked-done":
+            return refreshUnmergedLinks(event.threadId);
           case "run.updated":
             return isOrchestrationV2RunSettled(event.payload.status) &&
               closeCommands.delete(event.threadId)
