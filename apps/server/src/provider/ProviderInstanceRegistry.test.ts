@@ -115,8 +115,12 @@ const makeTildeProviderFixtures = Effect.fn(
     directory: homePath,
     prefix: ".supaterm-provider-path-test-",
   });
+  yield* fileSystem.writeFileString(
+    path.join(fixtureDir, "package.json"),
+    JSON.stringify({ type: "commonjs" }),
+  );
   const codexPath = path.join(fixtureDir, "codex");
-  const claudePath = path.join(fixtureDir, "claude");
+  const claudePath = path.join(fixtureDir, "claude.mjs");
   const claudeHomePath = path.join(fixtureDir, "claude-home");
   const codexScriptPath = path.join(fixtureDir, "codex-script.json");
   const codexFixtureDir = path.join(import.meta.dirname, "testFixtures");
