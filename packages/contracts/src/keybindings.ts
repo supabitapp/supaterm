@@ -224,7 +224,8 @@ export const KeybindingsConfig = Schema.Array(KeybindingRule).check(
 export type KeybindingsConfig = typeof KeybindingsConfig.Type;
 
 export const KeybindingShortcut = Schema.Struct({
-  key: KeybindingValue,
+  // Untrimmed: the Space key resolves to " ".
+  key: Schema.NonEmptyString.check(Schema.isMaxLength(MAX_KEYBINDING_VALUE_LENGTH)),
   metaKey: Schema.Boolean,
   ctrlKey: Schema.Boolean,
   shiftKey: Schema.Boolean,
