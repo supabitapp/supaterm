@@ -24,6 +24,7 @@ import * as ServerSelfUpdate from "./selfUpdate.ts";
 interface HarnessOptions {
   readonly mode?: "web" | "desktop";
   readonly managed?: boolean;
+  readonly launcherProtocol?: 3 | typeof SERVICE_LAUNCHER_PROTOCOL;
   readonly preflight?: "ready" | "blocked";
   readonly preflightDuration?: Duration.Input;
   readonly preflightStarted?: Deferred.Deferred<void>;
@@ -63,6 +64,7 @@ const makeHarness = Effect.fn("test.make_self_update_harness")(function* (
   const path = yield* Path.Path;
   const baseDir = yield* fs.makeTempDirectoryScoped({ prefix: "supaterm-self-update-test-" });
   const order: string[] = [];
+  const preflightProtocols: Array<string | undefined> = [];
   const runner = ProcessRunner.ProcessRunner.of({
     run: (input) =>
       Effect.gen(function* () {
@@ -113,14 +115,13 @@ const makeHarness = Effect.fn("test.make_self_update_harness")(function* (
           }
         }
         order.push("preflight");
+        // Like a release, report back the launcher protocol the server named.
+        const named = input.args[input.args.indexOf("--launcher-protocol") + 1];
+        preflightProtocols.push(named);
         const result =
           options.preflight === "blocked"
             ? { status: "blocked", version: "1.1.0", reason: "local update required" }
-            : {
-                status: "ready",
-                version: "1.1.0",
-                launcherProtocol: SERVICE_LAUNCHER_PROTOCOL,
-              };
+            : { status: "ready", version: "1.1.0", launcherProtocol: Number(named) };
         return {
           stdout: JSON.stringify(result),
           stderr: "",
@@ -133,8 +134,10 @@ const makeHarness = Effect.fn("test.make_self_update_harness")(function* (
         };
       }),
   });
+  const managed = options.managed ?? true;
   const launcher = ServiceLauncherClient.ServiceLauncherClient.of({
-    managed: options.managed ?? true,
+    managed,
+    protocol: managed ? (options.launcherProtocol ?? SERVICE_LAUNCHER_PROTOCOL) : undefined,
     requestUpdate:
       options.requestUpdate ??
       (() =>
@@ -165,7 +168,7 @@ const makeHarness = Effect.fn("test.make_self_update_harness")(function* (
     Effect.provideService(HostProcess.Architecture, "x64"),
     Effect.provide(ServerConfig.layer({ ...config, mode: options.mode ?? "web" })),
   );
-  return { selfUpdate, order, baseDir };
+  return { selfUpdate, order, baseDir, preflightProtocols };
 });
 
 it.layer(NodeServices.layer)("server self update", (it) => {
@@ -201,6 +204,15 @@ it.layer(NodeServices.layer)("server self update", (it) => {
       failDownload = false;
       expect((yield* selfUpdate.update({ targetVersion: "1.1.0" })).updateId).toBe("launcher-id");
       expect(order).toEqual(["extract", "preflight", "accept"]);
+    }),
+  );
+
+  // regression: #34502 a remote update never replaces the launcher, so it can be older than the server
+  it.effect("names its launcher's protocol to the staged preflight, not its own", () =>
+    Effect.gen(function* () {
+      const { selfUpdate, preflightProtocols } = yield* makeHarness({ launcherProtocol: 3 });
+      expect((yield* selfUpdate.update({ targetVersion: "1.1.0" })).updateId).toBe("launcher-id");
+      expect(preflightProtocols).toEqual(["3"]);
     }),
   );
 
