@@ -397,6 +397,35 @@ const modifiersOf = (message: Record<string, unknown>) => {
   return Number.isInteger(value) && value >= 0 && value < 16 ? value : 0;
 };
 
+type PointerMotion = ReadonlyArray<Record<string, unknown>>;
+
+// Chromium acknowledges pointer input only after a page frame, so motion waiting behind it
+// collapses to the latest move and the summed wheel, in the order the last of each arrived.
+// Splitting by point or direction would let touch pans and jittery trackpads queue again.
+const pointerMotionOf = (message: Record<string, unknown>): PointerMotion | null => {
+  const motion =
+    message.type === "wheel" ||
+    (message.type === "mouse" &&
+      message.action === "move" &&
+      typeof message.button === "string" &&
+      typeof message.buttons === "number");
+  return motion ? [message] : null;
+};
+
+const mergePointerMotion = (waiting: PointerMotion, next: PointerMotion): PointerMotion =>
+  next.reduce((merged, message) => {
+    const prior = merged.find((other) => other.type === message.type);
+    const latest =
+      prior && message.type === "wheel"
+        ? {
+            ...message,
+            deltaX: num(prior.deltaX) + num(message.deltaX),
+            deltaY: num(prior.deltaY) + num(message.deltaY),
+          }
+        : message;
+    return [...merged.filter((other) => other !== prior), latest];
+  }, waiting);
+
 // Cmd shortcuts from Apple viewers are no editing shortcut for Linux or headless
 // Chromium, so they carry the command. Ctrl already works natively on Linux,
 // except copy and cut, which headless Chromium only runs as commands.
@@ -2754,35 +2783,23 @@ const make = Effect.gen(function* () {
                   : {}),
               });
             } else {
-              const dispatch = (input: Record<string, unknown>) =>
-                dispatchViewerInput(tab, session, viewer, input);
-              if (
-                message.type === "mouse" &&
-                message.action === "move" &&
-                message.button === "none" &&
-                message.buttons === 0
-              ) {
+              const motion = pointerMotionOf(message);
+              if (motion) {
                 await tab.control.humanLatest(
                   viewer.id,
-                  `hover:${modifiersOf(message)}`,
-                  message,
-                  dispatch,
-                );
-              } else if (message.type === "wheel") {
-                // A reversal stays separate so scrolling clamped at an edge behaves as if unmerged.
-                await tab.control.humanLatest(
-                  viewer.id,
-                  `wheel:${num(message.x)}:${num(message.y)}:${modifiersOf(message)}:${Math.sign(num(message.deltaX))}:${Math.sign(num(message.deltaY))}`,
-                  message,
-                  dispatch,
-                  (waiting, next) => ({
-                    ...next,
-                    deltaX: num(waiting.deltaX) + num(next.deltaX),
-                    deltaY: num(waiting.deltaY) + num(next.deltaY),
-                  }),
+                  `pointer:${modifiersOf(message)}`,
+                  motion,
+                  async (messages) => {
+                    for (const input of messages) {
+                      await dispatchViewerInput(tab, session, viewer, input);
+                    }
+                  },
+                  mergePointerMotion,
                 );
               } else {
-                await tab.control.human(viewer.id, () => dispatch(message));
+                await tab.control.human(viewer.id, () =>
+                  dispatchViewerInput(tab, session, viewer, message),
+                );
               }
             }
           } catch {
