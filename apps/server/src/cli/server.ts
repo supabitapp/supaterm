@@ -13,13 +13,6 @@ import * as ProcessRunner from "../processRunner.ts";
 import * as AutomaticPort from "./automaticPort.ts";
 import { type CliServerFlags, resolveServerConfig, sharedServerCommandFlags } from "./config.ts";
 
-// The desktop launcher reads this process's stdout and stderr. Once it is gone,
-// every log write fails, and Node turns an unhandled stream error into a crash
-// that skips shutdown and leaves the ownership lock and runtime record behind.
-function ignoreClosedLauncherPipe(error: NodeJS.ErrnoException): void {
-  if (error.code !== "EPIPE" && error.code !== "ERR_STREAM_DESTROYED") throw error;
-}
-
 const runServerCommand = Effect.fn("server.runServerCommand")(function* (
   flags: CliServerFlags,
   options?: {
@@ -43,10 +36,6 @@ const runServerCommand = Effect.fn("server.runServerCommand")(function* (
     ),
   );
   if (config.mode !== "desktop" || config.desktopBootstrapToken === undefined) return yield* run;
-  yield* Effect.sync(() => {
-    process.stdout.on("error", ignoreClosedLauncherPipe);
-    process.stderr.on("error", ignoreClosedLauncherPipe);
-  });
   return yield* Effect.raceFirst(
     run,
     awaitLauncherLoss().pipe(
