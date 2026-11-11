@@ -1460,6 +1460,14 @@ effectIt.effect.each([
     handoffIds: [],
   },
   {
+    nativeForkFrom: "idle",
+    forkFailure: true,
+    forks: false,
+    forkAttempts: 1,
+    transferStatus: "resolved_portable",
+    handoffIds: ["side-chat-fork-context"],
+  },
+  {
     nativeForkFrom: "busy",
     forkWhileSourceActive: "stable",
     forkFailure: true,

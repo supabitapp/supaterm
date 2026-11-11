@@ -1155,19 +1155,17 @@ export const layer: Layer.Layer<
                   : { providerTurnId: sourceProviderTurn.id }),
               }),
             );
-            // A provider that cannot bound a busy source at this turn gets the portable context.
+            // Dispatch planned no portable context, so a provider that cannot fork at this turn
+            // gets it here.
             if (forked._tag === "Success") return forked.success;
-            if (!sourceBusy || forked.failure._tag !== "ProviderAdapterForkThreadError") {
+            if (forked.failure._tag !== "ProviderAdapterForkThreadError") {
               return yield* loadFromProvider(Effect.fail(forked.failure));
             }
-            yield* Effect.logWarning(
-              "Recovering a refused busy native fork with portable context",
-              {
-                sourceThreadId: nativeForkTransfer.sourceThreadId,
-                runId,
-                error: forked.failure,
-              },
-            );
+            yield* Effect.logWarning("Recovering a refused native fork with portable context", {
+              sourceThreadId: nativeForkTransfer.sourceThreadId,
+              runId,
+              error: forked.failure,
+            });
           }
           const sourceItems = yield* ContextHandoffService.readForkHistoryItems(
             projectionStore,
