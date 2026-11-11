@@ -2139,7 +2139,7 @@ function OpenCommandPaletteDialog(props: {
   function getDefaultCloneDestination(
     environmentId: EnvironmentId,
     remoteUrl: string,
-    repository: string,
+    repository?: string,
   ): string {
     const environment = environments.find((candidate) => candidate.environmentId === environmentId);
     return getCloneDestinationPath(
@@ -2194,7 +2194,6 @@ function OpenCommandPaletteDialog(props: {
         const destinationPath = getDefaultCloneDestination(
           addProjectCloneFlow.environmentId,
           remoteUrl,
-          rawRepository,
         );
         setAddProjectCloneFlow({
           step: "confirm",
