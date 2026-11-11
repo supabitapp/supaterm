@@ -4369,6 +4369,7 @@ describe("v2 run and attempt history", () => {
       id: string,
       attempt: typeof supersededAttempt | typeof nextAttempt,
       completedSecond: number,
+      phase?: "commentary" | "partial_answer" | "final_answer",
     ): TimelineEntry => ({
       id,
       kind: "message",
@@ -4386,6 +4387,7 @@ describe("v2 run and attempt history", () => {
       projectedItem: {
         item: {
           type: "assistant_message",
+          ...(phase === undefined ? {} : { phase }),
           status: "completed",
           completedAt: DateTime.makeUnsafe(at(completedSecond)),
         },
@@ -4394,51 +4396,56 @@ describe("v2 run and attempt history", () => {
     const rowsFor = (
       replyCompletedSecond: number,
       runStatus: "running" | "completed" = "completed",
+      phase?: "commentary" | "partial_answer" | "final_answer",
+      nativeSteer = false,
     ) =>
       deriveMessagesTimelineRows({
-        timelineEntries: [
-          {
-            id: "initial-user-entry",
-            kind: "message",
-            createdAt: at(0),
-            attempt: supersededAttempt,
-            message: {
-              id: MessageId.make("initial-user"),
-              role: "user",
-              text: "Build it",
-              runId,
-              inputIntent: "turn_start",
+        timelineEntries: (
+          [
+            {
+              id: "initial-user-entry",
+              kind: "message",
               createdAt: at(0),
-              updatedAt: at(0),
-              streaming: false,
+              attempt: supersededAttempt,
+              message: {
+                id: MessageId.make("initial-user"),
+                role: "user",
+                text: "Build it",
+                runId,
+                inputIntent: "turn_start",
+                createdAt: at(0),
+                updatedAt: at(0),
+                streaming: false,
+              },
             },
-          },
-          {
-            id: "old-work-entry",
-            kind: "work",
-            createdAt: at(1),
-            attempt: supersededAttempt,
-            entry: { id: "old-work", createdAt: at(1), runId, label: "Read", tone: "tool" },
-          },
-          assistantEntry("old-reply-entry", supersededAttempt, replyCompletedSecond),
-          {
-            id: "steer-user-entry",
-            kind: "message",
-            createdAt: at(10),
-            attempt: nextAttempt,
-            message: {
-              id: MessageId.make("steer-user"),
-              role: "user",
-              text: "What are you working on?",
-              runId,
-              inputIntent: "steer",
+            {
+              id: "old-work-entry",
+              kind: "work",
+              createdAt: at(1),
+              attempt: supersededAttempt,
+              entry: { id: "old-work", createdAt: at(1), runId, label: "Read", tone: "tool" },
+            },
+            assistantEntry("status-entry", supersededAttempt, 1, "commentary"),
+            assistantEntry("old-reply-entry", supersededAttempt, replyCompletedSecond, phase),
+            {
+              id: "steer-user-entry",
+              kind: "message",
               createdAt: at(10),
-              updatedAt: at(10),
-              streaming: false,
+              attempt: nextAttempt,
+              message: {
+                id: MessageId.make("steer-user"),
+                role: "user",
+                text: "What are you working on?",
+                runId,
+                inputIntent: "steer",
+                createdAt: at(10),
+                updatedAt: at(10),
+                streaming: false,
+              },
             },
-          },
-          assistantEntry("new-reply-entry", nextAttempt, 14),
-        ],
+            assistantEntry("new-reply-entry", nextAttempt, 14),
+          ] satisfies ReadonlyArray<TimelineEntry>
+        ).map((entry) => (nativeSteer ? { ...entry, attempt: nextAttempt } : entry)),
         latestRun: {
           runId,
           status: runStatus,
@@ -4450,23 +4457,31 @@ describe("v2 run and attempt history", () => {
         supportsConversationRollback: false,
       });
 
-    it.each(["running", "completed"] as const)(
-      "keeps a reply that finished before the steer visible while the run is %s",
-      (runStatus) => {
-        const rows = rowsFor(4, runStatus);
-        expect(rows.some((row) => row.kind === "attempt-fold")).toBe(false);
-        expect(rows.map((row) => row.id)).toContain("old-reply-entry");
+    it.each([
+      ["final_answer", 4, true],
+      ["final_answer", 11, true],
+      ["commentary", 4, false],
+      ["commentary", 11, false],
+      ["partial_answer", 11, false],
+      [undefined, 4, true],
+      [undefined, 11, false],
+    ] as const)(
+      "retains phase %s ending at %s only when it is a final reply: %s",
+      (phase, completedSecond, retained) => {
+        for (const runStatus of ["running", "completed"] as const) {
+          const rows = rowsFor(completedSecond, runStatus, phase);
+          expect(rows.some((row) => row.id === "old-reply-entry")).toBe(retained);
+          if (phase !== undefined && runStatus === "completed") {
+            const nativeRows = rowsFor(completedSecond, runStatus, phase, true);
+            expect(nativeRows.some((row) => row.id === "old-reply-entry")).toBe(retained);
+            expect(nativeRows.some((row) => row.id === "status-entry")).toBe(false);
+          }
+          if (runStatus === "completed") {
+            expect(rows.some((row) => row.id === "status-entry")).toBe(false);
+          }
+        }
       },
     );
-
-    it("folds a reply the steer cut off as partial output", () => {
-      const rows = rowsFor(11, "running");
-      expect(rows.find((row) => row.kind === "attempt-fold")).toMatchObject({
-        attemptId: supersededAttempt.id,
-        label: "Superseded attempt",
-      });
-      expect(rows.map((row) => row.id)).not.toContain("old-reply-entry");
-    });
   });
 
   it("hides the interruption request while keeping intervening work and the result", () => {

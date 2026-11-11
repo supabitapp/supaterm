@@ -1,7 +1,7 @@
+import * as DateTime from "effect/DateTime";
 import { worktreeSetupAgentStarted } from "@supaterm/client-runtime/worktree-setup";
 import { resolveUserMessagePresentation } from "@supaterm/client-runtime/user-message";
 import { isLiveSubagentTurnItem } from "@supaterm/client-runtime/state/subagentRuntime";
-import * as DateTime from "effect/DateTime";
 import * as Equal from "effect/Equal";
 import {
   assistantCitationExcerpt,
@@ -767,16 +767,20 @@ interface SupersededAttemptFold {
   readonly hiddenEntryIds: ReadonlySet<string>;
 }
 
-/**
- * Item status alone cannot tell: an interrupted stream also closes as
- * `completed`. The reply must be the attempt's last output; trailing tool or
- * reasoning work means the attempt was still going.
- */
-function completeSupersededReplyEntryIds(
+// Only an explicit final phase proves a reply cut short by steering was an answer.
+function retainedAssistantReplyEntryIds(
   timelineEntries: ReadonlyArray<TimelineEntry>,
 ): ReadonlySet<string> {
+  const replyEntryIds = new Set<string>();
   const lastOutputByAttemptId = new Map<RunAttemptId, TimelineEntry>();
   for (const entry of timelineEntries) {
+    if (
+      entry.kind === "message" &&
+      entry.projectedItem?.item.type === "assistant_message" &&
+      entry.projectedItem.item.phase === "final_answer"
+    )
+      replyEntryIds.add(entry.id);
+
     if (
       entry.attempt?.status !== "superseded" ||
       (entry.kind === "message" && entry.message.role === "user") ||
@@ -800,14 +804,14 @@ function completeSupersededReplyEntryIds(
     if (deferredEnd !== undefined && ordinal !== undefined && deferredEnd > ordinal) continue;
     lastOutputByAttemptId.set(entry.attempt.id, entry);
   }
-  const replyEntryIds = new Set<string>();
   for (const entry of lastOutputByAttemptId.values()) {
-    const supersededAt = entry.attempt?.completedAt ?? null;
     const item = entry.kind === "message" ? entry.projectedItem?.item : undefined;
+    const supersededAt = entry.attempt?.completedAt ?? null;
     if (
       entry.kind === "message" &&
       !entry.message.streaming &&
       item?.type === "assistant_message" &&
+      item.phase === undefined &&
       item.status === "completed" &&
       item.completedAt !== null &&
       supersededAt !== null &&
@@ -823,18 +827,18 @@ function deriveSupersededAttemptFolds(
   timelineEntries: ReadonlyArray<TimelineEntry>,
   unfoldedRunIds: ReadonlySet<RunId>,
   liveSubagentEntryIds: ReadonlySet<string>,
-  completeReplyEntryIds: ReadonlySet<string>,
+  retainedReplyEntryIds: ReadonlySet<string>,
 ): ReadonlyMap<string, SupersededAttemptFold> {
-  const completeAttemptIds = new Set(
+  const retainedAttemptIds = new Set(
     timelineEntries.flatMap((entry) =>
-      entry.attempt !== undefined && completeReplyEntryIds.has(entry.id) ? [entry.attempt.id] : [],
+      entry.attempt !== undefined && retainedReplyEntryIds.has(entry.id) ? [entry.attempt.id] : [],
     ),
   );
   const entriesByAttemptId = new Map<RunAttemptId, TimelineEntry[]>();
   for (const entry of timelineEntries) {
     if (
       entry.attempt?.status !== "superseded" ||
-      completeAttemptIds.has(entry.attempt.id) ||
+      retainedAttemptIds.has(entry.attempt.id) ||
       unfoldedRunIds.has(entry.attempt.runId) ||
       (entry.kind === "message" && entry.message.role === "user") ||
       (entry.kind === "event" && entry.projectedItem.item.type === "handoff") ||
@@ -1058,7 +1062,7 @@ function deriveTurnFolds(input: {
   unfoldedRunIds: ReadonlySet<RunId>;
   runlessWorkActive: boolean;
   liveSubagentEntryIds: ReadonlySet<string>;
-  completeSupersededReplyEntryIds: ReadonlySet<string>;
+  retainedAssistantReplyEntryIds: ReadonlySet<string>;
 }): ReadonlyMap<string, TurnFold> {
   const interruptedRunIds = new Set<RunId>();
   const promptIndexByRunId = new Map<RunId, number>();
@@ -1200,7 +1204,7 @@ function deriveTurnFolds(input: {
         entry.id === visibleCompactionId ||
         timelineEntryIsPersistentResourceCard(entry) ||
         input.liveSubagentEntryIds.has(entry.id) ||
-        input.completeSupersededReplyEntryIds.has(entry.id)
+        input.retainedAssistantReplyEntryIds.has(entry.id)
       ) {
         continue;
       }
@@ -1453,7 +1457,7 @@ function deriveTimelineTurnFolds(
     unfoldedRunIds: new Set([...activeVisualResponseRunIds, ...failedRunIds]),
     runlessWorkActive: input.isWorking && input.runlessWorkActive === true,
     liveSubagentEntryIds: liveSubagentCardEntryIds(timelineEntries),
-    completeSupersededReplyEntryIds: completeSupersededReplyEntryIds(timelineEntries),
+    retainedAssistantReplyEntryIds: retainedAssistantReplyEntryIds(timelineEntries),
   });
 }
 
@@ -1508,12 +1512,12 @@ export function deriveMessagesTimelineRows(input: {
   const failedRunIds = failedTimelineRunIds(timelineEntries, input.latestRun ?? null);
   const itemizedRunIds = itemizedFailedRunIds(timelineEntries, failedRunIds);
   const liveSubagentEntryIds = liveSubagentCardEntryIds(timelineEntries);
-  const completeSupersededReplyIds = completeSupersededReplyEntryIds(timelineEntries);
+  const retainedAssistantReplyIds = retainedAssistantReplyEntryIds(timelineEntries);
   const supersededFoldsByAnchorEntryId = deriveSupersededAttemptFolds(
     timelineEntries,
     failedRunIds,
     liveSubagentEntryIds,
-    completeSupersededReplyIds,
+    retainedAssistantReplyIds,
   );
   const supersededWorkItemIds = new Set(
     [...supersededFoldsByAnchorEntryId.values()].flatMap((fold) => fold.deferredWorkItemIds),
@@ -1531,7 +1535,7 @@ export function deriveMessagesTimelineRows(input: {
     unfoldedRunIds: new Set([...activeVisualResponseRunIds, ...failedRunIds]),
     runlessWorkActive,
     liveSubagentEntryIds,
-    completeSupersededReplyEntryIds: completeSupersededReplyIds,
+    retainedAssistantReplyEntryIds: retainedAssistantReplyIds,
   });
   const timelineEntryById = new Map(timelineEntries.map((entry) => [entry.id, entry]));
   const collapsedEntryIds = new Set<string>();
