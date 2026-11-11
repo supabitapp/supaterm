@@ -79,6 +79,7 @@ import {
 import { AgentScope } from "@supaterm/shared/AgentScope";
 import * as HostProcess from "@supaterm/shared/HostProcess";
 import { applyClaudePromptEffortPrefix } from "@supaterm/shared/model";
+import { compareSemverVersions } from "@supaterm/shared/semver";
 import {
   CLAUDE_RESUME_COMPACTION_COMPACT_ANSWER,
   CLAUDE_RESUME_COMPACTION_NEVER_ANSWER,
@@ -158,7 +159,9 @@ import {
 } from "../../provider/Drivers/ClaudeSkillDispatch.ts";
 import {
   claudeLaunchArgDirectories,
+  customClaudeApiEndpointHost,
   discoverClaudeSkills,
+  readClaudeSettingsEnv,
 } from "../../provider/Drivers/ClaudeSkills.ts";
 import {
   compileClaudeModelSelection,
@@ -4014,6 +4017,25 @@ function gatewayCooldownResetAt(
     : undefined;
 }
 
+const CLAUDE_UNSUPPORTED_VERSION_ERROR =
+  /^API Error: 400 Claude Code (\d+\.\d+\.\d+) does not support this model; version (\d+\.\d+\.\d+) or newer is required\./;
+
+/** The version a gateway sent in place of the session's own, when the session itself meets the requirement. */
+function claudeRewrittenVersion(
+  message: SDKResultMessage,
+  sessionVersion: string | undefined,
+): string | undefined {
+  if (message.subtype !== "success" || message.terminal_reason !== "api_error") return undefined;
+  const [, reported, required] = CLAUDE_UNSUPPORTED_VERSION_ERROR.exec(message.result.trim()) ?? [];
+  if (reported === undefined || required === undefined || sessionVersion === undefined) {
+    return undefined;
+  }
+  return compareSemverVersions(reported, sessionVersion) < 0 &&
+    compareSemverVersions(sessionVersion, required) >= 0
+    ? reported
+    : undefined;
+}
+
 function providerFailureFromResult(
   message: SDKResultMessage,
   receivedAt: DateTime.Utc,
@@ -4349,6 +4371,7 @@ interface ClaudeLiveQueryContext {
   receivedInit: boolean;
   // From system/init; feature-detects control requests such as MCP Apps.
   capabilities: ReadonlySet<string>;
+  claudeCodeVersion: string | undefined;
   permissionMode: PermissionMode;
   stopping: boolean;
   readonly subagentsFromEarlierProcesses: ReadonlySet<ActiveClaudeSubagent>;
@@ -9977,12 +10000,30 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
             // can't grant a permission, so show the CLI's own text instead.
             const permissionDenied =
               message.subtype === "success" && message.api_error_status === 403;
+            const rewrittenVersion = claudeRewrittenVersion(message, liveQuery.claudeCodeVersion);
+            const endpointHost =
+              rewrittenVersion === undefined
+                ? undefined
+                : customClaudeApiEndpointHost(
+                    (yield* readClaudeSettingsEnv(
+                      adapterOptions.settings,
+                      context.input.runtimePolicy.cwd ?? undefined,
+                      adapterOptions.environment,
+                    ).pipe(
+                      Effect.provideService(FileSystem.FileSystem, fileSystem),
+                      Effect.provideService(Path.Path, path),
+                    )).ANTHROPIC_BASE_URL ?? adapterOptions.environment.ANTHROPIC_BASE_URL,
+                  );
+            const rewrittenVersionError =
+              endpointHost === undefined
+                ? undefined
+                : `The custom API endpoint ${endpointHost} reported Claude Code ${rewrittenVersion}, but this session runs Claude Code ${liveQuery.claudeCodeVersion}. Running claude update will not fix this; the endpoint or a proxy behind it rewrote the version.`;
             const failureHint = permissionDenied
               ? message.result
               : (context.authenticationFailureMessage ??
                 (usageLimited
                   ? "Claude usage limit reached. Send the message again once the limit resets."
-                  : undefined));
+                  : rewrittenVersionError));
 
             const limitedCompaction =
               usageLimited && message.subtype === "success" && message.local_command === "compact"
@@ -10976,6 +11017,7 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
             openedPermissionMode: queryOptions.permissionMode,
             receivedInit: false,
             capabilities: new Set(),
+            claudeCodeVersion: undefined,
             permissionMode: queryOptions.permissionMode,
             stopping: false,
             handedOffSubagents: new Set(),
@@ -11015,6 +11057,7 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
                       message.permissionMode ?? context.openedPermissionMode;
                     context.receivedInit = true;
                     context.capabilities = new Set(message.capabilities ?? []);
+                    context.claudeCodeVersion = message.claude_code_version;
                   }
                   if (
                     message.type === "system" &&
