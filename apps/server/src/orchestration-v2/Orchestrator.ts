@@ -7168,9 +7168,6 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
               sourceRunStatus: sourceRun.status,
               fromSpecificTurn: sourceRun !== null,
               sourceBusy: sourceRunsAfterFork.some(isRunInProgress),
-              hasNativeTurnBoundary:
-                sourceProjection?.providerTurns.find((turn) => turn.id === sourceProviderTurnId)
-                  ?.nativeTurnRef?.nativeId != null,
             }),
           );
     const canResolveForkNatively = forkExecution === "native_fork";

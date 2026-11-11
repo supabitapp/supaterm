@@ -2272,6 +2272,13 @@ const getNativeConversationHeadId = Effect.fnUntraced(function* (
 const resolveClaudeForkUpToMessageId = Effect.fn("ClaudeAdapterV2.resolveForkUpToMessageId")(
   function* (input: ProviderAdapter.ProviderAdapterV2ForkThreadInput) {
     if (input.providerTurnId === undefined || input.sourceProviderTurns === undefined) {
+      if (input.sourceActive === true) {
+        return yield* new ProviderAdapter.ProviderAdapterForkThreadError({
+          driver: CLAUDE_PROVIDER,
+          providerThreadId: input.sourceProviderThread.id,
+          cause: `Cannot fork Claude thread ${input.sourceProviderThread.id} while it runs a turn: no source turn bounds the fork.`,
+        });
+      }
       return undefined;
     }
 

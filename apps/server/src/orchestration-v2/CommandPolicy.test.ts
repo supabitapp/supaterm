@@ -323,7 +323,6 @@ layer("CommandPolicyV2", (it) => {
         sourceRunStatus: "completed",
         fromSpecificTurn: true,
         sourceBusy: false,
-        hasNativeTurnBoundary: true,
       });
 
       assert.equal(result, "portable_context");
@@ -333,11 +332,7 @@ layer("CommandPolicyV2", (it) => {
   it.effect("forks a busy source natively only where the provider forks a busy thread", () =>
     Effect.gen(function* () {
       const policy = yield* CommandPolicy.CommandPolicyV2;
-      const decide = (
-        sourceBusy: boolean,
-        forkWhileSourceActive: "none" | "stable" | "live",
-        hasNativeTurnBoundary = true,
-      ) =>
+      const decide = (sourceBusy: boolean, forkWhileSourceActive: "none" | "stable" | "live") =>
         policy.decideForkExecution({
           commandId,
           threadId,
@@ -351,7 +346,6 @@ layer("CommandPolicyV2", (it) => {
           sourceRunStatus: "completed",
           fromSpecificTurn: true,
           sourceBusy,
-          hasNativeTurnBoundary,
         });
 
       assert.equal(CodexProviderCapabilitiesV2.threads.forkWhileSourceActive, "none");
@@ -359,9 +353,6 @@ layer("CommandPolicyV2", (it) => {
       assert.equal(yield* decide(true, "none"), "portable_context");
       assert.equal(yield* decide(true, "stable"), "native_fork");
       assert.equal(yield* decide(true, "live"), "native_fork");
-      // Without the finished turn's native cursor a busy fork would copy the running turn too.
-      assert.equal(yield* decide(true, "stable", false), "portable_context");
-      assert.equal(yield* decide(false, "stable", false), "native_fork");
     }),
   );
 });

@@ -6800,16 +6800,18 @@ describe("ClaudeAdapterV2 background wake turns", () => {
         ClaudeAdapterV2.ClaudeProviderCapabilitiesV2.threads.forkWhileSourceActive,
         "stable",
       );
-      const forkBusySource = (providerTurnId: ProviderTurnId) =>
+      const forkBusySource = (providerTurnId?: ProviderTurnId) =>
         harness.runtime.forkThread({
           sourceProviderThread: pastSilentTurn.providerThread,
           sourceProviderTurns: turnsAcrossSilent.slice(0, 2),
-          providerTurnId,
+          ...(providerTurnId === undefined ? {} : { providerTurnId }),
           sourceActive: true,
           targetThreadId: ThreadId.make("thread-claude-fork-busy-source"),
         });
-      const busyWithoutCursor = yield* forkBusySource(providerTurn.id).pipe(Effect.flip);
-      assert.instanceOf(busyWithoutCursor, ProviderAdapter.ProviderAdapterForkThreadError);
+      for (const unbounded of [providerTurn.id, undefined]) {
+        const refused = yield* forkBusySource(unbounded).pipe(Effect.flip);
+        assert.instanceOf(refused, ProviderAdapter.ProviderAdapterForkThreadError);
+      }
       assert.lengthOf(forkCalls, 1);
       yield* forkBusySource(ProviderTurnId.make("provider-turn-claude-cursor-earlier"));
       assert.equal(forkCalls[1]?.options.upToMessageId, earlierCursor);

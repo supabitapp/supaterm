@@ -302,8 +302,6 @@ function makeLocalCommandHarness(input: {
     readonly nativeForkFrom?: "idle" | "busy";
     readonly switchedProvider?: boolean;
     readonly forkWhileSourceActive?: "none" | "stable";
-    /** `false` leaves the parent's turn without a native cursor. */
-    readonly parentTurnCursor?: false;
     /** The provider refuses the native fork. */
     readonly forkFailure?: true;
   };
@@ -515,14 +513,11 @@ function makeLocalCommandHarness(input: {
       providerThreadId: parentProviderThread.id,
       nodeId: rootNodeId,
       runAttemptId: RunAttemptId.make(`side-chat-parent-attempt-${ordinal}`),
-      nativeTurnRef:
-        input.sideChat?.parentTurnCursor === false
-          ? null
-          : {
-              driver: providerThread.driver,
-              nativeId: `side-chat-parent-native-turn-${ordinal}`,
-              strength: "strong" as const,
-            },
+      nativeTurnRef: {
+        driver: providerThread.driver,
+        nativeId: `side-chat-parent-native-turn-${ordinal}`,
+        strength: "strong" as const,
+      },
       ordinal,
       status: "completed" as const,
       startedAt: now,
@@ -1463,14 +1458,6 @@ effectIt.effect.each([
     forks: true,
     transferStatus: "consumed",
     handoffIds: [],
-  },
-  {
-    nativeForkFrom: "busy",
-    forkWhileSourceActive: "stable",
-    parentTurnCursor: false,
-    forks: false,
-    transferStatus: "resolved_portable",
-    handoffIds: ["side-chat-fork-context"],
   },
   {
     nativeForkFrom: "busy",
