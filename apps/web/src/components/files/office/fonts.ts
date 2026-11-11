@@ -77,6 +77,16 @@ export function scriptFace(script: BundledFontScript, bold: boolean, italic: boo
   return shipped(script) ? resolveScriptFallbackFace(script, bold, italic) : undefined;
 }
 
+/** The face Excel's cells draw a family with when it is missing: its metric-compatible or bundled face, if any. */
+export function sheetFace(family: string, bold: boolean, italic: boolean) {
+  return (
+    shippedFace(resolveMetricCompatFace(family, bold, italic)) ??
+    shippedFace(resolveBundledFamilyFace(family, bold, italic)) ??
+    shippedFace(resolveBundledFamilyFace(family, bold, false)) ??
+    shippedFace(resolveBundledFamilyFace(family, false, false))
+  );
+}
+
 /**
  * A bundled face's bytes. The font package caches them per worker, so a face loads once per open file; the browser's
  * caches, which every worker shares, serve the files to the next.
