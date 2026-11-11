@@ -1654,7 +1654,7 @@ export default function ChatView(props: ChatViewProps) {
   const turnDiffSummaries = useThreadCheckpointSummaries(routeThreadDetailRef);
   const availableRevertTurnCounts = deriveAvailableRevertTurnCounts(serverProjection);
   // A paged history window cannot identify the first loaded run as the thread start.
-  const threadStartCheckpointReady =
+  const threadStartCheckpointAvailable =
     !serverThreadHistory.hasMoreHistory &&
     findRevertCheckpoint(serverProjection?.checkpoints ?? [], 0) !== undefined;
 
@@ -3632,7 +3632,7 @@ export default function ChatView(props: ChatViewProps) {
                       // Forking a side chat would drop its parent's history on portable providers.
                       {...(isSideChat ? {} : { onForkFromRun: onForkFromRunStable })}
                       supportsConversationRollback={supportsConversationRollback}
-                      threadStartCheckpointReady={threadStartCheckpointReady}
+                      threadStartCheckpointAvailable={threadStartCheckpointAvailable}
                       availableRevertTurnCounts={availableRevertTurnCounts}
                       onRevertToTurnCount={onRevertTimelineTurnStable}
                       onUseArtifactTemplate={insertArtifactTemplateStable}
@@ -4119,7 +4119,11 @@ export default function ChatView(props: ChatViewProps) {
         <ChatRightPanel sheet {...rightPanelProps} />
       ) : null}
 
-      <RevertConfirmHost threadKey={routeThreadKey} onConfirm={onConfirmRevertStable} />
+      <RevertConfirmHost
+        threadKey={routeThreadKey}
+        checkpoints={serverProjection?.checkpoints}
+        onConfirm={onConfirmRevertStable}
+      />
       <ThreadVisitWatermark threadRef={routeThreadRef} />
       <ExpandedImageDialogHost threadKey={routeThreadKey} />
     </div>
