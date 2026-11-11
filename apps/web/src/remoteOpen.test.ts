@@ -31,6 +31,7 @@ describe("resolveRemoteOpenState", () => {
         sshTarget: null,
         isDesktopRenderer: false,
         remoteOpenTargets: TAILSCALE_TARGETS,
+        hostEnvironmentId: null,
       }),
     ).toEqual({ mode: "local-exec" });
   });
@@ -42,6 +43,7 @@ describe("resolveRemoteOpenState", () => {
         sshTarget: null,
         isDesktopRenderer: false,
         remoteOpenTargets: TAILSCALE_TARGETS,
+        hostEnvironmentId: null,
       }),
     ).toEqual({
       mode: "remote-links",
@@ -57,8 +59,46 @@ describe("resolveRemoteOpenState", () => {
         sshTarget: null,
         isDesktopRenderer: true,
         remoteOpenTargets: TAILSCALE_TARGETS,
+        hostEnvironmentId: null,
       }),
     ).toEqual({ mode: "local-exec" });
+  });
+
+  it("keeps exec behavior for the environment that owns the desktop's Supaterm home", () => {
+    // With Local environment off, a background service on this machine can own the
+    // desktop's home and still be reached as a saved connection.
+    expect(
+      resolveRemoteOpenState({
+        target: new BearerConnectionTarget({
+          environmentId,
+          label: "sol",
+          connectionId: "service",
+        }),
+        sshTarget: null,
+        isDesktopRenderer: true,
+        remoteOpenTargets: TAILSCALE_TARGETS,
+        hostEnvironmentId: environmentId,
+      }),
+    ).toEqual({ mode: "local-exec" });
+  });
+
+  it("uses deep links for other environments when the desktop home has its own", () => {
+    expect(
+      resolveRemoteOpenState({
+        target: new BearerConnectionTarget({
+          environmentId,
+          label: "sol",
+          connectionId: "service",
+        }),
+        sshTarget: null,
+        isDesktopRenderer: true,
+        remoteOpenTargets: TAILSCALE_TARGETS,
+        hostEnvironmentId: EnvironmentId.make("environment-host"),
+      }),
+    ).toEqual({
+      mode: "remote-links",
+      host: { kind: "tailscale", host: "sol.tail1234.ts.net" },
+    });
   });
 
   it("leaves a bare desktop SSH alias for the editor to resolve through SSH config", () => {
@@ -69,6 +109,7 @@ describe("resolveRemoteOpenState", () => {
       remoteOpenTargets: [
         { kind: "tailscale", host: "sol.tail1234.ts.net", username: "server-user" },
       ],
+      hostEnvironmentId: null,
     });
     expect(state).toEqual({ mode: "remote-links", host: { kind: "ssh-alias", host: "sol" } });
     if (state.mode !== "remote-links") throw new Error("Expected a remote link");
@@ -97,6 +138,7 @@ describe("resolveRemoteOpenState", () => {
       sshTarget,
       isDesktopRenderer: true,
       remoteOpenTargets: TAILSCALE_TARGETS,
+      hostEnvironmentId: null,
     });
     expect(state.mode).toBe("remote-links");
     if (state.mode !== "remote-links") throw new Error("Expected a remote link");
@@ -125,6 +167,7 @@ describe("resolveRemoteOpenState", () => {
       remoteOpenTargets: [
         { kind: "tailscale", host: "server.tail1234.ts.net", username: "admin-user" },
       ],
+      hostEnvironmentId: null,
     });
     expect(state.mode).toBe("remote-links");
     if (state.mode !== "remote-links") throw new Error("Expected a remote link");
@@ -145,6 +188,7 @@ describe("resolveRemoteOpenState", () => {
           sshTarget: null,
           isDesktopRenderer: false,
           remoteOpenTargets,
+          hostEnvironmentId: null,
         }),
       ).toEqual({ mode: "remote-unavailable" });
     }
