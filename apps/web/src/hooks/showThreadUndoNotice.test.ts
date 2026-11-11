@@ -202,4 +202,24 @@ describe("thread undo notice", () => {
     expect(threadUndoNoticeSummary({ action: "Done", count: 2 })).toBe("Marked 2 threads as Done");
     expect(threadUndoNoticeSummary({ action: "Discarded", count: 2 })).toBe("Discarded 2 drafts");
   });
+
+  it("announces that the undo happened, naming the undone action", async () => {
+    const { options } = setup();
+    showThreadUndoNotice(options);
+    vi.mocked(announce).mockClear();
+    await notice().undo();
+    expect(announce).toHaveBeenCalledExactlyOnceWith("Undid unpin of 1 thread");
+  });
+
+  it("does not announce an undo that failed", async () => {
+    const { options, add } = setup();
+    showThreadUndoNotice({
+      ...options,
+      undo: async () => AsyncResult.failure(Cause.fail(new Error("offline"))),
+    });
+    vi.mocked(announce).mockClear();
+    await notice().undo();
+    expect(add).toHaveBeenCalledOnce();
+    expect(announce).not.toHaveBeenCalled();
+  });
 });

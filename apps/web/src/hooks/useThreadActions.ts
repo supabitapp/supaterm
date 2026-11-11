@@ -41,6 +41,7 @@ import { vcsEnvironment } from "../state/vcs";
 import { useNewThreadHandler } from "./useHandleNewThread";
 import { refreshArchivedThreadsForEnvironment } from "../lib/archivedThreadsState";
 import { releaseComposerDraftUploads } from "../lib/composerDraftUploads";
+import { announce } from "../lib/announce";
 import { readLocalApi } from "../localApi";
 import {
   readEnvironmentThreadRefs,
@@ -668,7 +669,7 @@ export function useThreadActions() {
     });
   };
 
-  const pinThread = async (target: ScopedThreadRef, opts: { orderKey?: string } = {}) => {
+  const sendPin = async (target: ScopedThreadRef, opts: { orderKey?: string } = {}) => {
     // Every pin path places the thread at the top of the arranged run:
     // callers with a better anchor (the sidebar, which knows the displayed
     // order) pass their own key; everyone else (chat header, context menus)
@@ -682,6 +683,12 @@ export function useThreadActions() {
       environmentId: target.environmentId,
       input: { threadId: target.threadId, ...(orderKey !== undefined ? { orderKey } : {}) },
     });
+  };
+
+  const pinThread = async (target: ScopedThreadRef, opts: { orderKey?: string } = {}) => {
+    const result = await sendPin(target, opts);
+    if (result._tag === "Success") announce("Pinned 1 thread");
+    return result;
   };
 
   const unsnoozeThread = async (target: ScopedThreadRef) => {
@@ -702,10 +709,7 @@ export function useThreadActions() {
           case "unsnooze":
             return unsnoozeThread(target);
           case "pin":
-            return pinThread(
-              target,
-              step.orderKey === undefined ? {} : { orderKey: step.orderKey },
-            );
+            return sendPin(target, step.orderKey === undefined ? {} : { orderKey: step.orderKey });
           case "snooze":
             return snoozeThreadMutation({
               environmentId: target.environmentId,
