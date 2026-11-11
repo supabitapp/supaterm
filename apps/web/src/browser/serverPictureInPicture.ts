@@ -177,6 +177,7 @@ async function openServerPictureInPicture(input: {
       video.webkitSetPresentationMode?.("picture-in-picture");
     }
   } catch (error) {
+    if (stopped) return;
     onLeave();
     throw error;
   }
