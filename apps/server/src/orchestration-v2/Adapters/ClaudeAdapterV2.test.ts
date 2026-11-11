@@ -6795,6 +6795,26 @@ describe("ClaudeAdapterV2 background wake turns", () => {
         targetThreadId: ThreadId.make("thread-claude-fork-after-compact-rollback"),
       });
       assert.equal(forkCalls[0]?.options.upToMessageId, earlierCursor);
+      // A later turn is still writing the transcript, so only a turn's own cursor bounds the copy.
+      assert.equal(
+        ClaudeAdapterV2.ClaudeProviderCapabilitiesV2.threads.forkWhileSourceActive,
+        "stable",
+      );
+      const forkBusySource = (providerTurnId?: ProviderTurnId) =>
+        harness.runtime.forkThread({
+          sourceProviderThread: pastSilentTurn.providerThread,
+          sourceProviderTurns: turnsAcrossSilent.slice(0, 2),
+          ...(providerTurnId === undefined ? {} : { providerTurnId }),
+          sourceActive: true,
+          targetThreadId: ThreadId.make("thread-claude-fork-busy-source"),
+        });
+      for (const unbounded of [providerTurn.id, undefined]) {
+        const refused = yield* forkBusySource(unbounded).pipe(Effect.flip);
+        assert.instanceOf(refused, ProviderAdapter.ProviderAdapterForkThreadError);
+      }
+      assert.lengthOf(forkCalls, 1);
+      yield* forkBusySource(ProviderTurnId.make("provider-turn-claude-cursor-earlier"));
+      assert.equal(forkCalls[1]?.options.upToMessageId, earlierCursor);
       const interruptedBeforeCompact = yield* rollbackTo(
         [
           {

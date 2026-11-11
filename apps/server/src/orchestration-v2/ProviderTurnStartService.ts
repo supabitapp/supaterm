@@ -1139,7 +1139,7 @@ export const layer: Layer.Layer<
                 )
                 .map((attempt) => attempt.id),
             );
-            return yield* loadFromProvider(
+            const forked = yield* Effect.result(
               session.forkThread({
                 sourceProviderThread,
                 sourceProviderTurns: sourceProjection.providerTurns.filter(
@@ -1149,11 +1149,23 @@ export const layer: Layer.Layer<
                 targetThreadId: projection.thread.id,
                 modelSelection: run.modelSelection,
                 runtimePolicy: resolvedRuntimePolicy,
+                sourceActive: sourceBusy,
                 ...(sourceProviderTurn === undefined
                   ? {}
                   : { providerTurnId: sourceProviderTurn.id }),
               }),
             );
+            // Dispatch planned no portable context, so a provider that cannot fork at this turn
+            // gets it here.
+            if (forked._tag === "Success") return forked.success;
+            if (forked.failure._tag !== "ProviderAdapterForkThreadError") {
+              return yield* loadFromProvider(Effect.fail(forked.failure));
+            }
+            yield* Effect.logWarning("Recovering a refused native fork with portable context", {
+              sourceThreadId: nativeForkTransfer.sourceThreadId,
+              runId,
+              error: forked.failure,
+            });
           }
           const sourceItems = yield* ContextHandoffService.readForkHistoryItems(
             projectionStore,

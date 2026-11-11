@@ -381,7 +381,7 @@ export const ClaudeProviderCapabilitiesV2 = {
     canForkThread: true,
     canForkFromTurn: true,
     canForkFromSubagentThread: false,
-    forkWhileSourceActive: "none",
+    forkWhileSourceActive: "stable",
     exposesNativeThreadId: true,
   },
   turns: {
@@ -2272,6 +2272,13 @@ const getNativeConversationHeadId = Effect.fnUntraced(function* (
 const resolveClaudeForkUpToMessageId = Effect.fn("ClaudeAdapterV2.resolveForkUpToMessageId")(
   function* (input: ProviderAdapter.ProviderAdapterV2ForkThreadInput) {
     if (input.providerTurnId === undefined || input.sourceProviderTurns === undefined) {
+      if (input.sourceActive === true) {
+        return yield* new ProviderAdapter.ProviderAdapterForkThreadError({
+          driver: CLAUDE_PROVIDER,
+          providerThreadId: input.sourceProviderThread.id,
+          cause: `Cannot fork Claude thread ${input.sourceProviderThread.id} while it runs a turn: no source turn bounds the fork.`,
+        });
+      }
       return undefined;
     }
 
@@ -2299,7 +2306,7 @@ const resolveClaudeForkUpToMessageId = Effect.fn("ClaudeAdapterV2.resolveForkUpT
     const terminalTurnsAfterBoundary = sourceTurns
       .slice(boundaryIndex + 1)
       .filter(isTerminalProviderTurn);
-    if (terminalTurnsAfterBoundary.length === 0) {
+    if (terminalTurnsAfterBoundary.length === 0 && input.sourceActive !== true) {
       // Rollback pins the head but leaves the rolled-back turns in Claude's transcript.
       return yield* getNativeConversationHeadId(input.sourceProviderThread);
     }

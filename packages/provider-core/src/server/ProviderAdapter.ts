@@ -530,6 +530,8 @@ export interface ProviderAdapterV2ForkThreadInput {
   readonly sourceProviderThread: OrchestrationV2ProviderThread;
   readonly sourceProviderTurns?: ReadonlyArray<OrchestrationV2ProviderTurn>;
   readonly providerTurnId?: ProviderTurnId;
+  /** The source is running a later turn, so the fork must end exactly at `providerTurnId`. */
+  readonly sourceActive?: boolean;
   readonly targetThreadId: ThreadId;
   readonly ownerNodeId?: NodeId;
   readonly modelSelection?: ModelSelection;
