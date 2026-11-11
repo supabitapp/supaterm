@@ -160,15 +160,18 @@ export function buildThreadPaletteItems(
           {
             value: item.id,
             label: title,
-            items: item.children.map((child) => ({
-              kind: "action",
-              value: `action:thread:${child.id}`,
-              title: child.label,
-              searchTerms: [child.label],
-              icon: <Icon className={ITEM_ICON_CLASS} />,
-              ...(child.disabled ? { disabled: true } : {}),
-              run: () => run(child.id),
-            })),
+            items: item.children.map((child) => {
+              const childTitle = child.detail ? `${child.label} (${child.detail})` : child.label;
+              return {
+                kind: "action",
+                value: `action:thread:${child.id}`,
+                title: childTitle,
+                searchTerms: [childTitle],
+                icon: <Icon className={ITEM_ICON_CLASS} />,
+                ...(child.disabled ? { disabled: true } : {}),
+                run: () => run(child.id),
+              };
+            }),
           },
         ],
       },
