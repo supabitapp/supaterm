@@ -11,6 +11,7 @@ import type { VoiceRecordingHandOff } from "@supaterm/client-runtime/voice-input
 import { type ComposerDispatchMode } from "@supaterm/client-runtime/state/composer-dispatch";
 import {
   type ComposerImageAttachment,
+  checkoutPullRequestUrlToLink,
   composerDraftHasUserContent,
   markPromotedDraftThreadByRef,
   useComposerDraftStore,
@@ -820,6 +821,12 @@ export function useComposerSend(input: ComposerSendInput) {
         fallbackLabels: sendTitleFallbackLabels(sendSnapshot),
       });
       const localAttachments = captureOutboxAttachments(environmentId, composerAttachmentsSnapshot);
+      const linkPullRequestUrl =
+        isLocalDraftThread && forkSideChatFirst === null && multipleModelSelections === null
+          ? checkoutPullRequestUrlToLink(
+              draftId === null ? null : useComposerDraftStore.getState().getDraftSession(draftId),
+            )
+          : null;
       const targets =
         multipleModelSelections === null
           ? [
@@ -899,6 +906,7 @@ export function useComposerSend(input: ComposerSendInput) {
               ? { branch: localCheckoutBranchMismatch.currentBranch }
               : {}),
             ...(draftId && multipleModelSelections === null ? { draftId } : {}),
+            ...(linkPullRequestUrl ? { linkPullRequestUrl } : {}),
             background: submissionIntent === "background",
           };
         }),

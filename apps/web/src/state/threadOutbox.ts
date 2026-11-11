@@ -21,6 +21,8 @@ import {
 import { remapComposerContextAttachments } from "@supaterm/shared/composerContextReferences";
 import { resolveDefaultWorktreeBaseBranch } from "@supaterm/shared/git";
 import { resolveAssetUrl } from "@supaterm/client-runtime/state/assets";
+import { sourceControlClients } from "@supaterm/client-runtime/source-control-clients";
+import { normalizeThreadPullRequestKey } from "@supaterm/client-runtime/thread-pull-requests";
 import * as Schema from "effect/Schema";
 import { Atom } from "effect/reactivity";
 import { useSyncExternalStore } from "react";
@@ -180,6 +182,24 @@ async function applyThreadSettings(payload: OutboxTurn) {
       },
     });
   }
+}
+
+// Best effort: the thread already exists, so a failed link is only logged.
+async function linkCheckoutPullRequest(payload: OutboxTurn, url: string) {
+  const parsed = sourceControlClients.parseChangeRequestUrl(url)?.link;
+  if (!parsed) return;
+  const reference = { ...parsed, url };
+  await command(directThreadEnvironment.linkPullRequest, {
+    environmentId: payload.environmentId,
+    input: {
+      threadId: payload.input.threadId,
+      ...reference,
+      ...normalizeThreadPullRequestKey(reference),
+      source: "manual",
+    },
+  }).catch((error: unknown) => {
+    console.warn("Failed to link the checked-out pull request to its thread.", error);
+  });
 }
 
 async function deliverVoiceTurn(
@@ -357,6 +377,8 @@ export const webThreadOutbox = createBrowserThreadOutbox<OutboxTurn>({
         },
       },
     });
+    if (payload.linkPullRequestUrl)
+      await linkCheckoutPullRequest(payload, payload.linkPullRequestUrl);
     if (payload.draftId) {
       const ref = scopeThreadRef(environmentId, payload.input.threadId);
       markPromotedDraftThreadByRef(ref);
@@ -373,6 +395,7 @@ function prepareThreadOutboxTurn(target: {
   readonly pendingWorktree?: OutboxTurn["pendingWorktree"];
   readonly branch?: string;
   readonly draftId?: DraftId;
+  readonly linkPullRequestUrl?: string;
   readonly background?: boolean;
 }) {
   const commandId = target.input.commandId ?? CommandId.make(randomUUID());
@@ -384,6 +407,9 @@ function prepareThreadOutboxTurn(target: {
     ...(target.pendingWorktree ? { pendingWorktree: target.pendingWorktree } : {}),
     ...(target.branch === undefined ? {} : { branch: target.branch }),
     ...(target.draftId === undefined ? {} : { draftId: target.draftId }),
+    ...(target.linkPullRequestUrl === undefined
+      ? {}
+      : { linkPullRequestUrl: target.linkPullRequestUrl }),
     ...(target.background === undefined ? {} : { background: target.background }),
   });
   return {

@@ -100,6 +100,7 @@ export const OutboxTurn = Schema.Struct({
   ),
   branch: Schema.optionalKey(Schema.String),
   draftId: Schema.optionalKey(Schema.String),
+  linkPullRequestUrl: Schema.optionalKey(Schema.String),
   background: Schema.optionalKey(Schema.Boolean),
 });
 export type OutboxTurn = typeof OutboxTurn.Type;
