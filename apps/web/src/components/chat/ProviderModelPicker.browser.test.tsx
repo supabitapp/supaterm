@@ -1,9 +1,12 @@
 import {
+  DEFAULT_SERVER_SETTINGS,
+  EnvironmentId,
   ProviderDriverKind,
   ProviderInstanceId,
   type ModelSelection,
   type ServerProvider,
 } from "@supaterm/contracts";
+import { Atom } from "effect/reactivity";
 import { useState } from "react";
 import { expect, it, vi } from "vite-plus/test";
 import { page, userEvent } from "vite-plus/test/browser";
@@ -11,8 +14,22 @@ import { page, userEvent } from "vite-plus/test/browser";
 import "~/index.css";
 
 import { render } from "../../../test/render";
+import { __setClientSettingsForTests } from "../../hooks/useSettings";
 import { deriveProviderInstanceEntries } from "../../providerInstances";
 import { ProviderModelPicker } from "./ProviderModelPicker";
+
+const environmentSettings = vi.hoisted(() => new Map<string, unknown>());
+vi.mock(import("~/state/server"), async (original) => {
+  const actual = await original();
+  return {
+    ...actual,
+    serverEnvironment: {
+      ...actual.serverEnvironment,
+      settingsValueAtom: ((id: EnvironmentId) =>
+        environmentSettings.get(id) ?? actual.serverEnvironment.settingsValueAtom(id)) as never,
+    },
+  };
+});
 
 const instanceId = ProviderInstanceId.make("claudeAgent");
 const opus = {
@@ -132,4 +149,49 @@ it("keeps each registry image when adding a model from another ACP agent", async
   }
   await userEvent.keyboard("{Escape}");
   await vi.waitFor(() => expect(imageWidths()).toEqual([11, 17]));
+});
+
+it("opens on the active provider when every favorite belongs to a disabled provider", async () => {
+  const entries = deriveProviderInstanceEntries(
+    ["Codex", "Claude"].map((name) => ({
+      instanceId: ProviderInstanceId.make(name.toLowerCase()),
+      driver: ProviderDriverKind.make(name.toLowerCase()),
+      enabled: name === "Codex",
+      installed: true,
+      version: null,
+      status: "ready" as const,
+      auth: { status: "authenticated" as const },
+      checkedAt: "2026-01-01T00:00:00.000Z",
+      models: [
+        { slug: name.toLowerCase(), name: `${name} model`, isCustom: false, capabilities: {} },
+      ],
+      slashCommands: [],
+      skills: [],
+    })),
+  );
+  const [codex, claude] = entries;
+  const environmentId = EnvironmentId.make("favorites-on-disabled-provider");
+  environmentSettings.clear();
+  environmentSettings.set(
+    environmentId,
+    Atom.make({
+      ...DEFAULT_SERVER_SETTINGS,
+      favorites: [{ provider: claude!.instanceId, model: "claude" }],
+    }),
+  );
+
+  await using screen = await render(
+    <ProviderModelPicker
+      environmentId={environmentId}
+      activeInstanceId={codex!.instanceId}
+      model="codex"
+      lockedProvider={null}
+      instanceEntries={entries}
+      modelOptionsByInstance={new Map(entries.map((entry) => [entry.instanceId, entry.models]))}
+      triggerAriaLabel="Choose model"
+      onInstanceModelChange={() => {}}
+    />,
+  );
+  await screen.getByRole("button", { name: "Choose model" }).click();
+  await expect.element(page.getByRole("option", { name: /Codex model/ })).toBeVisible();
 });
