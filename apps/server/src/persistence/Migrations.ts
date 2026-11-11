@@ -11,6 +11,7 @@ import Migration0006 from "./Migrations/006_ProjectionProjectsPinArchive.ts";
 import Migration0007 from "./Migrations/007_DropOrchestrationEventCorrelationIndex.ts";
 import Migration0008 from "./Migrations/008_DelegatedRecoveryIndexes.ts";
 import Migration0009 from "./Migrations/009_ScheduledTaskThreadMode.ts";
+import Migration0010 from "./Migrations/010_ProjectionMessageSearchText.ts";
 
 /**
  * Add a schema change as a new entry with the next id. Never edit, renumber, or
@@ -27,6 +28,7 @@ const migrationEntries = [
   [7, "DropOrchestrationEventCorrelationIndex", Migration0007],
   [8, "DelegatedRecoveryIndexes", Migration0008],
   [9, "ScheduledTaskThreadMode", Migration0009],
+  [10, "ProjectionMessageSearchText", Migration0010],
 ] as const;
 
 export const migrationManifest = migrationEntries.map(([id, name]) => [id, name] as const);
