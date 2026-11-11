@@ -1659,6 +1659,7 @@ export default function FilePreviewPanel({
               }
               selectedPathRevealId={revealRequestId}
               onOpenFile={onOpenFile}
+              answersPanelFind={!previewPath}
               workspaceMutationId={workspaceMutationId}
               {...(previewPath && !isMedia && !isPdf
                 ? {
