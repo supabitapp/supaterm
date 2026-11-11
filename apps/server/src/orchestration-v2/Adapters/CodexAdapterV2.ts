@@ -8094,6 +8094,7 @@ export const makeCodexAdapterV2 = Effect.fn("makeCodexAdapterV2")(function* (
               const boundary = yield* resolveCodexForkBoundary(threadInput);
               const fork = client.request("thread/fork", {
                 threadId,
+                excludeTurns: true,
                 ...(boundary.lastTurnId === undefined ? {} : { lastTurnId: boundary.lastTurnId }),
                 ...codexThreadRuntimeParams({
                   threadId: threadInput.targetThreadId,
