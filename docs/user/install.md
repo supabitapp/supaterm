@@ -55,15 +55,15 @@ mise exec -- vp run dev
 
 If you have a packaged `supaterm` executable installed, these commands are available:
 
-| Task                                             | Command                                                                       |
-| ------------------------------------------------ | ----------------------------------------------------------------------------- |
-| Start the server and open the web app            | `supaterm`                                                                    |
-| Start the server without a browser               | `supaterm serve`                                                              |
-| Keep it running in the background (macOS, Linux) | `supaterm service install` ([details](./background-service.md))               |
-| Move to the newest release                       | `supaterm update`                                                             |
-| Reclaim database space                           | `supaterm doctor` ([details](./background-service.md#reclaim-database-space)) |
-| Remove it again                                  | `supaterm uninstall`                                                          |
-| List supported server settings                   | `supaterm settings list`                                                      |
+| Task                                  | Command                                                                       |
+| ------------------------------------- | ----------------------------------------------------------------------------- |
+| Start the server and open the web app | `supaterm`                                                                    |
+| Start the server without a browser    | `supaterm serve`                                                              |
+| Keep it running in the background     | `supaterm service install` ([details](./background-service.md))               |
+| Move to the newest release            | `supaterm update`                                                             |
+| Reclaim database space                | `supaterm doctor` ([details](./background-service.md#reclaim-database-space)) |
+| Remove it again                       | `supaterm uninstall`                                                          |
+| List supported server settings        | `supaterm settings list`                                                      |
 
 Run `supaterm --help` for the full reference.
 
@@ -246,5 +246,5 @@ installation, update checks, and shutdown limits keep their existing behavior.
 - [Working with threads](./thread-sidebar.md): start tasks and organize parallel work.
 - [Permission modes](./permission-modes.md): choose when agents ask before acting.
 - [Remote access](./remote-access.md): connect from another device.
-- [Running in the background](./background-service.md): keep a Linux or macOS host available.
+- [Running in the background](./background-service.md): keep a host available.
 - [Updating Supaterm](./updating.md): update the app and connected servers.
