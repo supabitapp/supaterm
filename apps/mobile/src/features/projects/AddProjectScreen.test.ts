@@ -131,7 +131,7 @@ vi.mock("../../state/sourceControl", () => ({
     startProjectClone: async ({ input }: { input: { destinationPath: string } }) => {
       NodeFS.mkdirSync(input.destinationPath);
       state.projects.push(input.destinationPath);
-      return AsyncResult.success(undefined);
+      return AsyncResult.success({ projectId: "reused-project" });
     },
   },
 }));
@@ -271,7 +271,7 @@ describe("clone project permissions", () => {
       routes: ReadonlyArray<{ name: string; params?: { draft?: { projectId?: string } } }>;
     };
     expect(reset.routes.at(-1)?.name).toBe("Thread");
-    expect(reset.routes.at(-1)?.params?.draft?.projectId).toBe("project");
+    expect(reset.routes.at(-1)?.params?.draft?.projectId).toBe("reused-project");
   });
 
   it("leaves navigation alone when the user moved on while the project arrived", async () => {

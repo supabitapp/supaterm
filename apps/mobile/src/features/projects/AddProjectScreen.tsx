@@ -1411,12 +1411,11 @@ export function AddProjectDestinationScreen(props: {
 
     const originRoute = getActiveRoute(navigation);
     setIsSubmitting(true);
-    const projectId = ProjectId.make(uuidv4());
     const title = inferProjectTitleFromPath(resolved.path);
     const startResult = await startProjectClone({
       environmentId: environment.environmentId,
       input: {
-        projectId,
+        projectId: ProjectId.make(uuidv4()),
         title,
         createdAt: new Date().toISOString(),
         remoteUrl,
@@ -1426,6 +1425,7 @@ export function AddProjectDestinationScreen(props: {
     if (AsyncResult.isFailure(startResult)) {
       setError(errorMessage(Cause.squash(startResult.cause)));
     } else {
+      const { projectId } = startResult.value;
       // The draft screen resolves its project from the client store, so it
       // must not open before the create event has arrived (it would fall
       // back to the project picker and lose the clone controls). Stay in
