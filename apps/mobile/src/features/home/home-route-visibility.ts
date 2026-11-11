@@ -2,7 +2,11 @@ import { RegistryContext } from "@effect/atom-react";
 import { useNavigation } from "@react-navigation/native";
 import { useContext, useRef, useSyncExternalStore } from "react";
 import type { Atom } from "effect/reactivity";
-import { NativeWorkspaceTabActivityContext } from "../../native/v5-workspace-context";
+
+import {
+  NativePrimaryColumnContext,
+  NativeWorkspaceTabActivityContext,
+} from "../../native/v5-workspace-context";
 
 /**
  * Home stays mounted under a pushed Thread, and native-stack never freezes the
@@ -43,12 +47,18 @@ export function recordHomeFocus(): void {
 }
 
 export function useHomeRouteVisible(): boolean {
-  const tabActivity = useContext(NativeWorkspaceTabActivityContext);
   const navigation = useNavigation();
+  const primaryColumn = useContext(NativePrimaryColumnContext);
+  const tabActive = useContext(NativeWorkspaceTabActivityContext)?.active ?? true;
   const visible = useSyncExternalStore(subscribeHomeVisibility, () => homeVisible);
+  // Every tab slot's primary column reports to the one Home route, so a tab
+  // switch can end on the leaving slot's disappear. Trust this column instead.
+  if (primaryColumn) return primaryColumn.presented;
+  // The store is true for the Home route of every tab; this list shows in one of them.
+  if (!tabActive) return false;
   // Before Home's first navigation event: a cold deep link mounts Home under
   // its Thread without ever showing it.
-  return (visible ?? navigation.isFocused()) && (tabActivity?.active ?? true);
+  return visible ?? navigation.isFocused();
 }
 
 export function useAtomValueWhileVisible<A>(atom: Atom.Atom<A>, visible: boolean): A {
