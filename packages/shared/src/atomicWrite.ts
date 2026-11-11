@@ -14,14 +14,16 @@ const isWindowsRenameLock = (error: PlatformError.PlatformError) => {
 
 const LOCKED_RENAME_RETRIES = 20;
 const LOCKED_RENAME_RETRY_DELAY = "100 millis";
+const CHUNK_WRITE_LENGTH = 1 << 20;
 
 /**
  * A symlinked target is resolved first so the link survives and its destination is
  * rewritten, since renaming over the link itself would swap it for a regular file.
+ * Iterable contents stream in bounded batches.
  */
 export const writeFileStringAtomically = (input: {
   readonly filePath: string;
-  readonly contents: string;
+  readonly contents: string | Iterable<string>;
 }) =>
   Effect.scoped(
     Effect.gen(function* () {
@@ -44,7 +46,29 @@ export const writeFileStringAtomically = (input: {
       );
       const tempPath = path.join(tempDirectory, "contents.tmp");
 
-      yield* fs.writeFileString(tempPath, input.contents);
+      const contents = input.contents;
+      if (typeof contents === "string") {
+        yield* fs.writeFileString(tempPath, contents);
+      } else {
+        // Closed before the rename, which Windows refuses for open files.
+        yield* Effect.scoped(
+          Effect.gen(function* () {
+            const file = yield* fs.open(tempPath, { flag: "w" });
+            const encoder = new TextEncoder();
+            let batch: string[] = [];
+            let batchLength = 0;
+            for (const chunk of contents) {
+              batch.push(chunk);
+              batchLength += chunk.length;
+              if (batchLength < CHUNK_WRITE_LENGTH) continue;
+              yield* file.writeAll(encoder.encode(batch.join("")));
+              batch = [];
+              batchLength = 0;
+            }
+            if (batchLength > 0) yield* file.writeAll(encoder.encode(batch.join("")));
+          }),
+        );
+      }
       if (platform !== "win32") return yield* fs.rename(tempPath, targetPath);
 
       const targetVersion = fs.stat(targetPath).pipe(
