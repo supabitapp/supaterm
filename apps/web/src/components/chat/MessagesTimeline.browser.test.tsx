@@ -35,6 +35,7 @@ import { act, fakeTimers, render, stubGlobal } from "../../../test/render";
 import { ChangedFilesCard } from "./ChangedFilesTree";
 import { MessagesTimeline } from "./MessagesTimeline";
 import { shouldRefocusComposerOnWindowFocus } from "../ChatView.logic";
+import { resolveTimelineIsAtEnd } from "./MessagesTimeline.logic";
 import { makeStreamingTimelineFixture } from "../../test-fixtures";
 import { deriveTimelineEntriesFromVisibleTurnItems } from "../../session-logic";
 import { remarkThoughtPreview } from "./TimelineWorkEntryRow.logic";
@@ -433,6 +434,76 @@ describe("MessagesTimeline work rows", () => {
       }
     },
   );
+
+  it("reveals an expanded work row hidden behind the composer", async () => {
+    setup();
+    const props = baseProps();
+    const composerOverlayHeight = 200;
+    const tallEntries = Array.from({ length: 12 }, (_, index) =>
+      message(
+        `Message ${index}\n\n${"Long paragraph. ".repeat(80)}`,
+        { role: "assistant" },
+        `tall-${index}`,
+      ),
+    );
+    await using screen = await renderElement(
+      <MessagesTimeline
+        {...props}
+        liveFollowEnabled={false}
+        contentInsetEndAdjustment={composerOverlayHeight}
+        timelineEntries={[
+          ...tallEntries.slice(0, 6),
+          work("tool-near-composer", {
+            label: "Example tool",
+            toolTitle: "Example tool",
+            tone: "tool",
+            itemType: "dynamic_tool",
+            toolLifecycleStatus: "completed",
+            toolData: { input: { query: `${"x".repeat(1200)} TOOL_INPUT_END` } },
+          }),
+          ...tallEntries.slice(6),
+        ]}
+      />,
+    );
+    await vi.waitFor(() => expect(props.listRef.current?.getScrollableNode()).toBeTruthy());
+    const viewport = props.listRef.current!.getScrollableNode()!;
+    const header = () => {
+      const rows = screen.container.querySelectorAll<HTMLElement>(
+        '[data-timeline-row-kind="work"] [role="button"]',
+      );
+      if (!rows[0]) throw new Error(screen.text());
+      return rows[0];
+    };
+    const visibleBottom = () => viewport.getBoundingClientRect().bottom - composerOverlayHeight;
+    await act(() => {
+      void props.listRef.current!.scrollToIndex({ index: 6, animated: false });
+    });
+    await vi.waitFor(async () => {
+      await act(() => {
+        viewport.scrollTop += header().getBoundingClientRect().bottom - (visibleBottom() - 8);
+        viewport.dispatchEvent(new Event("scroll"));
+      });
+      expect(resolveTimelineIsAtEnd(props.listRef.current!.getState())).toBe(false);
+      expect(header().getBoundingClientRect().bottom).toBeLessThanOrEqual(visibleBottom());
+      expect(header().getBoundingClientRect().top).toBeGreaterThan(
+        viewport.getBoundingClientRect().top,
+      );
+    });
+
+    await click(header());
+    const inputEnd = () =>
+      Array.from(screen.container.querySelectorAll<HTMLElement>("*")).findLast((element) =>
+        element.textContent?.includes("TOOL_INPUT_END"),
+      )!;
+    await vi.waitFor(() =>
+      expect(inputEnd().getBoundingClientRect().bottom).toBeLessThanOrEqual(visibleBottom() + 1),
+    );
+    await vi.waitFor(() =>
+      expect(header().getBoundingClientRect().top).toBeGreaterThanOrEqual(
+        viewport.getBoundingClientRect().top,
+      ),
+    );
+  });
 });
 
 describe("MessagesTimeline messages", () => {

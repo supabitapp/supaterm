@@ -12,6 +12,7 @@ import { useLayoutEffect, useRef } from "react";
 import { useTheme } from "../../hooks/useTheme";
 import { orchestrationEnvironment } from "../../state/orchestration";
 import { useEnvironmentQuery } from "../../state/query";
+import { useInitialOutputReady } from "./timelineRowContext";
 
 // Within this many pixels of the end still counts as following the output.
 const FOLLOW_SLACK_PX = 8;
@@ -47,8 +48,10 @@ export function CommandOutputPanel(props: {
   readonly output: Atom.Atom<AsyncResult.AsyncResult<CommandOutputView, unknown>>;
   /** Shown while the command runs without output; rows whose header says it runs omit it. */
   readonly waitingLabel?: string;
+  readonly onInitialOutputReady?: (() => void) | undefined;
 }) {
   const { data, error } = useEnvironmentQuery(props.output);
+  useInitialOutputReady(data === null && !error, props.onInitialOutputReady);
   const scrollRef = useRef<HTMLDivElement>(null);
   // Follow new output until the reader scrolls up; scrolling back down resumes.
   const followRef = useRef(true);

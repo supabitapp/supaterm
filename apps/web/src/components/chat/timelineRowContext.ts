@@ -13,7 +13,7 @@ import type {
   WorktreeSetupSnapshot,
 } from "@supaterm/contracts";
 import type { WorkflowOpening } from "@supaterm/client-runtime/state/subagentRuntime";
-import { type MouseEvent, createContext } from "react";
+import { type MouseEvent, createContext, useEffect, useRef } from "react";
 import type { LegendListRef } from "@legendapp/list/react";
 import type { CodexArtifactTemplate } from "@supaterm/shared/codexArtifactTemplates";
 import type { ChatFileAttachment } from "../../types";
@@ -64,7 +64,8 @@ export interface TimelineRowSharedState {
   onFileDownload: (attachment: ChatFileAttachment) => void;
   openPullRequest: (event: MouseEvent<HTMLElement>, url: string) => void;
   onToggleWorkGroup: (groupId: string, anchorKey: string) => void;
-  onToggleWorkEntry: (anchorKey: string, collapsed: boolean) => void;
+  onToggleWorkEntry: (anchorKey: string, collapsed: boolean, entryId?: string) => void;
+  onWorkEntryContentReady?: (anchorKey: string, entryId: string) => void;
   onCancelWorktreeSetup: (() => void) | null;
   retryableWorkspacePreparationRunIds: ReadonlySet<RunId>;
   onRetryWorkspacePreparation: ((runId: RunId) => void) | null;
@@ -97,6 +98,7 @@ export interface WorkGroupViewState {
 export const WorkGroupViewCtx = createContext<{
   state: WorkGroupViewState;
   onToggleEntry: (entryId: string, collapsed: boolean) => void;
+  onContentReady?: ((entryId: string) => void) | undefined;
 } | null>(null);
 
 export type TimelineWorkEntry = Extract<
@@ -105,3 +107,14 @@ export type TimelineWorkEntry = Extract<
 >["groupedEntries"][number];
 
 export type TimelineRow = MessagesTimelineRow;
+
+export function useInitialOutputReady(pending: boolean, onReady: (() => void) | undefined) {
+  const notified = useRef(false);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- reveals a disclosure after its first async output commits
+  useEffect(() => {
+    if (!pending && !notified.current) {
+      notified.current = true;
+      onReady?.();
+    }
+  }, [pending, onReady]);
+}

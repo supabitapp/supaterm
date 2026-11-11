@@ -118,6 +118,7 @@ import {
   CHAT_TIMELINE_ANCHOR_OFFSET,
   timelineContentOverflowsViewport,
   rememberTimelinePosition,
+  resolveDisclosureRevealScrollDelta,
 } from "./timelineScrollAnchoring";
 import {
   AssistantSelectionToolbar,
@@ -512,8 +513,22 @@ const ConversationTimeline = memo(function ConversationTimeline({
     readonly cancel: () => void;
     readonly followingEnd: boolean;
   } | null>(null);
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- cancels the pending disclosure settle wait on unmount
-  useEffect(() => () => disclosureSettleRef.current?.cancel(), []);
+  // A disclosure opened by the reader, revealed above the composer once it settles.
+  const disclosureRevealRef = useRef<{
+    readonly anchorKey: string;
+    readonly contentKey: string;
+    readonly entryId: string | undefined;
+    readonly identity: string;
+  } | null>(null);
+  const disclosureRevealSettleRef = useRef<(() => void) | null>(null);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- cancels the pending disclosure settle waits on unmount
+  useEffect(
+    () => () => {
+      disclosureSettleRef.current?.cancel();
+      disclosureRevealSettleRef.current?.();
+    },
+    [],
+  );
   const endFollowAllowedRef = useRef(false);
   const normalizedFindQuery = findQuery.trim();
   const findActive = findExpanded;
@@ -533,28 +548,86 @@ const ConversationTimeline = memo(function ConversationTimeline({
     };
   }, [settlingListIdentity]);
 
+  const measureTimelineRow = (key: string) => {
+    const state = listRef.current?.getState();
+    const index = state?.indexByKey(key);
+    if (state === undefined || index === undefined) return null;
+    return { size: state.sizeAtIndex(index), element: state.elementAtIndex(index) };
+  };
+  // Anchoring keeps the toggled row still, so content that opens below it near
+  // the bottom would otherwise land under the composer.
+  const revealExpandedDisclosure = useStableCallback(() => {
+    const pending = disclosureRevealRef.current;
+    if (!pending || pending.identity !== listIdentityKey) return;
+    const state = listRef.current?.getState();
+    const element = listRef.current?.getScrollableNode();
+    const rowIndex = state?.indexByKey(pending.anchorKey);
+    const row = rowIndex === undefined ? undefined : state?.elementAtIndex(rowIndex);
+    if (!element || !(row instanceof HTMLElement)) return;
+    const entry = pending.entryId
+      ? row.querySelector<HTMLElement>(`[data-work-entry-id="${CSS.escape(pending.entryId)}"]`)
+      : null;
+    const contentIndex = state?.indexByKey(pending.contentKey);
+    const content = contentIndex === undefined ? null : state?.elementAtIndex(contentIndex);
+    const viewport = element.getBoundingClientRect();
+    const delta = resolveDisclosureRevealScrollDelta({
+      rowTop: (entry ?? row).getBoundingClientRect().top,
+      rowBottom: (entry ?? content ?? row).getBoundingClientRect().bottom,
+      viewportTop: viewport.top,
+      viewportBottom: viewport.bottom,
+      composerOverlayHeight: contentInsetEndAdjustment,
+      anchorOffset: CHAT_TIMELINE_ANCHOR_OFFSET,
+    });
+    if (delta > 0) {
+      element.scrollBy({ top: delta, behavior: prefersReducedMotion ? "auto" : "smooth" });
+    }
+  });
+  const onWorkEntryContentReady = (anchorKey: string, entryId: string) => {
+    const pending = disclosureRevealRef.current;
+    if (
+      !pending ||
+      pending.identity !== listIdentityKey ||
+      (pending.entryId === undefined
+        ? pending.contentKey !== anchorKey
+        : pending.anchorKey !== anchorKey || pending.entryId !== entryId)
+    ) {
+      return;
+    }
+    // Output fetched after the toggle grows the row again.
+    disclosureRevealSettleRef.current?.();
+    disclosureRevealSettleRef.current = waitForDisclosureSettle(
+      () => measureTimelineRow(pending.contentKey),
+      () => {
+        disclosureRevealSettleRef.current = null;
+        revealExpandedDisclosure();
+      },
+    );
+  };
+
   const preserveDisclosurePosition = (
     anchorKey: string,
     collapsed = false,
     resizingKey = anchorKey,
+    reveal?: { readonly entryId?: string | undefined },
   ) => {
     const pending = disclosureSettleRef.current;
     pending?.cancel();
+    disclosureRevealRef.current = null;
+    disclosureRevealSettleRef.current?.();
+    disclosureRevealSettleRef.current = null;
     // Rows streamed in while the row resizes push the end away, so the toggle-time
     // position decides whether a close returns to the live edge.
     const followingEnd =
       pending?.followingEnd === true ||
       resolveTimelineIsAtEnd(listRef.current?.getState()) === true;
     const cancel = waitForDisclosureSettle(
-      () => {
-        const state = listRef.current?.getState();
-        const index = state?.indexByKey(resizingKey);
-        if (state === undefined || index === undefined) return null;
-        return { size: state.sizeAtIndex(index), element: state.elementAtIndex(index) };
-      },
+      () => measureTimelineRow(resizingKey),
       () => {
         disclosureSettleRef.current = null;
-        if (!collapsed) return;
+        if (!collapsed) {
+          revealExpandedDisclosure();
+          return;
+        }
         const list = listRef.current;
         let atEnd = resolveTimelineIsAtEnd(list?.getState()) === true;
         if (!atEnd && followingEnd && endFollowAllowedRef.current && list) {
@@ -571,6 +644,14 @@ const ConversationTimeline = memo(function ConversationTimeline({
     // A close at the live edge settles back at the end; an anchor would fight
     // the shrinking end on every frame of the way there.
     if (collapsed && followingEnd && endFollowAllowedRef.current) return;
+    if (reveal && !collapsed) {
+      disclosureRevealRef.current = {
+        anchorKey,
+        contentKey: resizingKey,
+        entryId: reveal.entryId,
+        identity: listIdentityKey,
+      };
+    }
     list.cancelScroll();
     list.anchorVisibleContent({ key: anchorKey });
   };
@@ -595,7 +676,12 @@ const ConversationTimeline = memo(function ConversationTimeline({
   const onToggleWorkGroup = (groupId: string, anchorKey: string) => {
     const transition = nextWorkGroupTransition(workGroupDisclosures.get(groupId));
     // The group resizes in the row under its header, so that row decides the settle.
-    preserveDisclosurePosition(anchorKey, transition === "closing", workGroupDetailsRowId(groupId));
+    preserveDisclosurePosition(
+      anchorKey,
+      transition === "closing",
+      workGroupDetailsRowId(groupId),
+      {},
+    );
     beginWorkGroupTransition(groupId, transition);
   };
   const onToggleAttemptFold = (attemptId: RunAttemptId) => {
@@ -1166,7 +1252,9 @@ const ConversationTimeline = memo(function ConversationTimeline({
     onToggleTurnFold,
     onToggleAttemptFold,
     onToggleWorkGroup,
-    onToggleWorkEntry: preserveDisclosurePosition,
+    onToggleWorkEntry: (anchorKey, collapsed, entryId) =>
+      preserveDisclosurePosition(anchorKey, collapsed, anchorKey, { entryId }),
+    onWorkEntryContentReady,
     onCancelWorktreeSetup: onCancelWorktreeSetup ?? null,
     retryableWorkspacePreparationRunIds,
     onRetryWorkspacePreparation: onRetryWorkspacePreparation ?? null,
@@ -1262,6 +1350,9 @@ const ConversationTimeline = memo(function ConversationTimeline({
       : null;
     viewportRef.current = viewport;
     const detachViewport = viewport ? onViewportAttach?.(viewport) : undefined;
+    const stopDisclosureReveal = viewport?.subscribe(() => {
+      disclosureRevealRef.current = null;
+    });
     // LegendList lays rows out from layout effects; the next frame sees them settled.
     let contentSizeFrame: number | null = null;
     const scheduleContentSizeChanged = () => {
@@ -1277,6 +1368,7 @@ const ConversationTimeline = memo(function ConversationTimeline({
     scheduleContentSizeChanged();
     return () => {
       stopListeningToContentSize?.();
+      stopDisclosureReveal?.();
       if (contentSizeFrame !== null) cancelAnimationFrame(contentSizeFrame);
       detachViewport?.();
       viewport?.dispose();
