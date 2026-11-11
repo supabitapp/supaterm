@@ -4,6 +4,7 @@ import {
   isShowcaseThemeApplied,
   showcaseReadinessKey,
   showcaseSceneOnScreen,
+  showcaseScreenScene,
   showcaseThemePatch,
   shouldNavigateToShowcaseScene,
   type ShowcaseReadinessInput,
@@ -28,6 +29,14 @@ describe("showcaseSceneOnScreen", () => {
     expect(showcaseSceneOnScreen("/threads/env/thread/review?x=1")).toBe("review");
     expect(showcaseSceneOnScreen("/settings/environments")).toBe("environments");
     expect(showcaseSceneOnScreen("/projects")).toBeNull();
+  });
+});
+
+describe("showcaseScreenScene", () => {
+  it("opens the showcase thread beside the list only for a split view's threads capture", () => {
+    expect(showcaseScreenScene("threads", true)).toBe("thread");
+    expect(showcaseScreenScene("threads", false)).toBe("threads");
+    expect(showcaseScreenScene("review", true)).toBe("review");
   });
 });
 

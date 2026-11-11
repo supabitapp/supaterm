@@ -9,6 +9,14 @@ import { isShowcaseNativeContentReady, type ShowcaseRenderSignal } from "./showc
 
 export const SHOWCASE_THREAD_ID = "offline-reason";
 
+/** The scene whose screen a capture shows. A split view opens the showcase thread beside the list. */
+export function showcaseScreenScene(
+  captureScene: ShowcaseScene,
+  splitView: boolean,
+): ShowcaseScene {
+  return splitView && captureScene === "threads" ? "thread" : captureScene;
+}
+
 export function showcaseSceneOnScreen(pathname: string): ShowcaseScene | null {
   const routePath = pathname.split(/[?#]/u, 1)[0] ?? pathname;
   if (routePath === "/settings" || routePath.endsWith("/settings/environments")) {
