@@ -1,4 +1,5 @@
 import {
+  type TimelineRow,
   type TimelineWorkEntry,
   TimelineRowCtx,
   TimelineRowActivityCtx,
@@ -174,6 +175,37 @@ export const SimpleWorkEntryRow = memo(function SimpleWorkEntryRow(props: WorkEn
     />
   );
 });
+
+export function ViewedImagesTimelineRow({
+  row,
+}: {
+  row: Extract<TimelineRow, { kind: "viewed-images" }>;
+}) {
+  const { threadRef, workspaceRoot, onImageExpand } = use(TimelineRowCtx);
+  if (!threadRef) return null;
+  return (
+    <div className="flex flex-wrap items-start gap-2 px-0.5">
+      {row.paths.map((path) => {
+        const image = resolveViewedImageAsset(path, {
+          threadId: threadRef.threadId,
+          workspaceRoot,
+        });
+        return image ? (
+          <ChatMarkdownAssetImage
+            key={path}
+            environmentId={threadRef.environmentId}
+            resource={image.resource}
+            alt={image.alt}
+            srcFragment={image.srcFragment}
+            workspaceRoot={workspaceRoot}
+            maxHeightRem={10}
+            onImageExpand={onImageExpand}
+          />
+        ) : null;
+      })}
+    </div>
+  );
+}
 
 function WorkEntryLogRow(props: WorkEntryRowProps) {
   const { workEntry, workspaceRoot, displayLabel } = props;
