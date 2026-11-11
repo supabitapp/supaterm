@@ -3,6 +3,8 @@ import { defaultInclude, defineConfig } from "vite-plus";
 
 import { isDesktopRuntimeExternalDependency } from "../../scripts/lib/desktop-external-packages.ts";
 
+const domTests = ["src/preview/PickPreload.test.ts"];
+
 // The packaged app then installs just those externals, instead of a full
 // production install of apps/desktop's dependency tree next to a server bundle
 // that already carries its own copy of the same libraries.
@@ -135,13 +137,32 @@ export default defineConfig({
     },
   ],
   test: {
-    include: [...defaultInclude, "../../native/kde-snap-shot/src/*.test.ts"],
     // The Windows lane runs workspace suites concurrently; filesystem-heavy
     // desktop integration tests can exceed Vitest's 5 second default there.
     testTimeout: 15_000,
-    setupFiles: [
-      "../../packages/shared/src/testing/longTempDir.ts",
-      "../../packages/shared/src/testing/providerEnv.ts",
+    projects: [
+      {
+        extends: true,
+        test: {
+          name: "unit",
+          include: [...defaultInclude, "../../native/kde-snap-shot/src/*.test.ts"],
+          exclude: ["**/node_modules/**", ...domTests],
+          setupFiles: [
+            "../../packages/shared/src/testing/longTempDir.ts",
+            "../../packages/shared/src/testing/providerEnv.ts",
+          ],
+        },
+      },
+      {
+        extends: true,
+        test: {
+          name: "dom",
+          include: domTests,
+          // Guest preloads run in the page; these tests drive them against a DOM.
+          environment: "jsdom",
+          setupFiles: ["../../packages/shared/src/testing/providerEnv.ts"],
+        },
+      },
     ],
   },
 });
