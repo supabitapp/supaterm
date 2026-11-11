@@ -87,6 +87,19 @@ To show Claude task lists in the web and desktop apps, add
 **Environment** section in **Settings > Providers**. Unfinished tasks stay visible
 between turns in the same Claude session.
 
+## Claude in Chrome
+
+Claude threads can use the Claude in Chrome extension, which works in your own
+Chrome with its sign-ins. Supaterm sessions load it only when asked: add `--chrome`
+to **Launch arguments** in the Claude instance's settings in **Settings > Providers**.
+It applies to sessions that start after you save. Set up the extension as you would
+for Claude Code first; see Claude Code's [Chrome guide](https://code.claude.com/docs/en/chrome).
+
+The instance must be signed in with `/login` on a direct Anthropic plan. Instances
+that use an API key or a `claude setup-token` token don't get it, even with
+`--chrome`, and neither do third-party providers such as Amazon Bedrock. Claude Code
+doesn't support it in WSL.
+
 ## OpenRouter
 
 Create a Claude instance with its own config directory, such as
