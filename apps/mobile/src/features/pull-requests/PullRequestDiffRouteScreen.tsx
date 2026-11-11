@@ -1,3 +1,8 @@
+import {
+  parsePullRequestAnchor,
+  pullRequestDiffPathMatches,
+  pullRequestLinkCommit,
+} from "@supaterm/shared/pullRequestAnchor";
 import { guideFocusedRows, type GuideDiffFocus } from "./guide/guideDiffFocus";
 
 import * as Clipboard from "expo-clipboard";
@@ -99,9 +104,20 @@ function PullRequestFileRouteContent({ route }: PullRequestFileRouteProps) {
     (detail.data ?? route.params.initialSummary)?.provider,
   ).changeRequest;
   const result = usePullRequestDiff(route.params, terminology);
+  // Other screens open files with the link's params spread in; only the link's own entry follows it.
+  const linkAnchor =
+    route.params.path === "" &&
+    (route.params.commit ?? null) === pullRequestLinkCommit(route.params.navigationUrl)
+      ? parsePullRequestAnchor(route.params.navigationUrl)
+      : null;
+  const linkPath =
+    linkAnchor?.kind === "diff" && result.parsed.kind === "files"
+      ? result.parsed.files.find((file) => pullRequestDiffPathMatches(linkAnchor.digest, file.path))
+          ?.path
+      : undefined;
   const filter = usePullRequestFileFilter(
     result.parsed,
-    route.params.focus ? route.params.path : undefined,
+    linkPath ?? (route.params.focus ? route.params.path : undefined),
   );
   const { refresh: refreshDetail } = detail;
   useFocusEffect(refreshDetail);
@@ -173,15 +189,30 @@ function PullRequestFileRouteContent({ route }: PullRequestFileRouteProps) {
       code: row.content ?? "",
     });
   };
-  const [jumpPath, setJumpPath] = useState(route.params.path);
+  const [pickedPath, setJumpPath] = useState<string | null>(null);
+  const jumpPath = pickedPath ?? linkPath ?? route.params.path;
   const requestedFile =
     result.parsed.kind === "files"
       ? result.parsed.files.find((file) => file.path === jumpPath)
       : undefined;
   const targetFile =
     data.files.find((file) => file.path === jumpPath) ??
-    (!jumpPath || requestedFile ? data.files[0] : undefined);
-  const focus = route.params.focus;
+    (linkAnchor?.kind === "diff" && !linkPath
+      ? undefined
+      : !jumpPath || requestedFile
+        ? data.files[0]
+        : undefined);
+  const range = pickedPath === null && linkAnchor?.kind === "diff" ? linkAnchor.range : null;
+  const focus =
+    route.params.focus ??
+    (range
+      ? {
+          side: range.side === "left" ? ("old" as const) : ("new" as const),
+          start: range.start,
+          end: range.end,
+          endSide: range.endSide === "left" ? ("old" as const) : ("new" as const),
+        }
+      : undefined);
   const focusedRows = guideFocusedRows(data.rows, targetFile?.id, focus);
   const focusIndex = focusedRows.length
     ? data.rows.findIndex((row) => row.id === focusedRows[0]?.id)
@@ -192,7 +223,7 @@ function PullRequestFileRouteContent({ route }: PullRequestFileRouteProps) {
   // The filter the current jump was made under. Hiding or showing test files replaces the rows,
   // so a jump made under the other filter has to run again. Native applies the entry
   // destination before its first viewport, so the first one counts as made.
-  const jumpedUnder = useRef<boolean | null>(filter.hideTestFiles);
+  const jumpedUnder = useRef<boolean | null>(targetFile ? filter.hideTestFiles : null);
   const hasTestFiles =
     result.parsed.kind === "files" &&
     result.parsed.files.some((file) => isTestChangedFile(file.path));
