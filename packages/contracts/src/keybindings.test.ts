@@ -14,6 +14,8 @@ const decode = <S extends Schema.Top>(
     never
   >;
 
+const encodeResolvedKeybindings = Schema.encodeEffect(ResolvedKeybindingsConfig);
+
 const shortcut = {
   key: "p",
   metaKey: false,
@@ -48,5 +50,14 @@ it.effect("drops malformed resolved rule entries", () =>
       parsed.map((rule) => rule.command),
       ["terminal.toggle"],
     );
+  }),
+);
+
+it.effect("keeps Space shortcuts across the wire", () =>
+  Effect.gen(function* () {
+    const rules = [{ command: "terminal.toggle" as const, shortcut: { ...shortcut, key: " " } }];
+    const encoded = yield* encodeResolvedKeybindings(rules);
+    const parsed = yield* decode(ResolvedKeybindingsConfig, JSON.parse(JSON.stringify(encoded)));
+    assert.deepEqual(parsed, rules);
   }),
 );
