@@ -210,6 +210,8 @@ export interface CommandPolicyV2Shape {
       readonly fromSpecificTurn: boolean;
       /** Later source runs are still active; see `threads.forkWhileSourceActive`. */
       readonly sourceBusy: boolean;
+      /** The source turn recorded a native cursor, which bounds a fork of a busy source. */
+      readonly hasNativeTurnBoundary: boolean;
     },
   ) => Effect.Effect<ForkExecutionPolicyV2, CommandPolicyV2Error>;
   readonly ensureRollback: (
@@ -373,7 +375,9 @@ const decideForkExecution: CommandPolicyV2Shape["decideForkExecution"] = (input)
     (input.sourceRunStatus === "completed" || input.sourceRunStatus === "waiting") &&
     input.sameProvider &&
     input.hasStrongNativeSource &&
-    (!input.sourceBusy || input.capabilities.threads.forkWhileSourceActive !== "none") &&
+    (!input.sourceBusy ||
+      (input.capabilities.threads.forkWhileSourceActive !== "none" &&
+        input.hasNativeTurnBoundary)) &&
     input.capabilities.threads.canForkThread &&
     (!input.fromSpecificTurn || input.capabilities.threads.canForkFromTurn) &&
     input.capabilities.identity.nativeThreadIds === "strong";
