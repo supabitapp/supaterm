@@ -50,7 +50,7 @@ import {
   type SettingsSearchItem,
 } from "./settingsSearch";
 import { useAvailableSettingsSearchItems } from "./useAvailableSettingsSearchItems";
-import { useSettingsSectionNavigation } from "./useSettingsSectionNavigation";
+import { handleSettingsSectionKeyDown } from "./settingsSectionNavigation";
 import { workspaceAreaProps } from "../../lib/workspaceFocus";
 
 const SETTINGS_SECTION_ICONS: Readonly<
@@ -108,12 +108,6 @@ export function SettingsSidebarNav({ pathname }: { pathname: string }) {
   const navRowSize = isMobile ? "default" : "compact";
   const currentHash = useLocation({ select: (location) => location.hash });
   const activePath = SETTINGS_DETAIL_PAGE_PARENTS[pathname] ?? pathname;
-  const navPaths = SETTINGS_NAV_SECTIONS.flatMap((group) => group.paths);
-  const sectionNavigation = useSettingsSectionNavigation(
-    navPaths.find((to) => activePath === to || activePath.startsWith(`${to}/`)) ??
-      navPaths[0] ??
-      "",
-  );
   const searchInputRef = useRef<HTMLInputElement>(null);
   const [query, setQuery] = useState("");
   // Below md the nav is an icon rail; searching expands it over the page.
@@ -355,58 +349,56 @@ export function SettingsSidebarNav({ pathname }: { pathname: string }) {
                     </SidebarMenuItem>
                   </SidebarMenu>
                 )}
-                <div
-                  {...sectionNavigation.containerProps}
-                  role="tree"
-                  aria-label="Settings sections"
-                  className="flex flex-col gap-3"
-                >
+                <div onKeyDown={handleSettingsSectionKeyDown} className="flex flex-col gap-3">
                   {SETTINGS_NAV_SECTIONS.map((group, index) => (
                     <div
                       key={group.heading ?? index}
-                      role="group"
-                      aria-label={group.heading ?? undefined}
                       className="flex flex-col gap-1 max-md:border-t max-md:border-sidebar-border max-md:pt-3 max-md:first:border-t-0 max-md:first:pt-0"
                     >
                       {group.heading ? (
-                        // The group carries this label; a heading is not a valid tree child.
                         <h3
-                          aria-hidden="true"
+                          id={`settings-nav-group-${index}`}
                           className={cn(
                             "px-2 text-xs font-medium text-sidebar-muted-foreground/80",
-                            !compactSearchOpen && "max-md:hidden",
+                            !compactSearchOpen && "max-md:sr-only",
                           )}
                         >
                           {group.heading}
                         </h3>
                       ) : null}
-                      <SidebarMenu role="presentation" size={navRowSize}>
-                        {group.paths.map((to) => {
-                          const Icon = SETTINGS_SECTION_ICONS[to];
-                          const isActive = activePath === to || activePath.startsWith(`${to}/`);
-                          return (
-                            <SidebarMenuItem key={to} role="presentation">
-                              <SidebarMenuButton
-                                data-settings-section={to}
-                                role="treeitem"
-                                tabIndex={sectionNavigation.tabIndexFor(to)}
-                                aria-selected={isActive}
-                                aria-current={isActive ? "page" : undefined}
-                                size={navRowSize}
-                                isActive={isActive}
-                                onClick={() => handleSectionClick(to)}
-                              >
-                                <Icon />
-                                <span
-                                  className={cn("truncate", !compactSearchOpen && "max-md:sr-only")}
+                      {/* The heading stays outside the group it names so NVDA does not read the name twice. */}
+                      <div
+                        role="group"
+                        aria-labelledby={group.heading ? `settings-nav-group-${index}` : undefined}
+                      >
+                        <SidebarMenu size={navRowSize}>
+                          {group.paths.map((to) => {
+                            const Icon = SETTINGS_SECTION_ICONS[to];
+                            const isActive = activePath === to || activePath.startsWith(`${to}/`);
+                            return (
+                              <SidebarMenuItem key={to}>
+                                <SidebarMenuButton
+                                  data-settings-section={to}
+                                  aria-current={isActive ? "page" : undefined}
+                                  size={navRowSize}
+                                  isActive={isActive}
+                                  onClick={() => handleSectionClick(to)}
                                 >
-                                  {SETTINGS_SECTION_LABELS[to]}
-                                </span>
-                              </SidebarMenuButton>
-                            </SidebarMenuItem>
-                          );
-                        })}
-                      </SidebarMenu>
+                                  <Icon />
+                                  <span
+                                    className={cn(
+                                      "truncate",
+                                      !compactSearchOpen && "max-md:sr-only",
+                                    )}
+                                  >
+                                    {SETTINGS_SECTION_LABELS[to]}
+                                  </span>
+                                </SidebarMenuButton>
+                              </SidebarMenuItem>
+                            );
+                          })}
+                        </SidebarMenu>
+                      </div>
                     </div>
                   ))}
                 </div>
