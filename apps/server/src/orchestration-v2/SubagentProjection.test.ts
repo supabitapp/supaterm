@@ -126,7 +126,7 @@ it("keeps a subagent child awake when its parent thread is snoozed", () => {
 });
 
 it.effect.each(["provider", "mcp"] as const)(
-  "a %s child does not inherit parent mark-done protections and is marked done once idle",
+  "a %s child does not inherit parent mark-done protections and is marked done once its parent is done",
   (creationSource) =>
     Effect.gen(function* () {
       const store = yield* ProjectionStore.ProjectionStoreV2;
@@ -179,6 +179,21 @@ it.effect.each(["provider", "mcp"] as const)(
       assert.deepEqual(savedParent.pinnedAt, parentCreatedAt);
       assert.equal(savedParent.pinOrderKey, "a0");
       assert.deepEqual(savedParent.autoMarkDoneDisabledAt, parentCreatedAt);
+      // A subagent child waits for its parent, so mark the pinned parent done first.
+      assert.deepEqual(yield* store.getAutoMarkDoneCandidates(), []);
+      yield* store.apply({
+        id: EventId.make(`event:${parentThreadId}:marked-done`),
+        type: "thread.marked-done",
+        threadId: parentThreadId,
+        occurredAt: childCreatedAt,
+        payload: {
+          ...savedParent,
+          doneOverride: "done",
+          doneAt: childCreatedAt,
+          pinnedAt: null,
+          pinOrderKey: null,
+        },
+      });
       const candidates = yield* store.getAutoMarkDoneCandidates();
       assert.deepEqual(
         candidates.map((candidate) => candidate.id),
