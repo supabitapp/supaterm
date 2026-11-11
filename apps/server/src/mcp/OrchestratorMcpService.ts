@@ -2235,7 +2235,7 @@ const make = Effect.gen(function* () {
           .pipe(Effect.mapError(readError));
         const item = projection.turnItems.find((candidate) => candidate.id === turnItemId);
         if (item?.type === "secret_request" && item.secretStatus !== "pending") {
-          return item.secretStatus;
+          return item.timedOut === true ? ("timed_out" as const) : item.secretStatus;
         }
         const current = projection.runs.find((candidate) => candidate.id === runId);
         if (current === undefined || isOrchestrationV2RunSettled(current.status)) {

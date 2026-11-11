@@ -1442,7 +1442,11 @@ describe("OrchestratorMcpService provider resolution", () => {
               : Stream.empty,
           dispatch: (command) =>
             Effect.sync(() => {
-              if (command.type === "secret_request.record") {
+              // As the orchestrator does, a closed card keeps its outcome.
+              if (
+                command.type === "secret_request.record" &&
+                (card === undefined || card.secretStatus === "pending")
+              ) {
                 card = {
                   id: command.turnItemId,
                   secretStatus:
@@ -1465,7 +1469,7 @@ describe("OrchestratorMcpService provider resolution", () => {
       yield* Effect.gen(function* () {
         const service = yield* OrchestratorMcpService.OrchestratorMcpService;
         const waiting = yield* service
-          .requestSecret(scope, { label: "API key", reason: "Deploy." })
+          .requestSecret(scope, { label: "API key", reason: "Deploy.", clientRequestId: "key-1" })
           .pipe(Effect.forkChild);
         if (outcome !== "an answer before the wait") yield* Deferred.await(subscribed);
         if (outcome === "saved" || outcome === "declined") {
@@ -1506,6 +1510,15 @@ describe("OrchestratorMcpService provider resolution", () => {
         }
         if (outcome === "no answer") {
           assert.deepEqual(card, { id: card!.id, secretStatus: "cancelled", timedOut: true });
+          // A retry with the same key still hears that the card timed out.
+          assert.deepEqual(
+            yield* service.requestSecret(scope, {
+              label: "API key",
+              reason: "Deploy.",
+              clientRequestId: "key-1",
+            }),
+            result,
+          );
         }
       }).pipe(Effect.provide(layerOrchestratorService.pipe(Layer.provide(dependencies))));
     }),
