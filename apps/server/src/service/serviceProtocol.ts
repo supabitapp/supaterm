@@ -1,16 +1,46 @@
 import type { ServerSelfUpdateOutcome } from "@supaterm/contracts";
 
-// Protocol 3 requires the standalone executable layout. Bump when runtimePaths
-// or the installed runtime tree changes incompatibly; launchers survive self-updates.
-export const SERVICE_LAUNCHER_PROTOCOL = 3 as const;
+// Protocol 4 requires coordinated selection writes and unit reconciliation. An
+// installed protocol-3 launcher needs one local update or service install with a restart:
+// remote updates replace its child, so cannot add these launcher guarantees.
+export const SERVICE_LAUNCHER_PROTOCOL = 4 as const;
 export const SERVICE_LAUNCHER_CONTEXT_ENV = "SUPATERM_SERVICE_LAUNCHER_CONTEXT";
 export const SERVICE_ENV_FILE = "service.env";
 export const SERVICE_STATE_FILE = "service-state.json";
+/** Set by the unit or launch agent to its own file name, so the launcher can
+    find the definition that started it. */
+export const SERVICE_UNIT_ENV = "SUPATERM_BOOT_SERVICE_UNIT";
 /** Written by `supaterm update` when the unit was repointed at a new version but the
     running service was deliberately left on the old one. The launcher removes
     it when it starts (whoever restarted the service), so while it exists the
     service is known to be behind its unit and status reports it that way. */
 export const SERVICE_RESTART_PENDING_FILE = ".restart-pending";
+
+const unquoteSystemdValue = (raw: string) =>
+  (raw.startsWith('"') && raw.endsWith('"')
+    ? raw.slice(1, -1).replaceAll('\\"', '"').replaceAll("\\\\", "\\")
+    : raw
+  ).replaceAll("%%", "%");
+
+const unescapeXmlText = (value: string) =>
+  value.replaceAll("&lt;", "<").replaceAll("&gt;", ">").replaceAll("&amp;", "&");
+
+export function serviceUnitBaseDirOf(contents: string): string | undefined {
+  const systemd = /^Environment=SUPATERM_HOME=(.*)$/m.exec(contents)?.[1];
+  if (systemd !== undefined) return unquoteSystemdValue(systemd.trim());
+  const plist = /<key>SUPATERM_HOME<\/key>\s*<string>([^<]*)<\/string>/.exec(contents)?.[1];
+  return plist === undefined ? undefined : unescapeXmlText(plist);
+}
+
+/** The executable an installed unit or plist starts: the launcher's runtime. */
+export function serviceUnitProgramOf(contents: string): string | undefined {
+  const systemd = /^ExecStart=("(?:\\.|[^"\\])*"|\S+)/m.exec(contents)?.[1];
+  if (systemd !== undefined) return unquoteSystemdValue(systemd);
+  const plist = /<key>ProgramArguments<\/key>\s*<array>\s*<string>([^<]*)<\/string>/.exec(
+    contents,
+  )?.[1];
+  return plist === undefined ? undefined : unescapeXmlText(plist);
+}
 
 export interface PendingServiceUpdate {
   readonly id: string;
@@ -145,7 +175,8 @@ export function decodeServiceState(value: unknown): ServiceState | undefined {
   if (!isRecord(value)) return undefined;
   const update = value.update === undefined ? undefined : decodeServiceUpdate(value.update);
   if (
-    value.protocol !== SERVICE_LAUNCHER_PROTOCOL ||
+    // Protocol 3 has the same durable format; its installer can select a protocol-4 runtime.
+    (value.protocol !== 3 && value.protocol !== SERVICE_LAUNCHER_PROTOCOL) ||
     typeof value.activeVersion !== "string" ||
     !isExactServiceVersion(value.activeVersion) ||
     (value.update !== undefined && update === undefined) ||
