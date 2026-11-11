@@ -68,6 +68,43 @@ lines.on("line", (line) => {
     );
     return;
   }
+  if (
+    message.request?.subtype === "get_settings" &&
+    process.env.SUPATERM_CLAUDE_SETTINGS_UNSUPPORTED
+  ) {
+    process.stdout.write(
+      JSON.stringify({
+        type: "control_response",
+        response: {
+          subtype: "error",
+          request_id: message.request_id,
+          error: "Unsupported control request subtype: get_settings",
+        },
+      }) + "\n",
+    );
+    return;
+  }
+  if (message.request?.subtype === "get_settings") {
+    const sources = JSON.parse(process.env.SUPATERM_CLAUDE_SETTINGS_SOURCES ?? "[]");
+    // Like Claude Code, `effective` is the last-writer merge, which hides per-source caps.
+    const effective = { modelSettings: {} };
+    for (const { settings } of sources) {
+      Object.assign(effective, settings, {
+        modelSettings: Object.assign(effective.modelSettings, settings.modelSettings),
+      });
+    }
+    process.stdout.write(
+      JSON.stringify({
+        type: "control_response",
+        response: {
+          subtype: "success",
+          request_id: message.request_id,
+          response: { effective, sources },
+        },
+      }) + "\n",
+    );
+    return;
+  }
   if (message.request?.subtype !== "initialize") return;
   const statePath = process.env.SUPATERM_CLAUDE_AUTH_STATE;
   const authState = statePath ? NodeFS.readFileSync(statePath, "utf8") : "ready";
