@@ -32,6 +32,7 @@ import {
   OrchestrationV2Actor,
   OrchestrationV2CreationSource,
   OrchestrationV2RunStatus,
+  OrchestrationV2SecretRequestField,
   OrchestrationV2TurnItemStatus,
   ThreadPinnedMessage,
 } from "./orchestrationV2.ts";
@@ -681,13 +682,7 @@ const PastedSecretValue = Schema.String.check(
 );
 
 // Filters, not length or pattern checks: those would add to every agent's tool list.
-const RequestSecretFields = Schema.Array(
-  Schema.Struct({
-    name: TrimmedNonEmptyString,
-    label: TrimmedNonEmptyString,
-    secret: Schema.optional(Schema.Boolean),
-  }),
-).check(
+const RequestSecretFields = Schema.Array(OrchestrationV2SecretRequestField).check(
   Schema.makeFilter((fields) => {
     if (fields.length === 0 || fields.length > 8) return "Give 1 to 8 fields.";
     if (new Set(fields.map((field) => field.name)).size !== fields.length) {

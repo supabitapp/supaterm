@@ -44,6 +44,8 @@ const withService = <A, E>(
     readonly closedFirst?: boolean;
     readonly failedRecords?: number;
     readonly fields?: ReadonlyArray<{ readonly name: string; readonly label: string }>;
+    /** Interrupts the answer at this stored value, as a dropped client connection does. */
+    readonly interruptAtCreate?: number;
   } = {},
 ) =>
   Effect.gen(function* () {
@@ -51,6 +53,13 @@ const withService = <A, E>(
     const dispatched: Array<OrchestrationV2ServerCommand> = [];
     let secretStatus = "pending";
     let failedRecords = options.failedRecords ?? 0;
+    let writes = 0;
+    const write = (name: string, value: Uint8Array) =>
+      Effect.suspend(() => {
+        writes += 1;
+        if (writes === options.interruptAtCreate) return Effect.interrupt;
+        return Effect.sync(() => void stored.set(name, value));
+      });
     const requestThreadId = options.threadId ?? threadId;
     const layerDependencies = Layer.mergeAll(
       NodeCrypto.layer,
@@ -60,7 +69,7 @@ const withService = <A, E>(
         ServerSecretStore.ServerSecretStore.of({
           ...(options.directory === undefined ? {} : { directory: options.directory }),
           get: (name) => Effect.yieldNow.pipe(Effect.as(Option.fromNullishOr(stored.get(name)))),
-          set: (name, value) => Effect.sync(() => void stored.set(name, value)),
+          set: write,
           create: (name, value) =>
             stored.has(name)
               ? Effect.fail(
@@ -75,7 +84,7 @@ const withService = <A, E>(
                     ),
                   } as never),
                 )
-              : Effect.sync(() => void stored.set(name, value)),
+              : write(name, value),
           getOrCreateRandom: (name, bytes) =>
             Effect.sync(() => {
               const existing = stored.get(name);
@@ -195,7 +204,15 @@ it.effect("two concurrent deliveries write one file and return the same path", (
 const loginFields = [
   { name: "email", label: "Email" },
   { name: "constructor", label: "Password" },
+  { name: "__proto__", label: "Code" },
 ];
+// Built from entries: a literal `__proto__` key would set the prototype instead.
+const loginValues = (email: string, password: string, code = "482916") =>
+  Object.fromEntries([
+    ["email", email],
+    ["constructor", password],
+    ["__proto__", code],
+  ]);
 
 it.effect("a card with fields stores and delivers one file per field", () =>
   Effect.gen(function* () {
@@ -207,7 +224,10 @@ it.effect("a card with fields stores and delivers one file per field", () =>
           for (const answer of [
             { type: "save", secret: "hunter2" },
             { type: "save", values: { email: "qa@example.com" } },
-            { type: "save", values: { email: "qa@example.com", password: "hunter2" } },
+            {
+              type: "save",
+              values: { email: "qa@example.com", password: "hunter2", code: "482916" },
+            },
           ] as const) {
             const mismatch = yield* service
               .answer({ threadId, turnItemId, answer })
@@ -220,9 +240,9 @@ it.effect("a card with fields stores and delivers one file per field", () =>
           yield* service.answer({
             threadId,
             turnItemId,
-            answer: { type: "save", values: { email: "qa@example.com", constructor: "hunter2" } },
+            answer: { type: "save", values: loginValues("qa@example.com", "hunter2") },
           });
-          assert.equal(valuesOf(stored).length, 2);
+          assert.equal(valuesOf(stored).length, 3);
           assert.include(dispatched[0] as object, { secretStatus: "saved" });
           assert.deepEqual((dispatched[0] as { fields?: unknown }).fields, loginFields);
           assert.isFalse(JSON.stringify(dispatched).includes("hunter2"));
@@ -231,13 +251,46 @@ it.effect("a card with fields stores and delivers one file per field", () =>
           assert.isTrue("files" in saved);
           if (!("files" in saved)) return;
           const files = new Map(Object.entries(saved.files));
-          assert.deepEqual([...files.keys()], ["email", "constructor"]);
+          assert.deepEqual([...files.keys()], ["email", "constructor", "__proto__"]);
+          assert.equal(yield* fs.readFileString(files.get("__proto__")!), "482916");
           assert.notEqual(files.get("email"), files.get("constructor"));
           assert.equal(yield* fs.readFileString(files.get("email")!), "qa@example.com");
           assert.equal(yield* fs.readFileString(files.get("constructor")!), "hunter2");
           assert.deepEqual(valuesOf(stored), []);
         }),
       { directory, fields: loginFields },
+    );
+  }).pipe(Effect.provide(NodeServices.layer)),
+);
+
+it.effect("an answer cut off midway never mixes with the next one", () =>
+  Effect.gen(function* () {
+    const fs = yield* FileSystem.FileSystem;
+    const directory = yield* fs.makeTempDirectoryScoped({ prefix: "secret-files-test-" });
+    yield* withService(
+      ({ service }) =>
+        Effect.gen(function* () {
+          const cut = yield* service
+            .answer({
+              threadId,
+              turnItemId,
+              answer: { type: "save", values: loginValues("first@example.com", "first-pass") },
+            })
+            .pipe(Effect.exit);
+          assert.isTrue(Exit.hasInterrupts(cut));
+          yield* service.answer({
+            threadId,
+            turnItemId,
+            answer: { type: "save", values: loginValues("second@example.com", "second-pass") },
+          });
+          const saved = yield* service.saveToFile({ threadId, turnItemId });
+          if (!("files" in saved)) return assert.fail("expected one file per field");
+          const files = new Map(Object.entries(saved.files));
+          assert.equal(yield* fs.readFileString(files.get("email")!), "second@example.com");
+          assert.equal(yield* fs.readFileString(files.get("constructor")!), "second-pass");
+        }),
+      // The salt is the first write, so the third is the second field.
+      { directory, fields: loginFields, interruptAtCreate: 3 },
     );
   }).pipe(Effect.provide(NodeServices.layer)),
 );
@@ -250,7 +303,7 @@ it.effect("a card with fields that closed first deletes every value", () =>
           .answer({
             threadId,
             turnItemId,
-            answer: { type: "save", values: { email: "qa@example.com", constructor: "hunter2" } },
+            answer: { type: "save", values: loginValues("qa@example.com", "hunter2") },
           })
           .pipe(Effect.flip);
         assert.equal(error.reason, "agent_stopped");
