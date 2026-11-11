@@ -429,3 +429,10 @@ describe("automations search", () => {
     expect(validateAutomationsSearch({ project: " ", machine: "", taskId: 4 })).toEqual({});
   });
 });
+
+it("names the server zone on fixed-time labels when the server sends one", () => {
+  expect(scheduleLabel({ type: "fixed_time", timeOfDay: "16:31" }, "Etc/UTC")).toBe(
+    "Daily at 16:31 UTC",
+  );
+  expect(scheduleLabel({ type: "interval", everyMs: 60_000 }, "Etc/UTC")).toBe("Every 1 min");
+});

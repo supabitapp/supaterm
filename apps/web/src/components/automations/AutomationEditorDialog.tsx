@@ -33,6 +33,7 @@ import { scopeThreadRef } from "@supaterm/client-runtime/environment";
 import { readEnvironmentScope, useEnvironmentScope } from "../../state/session";
 import { useThreadSearch } from "../../state/queries";
 import { useEnvironmentQuery } from "../../state/query";
+import { scheduleTimeZoneLabel } from "@supaterm/client-runtime/scheduled-task-time-zone";
 import { EMPTY_SERVER_PROVIDERS, serverEnvironment } from "../../state/server";
 import { threadFamilies } from "../../state/threads";
 import { useAtomCommand } from "../../state/use-atom-command";
@@ -341,6 +342,7 @@ export function AutomationEditorDialog({
   const tasksQuery = useEnvironmentQuery(
     connected ? serverEnvironment.scheduledTasksLive({ environmentId, input: {} }) : null,
   );
+  const runAtZone = scheduleTimeZoneLabel(tasksQuery.data?.timeZone);
   const allProjects = useProjects();
   const projectsOn = (id: EnvironmentId) =>
     allProjects.filter(
@@ -806,6 +808,9 @@ export function AutomationEditorDialog({
                           setDraft((current) => ({ ...current, timeOfDay: event.target.value }))
                         }
                       />
+                      {runAtZone === undefined ? null : (
+                        <span className="text-xs text-muted-foreground">{runAtZone}</span>
+                      )}
                       <span className="text-xs text-muted-foreground">on</span>
                     </div>
                     <ToggleGroup
