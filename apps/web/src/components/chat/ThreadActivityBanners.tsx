@@ -29,7 +29,6 @@ import {
 import { Fragment } from "react";
 import { tickTextContent } from "~/lib/tickTextContent";
 import { InlineConfirmButton } from "../InlineConfirm";
-import { BackgroundWorkDetails } from "./BackgroundWorkDetails";
 import { Button, InlineButton } from "../ui/button";
 import { PopoverTrigger } from "../ui/popover";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
@@ -191,12 +190,17 @@ export function backgroundWorkBannerItem(input: {
   const { onOpenThread } = input;
   const presentation = presentPendingBackgroundWork(input.tasks);
   if (presentation === null) return null;
-  const outputTarget = (item: PendingBackgroundWorkItem): BackgroundTaskOutputTarget => ({
-    environmentId: input.environmentId,
-    threadId: input.threadId,
-    taskId: item.taskId,
-    label: item.label,
-  });
+  const outputTarget = (item: PendingBackgroundWorkItem): BackgroundTaskOutputTarget => {
+    const task = input.tasks.find((candidate) => candidate.taskId === item.taskId);
+    return {
+      environmentId: input.environmentId,
+      threadId: input.threadId,
+      taskId: item.taskId,
+      label: item.label,
+      command: task?.command,
+      awaited: task?.awaited === true,
+    };
+  };
   const [only] = presentation.items;
   const onlyChildThreadId = presentation.items.length === 1 ? only?.childThreadId : undefined;
   const titleAction: BackgroundWorkTitleAction | null =
@@ -277,12 +281,6 @@ export function backgroundWorkBannerItem(input: {
     actions: (
       <>
         <BackgroundTaskOutputPopover handle={input.outputHandle} />
-        <BackgroundWorkDetails
-          environmentId={input.environmentId}
-          threadId={input.threadId}
-          tasks={input.tasks}
-          onOpenThread={onOpenThread}
-        />
         <Button
           size="xs"
           variant="ghost"

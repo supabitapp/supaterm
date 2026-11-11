@@ -1,4 +1,5 @@
 import { selectEnvironmentQueryData } from "@supaterm/client-runtime/state/runtime";
+import { commandDisplayText } from "@supaterm/client-runtime/work-log/command-label";
 import type { EnvironmentId, PullRequestRef, ScopedThreadRef, ThreadId } from "@supaterm/contracts";
 import type { AsyncResult } from "effect/reactivity";
 import type { ReactElement } from "react";
@@ -13,6 +14,7 @@ import { PullRequestChecksPopover } from "../pullRequest/PullRequestChecksPopove
 import { pullRequestChecksState } from "../pullRequest/pullRequestPresentation";
 import { Popover, type PopoverCreateHandle, PopoverPopup, PopoverTrigger } from "../ui/popover";
 import { CommandOutputPanel } from "./CommandOutputPanel";
+import { ShellCommandBlock } from "./ShellCommandBlock";
 
 export interface WatchedPullRequest {
   readonly threadRef: ScopedThreadRef;
@@ -81,6 +83,8 @@ export interface BackgroundTaskOutputTarget {
   readonly threadId: ThreadId;
   readonly taskId: string;
   readonly label: string;
+  readonly command: string | undefined;
+  readonly awaited: boolean;
 }
 
 export type BackgroundTaskOutputHandle = ReturnType<
@@ -100,7 +104,22 @@ export function BackgroundTaskOutputPopover({ handle }: { handle: BackgroundTask
       {({ payload }) =>
         payload === undefined ? null : (
           <PopoverPopup side="top" align="start" width="xl" aria-label={`Output: ${payload.label}`}>
-            <div className="mb-2 truncate font-medium text-xs">{payload.label}</div>
+            <div className="mb-2 flex items-baseline justify-between gap-3 text-xs">
+              <span className="min-w-0 font-medium break-words">
+                {payload.command !== undefined &&
+                commandDisplayText(payload.command) === payload.label
+                  ? "Command"
+                  : payload.label}
+              </span>
+              <span className="shrink-0 text-muted-foreground">
+                {payload.awaited ? "Waiting" : "Running"}
+              </span>
+            </div>
+            {payload.command !== undefined ? (
+              <div className="mb-2 max-h-32 overflow-y-auto rounded-md border border-border bg-muted/20 p-2 font-mono text-(length:--font-size-code,var(--text-2xs)) whitespace-pre-wrap break-words select-text">
+                <ShellCommandBlock command={payload.command} />
+              </div>
+            ) : null}
             {/* Fixed, so the popover keeps its place while output streams in. */}
             <div className="h-80 font-mono text-(length:--font-size-code,var(--text-2xs)) leading-relaxed whitespace-pre-wrap break-words select-text [&_*]:[scrollbar-width:none] [&_*::-webkit-scrollbar]:hidden">
               <CommandOutputPanel
