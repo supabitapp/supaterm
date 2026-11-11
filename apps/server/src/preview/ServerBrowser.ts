@@ -1670,6 +1670,27 @@ const make = Effect.gen(function* () {
     return reported && { ...reported, url: ServerBrowserPage.withoutDataPayload(reported.url) };
   };
 
+  const assertNavigationSucceeded = (tab: ServerTab) => {
+    const failure = loadErrorOf(tab);
+    if (failure) {
+      const diagnosticUrl = URL.parse(failure.url);
+      if (diagnosticUrl) {
+        diagnosticUrl.username = "";
+        diagnosticUrl.password = "";
+        diagnosticUrl.search = "";
+        diagnosticUrl.hash = "";
+      }
+      const url = diagnosticUrl
+        ? ServerBrowserPage.withoutDataPayload(diagnosticUrl.href)
+        : "the requested page";
+      throw new ServerBrowserPage.ServerBrowserOperationError(
+        "PreviewAutomationExecutionError",
+        `Navigation to ${url} failed: ${failure.description}`,
+        { ...failure, url },
+      );
+    }
+  };
+
   const statusWithTitle = async (
     tab: ServerTab | undefined,
     agentSessionId?: string,
@@ -1692,7 +1713,7 @@ const make = Effect.gen(function* () {
       available: true,
       visible: isVisible(tab),
       tabId: tab.tabId,
-      url: url === "about:blank" ? null : url,
+      url: loadError?.url ?? (url === "about:blank" ? null : url),
       title: null,
       loading: tab.loading,
       ...(loadError ? { loadError } : {}),
@@ -1715,7 +1736,8 @@ const make = Effect.gen(function* () {
                 url:
                   candidate.page.url() === "about:blank"
                     ? null
-                    : ServerBrowserPage.withoutDataPayload(candidate.page.url()),
+                    : (loadErrorOf(candidate)?.url ??
+                      ServerBrowserPage.withoutDataPayload(candidate.page.url())),
                 ...(candidate.openerTabId === undefined
                   ? {}
                   : { openerTabId: candidate.openerTabId }),
@@ -1784,6 +1806,7 @@ const make = Effect.gen(function* () {
       }
       throw ServerBrowserPage.toOperationError(cause, timeout);
     });
+    assertNavigationSucceeded(tab);
   };
 
   const withCaptureLock = <A>(tab: ServerTab, operation: () => Promise<A>): Promise<A> => {
@@ -2139,15 +2162,24 @@ const make = Effect.gen(function* () {
               if (url) await navigate(tab, url, "load", navigationTimeout);
             } else {
               // A failed open returns no tabId; a leftover hidden tab would block later reuse.
-              await tab.initialNavigation?.catch(async (cause: unknown) => {
-                // Playwright rejects downloads too; their tab must survive to save the file.
-                if (cause instanceof Error && cause.message.includes("Download is starting")) {
+              await Promise.resolve(tab.initialNavigation)
+                .then(async () => {
+                  if (url) {
+                    await tab.page
+                      .waitForLoadState("load", { timeout: navigationTimeout })
+                      .catch(constVoid);
+                  }
+                  assertNavigationSucceeded(tab);
+                })
+                .catch(async (cause: unknown) => {
+                  // Playwright rejects downloads too; their tab must survive to save the file.
+                  if (cause instanceof Error && cause.message.includes("Download is starting")) {
+                    throw cause;
+                  }
+                  await runPromise(manager.close({ threadId: tab.threadId, tabId: tab.tabId }));
+                  dropTab(tab, false);
                   throw cause;
-                }
-                await runPromise(manager.close({ threadId: tab.threadId, tabId: tab.tabId }));
-                dropTab(tab, false);
-                throw cause;
-              });
+                });
             }
             const reveal = open.open;
             if (reveal !== false) {
@@ -2158,11 +2190,6 @@ const make = Effect.gen(function* () {
                   force: reveal === true,
                 }),
               );
-            }
-            if (!existing && url) {
-              await tab.page
-                .waitForLoadState("load", { timeout: navigationTimeout })
-                .catch(constVoid);
             }
             return statusWithTitle(tab, request.agentSessionId);
           },
@@ -2310,7 +2337,7 @@ const make = Effect.gen(function* () {
           }),
         );
         const loadError = loadErrorOf(tab);
-        return loadError ? { ...snapshot, loadError } : snapshot;
+        return loadError ? { ...snapshot, url: loadError.url, loadError } : snapshot;
       }
       case "click": {
         const clickInput = input as PreviewAutomationClickInput;
