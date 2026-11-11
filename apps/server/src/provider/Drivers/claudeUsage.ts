@@ -15,9 +15,9 @@ import * as HostProcess from "@supaterm/shared/HostProcess";
 export const CLAUDE_SYNTHETIC_MODEL = "<synthetic>";
 
 /**
- * Supaterm writes one record per assistant *content block*, and every one of those records repeats
- * the same complete `usage` object for the parent message. Summing them overcounts by roughly
- * 2.4x on a real workload, so the caller must drop repeats by `dedupeKey` and keep the first.
+ * Claude Code repeats a message's `dedupeKey` for each assistant content block.
+ * Subagent blocks can progress from stream-start to final usage, so callers
+ * must count each key once using the maximum of each token channel.
  */
 export function parseClaudeLine(line: string): readonly UsageRecord[] {
   let parsed: unknown;
