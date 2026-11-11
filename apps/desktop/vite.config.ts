@@ -1,4 +1,6 @@
 import "vite-plus/test/config";
+import * as NodeOS from "node:os";
+
 import { defaultInclude, defineConfig } from "vite-plus";
 
 import { isDesktopRuntimeExternalDependency } from "../../scripts/lib/desktop-external-packages.ts";
@@ -11,6 +13,13 @@ const domTests = ["src/preview/PickPreload.test.ts"];
 const isMainProcessExternal = (id: string) =>
   id === "electron" || id.startsWith("electron/") || isDesktopRuntimeExternalDependency(id);
 const shouldLaunchElectronAfterPack = process.env.SUPATERM_DESKTOP_DEV === "1";
+// tsdown runs onSuccess through a shell. dash forks instead of exec'ing the last command, which
+// would leave an `sh` between `vp pack` and the supervisor and hide `vp pack` dying from it.
+const devElectronCommand =
+  // oxlint-disable-next-line supaterm/no-global-process-runtime -- Build config has no Effect runtime.
+  NodeOS.platform() === "win32"
+    ? "node scripts/dev-electron.mjs"
+    : "exec node scripts/dev-electron.mjs";
 
 export default defineConfig({
   run: {
@@ -65,7 +74,7 @@ export default defineConfig({
         neverBundle: isMainProcessExternal,
         onlyBundle: false,
       },
-      ...(shouldLaunchElectronAfterPack ? { onSuccess: "node scripts/dev-electron.mjs" } : {}),
+      ...(shouldLaunchElectronAfterPack ? { onSuccess: devElectronCommand } : {}),
     },
     {
       format: "cjs",
