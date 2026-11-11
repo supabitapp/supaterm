@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from "react";
-import { Appearance, Keyboard, View } from "react-native";
+import { Appearance, Keyboard, Platform, View } from "react-native";
 import {
   CommonActions,
   type NavigationAction,
@@ -40,6 +40,7 @@ import {
   SHOWCASE_THREAD_ID,
   showcaseReadinessKey,
   showcaseSceneOnScreen,
+  showcaseSceneShowsThread,
   showcaseThemePatch,
   shouldNavigateToShowcaseScene,
   type ShowcaseNavigationTarget,
@@ -59,6 +60,7 @@ const SHOWCASE_ENABLED = process.env.EXPO_PUBLIC_SHOWCASE === "1";
 // Native launch requests (pairing links, scene switches) have no change event.
 const NATIVE_POLL_MS = 250;
 const READY_SETTLE_MS = 500;
+const SPLIT_VIEW = Platform.OS === "ios" && Platform.isPad;
 type ShowcaseResetRoute = PartialState<NavigationState>["routes"][number];
 
 const readySceneListeners = new Set<() => void>();
@@ -80,7 +82,7 @@ function getReadyScene(): ShowcaseScene | null {
 }
 
 function showcaseNavigationAction(scene: ShowcaseScene, environmentId: string): NavigationAction {
-  if (scene === "threads") return StackActions.popToTop();
+  if (scene === "threads" && !SPLIT_VIEW) return StackActions.popToTop();
   const params = { environmentId, threadId: SHOWCASE_THREAD_ID };
   const routes: ShowcaseResetRoute[] = [{ name: "Home" }];
   if (scene === "environments") {
@@ -261,7 +263,9 @@ export function installShowcaseCapture(
     const hasFixture = hasServerFixture && pendingTasks === "seeded";
 
     const rootState = rootNavigationRef.isReady() ? rootNavigationRef.getRootState() : undefined;
-    const scene = rootState ? showcaseSceneOnScreen(pathnameFromState(rootState)) : null;
+    const scene = rootState
+      ? showcaseSceneOnScreen(pathnameFromState(rootState), requestedScene, SPLIT_VIEW)
+      : null;
 
     if (requestedScene !== null && hasFixture && showcaseThread && rootState) {
       const navigation = { requestedScene, scene, thread: showcaseThread };
@@ -279,7 +283,7 @@ export function installShowcaseCapture(
 
     // Read only while the thread screen keeps the thread mounted.
     const threadState =
-      scene === "thread" && showcaseThread
+      showcaseSceneShowsThread(scene, SPLIT_VIEW) && showcaseThread
         ? appAtomRegistry.get(
             environmentThreads.stateAtom(showcaseThread.environmentId, showcaseThread.id),
           )
@@ -294,6 +298,7 @@ export function installShowcaseCapture(
         scene,
         requestedScene,
         hasFixture,
+        splitView: SPLIT_VIEW,
         threadSynced,
         orientationSettled,
         themeApplied,

@@ -9,15 +9,26 @@ import { isShowcaseNativeContentReady, type ShowcaseRenderSignal } from "./showc
 
 export const SHOWCASE_THREAD_ID = "offline-reason";
 
-export function showcaseSceneOnScreen(pathname: string): ShowcaseScene | null {
+/** A split view pairs the thread list with the showcase thread, not an empty detail pane. */
+export function showcaseSceneShowsThread(scene: ShowcaseScene | null, splitView: boolean): boolean {
+  return scene === "thread" || (splitView && scene === "threads");
+}
+
+export function showcaseSceneOnScreen(
+  pathname: string,
+  requestedScene: ShowcaseScene | null = null,
+  splitView = false,
+): ShowcaseScene | null {
   const routePath = pathname.split(/[?#]/u, 1)[0] ?? pathname;
   if (routePath === "/settings" || routePath.endsWith("/settings/environments")) {
     return "environments";
   }
   if (routePath.endsWith("/terminal")) return "terminal";
   if (routePath.endsWith("/review")) return "review";
-  if (routePath.startsWith("/threads/")) return "thread";
-  if (routePath === "/") return "threads";
+  if (routePath.startsWith("/threads/")) {
+    return splitView && requestedScene === "threads" ? "threads" : "thread";
+  }
+  if (routePath === "/") return splitView ? null : "threads";
   return null;
 }
 
@@ -81,6 +92,7 @@ export interface ShowcaseReadinessInput {
   readonly scene: ShowcaseScene | null;
   readonly requestedScene: ShowcaseScene | null;
   readonly hasFixture: boolean;
+  readonly splitView: boolean;
   /** The showcase thread finished syncing, so its screen no longer shows a sync status. */
   readonly threadSynced: boolean;
   readonly orientationSettled: boolean;
@@ -101,7 +113,7 @@ export function showcaseReadinessKey(input: ShowcaseReadinessInput): string | nu
     scene === null ||
     scene !== input.requestedScene ||
     !input.hasFixture ||
-    (scene === "thread" && !input.threadSynced) ||
+    (showcaseSceneShowsThread(scene, input.splitView) && !input.threadSynced) ||
     !input.orientationSettled ||
     !input.themeApplied ||
     !isShowcaseNativeContentReady({

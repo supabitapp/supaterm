@@ -78,9 +78,10 @@ The default matrix is:
 | `google-play/tablet-7/dark/supaterm/`  | Pixel AVD at 600dp width     | 1080×1920         | Google Play 7-inch tablet, portrait 9:16  |
 | `google-play/tablet-10/dark/supaterm/` | Pixel AVD at 800dp width     | 1440×2560         | Google Play 10-inch tablet, portrait 9:16 |
 
-Each target captures thread, terminal, review, thread list, and environments. Each palette folder's
-five screenshots satisfy the configured Apple limit of 1–10, Google phone requirement of 2–8, and
-Google tablet recommendation/slot minimum of 4 with a maximum of 8.
+Each target captures thread, terminal, review, thread list, and environments. The iPad split view
+opens the showcase thread beside the list for `threads`, so it has no separate `thread` capture.
+Each palette folder's four or five screenshots satisfy the configured Apple limit of 1–10, Google
+phone requirement of 2–8, and Google tablet recommendation/slot minimum of 4 with a maximum of 8.
 The iPhone Duo is not in the matrix: on CI runners its simulator slows the host until scenes time
 out, and App Store Connect accepts submissions with an empty Duo slot for now. Apple requires Duo
 screenshots from April 2027 for apps built with the iOS 27.1 SDK or later, so the two Duo targets
@@ -98,7 +99,7 @@ The generated tree is deliberately aligned with the store upload fields:
     │   ├── iphone-6.9/dark/supaterm/{thread,terminal,review,threads,environments}.png
     │   ├── iphone-6.3/dark/supaterm/{thread,terminal,review,threads,environments}.png
     │   ├── iphone-6.5/dark/supaterm/{thread,terminal,review,threads,environments}.png
-    │   └── ipad-13/dark/supaterm/{thread,terminal,review,threads,environments}.png
+    │   └── ipad-13/dark/supaterm/{terminal,review,threads,environments}.png
     └── google-play/
         ├── phone/dark/supaterm/{thread,terminal,review,threads,environments}.png
         ├── tablet-7/dark/supaterm/{thread,terminal,review,threads,environments}.png

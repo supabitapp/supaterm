@@ -75,6 +75,8 @@ export interface ShowcaseConfig {
 
 const ANDROID_ABIS = ["arm64-v8a", "x86_64", "x86", "armeabi-v7a"] as const;
 const STORE_SCENES = ["threads", "thread", "review", "terminal", "environments"] as const;
+// The iPad split view already shows the chat beside the list in `threads`.
+const SPLIT_VIEW_STORE_SCENES = STORE_SCENES.filter((scene) => scene !== "thread");
 
 function resolveShowcaseAndroidAbi(
   value: string | undefined,
@@ -166,7 +168,7 @@ const config: ShowcaseConfig = {
       appearance: "dark",
       theme: DEFAULT_SHOWCASE_THEME,
       orientation: "landscape",
-      scenes: STORE_SCENES,
+      scenes: SPLIT_VIEW_STORE_SCENES,
       storeAsset: {
         store: "apple",
         directory: "apple/ipad-13",
