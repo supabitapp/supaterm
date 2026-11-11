@@ -1055,6 +1055,32 @@ export function messageFoldRunId(
   return null;
 }
 
+function isSteerMessage(message: ThreadFeedMessage): boolean {
+  return (
+    message.role === "user" &&
+    (message.inputIntent === "steer" || message.inputIntent === "promoted_queued_to_steer")
+  );
+}
+
+function answersBeforeSteers(feed: ReadonlyArray<ThreadFeedEntry>): ReadonlySet<MessageId> {
+  const ids = new Set<MessageId>();
+  let previous: ThreadFeedEntry | undefined;
+  for (const entry of feed) {
+    if (
+      entry.type === "message" &&
+      isSteerMessage(entry.message) &&
+      previous?.type === "message" &&
+      previous.message.role === "assistant" &&
+      previous.message.projectedItem?.item.type === "assistant_message" &&
+      previous.message.projectedItem.item.phase === "final_answer"
+    ) {
+      ids.add(previous.message.id);
+    }
+    previous = entry;
+  }
+  return ids;
+}
+
 function deriveThreadFeedRunFolds(
   feed: ReadonlyArray<ThreadFeedEntry>,
   latestRun: ThreadFeedLatestRun | null,
@@ -1062,6 +1088,7 @@ function deriveThreadFeedRunFolds(
   feedFailedRunIds: ReadonlySet<RunId>,
 ): ReadonlyMap<string, ThreadFeedRunFold> {
   const terminalAssistantMessageIdByRun = new Map<RunId, string>();
+  const retainedAnswerIds = answersBeforeSteers(feed);
   const interruptedRunIds = new Set<RunId>();
   const failedRunIds = new Set(feedFailedRunIds);
   const promptIndexByRunId = new Map<RunId, number>();
@@ -1154,6 +1181,7 @@ function deriveThreadFeedRunFolds(
         .filter(
           (entry) =>
             entry.id !== terminalAssistantId &&
+            !(entry.type === "message" && retainedAnswerIds.has(entry.message.id)) &&
             entry.type !== "html-render" &&
             entry.type !== "mcp-app" &&
             entry.id !== visibleCompactionId &&

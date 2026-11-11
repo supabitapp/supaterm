@@ -1908,6 +1908,33 @@ describe("buildThreadFeed", () => {
     ).toEqual([]);
   });
 
+  it("keeps a final answer visible in a folded turn when a steer follows it", () => {
+    const at = (second: number) => `2026-06-20T00:00:${String(second).padStart(2, "0")}.000Z`;
+    const say = (name: string, second: number, user = false, steer = false) => ({
+      ...(user ? userMessage(at(second)) : assistantMessage(at(second))),
+      id: TurnItemId.make(name),
+      messageId: MessageId.make(name),
+      text: name,
+      ...(steer ? { inputIntent: "steer" as const } : {}),
+    });
+    const user = say("user", 1, true);
+    const passed = { ...command(at(2)), id: TurnItemId.make("passed") };
+    const answer = say("answer", 3);
+    const steer = say("steer", 4, true, true);
+    const final = say("final", 5);
+    for (const phase of ["commentary", "partial_answer", "final_answer", undefined] as const) {
+      const partial = { ...answer, ...(phase === undefined ? {} : { phase }) };
+      const interrupted = buildThreadFeed(
+        [user, passed, partial, steer, final].map((item, index) => projected(item, index)),
+      );
+      expect(
+        deriveThreadFeedPresentation(interrupted, null, new Set()).some(
+          (row) => row.type === "message" && row.message.id === answer.messageId,
+        ),
+      ).toBe(phase === "final_answer");
+    }
+  });
+
   it("uses a stable Thinking row while work has started without a projected item", () => {
     const startedAt = "2026-04-01T00:00:01.000Z";
     const presented = deriveThreadFeedPresentation([], null, new Set(), new Set(), startedAt);
