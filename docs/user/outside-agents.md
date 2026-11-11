@@ -63,6 +63,22 @@ do (**Read only** is selected) and choose **Get code**. Enter the code on the
 sign-in page the app opens. It approves that one sign-in at the level you
 picked, once, and expires soon.
 
+## What outside agents can call
+
+Some tools only work for an agent running inside a Supaterm thread, because they act
+as that thread: subagents, secret requests, rendered HTML, the browser preview,
+devices, and worktree handoff. They still appear in an outside agent's tool
+list, but calling one returns an error saying it needs an agent running inside
+Supaterm.
+
+- To hand off work, start a thread with `supaterm_thread_launch`, then follow it with
+  `supaterm_thread_wait` or `supaterm_thread_read`, instead of `create_threads` or
+  `delegate_task`.
+- Tools that default to the caller's own project or thread need an explicit
+  `projectId` or `threadId`.
+- To list threads across projects, call `supaterm_thread_list` with
+  `allProjects: true`, or use `supaterm_thread_search`.
+
 ## Claude Code
 
 ```sh
