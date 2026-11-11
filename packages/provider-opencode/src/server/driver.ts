@@ -92,13 +92,30 @@ function isOpenCodeNativeCommandPath(commandPath: string): boolean {
   );
 }
 
+function openCodeNativeHome(commandPath: string): string | null {
+  const slashed = commandPath.replaceAll("\\", "/");
+  const match = /\/\.opencode\/bin\/opencode(?:\.exe)?$/i.exec(slashed);
+  if (!match) return null;
+  return match.index === 0 ? "/" : slashed.slice(0, match.index);
+}
+
 export const openCode2Update = makePackageManagedProviderMaintenanceResolver({
   provider: DRIVER_KIND,
   npmPackageName: "@opencode/cli",
   nativeUpdate: {
-    args: ["upgrade"],
+    // `isOpenCodeNativeCommandPath` is the curl installer's own binary. Name the
+    // method so OpenCode does not have to infer it from `process.execPath`, which
+    // fails when the binary is launched through a wrapper or shim.
+    args: ["upgrade", "--method", "curl"],
     isCommandPath: isOpenCodeNativeCommandPath,
     requiresCommandPath: true,
+    // The curl installer writes to `$HOME/.opencode/bin`, so point HOME at the install it replaces.
+    env: (context) => {
+      const home =
+        openCodeNativeHome(context.realCommandPath) ??
+        openCodeNativeHome(context.resolvedCommandPath);
+      return home ? { HOME: home } : {};
+    },
   },
   mise: { tool: "opencode" },
 });
