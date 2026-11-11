@@ -2,9 +2,14 @@ import {
   getPromptControlledTraits,
   getTraitSelectChange,
 } from "@supaterm/client-runtime/model-traits";
-import type { ProviderOptionDescriptor } from "@supaterm/contracts";
+import { ProviderInstanceId, type ProviderOptionDescriptor } from "@supaterm/contracts";
 import { describe, expect, it } from "vite-plus/test";
 
+import {
+  applyProviderOptionSelection,
+  resolveProviderOptionDescriptors,
+  withImplicitFastModeSelection,
+} from "../../lib/providerOptions";
 import { reasoningSliderOptions, selectableChoices } from "./thread-settings-options";
 
 const effortDescriptor: Extract<ProviderOptionDescriptor, { type: "select" }> = {
@@ -21,6 +26,32 @@ const effortDescriptor: Extract<ProviderOptionDescriptor, { type: "select" }> = 
   currentValue: "high",
   promptInjectedValues: ["ultrathink"],
 };
+
+describe("fast mode switch", () => {
+  // regression: #29729 Cursor reports Fast on by default, but its picker shows an unset fastMode as off
+  it("shows an unset fast mode as off, saves it as off and turns it on when toggled", () => {
+    const capabilities = {
+      optionDescriptors: [
+        { id: "fastMode", label: "Fast", type: "boolean", currentValue: true } as const,
+      ],
+    };
+    const selection = { instanceId: ProviderInstanceId.make("cursor"), model: "composer-2.5" };
+    const descriptors = resolveProviderOptionDescriptors({ capabilities, selections: undefined });
+    const shown = descriptors.find((descriptor) => descriptor.id === "fastMode")?.currentValue;
+
+    expect({
+      shown,
+      saved: withImplicitFastModeSelection(selection, [
+        { instanceId: selection.instanceId, models: [{ slug: selection.model, capabilities }] },
+      ]).options,
+      afterToggle: applyProviderOptionSelection(descriptors, { id: "fastMode", value: !shown }),
+    }).toEqual({
+      shown: false,
+      saved: [{ id: "fastMode", value: false }],
+      afterToggle: [{ id: "fastMode", value: true }],
+    });
+  });
+});
 
 describe("selectableChoices", () => {
   it("leaves out prompt-injected choices and keeps workflow choices in declared order", () => {

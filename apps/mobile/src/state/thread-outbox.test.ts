@@ -490,8 +490,8 @@ describe("thread outbox", () => {
       options: [{ id: "native-option", value: "keep-this-choice" }],
     };
     const providers = [
-      { instanceId: codex.instanceId, showInteractionModeToggle: true },
-      { instanceId: antigravity.instanceId, showInteractionModeToggle: false },
+      { instanceId: codex.instanceId, showInteractionModeToggle: true, models: [] },
+      { instanceId: antigravity.instanceId, showInteractionModeToggle: false, models: [] },
     ];
     const message = {
       ...queuedMessage({ messageId: "queued-plan", createdAt: "2026-09-02T10:00:00.000Z" }),
@@ -533,7 +533,7 @@ describe("thread outbox", () => {
       resolveQueuedThreadSettings(
         queuedMessage({ messageId: "legacy-plan", createdAt: "2026-09-02T10:00:00.000Z" }),
         { modelSelection, runtimeMode: "approval-required", interactionMode: "plan" },
-        [{ instanceId: modelSelection.instanceId, showInteractionModeToggle: false }],
+        [{ instanceId: modelSelection.instanceId, showInteractionModeToggle: false, models: [] }],
       ).interactionMode,
     ).toBe("default");
   });
@@ -575,6 +575,42 @@ describe("thread outbox", () => {
     await Promise.all([first, second]);
     expect(order).toEqual(["first:start", "first:end", "second"]);
     registry.dispose();
+  });
+
+  // regression: #29729 Cursor runs its own Fast default when the turn carries no fastMode
+  it("sends the Fast off the picker shows for a model without a Fast selection", () => {
+    const cursor = { instanceId: ProviderInstanceId.make("cursor"), model: "composer-2.5" };
+    const providers = [
+      {
+        instanceId: cursor.instanceId,
+        showInteractionModeToggle: true,
+        models: [
+          {
+            slug: cursor.model,
+            capabilities: {
+              optionDescriptors: [
+                { id: "fastMode", label: "Fast", type: "boolean", currentValue: true } as const,
+              ],
+            },
+          },
+        ],
+      },
+    ];
+    const thread = {
+      modelSelection: cursor,
+      runtimeMode: "full-access",
+      interactionMode: "default",
+    } as const;
+    const message = queuedMessage({ messageId: "fast", createdAt: "2026-11-03T10:00:00.000Z" });
+    const fastOn = { ...cursor, options: [{ id: "fastMode", value: true }] };
+
+    expect(resolveQueuedThreadSettings(message, thread, providers).modelSelection.options).toEqual([
+      { id: "fastMode", value: false },
+    ]);
+    expect(
+      resolveQueuedThreadSettings({ ...message, modelSelection: fastOn }, thread, providers)
+        .modelSelection,
+    ).toEqual(fastOn);
   });
 
   it("holds the mutation queue while persisted messages are loading", async () => {
