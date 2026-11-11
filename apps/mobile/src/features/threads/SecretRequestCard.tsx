@@ -1,13 +1,15 @@
 import { useAtomValue } from "@effect/atom-react";
 import { pipe } from "effect/Function";
 import {
-  SECRET_REQUEST_DEFAULT_PLACEHOLDER,
   secretRequestAnswerInput,
   secretRequestDisplay,
   secretRequestFailureMessage,
+  secretRequestInputs,
   SECRET_REQUEST_PRIVACY_NOTE,
   secretRequestLink,
+  secretRequestValue,
   type SecretRequestItem,
+  type SecretRequestReply,
 } from "@supaterm/client-runtime/secret-request";
 import {
   isAtomCommandInterrupted,
@@ -18,7 +20,7 @@ import { useRef, useState } from "react";
 import { View, type ColorValue } from "react-native";
 
 import { SymbolView, type AppSymbolName } from "../../components/ui/AppSymbol";
-import { AppText as Text } from "../../components/ui/AppText";
+import { AppText as Text, AppTextInput } from "../../components/ui/AppText";
 import { SecretTextInput } from "../../components/ui/SecretTextInput";
 import { serverEnvironment } from "../../state/server";
 import { useAtomCommand } from "../../state/use-atom-command";
@@ -27,6 +29,7 @@ import { Button } from "../../components/ui/Button";
 
 const LOCK_SYMBOL: AppSymbolName = { ios: "lock", android: "lock" };
 const PRIVATE_SYMBOL: AppSymbolName = { ios: "checkmark.shield", android: "lock" };
+const EXPIRED_SYMBOL: AppSymbolName = "clock";
 
 export function SecretRequestCard(props: {
   readonly environmentId: EnvironmentId;
@@ -43,6 +46,26 @@ export function SecretRequestCard(props: {
         item={item}
         iconColor={props.iconColor}
       />
+    );
+  }
+  if (display.kind === "expired") {
+    return (
+      <View className="mb-3 flex-row items-start gap-2.5 rounded-[20px] border border-border bg-card-alt p-4">
+        <View className="pt-0.5">
+          <SymbolView
+            name={EXPIRED_SYMBOL}
+            size={15}
+            tintColor={props.iconColor}
+            type="monochrome"
+          />
+        </View>
+        <View className="flex-1 gap-1">
+          <Text className="font-supaterm-bold text-base text-foreground">
+            {item.label} · {display.label}
+          </Text>
+          <Text className="font-sans text-sm leading-5 text-foreground-muted">{display.hint}</Text>
+        </View>
+      </View>
     );
   }
   const icon: AppSymbolName =
@@ -76,16 +99,15 @@ function PendingSecretRequestForm(props: {
   const canAnswer = useAtomValue(
     serverEnvironment.answerSecretRequest.permissionAtom(props.environmentId),
   );
-  const [secret, setSecret] = useState("");
+  const inputs = secretRequestInputs(item);
+  const [values, setValues] = useState<Readonly<Record<string, string>>>({});
   const [submitting, setSubmitting] = useState(false);
   const locked = submitting || !canAnswer;
   const [error, setError] = useState<string | null>(null);
   // Submit then a tap can both run before a re-render; this guard is synchronous.
   const inFlight = useRef(false);
 
-  const send = async (
-    reply: { readonly type: "save"; readonly secret: string } | { readonly type: "decline" },
-  ) => {
+  const send = async (reply: SecretRequestReply) => {
     const input = secretRequestAnswerInput(item, reply);
     if (input === null || inFlight.current || !canAnswer) return;
     inFlight.current = true;
@@ -96,7 +118,7 @@ function PendingSecretRequestForm(props: {
       setSubmitting(false);
     });
     if (result._tag === "Success") {
-      setSecret("");
+      setValues({});
       return;
     }
     if (!isAtomCommandInterrupted(result)) {
@@ -131,14 +153,47 @@ function PendingSecretRequestForm(props: {
           ) : null}
         </View>
       ) : null}
-      <SecretTextInput
-        accessibilityLabel={item.label}
-        placeholder={item.placeholder ?? SECRET_REQUEST_DEFAULT_PLACEHOLDER}
-        value={secret}
-        onChangeText={setSecret}
-        editable={!locked}
-        onSubmitEditing={(value) => void send({ type: "save", secret: value })}
-      />
+      {inputs.map((input) => {
+        const value = secretRequestValue(values, input.key);
+        const onChangeText = (next: string) =>
+          setValues((current) => ({ ...current, [input.key]: next }));
+        // The field's own text, so a submit never uses a stale render of it.
+        const onSubmit = (next: string) =>
+          void send({ type: "save", values: { ...values, [input.key]: next } });
+        return (
+          <View key={input.key} className="gap-1.5">
+            {item.fields === undefined ? null : (
+              <Text className="font-sans text-xs text-foreground-muted">{input.label}</Text>
+            )}
+            {input.masked ? (
+              <SecretTextInput
+                accessibilityLabel={input.label}
+                placeholder={input.placeholder}
+                value={value}
+                onChangeText={onChangeText}
+                editable={!locked}
+                onSubmitEditing={onSubmit}
+              />
+            ) : (
+              <AppTextInput
+                accessibilityLabel={input.label}
+                placeholder={input.placeholder}
+                value={value}
+                onChangeText={onChangeText}
+                editable={!locked}
+                autoCorrect={false}
+                autoCapitalize="none"
+                autoComplete="off"
+                textContentType="none"
+                importantForAutofill="no"
+                spellCheck={false}
+                returnKeyType="done"
+                onSubmitEditing={(event) => onSubmit(event.nativeEvent.text)}
+              />
+            )}
+          </View>
+        );
+      })}
       {error !== null ? (
         <Text
           accessibilityRole="alert"
@@ -152,8 +207,8 @@ function PendingSecretRequestForm(props: {
         label="Send"
         tone="primary"
         fullWidth
-        disabled={locked || secret.trim().length === 0}
-        onPress={() => void send({ type: "save", secret })}
+        disabled={locked || secretRequestAnswerInput(item, { type: "save", values }) === null}
+        onPress={() => void send({ type: "save", values })}
       />
       <View className="flex-row items-center justify-between gap-2">
         <View className="flex-1 flex-row items-center gap-1.5">

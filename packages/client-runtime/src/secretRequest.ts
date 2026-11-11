@@ -12,7 +12,40 @@ export type SecretRequestItem = Extract<
 /** The agent's commands read the value from a file, so the card must not promise more. */
 export const SECRET_REQUEST_PRIVACY_NOTE =
   "Secrets are kept out of chat history and automatically deleted";
-export const SECRET_REQUEST_DEFAULT_PLACEHOLDER = "Paste the secret";
+const SECRET_REQUEST_DEFAULT_PLACEHOLDER = "Paste the secret";
+
+export interface SecretRequestInput {
+  /** Key in the card's values: the field name, or "" for a request without fields. */
+  readonly key: string;
+  readonly label: string;
+  readonly placeholder: string;
+  readonly masked: boolean;
+}
+
+export function secretRequestInputs(
+  item: Pick<SecretRequestItem, "label" | "placeholder" | "fields">,
+): ReadonlyArray<SecretRequestInput> {
+  if (item.fields === undefined) {
+    return [
+      {
+        key: "",
+        label: item.label,
+        placeholder: item.placeholder ?? SECRET_REQUEST_DEFAULT_PLACEHOLDER,
+        masked: true,
+      },
+    ];
+  }
+  return item.fields.map((field) => ({
+    key: field.name,
+    label: field.label,
+    placeholder: "",
+    masked: field.secret !== false,
+  }));
+}
+
+/** A card value by input key. Own keys only: a field may be named `constructor`. */
+export const secretRequestValue = (values: Readonly<Record<string, string>>, key: string) =>
+  Object.hasOwn(values, key) ? (values[key] ?? "") : "";
 
 // Backticks, <angle brackets> and markdown link targets (balanced parentheses allowed) keep their
 // exact text; a bare link drops trailing sentence punctuation.
@@ -74,7 +107,9 @@ export type SecretRequestDisplay =
       readonly kind: "answered";
       readonly outcome: "saved" | "declined" | "ended";
       readonly label: string;
-    };
+    }
+  /** Shown as a card, not a work-log row: the user has to ask the agent again. */
+  | { readonly kind: "expired"; readonly label: string; readonly hint: string };
 
 const SAVED_DISPLAY: SecretRequestDisplay = {
   kind: "answered",
@@ -91,6 +126,11 @@ const ENDED_DISPLAY: SecretRequestDisplay = {
   outcome: "ended",
   label: "Request ended",
 };
+const EXPIRED_DISPLAY: SecretRequestDisplay = {
+  kind: "expired",
+  label: "Expired",
+  hint: "The agent stopped waiting for an answer. Tell it to ask again when you are ready.",
+};
 const PENDING_DISPLAY: SecretRequestDisplay = { kind: "pending" };
 const PENDING_ELSEWHERE_DISPLAY: SecretRequestDisplay = {
   kind: "pending-elsewhere",
@@ -102,7 +142,7 @@ const PENDING_ELSEWHERE_DISPLAY: SecretRequestDisplay = {
  * thread (a fork) can only be answered where it was asked.
  */
 export function secretRequestDisplay(
-  item: Pick<SecretRequestItem, "secretStatus">,
+  item: Pick<SecretRequestItem, "secretStatus" | "timedOut">,
   visibility: "local" | "inherited" | "synthetic",
 ): SecretRequestDisplay {
   switch (item.secretStatus) {
@@ -113,20 +153,30 @@ export function secretRequestDisplay(
     case "declined":
       return DECLINED_DISPLAY;
     case "cancelled":
-      return ENDED_DISPLAY;
+      return item.timedOut === true ? EXPIRED_DISPLAY : ENDED_DISPLAY;
   }
 }
 
+export type SecretRequestReply =
+  /** Keyed by `SecretRequestInput.key`. */
+  | { readonly type: "save"; readonly values: Readonly<Record<string, string>> }
+  | { readonly type: "decline" };
+
+/** Null until every input has a value. */
 export function secretRequestAnswerInput(
-  item: Pick<SecretRequestItem, "id" | "threadId">,
-  answer: { readonly type: "save"; readonly secret: string } | { readonly type: "decline" },
+  item: Pick<SecretRequestItem, "id" | "threadId" | "label" | "placeholder" | "fields">,
+  answer: SecretRequestReply,
 ): SecretRequestAnswerInput | null {
-  if (answer.type === "decline") {
-    return { threadId: item.threadId, turnItemId: item.id, answer: { type: "decline" } };
+  const base = { threadId: item.threadId, turnItemId: item.id };
+  if (answer.type === "decline") return { ...base, answer: { type: "decline" } };
+  const entries = secretRequestInputs(item).map(
+    (input) => [input.key, secretRequestValue(answer.values, input.key)] as const,
+  );
+  if (entries.some(([, value]) => value.trim().length === 0)) return null;
+  if (item.fields === undefined) {
+    return { ...base, answer: { type: "save", secret: entries[0]?.[1] ?? "" } };
   }
-  const secret = answer.secret;
-  if (secret.trim().length === 0) return null;
-  return { threadId: item.threadId, turnItemId: item.id, answer: { type: "save", secret } };
+  return { ...base, answer: { type: "save", values: Object.fromEntries(entries) } };
 }
 
 const USER_FACING_FAILURE_TAGS = new Set(["SecretRequestError", "EnvironmentAuthorizationError"]);
