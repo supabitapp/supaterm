@@ -2016,6 +2016,7 @@ export const CLAUDE_SUPATERM_MCP_TOOL_WILDCARD = "mcp__supaterm__*";
 export const CLAUDE_READ_ONLY_SUPATERM_MCP_ALLOWED_TOOLS: ReadonlyArray<string> = [
   "mcp__supaterm__orchestrator_capabilities",
   "mcp__supaterm__list_scheduled_tasks",
+  "mcp__supaterm__supaterm_background_wait",
   "mcp__supaterm__supaterm_thread_list",
   "mcp__supaterm__supaterm_thread_wait",
   "mcp__supaterm__supaterm_worktree_status",
