@@ -445,6 +445,7 @@ export interface ThreadManagementServiceShape {
   >;
   readonly getThreadEventSequence: Orchestrator.OrchestratorV2["Service"]["getThreadEventSequence"];
   readonly recoverDelegatedTask: Orchestrator.OrchestratorV2["Service"]["recoverDelegatedTask"];
+  readonly cancelDelegatedTask: Orchestrator.OrchestratorV2["Service"]["cancelDelegatedTask"];
   readonly delegatedTaskResultPending: Orchestrator.OrchestratorV2["Service"]["delegatedTaskResultPending"];
   readonly streamStoredEvents: Orchestrator.OrchestratorV2["Service"]["streamStoredEvents"];
   readonly streamStoredEventsFrom: Orchestrator.OrchestratorV2["Service"]["streamStoredEventsFrom"];
@@ -1324,7 +1325,9 @@ const make = Effect.gen(function* () {
         stopDelegatedTasks: false,
         ...(input.reason === undefined ? {} : { reason: input.reason }),
       }).pipe(
-        Effect.andThen(stopDelegatedTasks({ ...input, threadId })),
+        Effect.andThen(
+          stopDelegatedTasks({ threadId, commandId: input.commandId, reason: input.reason }),
+        ),
         Effect.catch((error) =>
           Effect.logWarning("Unable to stop a delegated task", {
             parentThreadId: input.threadId,
@@ -1382,6 +1385,7 @@ const make = Effect.gen(function* () {
     awaitBackgroundTasks,
     getThreadEventSequence: orchestrator.getThreadEventSequence,
     recoverDelegatedTask: orchestrator.recoverDelegatedTask,
+    cancelDelegatedTask: orchestrator.cancelDelegatedTask,
     delegatedTaskResultPending: orchestrator.delegatedTaskResultPending,
     streamStoredEvents: orchestrator.streamStoredEvents,
     streamStoredEventsFrom: orchestrator.streamStoredEventsFrom,
