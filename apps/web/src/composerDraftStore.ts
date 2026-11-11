@@ -994,10 +994,12 @@ export function deriveEffectiveComposerModelState(input: {
         activeSelection.model,
       ))
     : baseModel;
+  // Draft options win; otherwise an existing thread's options, even none, outrank the project's.
   const modelOptions =
     modelSelectionByProviderToOptions(input.draft?.modelSelectionByProvider) ??
-    providerSelectionsFromModelSelection(input.threadModelSelection) ??
-    providerSelectionsFromModelSelection(input.projectModelSelection) ??
+    providerSelectionsFromModelSelection(
+      input.threadModelSelection ?? input.projectModelSelection,
+    ) ??
     null;
 
   return {
