@@ -330,6 +330,10 @@ export const DiffColorScheme = Schema.Literals(["red-green", "blue-orange"]);
 export const ChatWidth = Schema.Literals(["comfortable", "wide", "full"]);
 export type ChatWidth = typeof ChatWidth.Type;
 
+/** What the open thread reads to a screen reader: turn status, the agent's in-between messages too, or every step. */
+export const ScreenReaderAnnouncements = Schema.Literals(["status", "messages", "everything"]);
+export type ScreenReaderAnnouncements = typeof ScreenReaderAnnouncements.Type;
+
 export const ModelFavorite = Schema.Struct({
   provider: ProviderInstanceId,
   model: TrimmedNonEmptyString,
@@ -463,6 +467,9 @@ export const ClientSettingsSchema = Schema.Struct({
   ),
   proactivePanelsEnabled: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
   showSkillsInSlashMenu: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(true))),
+  screenReaderAnnouncements: ScreenReaderAnnouncements.pipe(
+    Schema.withDecodingDefault(Effect.succeed("status" as const)),
+  ),
   // Sparse show/hide overrides for thread details card items. Missing ids use the client's
   // default, so new items appear for everyone and unknown ids survive a downgrade.
   threadDetailsItems: Schema.Record(Schema.String, Schema.Boolean).pipe(
