@@ -9,7 +9,6 @@ import {
   userMessageFileLabel,
 } from "./TimelineUserMessageRow.logic";
 import { UserMessageContextReferenceChip } from "./UserMessageContextChips";
-import { shouldCollapseUserMessage } from "./MessagesTimeline.logic";
 import { InlineAudioPreview } from "../files/InlineAudioPreview";
 import { filePreviewKind } from "@supaterm/shared/filePreview";
 import { remarkEnableOrderedListNumbers } from "@supaterm/shared/markdownPipeline";
@@ -91,6 +90,7 @@ import { formatDayAwareTimestamp, formatChatTimestampTooltip } from "../../times
 import { AnimatedHeight } from "../AnimatedHeight";
 import { useTimelineDisclosure } from "./timelineDisclosure";
 import { WorkflowOpeningBlock } from "./WorkflowOpeningBlock";
+import { useTallEnoughToFold } from "./useTallEnoughToFold";
 import { isPinnableProjectedItem, MessagePinButton, useMessagePinned } from "./PinnedMessages";
 
 // Drawn inside the media so dark screenshots keep an edge on the dark background.
@@ -1067,8 +1067,8 @@ const CollapsibleUserMessageBody = memo(function CollapsibleUserMessageBody(prop
   const revealForFind = () => setExpanded(true);
   const revealRef = findRevealRef(revealForFind);
   const hasVisibleBody = props.text.trim().length > 0;
-  const canCollapse =
-    props.collapsible !== false && hasVisibleBody && shouldCollapseUserMessage(props.text);
+  const foldable = props.collapsible !== false && hasVisibleBody;
+  const { ref: contentRef, tallEnough: canCollapse } = useTallEnoughToFold(foldable);
   const isCollapsed = canCollapse && !expanded;
   const showCollapseControl = canCollapse;
   const body = hasVisibleBody ? (
@@ -1090,18 +1090,20 @@ const CollapsibleUserMessageBody = memo(function CollapsibleUserMessageBody(prop
           : undefined
       }
     >
-      <UserMessageBody
-        text={props.text}
-        renderContextReference={props.renderContextReference}
-        skills={props.skills}
-        markdownCwd={props.markdownCwd}
-      />
+      <div ref={contentRef}>
+        <UserMessageBody
+          text={props.text}
+          renderContextReference={props.renderContextReference}
+          skills={props.skills}
+          markdownCwd={props.markdownCwd}
+        />
+      </div>
     </div>
   ) : null;
 
   return (
     <div>
-      {canCollapse ? <AnimatedHeight animateKey={expanded}>{body}</AnimatedHeight> : body}
+      {foldable ? <AnimatedHeight animateKey={expanded}>{body}</AnimatedHeight> : body}
       {showCollapseControl ? (
         <div className="mt-1.5 flex items-center justify-end gap-2" data-user-message-footer="true">
           {showCollapseControl ? (

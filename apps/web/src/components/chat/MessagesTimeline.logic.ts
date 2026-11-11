@@ -3,10 +3,6 @@ import { worktreeSetupAgentStarted } from "@supaterm/client-runtime/worktree-set
 import { resolveUserMessagePresentation } from "@supaterm/client-runtime/user-message";
 import { isLiveSubagentTurnItem } from "@supaterm/client-runtime/state/subagentRuntime";
 import * as Equal from "effect/Equal";
-import {
-  assistantCitationExcerpt,
-  collectAssistantCitations,
-} from "@supaterm/shared/assistantCitations";
 import { shallow } from "zustand/vanilla/shallow";
 import { claudeResumeCompactionAge } from "@supaterm/shared/claudeCompaction";
 import type { HandoffTimelineRun } from "@supaterm/client-runtime/handoff";
@@ -2608,41 +2604,6 @@ function isRowUnchanged(a: MessagesTimelineRow, b: MessagesTimelineRow): boolean
       );
     }
   }
-}
-
-const MAX_COLLAPSED_USER_MESSAGE_LINES = 8;
-const MAX_COLLAPSED_USER_MESSAGE_LENGTH = 600;
-const MARKDOWN_LINK = /!?\[([^\]\n]*)\]\((?:<[^>\n]*>|[^\s)]*)\)/g;
-
-// Commented citations render as blocks; whitespace around a block adds no line of its own.
-const ANNOTATION_BREAK = "\uE000";
-const ANNOTATION_BOUNDARY = /\s*\uE000[\s\uE000]*/g;
-
-function visibleUserMessageText(text: string): string {
-  const linkLabels = (segment: string) => segment.replace(MARKDOWN_LINK, "$1");
-  let visible = "";
-  let cursor = 0;
-  for (const match of collectAssistantCitations(text)) {
-    const comment = match.citation.comment?.trim();
-    const excerpt = assistantCitationExcerpt(match.citation);
-    visible +=
-      linkLabels(text.slice(cursor, match.start)) +
-      (comment ? `${ANNOTATION_BREAK}${excerpt}\n${comment}${ANNOTATION_BREAK}` : excerpt);
-    cursor = match.end;
-  }
-  return (visible + linkLabels(text.slice(cursor))).replace(ANNOTATION_BOUNDARY, "\n").trim();
-}
-
-export function shouldCollapseUserMessage(text: string): boolean {
-  const visible = visibleUserMessageText(text);
-  if (visible.trim().length === 0) {
-    return false;
-  }
-
-  return (
-    visible.length > MAX_COLLAPSED_USER_MESSAGE_LENGTH ||
-    visible.split("\n").length > MAX_COLLAPSED_USER_MESSAGE_LINES
-  );
 }
 
 export function handoffRunsSignature(runs: ReadonlyArray<HandoffTimelineRun>): string {
