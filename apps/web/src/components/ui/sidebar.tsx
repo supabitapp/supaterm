@@ -67,6 +67,12 @@ function useSidebarVisibility() {
   return isMobile ? openMobile : open;
 }
 
+/** Whether the mobile sidebar sheet covers the page; false outside a SidebarProvider. */
+function useMobileSidebarSheetMounted() {
+  const context = React.use(SidebarContext);
+  return context !== null && context.isMobile && context.mobileSheetMounted;
+}
+
 // The md breakpoint, also read when a shortcut fires.
 const SIDEBAR_MOBILE_QUERY = "(max-width: 767px)";
 
@@ -667,6 +673,7 @@ export {
   SidebarMenuSubItem,
   SidebarProvider,
   SidebarTrigger,
+  useMobileSidebarSheetMounted,
   useSidebar,
   useSidebarVisibility,
 };
