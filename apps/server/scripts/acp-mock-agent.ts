@@ -87,6 +87,7 @@ const supportsSessionLifecycle = process.env.SUPATERM_ACP_SESSION_LIFECYCLE === 
 const supportsAcpMcp = process.env.SUPATERM_ACP_MCP_ACP === "1";
 const supportsHttpMcp = process.env.SUPATERM_ACP_MCP_HTTP === "1";
 const supportsV2Management = process.env.SUPATERM_ACP_V2_MANAGEMENT === "1";
+const failDeleteSession = process.env.SUPATERM_ACP_FAIL_DELETE_SESSION === "1";
 const advertisedAuthMethodId = process.env.SUPATERM_ACP_AUTH_METHOD_ID?.trim();
 const initializeAuthMethodId =
   advertisedAuthMethodId ?? (supportsSessionLifecycle ? "test" : undefined);
@@ -746,6 +747,9 @@ const program = Effect.gen(function* () {
   yield* agent.handleDeleteSession(() =>
     Effect.gen(function* () {
       yield* requireAuthentication();
+      if (failDeleteSession) {
+        return yield* AcpError.AcpRequestError.internalError("delete failed");
+      }
       return {};
     }),
   );
