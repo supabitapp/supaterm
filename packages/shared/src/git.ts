@@ -218,8 +218,10 @@ export interface GitRemoteVerboseUrls {
 
 export function parseGitRemoteVerboseOutput(output: string): ReadonlyArray<GitRemoteVerboseEntry> {
   const remotes: GitRemoteVerboseEntry[] = [];
-  for (const line of output.split("\n")) {
-    const match = /^(\S+)\s+(.+?)\s+\((fetch|push)\)(?:\s+.*)?$/u.exec(line.trim());
+  for (const line of output.split(/\r?\n/)) {
+    // Git uses a tab before the URL and one space before the direction; both can occur in URLs.
+    // Partial clones append the promisor filter, e.g. `(fetch) [blob:none]`.
+    const match = /^(\S+)\t(.+) \((fetch|push)\)(?:\s+\[[^\]]+\])?$/.exec(line);
     if (!match) continue;
     const [, name, url, direction] = match;
     if (!name || !url || !direction) continue;
