@@ -21,10 +21,15 @@ import * as NodeNet from "node:net";
 import * as NodeOS from "node:os";
 
 import * as HostProcess from "@supaterm/shared/HostProcess";
-import { isPrivateNetworkHost, isTailnetHost } from "@supaterm/shared/hostClassification";
+import {
+  formatHostForUrl,
+  isPrivateNetworkHost,
+  isTailnetHost,
+  isWildcardHost,
+} from "@supaterm/shared/hostClassification";
 
 import * as ServerConfig from "../config.ts";
-import { formatHostForUrl, isLoopbackHost, isWildcardHost } from "../startupAccess.ts";
+import { isLoopbackHost } from "../startupAccess.ts";
 
 type NetworkInterfacesMap = ReturnType<typeof NodeOS.networkInterfaces>;
 

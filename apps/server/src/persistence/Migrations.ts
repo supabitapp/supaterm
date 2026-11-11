@@ -125,6 +125,21 @@ const ensureUnrecordedSchema = Effect.fn("ensureUnrecordedSchema")(function* () 
   `;
 });
 
+const latestMigrationId = Math.max(...migrationEntries.map(([id]) => id));
+
+// Mirrors the Migrator, which runs only ids above the highest recorded.
+export const hasPendingMigrations = Effect.fn("hasPendingMigrations")(function* () {
+  const sql = yield* SqlClient.SqlClient;
+  const tables = yield* sql`
+    SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'effect_sql_migrations'
+  `;
+  if (tables.length === 0) return true;
+  const rows = yield* sql<{ readonly latestId: number | null }>`
+    SELECT MAX(migration_id) AS latestId FROM effect_sql_migrations
+  `;
+  return (rows[0]?.latestId ?? 0) < latestMigrationId;
+});
+
 const run = Migrator.make({});
 
 /**

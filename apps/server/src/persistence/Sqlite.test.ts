@@ -5,14 +5,21 @@ import * as NodePath from "node:path";
 import * as NodeSqlite from "node:sqlite";
 import type * as NodeWorkerThreads from "node:worker_threads";
 
+import * as NodeCrypto from "@effect/platform-node/NodeCrypto";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { assert, it } from "@effect/vitest";
 import * as HostProcess from "@supaterm/shared/HostProcess";
+import * as NodeSqliteClient from "@supaterm/shared/nodeSqliteClient";
 import * as Effect from "effect/Effect";
+import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
 import * as SqlClient from "effect/sql/SqlClient";
 import { vi } from "vite-plus/test";
 
+import * as ServerConfig from "../config.ts";
+import * as ProcessRunner from "../processRunner.ts";
+import * as ServerOwnership from "../serverOwnership.ts";
+import { migrationManifest, runMigrations } from "./Migrations.ts";
 import * as SqlitePersistence from "./Sqlite.ts";
 
 const workers = vi.hoisted((): Array<NodeWorkerThreads.Worker> => []);
@@ -181,5 +188,71 @@ it.effect("drops planner statistics a database already has", () => {
     }).pipe(Effect.provide(persistence()));
   }).pipe(
     Effect.ensuring(Effect.sync(() => NodeFS.rmSync(tempDir, { recursive: true, force: true }))),
+  );
+});
+
+const ownSupatermHome = Effect.fn(function* () {
+  const { serverRuntimeStatePath } = yield* ServerConfig.ServerConfig;
+  // An empty home, so no boot service installed on this machine is read.
+  const home = yield* (yield* FileSystem.FileSystem).makeTempDirectoryScoped();
+  yield* ServerOwnership.acquireServerOwnership(serverRuntimeStatePath).pipe(
+    Effect.provide(ProcessRunner.layer),
+    Effect.provideService(HostProcess.HomeDirectory, home),
+    Effect.provideService(HostProcess.Environment, {}),
+  );
+});
+
+const migrateTo = (toMigrationInclusive?: number) =>
+  Effect.gen(function* () {
+    const { dbPath } = yield* ServerConfig.ServerConfig;
+    yield* Effect.gen(function* () {
+      yield* runMigrations();
+      if (toMigrationInclusive === undefined) return;
+      // The ledger alone decides what is pending, so forgetting later ids leaves them to run.
+      const sql = yield* SqlClient.SqlClient;
+      yield* sql`DELETE FROM effect_sql_migrations WHERE migration_id > ${toMigrationInclusive}`;
+    }).pipe(Effect.provide(NodeSqliteClient.layer({ filename: dbPath })));
+  });
+
+const latestRecordedMigrationId = Effect.gen(function* () {
+  const { dbPath } = yield* ServerConfig.ServerConfig;
+  const rows = yield* Effect.gen(function* () {
+    const sql = yield* SqlClient.SqlClient;
+    return yield* sql<{ readonly id: number }>`
+      SELECT MAX(migration_id) AS id FROM effect_sql_migrations
+    `;
+  }).pipe(Effect.provide(NodeSqliteClient.layer({ filename: dbPath })));
+  return rows[0]?.id;
+});
+
+const layerSupatermHome = ServerConfig.layerTest(process.cwd(), { prefix: "supaterm-sqlite-cli-" });
+
+it.layer(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer))("layerCliConfig", (it) => {
+  it.effect("does not migrate a Supaterm home a running server owns", () =>
+    Effect.gen(function* () {
+      const recorded = Math.max(...migrationManifest.map(([id]) => id)) - 1;
+      yield* migrateTo(recorded);
+      yield* ownSupatermHome();
+
+      const opened = yield* Effect.void.pipe(
+        Effect.provide(SqlitePersistence.layerCliConfig),
+        Effect.result,
+      );
+
+      assert.equal(yield* latestRecordedMigrationId, recorded);
+      assert.equal(opened._tag, "Failure");
+      if (opened._tag === "Failure") {
+        assert.instanceOf(opened.failure, SqlitePersistence.ServerOwnsDatabaseError);
+      }
+    }).pipe(Effect.scoped, Effect.provide(layerSupatermHome)),
+  );
+
+  it.effect("opens a current Supaterm home while a running server owns it", () =>
+    Effect.gen(function* () {
+      yield* migrateTo();
+      yield* ownSupatermHome();
+
+      yield* Effect.void.pipe(Effect.provide(SqlitePersistence.layerCliConfig));
+    }).pipe(Effect.scoped, Effect.provide(layerSupatermHome)),
   );
 });
