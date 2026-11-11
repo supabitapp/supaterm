@@ -1,4 +1,5 @@
 import { SIDEBAR_SORTABLE_DRAG_DISABLED } from "./SidebarListMarkers";
+import { asLaunchingThread } from "@supaterm/client-runtime/state/thread-inbox";
 import { ThreadHoverCard, ThreadHoverCardPopup } from "../ThreadHoverCard";
 import { discardComposerDraft } from "../../lib/discardComposerDraft";
 import { resolveThreadCurrentPullRequestLink } from "@supaterm/client-runtime/thread-pull-requests";
@@ -474,9 +475,16 @@ export function SortableThreadRow(
   };
   // The sidebar arranges rows from quiet shells, which hold still while a
   // thread streams; reading the live shell here re-renders only this row.
+  const liveThread = useSidebarThreadShell(
+    scopeThreadRef(rowProps.thread.environmentId, rowProps.thread.id),
+  );
+  // A runtime on the arranged copy but not the run-less live shell is the list's launch overlay.
   const thread =
-    useSidebarThreadShell(scopeThreadRef(rowProps.thread.environmentId, rowProps.thread.id)) ??
-    rowProps.thread;
+    liveThread === null
+      ? rowProps.thread
+      : rowProps.thread.runtime !== null
+        ? asLaunchingThread(liveThread)
+        : liveThread;
   return <SidebarThreadRow {...rowProps} thread={thread} sortable={bag} />;
 }
 

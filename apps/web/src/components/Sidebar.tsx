@@ -52,6 +52,7 @@ import {
   threadWokeAt,
 } from "@supaterm/client-runtime/state/thread-snooze";
 import {
+  asLaunchingThread,
   createInboxReturnTracker,
   isThreadWorking,
 } from "@supaterm/client-runtime/state/thread-inbox";
@@ -239,7 +240,12 @@ import { SidebarGroupHeader } from "./sidebar/SidebarGroupHeader";
 import { SidebarPrimaryNavigation } from "./sidebar/SidebarPrimaryNavigation";
 import { TooltipProvider } from "./ui/tooltip";
 import { deleteSelectedThreadEntries } from "../lib/threadBatchDelete";
-import { composerDraftHasUserContent, DraftId, useComposerDraftStore } from "../composerDraftStore";
+import {
+  composerDraftHasUserContent,
+  DraftId,
+  useComposerDraftStore,
+  usePromotingDraftThreadKeys,
+} from "../composerDraftStore";
 import { useThreadRouteTarget } from "../hooks/useThreadRouteTarget";
 import { useChatPaneStore } from "../chatPanes/store";
 import { useShallow } from "zustand/react/shallow";
@@ -1073,6 +1079,15 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
     canClearMissingScope: allProjectSnapshotsReady && allProjectConfigsReady,
   });
   const threads = useQuietSidebarThreadShells();
+  const promotingDraftThreadKeys = usePromotingDraftThreadKeys();
+  const listedThreads =
+    promotingDraftThreadKeys.length === 0
+      ? threads
+      : threads.map((thread) =>
+          promotingDraftThreadKeys.includes(threadShellKey(thread))
+            ? asLaunchingThread(thread)
+            : thread,
+        );
   const routeRowThreadKey =
     routeThreadRef === null
       ? null
@@ -1259,7 +1274,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
     optimisticDrop,
     hiddenEnvironmentIds,
     keptThreadKey,
-    threads,
+    threads: listedThreads,
     routeRowThreadKey,
     // A Working row only drags out as chat context, so it never reveals the pin order.
     dragging: dragState !== null && dragState.activeSection !== "working",
