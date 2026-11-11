@@ -13,6 +13,7 @@ import { PullRequestChecksPopover } from "../pullRequest/PullRequestChecksPopove
 import { pullRequestChecksState } from "../pullRequest/pullRequestPresentation";
 import { Popover, type PopoverCreateHandle, PopoverPopup, PopoverTrigger } from "../ui/popover";
 import { CommandOutputPanel } from "./CommandOutputPanel";
+import { ShellCommandBlock } from "./ShellCommandBlock";
 
 export interface WatchedPullRequest {
   readonly threadRef: ScopedThreadRef;
@@ -81,6 +82,7 @@ export interface BackgroundTaskOutputTarget {
   readonly threadId: ThreadId;
   readonly taskId: string;
   readonly label: string;
+  readonly command: string | undefined;
 }
 
 export type BackgroundTaskOutputHandle = ReturnType<
@@ -101,6 +103,11 @@ export function BackgroundTaskOutputPopover({ handle }: { handle: BackgroundTask
         payload === undefined ? null : (
           <PopoverPopup side="top" align="start" width="xl" aria-label={`Output: ${payload.label}`}>
             <div className="mb-2 truncate font-medium text-xs">{payload.label}</div>
+            {payload.command !== undefined && payload.command.trim() !== payload.label ? (
+              <div className="mb-2 max-h-32 overflow-y-auto rounded-md border border-border bg-muted/20 p-2 font-mono text-(length:--font-size-code,var(--text-2xs)) whitespace-pre-wrap break-words select-text">
+                <ShellCommandBlock command={payload.command} />
+              </div>
+            ) : null}
             {/* Fixed, so the popover keeps its place while output streams in. */}
             <div className="h-80 font-mono text-(length:--font-size-code,var(--text-2xs)) leading-relaxed whitespace-pre-wrap break-words select-text [&_*]:[scrollbar-width:none] [&_*::-webkit-scrollbar]:hidden">
               <CommandOutputPanel
