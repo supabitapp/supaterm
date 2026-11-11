@@ -1,5 +1,7 @@
 import {
   memo,
+  useEffect,
+  useState,
   type ComponentProps,
   type MouseEventHandler,
   type PointerEventHandler,
@@ -20,16 +22,23 @@ import {
   alternateComposerDispatchAction,
 } from "@supaterm/client-runtime/state/composer-dispatch";
 import {
+  composerStopDeadlineMs,
+  expireComposerStop,
+  requestComposerStop,
   resolveComposerPrimaryAction,
+  stepComposerStop,
   type ComposerPrimaryAction,
   type ComposerPrimaryActionBlock,
   type ComposerPrimaryActionInput,
+  type ComposerStopState,
 } from "./composerPrimaryAction.logic";
 
 interface ComposerPrimaryActionsProps extends Omit<
   ComposerPrimaryActionInput,
-  "alternateModifier"
+  "alternateModifier" | "stopPhase"
 > {
+  /** The run a Stop click interrupts; a new run starts its Stop afresh. */
+  runId?: string | null;
   compact: boolean;
   keybindings: ResolvedKeybindingsConfig;
   sendShortcut?: ClientSettings["sendShortcut"] | undefined;
@@ -202,18 +211,31 @@ export const ComposerPrimaryActions = memo(function ComposerPrimaryActions({
   onSubmitMessage,
   onResume,
   onInterrupt,
+  runId = null,
   ...facts
 }: ComposerPrimaryActionsProps) {
   const { canOperateThread, canInterrupt, isRunning, followUpBehavior, canSteer } = facts;
   const pointerFocusProps = preserveComposerFocusOnPointerDown
     ? { onPointerDown: preventPointerFocus }
     : undefined;
+  const [storedStop, setStop] = useState<ComposerStopState>({ runId, phase: "idle" });
+  const stop = stepComposerStop(storedStop, { runId, canInterrupt, canOperateThread });
+  if (stop !== storedStop) setStop(stop);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- timers that re-enable an unanswered Stop and lift the landed click guard
+  useEffect(() => {
+    const deadlineMs = composerStopDeadlineMs(stop.phase);
+    if (deadlineMs === null) return;
+    const timeout = setTimeout(() => setStop(expireComposerStop), deadlineMs);
+    return () => clearTimeout(timeout);
+  }, [stop.phase]);
   const shortcutModifiers = useShortcutModifierState();
   const action = resolveComposerPrimaryAction({
     ...facts,
+    stopPhase: stop.phase,
     alternateModifier: shortcutModifiers.metaKey || shortcutModifiers.ctrlKey,
   });
   const disabled = action.busy || action.blocked !== null;
+  const stopping = action.stop === "stopping";
 
   const renderStopGenerationButton = (insidePendingAction: boolean) => (
     <Tooltip key="interrupt">
@@ -222,15 +244,17 @@ export const ComposerPrimaryActions = memo(function ComposerPrimaryActions({
           <button
             type="button"
             className={cn(
-              "flex shrink-0 cursor-pointer items-center justify-center rounded-full bg-destructive/90 text-white shadow-xs shadow-destructive/24 inset-shadow-control-highlight transition-colors duration-150 ease-out hover:bg-destructive active:inset-shadow-control-pressed active:shadow-none motion-reduce:transition-none [&_svg]:pointer-events-none",
+              "flex shrink-0 cursor-pointer items-center justify-center rounded-full bg-destructive/90 text-white shadow-xs shadow-destructive/24 inset-shadow-control-highlight transition-colors duration-150 ease-out hover:bg-destructive active:inset-shadow-control-pressed active:shadow-none disabled:cursor-default disabled:opacity-64 disabled:hover:bg-destructive/90 motion-reduce:transition-none [&_svg]:pointer-events-none",
               insidePendingAction ? "size-8 sm:size-7" : "size-8 sm:h-8 sm:w-8",
             )}
             {...pointerFocusProps}
-            disabled={!canOperateThread}
+            disabled={!canOperateThread || stopping}
             onClick={() => {
-              if (canOperateThread) onInterrupt();
+              if (!canOperateThread || stopping) return;
+              setStop(requestComposerStop);
+              onInterrupt();
             }}
-            aria-label="Stop generation"
+            aria-label={stopping ? "Stopping" : "Stop generation"}
           />
         }
       >
@@ -239,7 +263,7 @@ export const ComposerPrimaryActions = memo(function ComposerPrimaryActions({
         </svg>
       </TooltipTrigger>
       <TooltipPopup shortcut={shortcutLabelForCommand(keybindings, "thread.stop")}>
-        Interrupt
+        {stopping ? "Stopping…" : "Interrupt"}
       </TooltipPopup>
     </Tooltip>
   );
@@ -247,11 +271,14 @@ export const ComposerPrimaryActions = memo(function ComposerPrimaryActions({
   if (action.kind === "answer") {
     return (
       <div className={cn("flex items-center justify-end", compact ? "gap-1.5" : "gap-2")}>
-        {canInterrupt ? renderStopGenerationButton(true) : null}
+        {action.stop === "none" ? null : renderStopGenerationButton(true)}
         <button
           type="submit"
           className={cn(messageActionPillClassName, "h-8 sm:h-7", compact ? "px-3" : "px-4")}
           {...pointerFocusProps}
+          onClick={(event) => {
+            if (action.guarded) event.preventDefault();
+          }}
           disabled={disabled}
         >
           {formatPendingPrimaryActionLabel({
@@ -285,7 +312,14 @@ export const ComposerPrimaryActions = memo(function ComposerPrimaryActions({
     <ComposerSendButton
       type={showResume ? "button" : "submit"}
       {...pointerFocusProps}
-      onClick={showResume ? onResume : onSubmitMessage}
+      onClick={(event) => {
+        if (action.guarded) {
+          event.preventDefault();
+          return;
+        }
+        if (showResume) onResume?.();
+        else onSubmitMessage?.(event);
+      }}
       disabled={disabled}
       aria-label={submitStatus ?? submitLabel}
     >
@@ -295,7 +329,7 @@ export const ComposerPrimaryActions = memo(function ComposerPrimaryActions({
 
   return (
     <>
-      {canInterrupt ? renderStopGenerationButton(false) : null}
+      {action.stop === "none" ? null : renderStopGenerationButton(false)}
       <Tooltip key="submit">
         <TooltipTrigger render={<span className="inline-flex" />}>{sendButton}</TooltipTrigger>
         <TooltipPopup side="top">

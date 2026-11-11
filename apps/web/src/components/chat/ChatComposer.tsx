@@ -1335,12 +1335,13 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     hasSendableContent: composerSendState.hasSendableContent,
     canResume: showResumeAction,
     isEditingQueuedMessage,
-  } satisfies Omit<ComposerPrimaryActionInput, "alternateModifier">;
+  } satisfies Omit<ComposerPrimaryActionInput, "alternateModifier" | "stopPhase">;
   // Collapsed only with no pending question; it has no Stop control and is inert during a run.
   const collapsedComposerPrimaryAction = resolveComposerPrimaryAction({
     ...composerPrimaryActionFacts,
     pendingAction: null,
     canInterrupt: false,
+    stopPhase: "idle",
     alternateModifier: false,
   });
   const collapsedComposerPrimaryActionDisabled =
@@ -4151,9 +4152,12 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
                         />
                       ) : null}
                       <ComposerPrimaryActions
+                        // Stop state belongs to one thread; the composer stays mounted across threads.
+                        key={`${environmentId}:${activeThreadId ?? "new"}`}
                         compact={isComposerResting || isComposerPrimaryActionsCompact}
                         keybindings={keybindings}
                         {...composerPrimaryActionFacts}
+                        runId={activeThread?.runtime?.activeRunId ?? null}
                         sendShortcut={settings.sendShortcut}
                         isDraftThread={_isLocalDraftThread}
                         hasMultilinePrompt={hasMultilinePrompt}
