@@ -58,7 +58,7 @@ function composerProps(
     canResume: false,
     sendDisabledReason: null,
     isPreparingWorktree: false,
-    isCompacting: false,
+    canSteer: true,
     bannerItems: [],
     environmentUnavailable: null,
     activePendingApproval: null,

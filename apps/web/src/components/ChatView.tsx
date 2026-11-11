@@ -110,7 +110,11 @@ import {
   resolveWorkflowOpening,
   workflowOpeningParentThreadId,
 } from "@supaterm/client-runtime/state/subagentRuntime";
-import { threadSupportsProviderHandoff } from "@supaterm/client-runtime/state/thread-workflows";
+import {
+  threadSteersDuringCompaction,
+  threadSupportsProviderHandoff,
+} from "@supaterm/client-runtime/state/thread-workflows";
+import { compactionBlocksSteering } from "@supaterm/client-runtime/state/composer-dispatch";
 import { resolvePendingHandoff } from "@supaterm/client-runtime/handoff";
 import { HandoffRow } from "./chat/V2LifecycleRow";
 import {
@@ -1494,9 +1498,17 @@ export default function ChatView(props: ChatViewProps) {
       item.runId === activeRuntime?.activeRunId &&
       item.status === "running",
   )?.item;
+  const compactCommandIsActive = compactRequestIsActive && !compactionSettled;
   const isCompacting =
     (phase === "connecting" || phase === "running") &&
-    (runningCompaction !== undefined || (compactRequestIsActive && !compactionSettled));
+    (runningCompaction !== undefined || compactCommandIsActive);
+  const compactionBlocksSteer = compactionBlocksSteering({
+    compactCommandIsActive,
+    compactionRunning: runningCompaction !== undefined,
+    steersDuringCompaction: threadSteersDuringCompaction(serverProjection),
+    run: serverProjection?.runs.find((run) => run.id === activeRuntime?.activeRunId),
+    messages: serverProjection?.messages,
+  });
   const isWorking = phase === "running" || isCompacting || runlessWorkStartedAt !== null;
   const activeContextWindow = deriveLatestContextWindowSnapshot(
     serverVisibleTurnItems ?? [],
@@ -3777,7 +3789,7 @@ export default function ChatView(props: ChatViewProps) {
                                     isLocalDraftThread && activeProject === null
                                   }
                                   phase={phase}
-                                  isCompacting={isCompacting}
+                                  canSteer={!compactionBlocksSteer}
                                   canInterrupt={canInterruptRunningThread}
                                   isSendBusy={queuedRunEdit.isSaving || isResuming}
                                   canResume={resumableRunId !== null || hasHeldQueuedRuns}
