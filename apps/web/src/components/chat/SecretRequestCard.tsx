@@ -110,14 +110,14 @@ function PendingSecretRequestForm(props: {
     inFlight.current = true;
     setSubmitting(true);
     setError(null);
+    // A filled login leaving the screen makes the system offer to save it as a password.
+    if (reply.type === "save") setValues({});
     const result = await answer({ environmentId: props.environmentId, input }).finally(() => {
       inFlight.current = false;
       setSubmitting(false);
     });
-    if (result._tag === "Success") {
-      setValues({});
-      return;
-    }
+    if (result._tag === "Success") return;
+    if (reply.type === "save") setValues(reply.values);
     if (!isAtomCommandInterrupted(result)) {
       pipe(squashAtomCommandFailure(result), secretRequestFailureMessage, setError);
     }
