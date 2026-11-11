@@ -339,6 +339,8 @@ interface ThreadState {
    * so the next execution end belongs to that run; it clears this and ends no turn.
    */
   unsettledRun: UnsettledRun;
+  /** Execution starts seen; lets a check that awaited OpenCode notice a run that began meanwhile. */
+  starts: number;
   directory: string;
   agent: string;
   title: string | undefined;
@@ -845,6 +847,7 @@ export const make = Effect.fn("OpenCode2Adapter.make")(function* (instanceId: Pr
       active: undefined,
       model: undefined,
       unsettledRun: "none",
+      starts: 0,
       directory,
       agent: "build",
       title: undefined,
@@ -3113,6 +3116,7 @@ export const make = Effect.fn("OpenCode2Adapter.make")(function* (instanceId: Pr
           // `unsettledRun` waits on is over: its unseen end was lost with a dropped stream, and
           // the next end is this execution's own.
           const state = threads.get(sessionId);
+          if (state !== undefined) state.starts += 1;
           if (state?.unsettledRun === "started") state.unsettledRun = "none";
           else if (state?.unsettledRun === "notStarted") state.unsettledRun = "started";
           busy.add(sessionId);
@@ -3880,21 +3884,36 @@ export const make = Effect.fn("OpenCode2Adapter.make")(function* (instanceId: Pr
       verb: "roll back" | "fork",
     ) {
       const state = threads.get(sessionId);
+      // A stopped turn whose end was lost with the stream stays active here,
+      // so OpenCode's own list decides whether it still runs.
+      const stopped = state?.active?.interrupted === true ? state.active : undefined;
+      const starts = state?.starts;
+      const stillWorking = new ProviderAdapter.ProviderAdapterProtocolError({
+        driver: OPENCODE_PROVIDER,
+        detail: `Cannot ${verb} OpenCode session ${sessionId} while it is still working`,
+      });
       const busyHere =
         state !== undefined &&
-        (state.active !== undefined ||
-          busy.has(sessionId) ||
+        ((stopped === undefined && (state.active !== undefined || busy.has(sessionId))) ||
           (verb === "roll back" && hasBackground(state)));
       const busyThere =
         !busyHere &&
-        (state === undefined || state.unsettledRun !== "none") &&
+        (state === undefined || state.unsettledRun !== "none" || stopped !== undefined) &&
         sessionId in (yield* client.session.active().pipe(Effect.timeout(ACTIVE_CHECK_TIMEOUT)));
-      if (busyHere || busyThere) {
-        return yield* new ProviderAdapter.ProviderAdapterProtocolError({
-          driver: OPENCODE_PROVIDER,
-          detail: `Cannot ${verb} OpenCode session ${sessionId} while it is still working`,
-        });
-      }
+      if (busyHere || busyThere) return yield* stillWorking;
+      if (state === undefined || stopped === undefined) return;
+      yield* lock.withPermit(
+        Effect.gen(function* () {
+          // A run that started during the check may postdate OpenCode's answer.
+          if (state.starts !== starts) return yield* stillWorking;
+          if (state.active !== stopped) return;
+          // Its end may still arrive late; unsettledRun swallows it and makes the next turn await its start.
+          // OpenCode reported it idle, so any later start is a new run.
+          state.unsettledRun = "started";
+          busy.delete(sessionId);
+          yield* finishTurn(state, stopped, { status: "interrupted" });
+        }),
+      );
     });
 
     const cancelStrandedSteers = Effect.fnUntraced(function* (state: ThreadState) {
