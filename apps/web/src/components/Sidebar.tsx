@@ -97,16 +97,11 @@ import {
 import { isElectron } from "../env";
 import {
   shortcutLabelForCommand,
-  shouldShowThreadJumpHintsForModifiers,
   threadJumpCommandForIndex,
   threadJumpIndexFromCommand,
   threadTraversalDirectionFromCommand,
 } from "../keybindings";
-import { useShortcutModifierState } from "../shortcutModifierState";
-import { isPreviewFocused } from "../lib/previewFocus";
 import { isModelPickerOpen } from "../modelPickerVisibility";
-import { selectThreadTerminalUiState, useTerminalUiStateStore } from "../terminalUiStateStore";
-import { selectActiveRightPanel, useRightPanelStore } from "../rightPanelStore";
 import { isMacPlatform } from "~/lib/utils";
 import { readLocalApi } from "../localApi";
 import { useSidebarPendingFileDropStore } from "../sidebarPendingFileDropStore";
@@ -136,7 +131,6 @@ import { useNewThreadHandler } from "../hooks/useHandleNewThread";
 import { useOrderWhileOpen } from "../hooks/useOrderWhileOpen";
 import { useProjectPin } from "../hooks/useProjectGroupUpdate";
 import { useSidebarProjectGroups } from "../hooks/useSidebarProjectGroups";
-import { useTerminalFocus } from "../hooks/useTerminalFocus";
 import { type CommandInvocation, registerCommands } from "../shortcuts/dispatcher";
 import { isCommandPaletteOpen, openCommandPalette } from "../commandPaletteBus";
 import { registerMarkDoneAndAdvance } from "../markDoneAndAdvance";
@@ -207,6 +201,7 @@ import {
   sortPinnedThreadsForSidebar,
   sortWorkingThreadsBySend,
   useSnoozeWakeClock,
+  threadShortcutContext,
   useThreadJumpHintsVisible,
   type SidebarSection,
 } from "./Sidebar.logic";
@@ -1007,8 +1002,6 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
   // The undo notice resizes the footer and shifts the bottom-pinned done
   // shelf. It mounts and expires apart from any reorder, so it needs its own pass.
   const undoNoticeShown = useThreadUndoNotice((state) => state.notice !== null);
-  const shortcutModifiers = useShortcutModifierState();
-  const terminalFocused = useTerminalFocus();
   // Safari can send a click after Ctrl+click opens settings. Ignore that one
   // selection, then clear the guard when the menu opens again.
   const suppressNextScopeChangeRef = useRef(false);
@@ -1064,15 +1057,6 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
     ),
   );
   const paneThreadKeys = new Set(paneThreadKeyList);
-  const routeTerminalOpen = useTerminalUiStateStore((state) =>
-    routeThreadRef
-      ? selectThreadTerminalUiState(state.terminalUiStateByThreadKey, routeThreadRef).terminalOpen
-      : false,
-  );
-  const routePreviewOpen = useRightPanelStore(
-    (state) => selectActiveRightPanel(state.byThreadKey, routeThreadRef) === "preview",
-  );
-
   // A selection made under one scope can hold threads the next scope hides.
   // The viewport outlives the scope and does not anchor, so a new list starts at the top.
   const setProjectScopeKeys = (keys: readonly string[]) => {
@@ -2768,10 +2752,10 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
       navigateToThread(scopeThreadRef(targetThread.environmentId, targetThread.id));
     },
   );
-  const readRoutePanelsOpen = useEffectEvent(() => ({
-    terminalOpen: routeTerminalOpen,
-    previewOpen: routePreviewOpen,
-  }));
+  const readRoutePanelsOpen = useEffectEvent(() => {
+    const { terminalOpen, previewOpen } = threadShortcutContext(routeThreadRef);
+    return { terminalOpen, previewOpen };
+  });
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- registers thread traversal and jump commands with the dispatcher for the sidebar's lifetime
   useEffect(
     () =>
@@ -2782,23 +2766,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
     [],
   );
 
-  const shouldShowJumpHintsNow = shouldShowThreadJumpHintsForModifiers(
-    shortcutModifiers,
-    keybindings,
-    {
-      platform: navigator.platform,
-      context: {
-        terminalFocus: terminalFocused,
-        terminalOpen: routeTerminalOpen,
-        previewFocus: isPreviewFocused(),
-        previewOpen: routePreviewOpen,
-        modelPickerOpen: isModelPickerOpen(),
-        isWeb: !isElectron,
-        isDesktop: isElectron,
-      },
-    },
-  );
-  const showJumpHints = useThreadJumpHintsVisible(shouldShowJumpHintsNow);
+  const showJumpHints = useThreadJumpHintsVisible(keybindings, routeThreadRef);
 
   return (
     <>
