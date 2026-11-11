@@ -17,6 +17,26 @@ export const HOSTED_APP_CHANNEL_LABEL =
   HOSTED_APP_CHANNEL === "nightly" ? "Nightly" : HOSTED_APP_CHANNEL === "latest" ? "Latest" : null;
 export const APP_BASE_NAME = injectedDesktopAppBranding?.baseName ?? "Supaterm";
 export const APP_DISPLAY_NAME = injectedDesktopAppBranding?.displayName ?? APP_BASE_NAME;
+
+/**
+ * Names the open thread: `project / thread` on desktop, where the OS already
+ * shows the app, with the app name appended in browser tabs.
+ */
+export function resolveWindowTitle(input: {
+  readonly appDisplayName: string;
+  readonly projectTitle: string | null;
+  readonly threadTitle: string | null;
+  readonly desktop: boolean;
+}): string {
+  const threadTitle = input.threadTitle?.trim() ?? "";
+  if (threadTitle === "") {
+    return input.appDisplayName;
+  }
+
+  const projectTitle = input.projectTitle?.trim() ?? "";
+  const context = projectTitle === "" ? threadTitle : `${projectTitle} / ${threadTitle}`;
+  return input.desktop ? context : `${context} - ${input.appDisplayName}`;
+}
 export const APP_VERSION = import.meta.env.APP_VERSION || "0.0.0";
 export const WEBSITE_URL = "https://supaterm.com";
 export const SOURCE_CODE_URL = "https://github.com/supabitapp/supaterm";
