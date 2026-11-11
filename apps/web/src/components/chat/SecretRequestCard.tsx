@@ -128,8 +128,20 @@ function PendingSecretRequestForm(props: {
     void send({ type: "save", values });
   };
   const incomplete = secretRequestAnswerInput(item, { type: "save", values }) === null;
-  const describedBy = error !== null ? `${privacyId} ${errorId}` : privacyId;
   const link = secretRequestLink(item);
+  const renderField = (input: SecretRequestInput, index: number) => (
+    <SecretRequestField
+      key={input.key}
+      id={inputId(index)}
+      input={input}
+      value={secretRequestValue(values, input.key)}
+      disabled={locked}
+      invalid={error !== null}
+      describedBy={error !== null ? `${privacyId} ${errorId}` : privacyId}
+      showLabel={item.fields !== undefined}
+      onChange={(value) => setValues((current) => ({ ...current, [input.key]: value }))}
+    />
+  );
 
   return (
     <form
@@ -176,37 +188,9 @@ function PendingSecretRequestForm(props: {
           ) : null}
         </div>
       ) : null}
-      {item.fields === undefined ? null : (
-        <div className="flex min-w-0 flex-col gap-2.5">
-          {inputs.slice(0, -1).map((input, index) => (
-            <SecretRequestField
-              key={input.key}
-              id={inputId(index)}
-              input={input}
-              value={secretRequestValue(values, input.key)}
-              disabled={locked}
-              invalid={error !== null}
-              describedBy={describedBy}
-              showLabel
-              onChange={(value) => setValues((current) => ({ ...current, [input.key]: value }))}
-            />
-          ))}
-        </div>
-      )}
+      {inputs.slice(0, -1).map(renderField)}
       <div className="flex min-w-0 items-end gap-2">
-        {inputs.slice(-1).map((input) => (
-          <SecretRequestField
-            key={input.key}
-            id={inputId(inputs.length - 1)}
-            input={input}
-            value={secretRequestValue(values, input.key)}
-            disabled={locked}
-            invalid={error !== null}
-            describedBy={describedBy}
-            showLabel={item.fields !== undefined}
-            onChange={(value) => setValues((current) => ({ ...current, [input.key]: value }))}
-          />
-        ))}
+        {inputs.slice(-1).map((input) => renderField(input, inputs.length - 1))}
         <Button type="submit" disabled={locked || incomplete}>
           Send
         </Button>

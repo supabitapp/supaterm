@@ -688,13 +688,13 @@ const RequestSecretFields = Schema.Array(
     secret: Schema.optional(Schema.Boolean),
   }),
 ).check(
-  Schema.makeFilter((fields) =>
-    fields.length === 0 || fields.length > 8
-      ? "Give 1 to 8 fields."
-      : new Set(fields.map((field) => field.name)).size === fields.length
-        ? true
-        : "Field names must be unique.",
-  ),
+  Schema.makeFilter((fields) => {
+    if (fields.length === 0 || fields.length > 8) return "Give 1 to 8 fields.";
+    if (new Set(fields.map((field) => field.name)).size !== fields.length) {
+      return "Field names must be unique.";
+    }
+    return true;
+  }),
 );
 
 export const OrchestratorMcpRequestSecretInput = Schema.Struct({
