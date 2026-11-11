@@ -20,7 +20,12 @@ it("opens each listed command's full text and output from the banner", async () 
     projectId: ProjectId.make("project"),
     pullRequests: [],
     tasks: [
-      { taskId: "serve", kind: "command", command: "vp run dev", description: "Serve" },
+      {
+        taskId: "serve",
+        kind: "command",
+        command: "bash -lc 'vp run dev'",
+        description: "bash -lc 'vp run dev'",
+      },
       { taskId: "audit", kind: "command", command: audit, description: "Audit", awaited: true },
     ],
     outputHandle: PopoverCreateHandle<BackgroundTaskOutputTarget>(),
@@ -36,6 +41,10 @@ it("opens each listed command's full text and output from the banner", async () 
     </>,
   );
   await expect.element(screen.getByRole("button", { name: "Details" })).not.toBeInTheDocument();
+  await screen.getByRole("button", { name: "vp run dev" }).click();
+  await expect
+    .element(page.getByRole("dialog").getByText("Command", { exact: true }))
+    .toBeVisible();
   await screen.getByRole("button", { name: "Audit" }).click();
   const popup = page.getByRole("dialog", { name: "Output: Audit" });
   await vi.waitFor(() => expect(popup.element().textContent).toContain(audit));

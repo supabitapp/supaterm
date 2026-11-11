@@ -1,4 +1,5 @@
 import { selectEnvironmentQueryData } from "@supaterm/client-runtime/state/runtime";
+import { commandDisplayText } from "@supaterm/client-runtime/work-log/command-label";
 import type { EnvironmentId, PullRequestRef, ScopedThreadRef, ThreadId } from "@supaterm/contracts";
 import type { AsyncResult } from "effect/reactivity";
 import type { ReactElement } from "react";
@@ -104,8 +105,11 @@ export function BackgroundTaskOutputPopover({ handle }: { handle: BackgroundTask
         payload === undefined ? null : (
           <PopoverPopup side="top" align="start" width="xl" aria-label={`Output: ${payload.label}`}>
             <div className="mb-2 flex items-baseline justify-between gap-3 text-xs">
-              <span className="truncate font-medium">
-                {payload.command?.trim() === payload.label ? "Command" : payload.label}
+              <span className="min-w-0 font-medium break-words">
+                {payload.command !== undefined &&
+                commandDisplayText(payload.command) === payload.label
+                  ? "Command"
+                  : payload.label}
               </span>
               <span className="shrink-0 text-muted-foreground">
                 {payload.awaited ? "Waiting" : "Running"}
