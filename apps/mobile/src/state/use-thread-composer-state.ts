@@ -7,6 +7,7 @@ import { threadRuntimeIsUnsettled } from "@supaterm/client-runtime/state/shell";
 import type { ThreadCheckpointSummary } from "@supaterm/client-runtime/state/thread-checkpoints";
 import { VoiceUploadError } from "@supaterm/client-runtime/state/transcription";
 import type { VoiceRecordingHandOff } from "@supaterm/client-runtime/voice-input";
+import { threadSteersDuringCompaction } from "@supaterm/client-runtime/state/thread-workflows";
 import { resolvePendingHandoff } from "@supaterm/client-runtime/handoff";
 import {
   deriveProviderSubagentStatus,
@@ -80,6 +81,7 @@ import {
 import { selectThreadModel } from "./thread-model-selection";
 import { isClearComposerCommand } from "@supaterm/shared/composerTrigger";
 import {
+  compactionBlocksSteering,
   resolveComposerDispatchMode,
   type ActiveTurnComposerAction,
 } from "@supaterm/client-runtime/state/composer-dispatch";
@@ -310,7 +312,11 @@ export function useThreadComposerState() {
     ? deriveThreadActivityRun(selectedThreadProjection.projection)
     : (selectedThreadShell?.latestRun ?? null);
 
-  const isCompacting = (() => {
+  const activeRunId =
+    selectedThreadRuntime?.activeRunId && threadRuntimeIsUnsettled(selectedThreadRuntime)
+      ? selectedThreadRuntime.activeRunId
+      : null;
+  const compactCommandIsActive = (() => {
     const queuedCompact = selectedThreadQueuedMessages.some(
       (message) =>
         message.messageId === dispatchingQueuedMessageId &&
@@ -318,16 +324,7 @@ export function useThreadComposerState() {
         message.attachments.length === 0,
     );
     if (queuedCompact) return true;
-    const activeRunId = selectedThreadRuntime?.activeRunId;
-    if (!activeRunId || !threadRuntimeIsUnsettled(selectedThreadRuntime)) return false;
-    if (
-      selectedThreadVisibleTurnItems.some(
-        ({ item }) =>
-          item.runId === activeRunId && item.type === "compaction" && item.status === "running",
-      )
-    ) {
-      return true;
-    }
+    if (!activeRunId) return false;
     const compactMessage = selectedThreadVisibleTurnItems.findLast(
       ({ item }) =>
         item.runId === activeRunId &&
@@ -346,8 +343,21 @@ export function useThreadComposerState() {
           item.status === "cancelled"),
     );
   })();
-  // A compacting turn cannot take steering input, so follow-ups queue meanwhile.
-  const canSteerActiveTurn = queueWorkflow?.canPromoteToSteer === true && !isCompacting;
+  const compactionRunning =
+    activeRunId !== null &&
+    selectedThreadVisibleTurnItems.some(
+      ({ item }) =>
+        item.runId === activeRunId && item.type === "compaction" && item.status === "running",
+    );
+  const isCompacting = compactCommandIsActive || compactionRunning;
+  const compactionBlocksSteer = compactionBlocksSteering({
+    compactCommandIsActive,
+    compactionRunning,
+    steersDuringCompaction: threadSteersDuringCompaction(selectedThreadProjection?.projection),
+    run: selectedThreadProjection?.projection.runs.find((run) => run.id === activeRunId),
+    messages: selectedThreadMessages,
+  });
+  const canSteerActiveTurn = queueWorkflow?.canPromoteToSteer === true && !compactionBlocksSteer;
 
   const queueHeld = queueWorkflow?.isHeld === true;
   const resumableRunId = selectedThreadProjection
