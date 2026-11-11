@@ -905,7 +905,7 @@ export const make = Effect.fn("EnvironmentSupervisor.make")(function* (
     ignoreOffline: boolean,
   ) {
     const switchingTo = yield* Ref.get(preferredRoute);
-    const routeCount = connectionRoutes(yield* Ref.get(currentEntry)).length;
+    const routes = connectionRoutes(yield* Ref.get(currentEntry));
     yield* SubscriptionRef.set(prepared, Option.none());
     const synchronizedRoutes = yield* Ref.make(0);
     const routeOpen = yield* SubscriptionRef.make(false);
@@ -930,22 +930,36 @@ export const make = Effect.fn("EnvironmentSupervisor.make")(function* (
       // reaches synchronizing adds its own snapshot budget, so a route that
       // fails late does not eat the next route's time.
       Effect.gen(function* () {
-        const startedAt = yield* Clock.monotonicTimeNanos;
         const setup = Duration.toNanosUnsafe(
           Duration.sum(
-            Duration.times(Duration.fromInputUnsafe(CONNECTION_ESTABLISHMENT_TIMEOUT), routeCount),
-            Duration.millis(routeCount > 1 ? ConnectionDriver.LATE_ROUTE_CHECK_TIMEOUT_MS : 0),
+            Duration.times(
+              Duration.fromInputUnsafe(CONNECTION_ESTABLISHMENT_TIMEOUT),
+              routes.length,
+            ),
+            Duration.millis(routes.length > 1 ? ConnectionDriver.LATE_ROUTE_CHECK_TIMEOUT_MS : 0),
           ),
         );
+        // The desktop bounds SSH preparation, which may download a server
+        // release, so for SSH-only entries the clock stops while preparing.
+        const pausesWhilePreparing = routes.every((route) => connectionRouteKind(route) === "ssh");
+        const preparing = (expected: boolean) =>
+          SubscriptionRef.changes(state).pipe(
+            Stream.filter((current) => (current.stage === "preparing") === expected),
+            Stream.runHead,
+          );
+        let spent = 0n;
         while (true) {
+          if (pausesWhilePreparing) yield* preparing(false);
           const synchronized = BigInt(yield* Ref.get(synchronizedRoutes));
-          const deadline =
-            startedAt + setup + synchronized * Duration.toNanosUnsafe(synchronizationTimeout);
-          const remaining = deadline - (yield* Clock.monotonicTimeNanos);
+          const remaining =
+            setup + synchronized * Duration.toNanosUnsafe(synchronizationTimeout) - spent;
           if (remaining <= 0n) {
             return { _tag: "TimedOut" } as const satisfies EstablishmentEvent;
           }
-          yield* Effect.sleep(Duration.nanos(remaining));
+          const resumedAt = yield* Clock.monotonicTimeNanos;
+          const sleep = Effect.sleep(Duration.nanos(remaining));
+          yield* pausesWhilePreparing ? Effect.raceFirst(sleep, preparing(true)) : sleep;
+          spent += (yield* Clock.monotonicTimeNanos) - resumedAt;
         }
       }),
       ...(wakeRecovery ? [awaitWakeRecoveryStall(routeOpen)] : []),
