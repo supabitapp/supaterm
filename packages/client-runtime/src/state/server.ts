@@ -672,6 +672,7 @@ type ServerProviderEntry = ServerConfig["providers"][number];
 const snapshotBasis = (provider: ServerProviderEntry | undefined) =>
   provider && {
     enabled: provider.enabled,
+    models: provider.models,
     slashCommands: provider.slashCommands,
     skills: provider.skills,
   };
