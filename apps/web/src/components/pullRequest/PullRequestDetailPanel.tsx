@@ -950,9 +950,16 @@ export function PullRequestDetailPanel({
       return;
     }
     setHandoff(kind);
+    // Dismissing the loading toast cancels the handoff before it touches a draft.
+    let cancelled = false;
     const toastId = toastManager.add({
       type: "loading",
       title: `Preparing the ${terminology.singular} checkout...`,
+      data: {
+        onClose: () => {
+          cancelled = true;
+        },
+      },
     });
     const projectRef = scopeProjectRef(
       actingEnvironmentId,
@@ -965,6 +972,10 @@ export function PullRequestDetailPanel({
       (session) => session,
       () => null,
     );
+    if (cancelled) {
+      setHandoff(null);
+      return;
+    }
     if (opened === null) {
       setHandoff(null);
       toastManager.update(toastId, {
@@ -979,6 +990,10 @@ export function PullRequestDetailPanel({
       mode,
       threadId: opened.threadId,
     });
+    if (cancelled) {
+      setHandoff(null);
+      return;
+    }
     if (prepared._tag === "Failure") {
       setHandoff(null);
       toastManager.update(toastId, {
@@ -998,6 +1013,10 @@ export function PullRequestDetailPanel({
       (session) => session,
       () => null,
     );
+    if (cancelled) {
+      setHandoff(null);
+      return;
+    }
     if (pointed === null) {
       setHandoff(null);
       // The checkout is on disk; only the thread failed to move onto it. Writing the task now
