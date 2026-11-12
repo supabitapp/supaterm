@@ -19,6 +19,7 @@ import { mobileHtmlRenderTheme } from "../../lib/htmlRenderTheme";
 import { tryOpenExternalUrl } from "../../lib/openExternalUrl";
 import { useAssetUrlState, useRefreshAssetUrl } from "../../state/assets";
 import { useAppearancePreferences } from "../settings/appearance/AppearancePreferencesProvider";
+import { webViewDecelerationRate } from "../../lib/webViewDecelerationRate";
 import { annotateHtmlRenderText, type HtmlRenderAnnotation } from "./annotateAssistantText";
 
 const ROW_BOTTOM_MARGIN = 8;
@@ -136,7 +137,7 @@ export function HtmlRenderWebView(props: {
         showsVerticalScrollIndicator={!props.nested}
         showsHorizontalScrollIndicator={!props.nested}
         scrollEnabled={scrollable}
-
+        decelerationRate={webViewDecelerationRate}
         nestedScrollEnabled={props.nested && overflow.y}
         overScrollMode={props.nested ? "never" : "always"}
         onShouldStartLoadWithRequest={(request) =>
