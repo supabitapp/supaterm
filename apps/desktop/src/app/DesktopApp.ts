@@ -22,6 +22,7 @@ import * as DesktopApplicationMenu from "../window/DesktopApplicationMenu.ts";
 import * as DesktopWindow from "../window/DesktopWindow.ts";
 import * as DesktopBackendManager from "../backend/DesktopBackendManager.ts";
 import * as DesktopBackendPool from "../backend/DesktopBackendPool.ts";
+import * as DesktopHomeOwner from "../backend/DesktopHomeOwner.ts";
 import * as DesktopEnvironment from "./DesktopEnvironment.ts";
 import * as DesktopLaunchIcon from "./DesktopLaunchIcon.ts";
 import * as DesktopLifecycle from "./DesktopLifecycle.ts";
@@ -201,6 +202,22 @@ const bootstrap = Effect.gen(function* () {
 
   if (environment.isDevelopment && Option.isNone(environment.configuredBackendPort)) {
     return yield* new DesktopDevelopmentBackendPortRequiredError();
+  }
+
+  // A backend started while another server holds this home's lock can only exit with code 78.
+  if (
+    !(settings.wslOnly && settings.wslBackendEnabled) &&
+    (yield* DesktopHomeOwner.isHomeOwnershipLocked())
+  ) {
+    const owner = yield* DesktopHomeOwner.readLiveHomeOwner();
+    yield* logBootstrapWarning("bootstrap found another server owning the Supaterm home", {
+      owner: Option.getOrNull(owner),
+    });
+    yield* (yield* ElectronDialog.ElectronDialog).showErrorBox(
+      "This Supaterm home is unavailable",
+      DesktopHomeOwner.homeOwnedMessage(owner),
+    );
+    return yield* (yield* ElectronApp.ElectronApp).quit;
   }
 
   const backendPortSelection = yield* resolveDesktopBackendPort(environment.configuredBackendPort);

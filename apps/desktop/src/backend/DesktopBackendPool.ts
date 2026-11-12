@@ -9,6 +9,7 @@ import * as Effect from "effect/Effect";
 import * as Exit from "effect/Exit";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
+import * as Path from "effect/Path";
 import * as Schema from "effect/Schema";
 import * as Scope from "effect/Scope";
 import * as SubscriptionRef from "effect/SubscriptionRef";
@@ -20,6 +21,8 @@ import { ChildProcessSpawner } from "effect/process";
 
 import * as DesktopBackendConfiguration from "./DesktopBackendConfiguration.ts";
 import * as DesktopBackendManager from "./DesktopBackendManager.ts";
+import * as DesktopHomeOwner from "./DesktopHomeOwner.ts";
+import * as DesktopEnvironment from "../app/DesktopEnvironment.ts";
 import * as DesktopObservability from "../app/DesktopObservability.ts";
 import * as DesktopState from "../app/DesktopState.ts";
 import * as DesktopAppSettings from "../settings/DesktopAppSettings.ts";
@@ -120,6 +123,9 @@ export const layer = Layer.effect(
     // run.
     const layerScope = yield* Scope.Scope;
     const factoryContext = yield* Effect.context<BackendInstanceFactoryRequirements>();
+    const homeOwnerContext = yield* Effect.context<
+      FileSystem.FileSystem | Path.Path | DesktopEnvironment.DesktopEnvironment
+    >();
 
     // Fatal configuration failures persist the Windows fallback. Bounded
     // transport failures use an in-memory fallback for this launch so the app
@@ -189,12 +195,16 @@ export const layer = Layer.effect(
       onShutdown: () => desktopWindow.handleBackendNotReady,
       onPreflightFailed: handlePrimaryPreflightFailure,
       onStateDirOwned: () =>
-        electronDialog
-          .showErrorBox(
-            "This Supaterm home is unavailable",
-            "Another Supaterm server, such as the background service, is using this data directory, or an older background service is set up for it. Stop that server or try `supaterm update`. If the older launcher cannot update, run `supaterm service uninstall` and optionally reinstall with `supaterm service install` from a current CLI. Use `npx supaterm@latest` if `supaterm` is missing or outdated, and pass `--base-dir` with the service's Supaterm home to each command. Then reopen Supaterm. You can also set a separate SUPATERM_HOME and pair with the running server.",
-          )
-          .pipe(Effect.andThen(electronApp.quit)),
+        DesktopHomeOwner.readLiveHomeOwner().pipe(
+          Effect.flatMap((owner) =>
+            electronDialog.showErrorBox(
+              "This Supaterm home is unavailable",
+              DesktopHomeOwner.homeOwnedMessage(owner),
+            ),
+          ),
+          Effect.provideContext(homeOwnerContext),
+          Effect.andThen(electronApp.quit),
+        ),
     });
 
     const instancesRef = yield* SynchronizedRef.make<
