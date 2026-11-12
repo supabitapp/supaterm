@@ -608,7 +608,7 @@ const claudeUsageLimit = (message: string | undefined) =>
     ? { resetAt: /\bResets at (\d{4}-\d\d-\d\dT[\d:.]+Z)\.?\s*$/.exec(message)?.[1] ?? null }
     : undefined;
 
-const INTERRUPT_TIMEOUT = "10 seconds";
+const INTERRUPT_TIMEOUT = 10_000;
 const INSTRUCTIONS_KEY = "supaterm";
 const RECONNECT_ATTEMPTS = 5;
 const RECONNECT_DELAY = "2 seconds";
@@ -4905,8 +4905,13 @@ export const make = Effect.fn("OpenCode2Adapter.make")(function* (instanceId: Pr
             );
           if (state.active !== turn) return;
           if (reply._tag === "None") {
-            markUnsettled(state);
-            return yield* lock.withPermit(finishTurn(state, turn, { status: "interrupted" }));
+            // The turn stays open: its tools may still run, and the user decides whether to Force stop.
+            return yield* new ProviderAdapter.ProviderAdapterInterruptTimeoutError({
+              driver: OPENCODE_PROVIDER,
+              providerThreadId: interruptInput.providerThread.id,
+              providerTurnId: interruptInput.providerTurnId,
+              timeoutMs: INTERRUPT_TIMEOUT,
+            });
           }
           if (reply.value.interrupted) return;
           // Between the executions a late steer spans nothing runs yet. The
