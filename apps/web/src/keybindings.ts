@@ -100,7 +100,8 @@ function shortcutForContext(binding: ResolvedKeybindingRule, context: ShortcutMa
 
   if (
     context.composerRequiresModifier &&
-    binding.command === "composer.sendAlternate" &&
+    (binding.command === "composer.sendAlternate" ||
+      binding.command === "composer.sendBackground") &&
     shortcut.key === "enter" &&
     shortcut.modKey &&
     !shortcut.metaKey &&
