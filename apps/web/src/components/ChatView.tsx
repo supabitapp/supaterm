@@ -99,6 +99,7 @@ import {
 } from "@supaterm/contracts";
 import { SPEED_TOGGLE_LABELS } from "@supaterm/client-runtime/provider-speed-toggle";
 import {
+  canResumeThread,
   deriveProviderSubagentStatus,
   deriveProviderExtensionStatuses,
   deriveReportedModelSelection,
@@ -924,6 +925,9 @@ export default function ChatView(props: ChatViewProps) {
     !isServerThread || serverProjection === null
       ? null
       : deriveResumableRunId(serverProjection, serverRuntime);
+  const canResume =
+    serverProjection !== null &&
+    canResumeThread(serverProjection, resumableRunId, hasHeldQueuedRuns);
   const parentSubagentThreadId =
     activeThread?.lineage.relationshipToParent === "subagent"
       ? activeThread.lineage.parentThreadId
@@ -3022,6 +3026,7 @@ export default function ChatView(props: ChatViewProps) {
     activeThread,
     resumableRunId,
     hasHeldQueuedRuns,
+    canResume,
     isRevertingCheckpoint,
     threadDetailLoading,
     activeEnvironmentUnavailable,
@@ -3804,7 +3809,7 @@ export default function ChatView(props: ChatViewProps) {
                                   canSteer={!compactionBlocksSteer}
                                   canInterrupt={canInterruptRunningThread}
                                   isSendBusy={queuedRunEdit.isSaving || isResuming}
-                                  canResume={resumableRunId !== null || hasHeldQueuedRuns}
+                                  canResume={canResume}
                                   isRevertingCheckpoint={isRevertingCheckpoint}
                                   sendDisabledReason={
                                     !canQueueMessage
