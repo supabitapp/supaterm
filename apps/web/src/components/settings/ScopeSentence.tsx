@@ -1,4 +1,5 @@
 import { resolveEnvironmentMachineKind } from "@supaterm/contracts";
+import { fileBasename } from "@supaterm/shared/path";
 import { CheckIcon, ChevronDownIcon, FolderIcon, LayersIcon } from "@supaterm/icons";
 import { Fragment, useState, type ReactNode } from "react";
 
@@ -28,13 +29,17 @@ import {
 } from "../ui/menu";
 import type { ResolvedSettingsScope, SettingsScopeSearch } from "./settingsScope";
 import {
+  ALL_CHECKOUTS_VALUE,
   ALL_ENVIRONMENTS_VALUE,
   ALL_PROJECTS_VALUE,
   environmentAxisValue,
   projectAxisValue,
   projectScopeMenuGroups,
+  selectCheckoutAxis,
   selectEnvironmentAxis,
   selectProjectAxis,
+  settingsScopeCheckoutChoices,
+  settingsScopeCheckoutLabel,
   settingsScopeEnvironmentAddress,
   settingsScopeEnvironmentLabel,
   settingsScopeEnvironmentLabels,
@@ -80,6 +85,7 @@ export function ScopeSentence({ lead, ...props }: ScopeSentenceProps) {
         </span>
         <EnvironmentScopeMenu {...props} />
       </span>
+      <CheckoutScopeMenu {...props} />
     </p>
   );
 }
@@ -298,6 +304,45 @@ function EnvironmentScopeMenu({
         };
       })}
     />
+  );
+}
+
+function CheckoutScopeMenu({ value, groups, onChange }: ScopeMenuProps) {
+  const group = groups.find((candidate) => candidate.projectKey === value.project);
+  const checkouts = group ? settingsScopeCheckoutChoices(group, value) : [];
+  if (checkouts.length === 0) return null;
+  const selected = checkouts.find((member) => member.physicalProjectKey === value.checkout);
+  return (
+    <span className="flex min-w-0 items-center gap-1.5">
+      <span className="shrink-0">in</span>
+      <ScopeMenu
+        ariaLabel="Checkout scope"
+        icon={<FolderIcon aria-hidden className="size-3.5 shrink-0" />}
+        label={
+          selected
+            ? settingsScopeCheckoutLabel(selected, checkouts)
+            : value.checkout
+              ? "Unavailable checkout"
+              : "All checkouts"
+        }
+        value={value.checkout ?? ALL_CHECKOUTS_VALUE}
+        onChange={(next) =>
+          onChange(
+            selectCheckoutAxis(
+              value,
+              checkouts.find((member) => member.physicalProjectKey === next) ?? null,
+            ),
+          )
+        }
+        searchLabel="Search checkouts"
+        allOption={{ value: ALL_CHECKOUTS_VALUE, label: "All checkouts" }}
+        options={checkouts.map((member) => ({
+          value: member.physicalProjectKey,
+          label: fileBasename(member.workspaceRoot),
+          secondary: member.workspaceRoot,
+        }))}
+      />
+    </span>
   );
 }
 
