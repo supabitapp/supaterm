@@ -651,10 +651,11 @@ export interface ProviderAdapterV2SessionRuntime {
     options?: { readonly includeSubagents?: boolean },
   ) => Effect.Effect<boolean>;
   /**
-   * Set when every background task this session lists on its provider threads
-   * runs inside the session's own process and ends when it closes. Leave unset
-   * when a task can outlive the session, for example on a shared server, so its
-   * thread keeps showing Waiting.
+   * Set when every background task and tool call this session lists on its provider
+   * threads runs inside the session's own process and ends when it closes. Releasing the
+   * session then clears its task roster and interrupts its open tool calls. Leave unset
+   * when a task can outlive the session, for example on a shared server, so its thread
+   * keeps showing Waiting.
    */
   readonly backgroundTasksEndWithProcess?: true;
   readonly getModelContextWindow?: (
