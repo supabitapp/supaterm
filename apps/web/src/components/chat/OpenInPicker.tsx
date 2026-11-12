@@ -381,6 +381,8 @@ export const OpenInPicker = memo(function OpenInPicker({
           render={
             <ThreadDetailsControl
               aria-label={compact ? "Open file in preferred editor" : primaryLabel}
+              // Tooltip replaces the button data-slot, so toolbar theming needs a separate hook.
+              data-toolbar-control=""
               size={isPanel ? "sm" : "xs"}
               variant={isPanel ? "ghost" : "outline"}
               part="primary"
@@ -431,23 +433,31 @@ export const OpenInPicker = memo(function OpenInPicker({
         <GroupSeparator {...(!compact ? { className: "hidden @3xl/header-actions:block" } : {})} />
       )}
       <Menu open={menuOpen} onOpenChange={setMenuOpen}>
-        <MenuTrigger
-          disabled={isHostEditorDenied}
-          render={
-            <ThreadDetailsControl
-              aria-label="Choose editor"
-              size={isPanel ? "sm" : "icon-xs"}
-              variant={isPanel ? "ghost" : "outline"}
-              part="secondary"
-              panel={isPanel}
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <MenuTrigger
+                disabled={isHostEditorDenied}
+                render={
+                  <ThreadDetailsControl
+                    aria-label="Choose editor"
+                    data-toolbar-control=""
+                    size={isPanel ? "sm" : "icon-xs"}
+                    variant={isPanel ? "ghost" : "outline"}
+                    part="secondary"
+                    panel={isPanel}
+                  />
+                }
+              />
+            }
+          >
+            <ChevronDownIcon
+              aria-hidden="true"
+              className={isPanel ? THREAD_DETAILS_PANEL_CHEVRON_CLASS : "size-4"}
             />
-          }
-        >
-          <ChevronDownIcon
-            aria-hidden="true"
-            className={isPanel ? THREAD_DETAILS_PANEL_CHEVRON_CLASS : "size-4"}
-          />
-        </MenuTrigger>
+          </TooltipTrigger>
+          <TooltipPopup side="top">Choose editor</TooltipPopup>
+        </Tooltip>
         <MenuPopup
           align="end"
           {...(isPanel ? { anchor: panelAnchorRef } : {})}

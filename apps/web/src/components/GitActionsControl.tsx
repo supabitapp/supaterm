@@ -1585,21 +1585,29 @@ export default function GitActionsControl({
               </PopoverPopup>
             </Popover>
           ) : (
-            <ThreadDetailsControl
-              variant="ghost"
-              size="xs"
-              part="primary"
-              panel
-              disabled={!canWriteSourceControl || isGitActionRunning || quickAction.disabled}
-              onClick={runQuickAction}
-            >
-              <GitQuickActionIcon
-                quickAction={quickAction}
-                SourceControlIcon={SourceControlIcon}
-                className={THREAD_DETAILS_PANEL_ICON_CLASS}
-              />
-              <span className="not-sr-only ml-0 truncate">{quickAction.label}</span>
-            </ThreadDetailsControl>
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <ThreadDetailsControl
+                    data-toolbar-control=""
+                    variant="ghost"
+                    size="xs"
+                    part="primary"
+                    panel
+                    disabled={!canWriteSourceControl || isGitActionRunning || quickAction.disabled}
+                    onClick={runQuickAction}
+                  />
+                }
+              >
+                <GitQuickActionIcon
+                  quickAction={quickAction}
+                  SourceControlIcon={SourceControlIcon}
+                  className={THREAD_DETAILS_PANEL_ICON_CLASS}
+                />
+                <span className="not-sr-only ml-0 truncate">{quickAction.label}</span>
+              </TooltipTrigger>
+              <TooltipPopup side="top">{quickAction.label}</TooltipPopup>
+            </Tooltip>
           )}
           {gitActionProgress ? (
             // Use the disabled menu's slot for elapsed time, preserving the status label's width.
@@ -1617,23 +1625,31 @@ export default function GitActionsControl({
                   }
                 }}
               >
-                <MenuTrigger
-                  render={
-                    <ThreadDetailsControl
-                      aria-label="Git action options"
-                      size="sm"
-                      variant="ghost"
-                      part="secondary"
-                      panel
+                <Tooltip>
+                  <TooltipTrigger
+                    render={
+                      <MenuTrigger
+                        render={
+                          <ThreadDetailsControl
+                            aria-label="Git action options"
+                            data-toolbar-control=""
+                            size="sm"
+                            variant="ghost"
+                            part="secondary"
+                            panel
+                          />
+                        }
+                        disabled={isGitActionRunning || !hasGitMenuContent}
+                      />
+                    }
+                  >
+                    <ChevronDownIcon
+                      aria-hidden="true"
+                      className={THREAD_DETAILS_PANEL_CHEVRON_CLASS}
                     />
-                  }
-                  disabled={isGitActionRunning || !hasGitMenuContent}
-                >
-                  <ChevronDownIcon
-                    aria-hidden="true"
-                    className={THREAD_DETAILS_PANEL_CHEVRON_CLASS}
-                  />
-                </MenuTrigger>
+                  </TooltipTrigger>
+                  <TooltipPopup side="top">Git action options</TooltipPopup>
+                </Tooltip>
                 <MenuPopup align="end" anchor={panelAnchorRef} className="w-(--anchor-width)">
                   {gitItems}
                 </MenuPopup>
