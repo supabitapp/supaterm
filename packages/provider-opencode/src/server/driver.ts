@@ -24,6 +24,7 @@ import * as ProviderHost from "@supaterm/provider-core/server/ProviderHost";
 import type * as IdAllocator from "@supaterm/provider-core/server/IdAllocator";
 import type * as McpProviderSessions from "@supaterm/provider-core/server/McpProviderSessions";
 import { expandHomePath } from "@supaterm/provider-core/server/pathExpansion";
+import { AgentScope } from "@supaterm/shared/AgentScope";
 import { compareSemverVersions } from "@supaterm/shared/semver";
 import * as OpenCode2AdapterV2 from "./v2/adapter.ts";
 import * as ProviderAdapter from "@supaterm/provider-core/server/ProviderAdapter";
@@ -54,6 +55,7 @@ import {
 } from "./versionProbe.ts";
 import * as OpenCode2Client from "./v2/OpenCode2Client.ts";
 import * as OpenCode2Server from "./v2/OpenCode2Server.ts";
+import { replaceOutdatedService } from "./v2/OpenCode2Service.ts";
 import {
   defaultProviderContinuationIdentity,
   type ProviderDriver,
@@ -177,6 +179,7 @@ export const OpenCodeDriver: ProviderDriver<
     const fileSystem = yield* FileSystem.FileSystem;
     const pathService = yield* Path.Path;
     const openCodeRuntime = yield* OpenCodeRuntime.OpenCodeRuntime;
+    const agentScope = yield* AgentScope;
     const httpClient = yield* HttpClient.HttpClient;
     const latestVersions = yield* ProviderLatestVersions.ProviderLatestVersions;
     const digest = yield* Digest.Digest;
@@ -432,6 +435,31 @@ export const OpenCodeDriver: ProviderDriver<
       })),
       Effect.map(stampIdentity),
     );
+    const serverUrl = effectiveConfig.serverUrl.trim();
+    const afterUpdate =
+      serverUrl.length > 0
+        ? replaceOutdatedService({
+            binaryPath: effectiveConfig.binaryPath,
+            serverUrl,
+            environment: processEnv,
+          }).pipe(
+            Effect.ensuring(openCode2Server.forget),
+            Effect.mapError(
+              (cause) =>
+                new ProviderDriverError({
+                  driver: DRIVER_KIND,
+                  instanceId,
+                  detail: "Failed to replace the OpenCode service after an update.",
+                  cause,
+                }),
+            ),
+            Effect.provideService(AgentScope, agentScope),
+            Effect.provideService(OpenCodeRuntime.OpenCodeRuntime, openCodeRuntime),
+            Effect.provideService(FileSystem.FileSystem, fileSystem),
+            Effect.provideService(Path.Path, pathService),
+          )
+        : Effect.void;
+
     const snapshotSettings = yield* makeProviderSnapshotSettingsSource(effectiveConfig);
     const snapshot = yield* makeManagedServerProvider<ProviderSnapshotSettings<OpenCodeSettings>>({
       resolveMaintenance,
@@ -539,6 +567,8 @@ export const OpenCodeDriver: ProviderDriver<
                     })),
                   ),
             ),
+      invalidateCaches: openCode2Server.forget,
+      afterUpdate,
       orchestrationAdapter,
       textGeneration,
     } satisfies ProviderInstance;
