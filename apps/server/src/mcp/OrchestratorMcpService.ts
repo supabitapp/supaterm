@@ -74,6 +74,7 @@ import {
   SECRET_REQUEST_UNSAVED_NOTE,
 } from "@supaterm/contracts";
 import { getProviderOptionCurrentValue, withLegacyUltracodeEffort } from "@supaterm/shared/model";
+import { backgroundWorkHoldsCompletion } from "@supaterm/shared/orchestrationV2PendingBackgroundWork";
 import { latestUnheldRun, runRanAfter } from "@supaterm/shared/orchestrationV2ThreadError";
 import { formatThreadLink } from "@supaterm/shared/threadLinks";
 import {
@@ -926,6 +927,14 @@ function threadPullRequests(
   }));
 }
 
+// Awaited background work keeps a thread live after its turn ends, as auto-mark-done and the sidebar treat it.
+function listedThreadStatus(shell: OrchestrationV2ThreadShell) {
+  if (shell.activityRunStatus != null) return shell.activityRunStatus;
+  return backgroundWorkHoldsCompletion(shell.pendingBackgroundTasks ?? [])
+    ? "waiting"
+    : shell.status;
+}
+
 function listItemFromShell(
   scope: McpInvocationScope,
   shell: OrchestrationV2ThreadShell,
@@ -938,7 +947,7 @@ function listItemFromShell(
     link: threadLinkFor(scope, shell.id, shell.title),
     createdBy: shell.createdBy,
     creationSource: shell.creationSource,
-    status: shell.activityRunStatus ?? shell.status,
+    status: listedThreadStatus(shell),
     latestRunId: shell.latestRunId,
     providerInstanceId: shell.modelSelection.instanceId,
     model: shell.modelSelection.model,
@@ -2923,9 +2932,7 @@ const make = Effect.gen(function* () {
           : new Set(input.statuses);
       const titleContains = input.titleContains?.toLocaleLowerCase();
       const filtered = projectThreads
-        .filter(
-          (thread) => statuses === null || statuses.has(thread.activityRunStatus ?? thread.status),
-        )
+        .filter((thread) => statuses === null || statuses.has(listedThreadStatus(thread)))
         .filter((thread) => input.done === undefined || threadDone(thread).done === input.done)
         .filter(
           (thread) => input.snoozed === undefined || isSnoozed(thread, nowMs) === input.snoozed,
