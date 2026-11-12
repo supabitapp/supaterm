@@ -202,8 +202,11 @@ type NewTaskFlowContextValue = {
   readonly setProject: (project: EnvironmentProject) => void;
   /** The flow's project, read when a continuation resumes after an await. */
   readonly getSelectedProjectKey: () => string | null;
-  /** The route names a draft that is gone, or whose project is gone. */
-  readonly routeDraftMissing: boolean;
+  /** The route's draft cannot open: it is gone (`missing`) or only its project is (`pickProject`). */
+  readonly unopenableRouteDraft: {
+    readonly draftId: string;
+    readonly kind: "missing" | "pickProject";
+  } | null;
   readonly switchEnvironment: (environmentId: EnvironmentId) => Promise<boolean>;
   readonly switchingToEnvironmentId: EnvironmentId | null;
   /** An edited pending task with follow-ups queued behind it stays on its machine. */
@@ -1112,7 +1115,11 @@ function useNewTaskFlowValue(
     served: instance.served,
     setProject,
     getSelectedProjectKey: () => readFlow().projectKey,
-    routeDraftMissing: routeDraftResolution.kind === "missing",
+    unopenableRouteDraft:
+      routeDraftId !== undefined &&
+      (routeDraftResolution.kind === "missing" || routeDraftResolution.kind === "pickProject")
+        ? { draftId: routeDraftId, kind: routeDraftResolution.kind }
+        : null,
     switchEnvironment,
     switchingToEnvironmentId,
     environmentPinned,

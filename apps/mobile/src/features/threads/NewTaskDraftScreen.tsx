@@ -292,9 +292,14 @@ export function NewTaskDraftScreen(props: {
     setIsReturningToProjectPicker(false);
   }
   // A route naming a draft that is gone, or whose project is gone, also
-  // returns to the picker.
+  // returns to the picker; a draft that survives goes along with it.
+  const pickerDraftId =
+    flow.unopenableRouteDraft?.kind === "pickProject"
+      ? flow.unopenableRouteDraft.draftId
+      : undefined;
   const isProjectPickerReturnActive =
-    (isReturningToProjectPicker && !requestedInitialProjectAvailable) || flow.routeDraftMissing;
+    (isReturningToProjectPicker && !requestedInitialProjectAvailable) ||
+    flow.unopenableRouteDraft !== null;
   const isIncomingShareAwaitingServerConfig = Boolean(
     incomingShare?.attachments.some((attachment) => attachment.type === "file") &&
     selectedEnvironmentServerConfig === null,
@@ -393,11 +398,14 @@ export function NewTaskDraftScreen(props: {
     // Wait for usePreventRemove to disable before replacing, or the transfer guard swallows the fallback.
     const frame = requestAnimationFrame(() => {
       navigation.dispatch(
-        StackActions.replace("NewTaskProject", { incomingShareId: props.incomingShareId }),
+        StackActions.replace("NewTaskProject", {
+          incomingShareId: props.incomingShareId,
+          draftId: pickerDraftId,
+        }),
       );
     });
     return () => cancelAnimationFrame(frame);
-  }, [isProjectPickerReturnActive, navigation, props.incomingShareId]);
+  }, [isProjectPickerReturnActive, navigation, pickerDraftId, props.incomingShareId]);
   const lastInitialProjectRefRef = useRef(props.initialProjectRef);
   const initialPickerRef = useRef<"open" | "dismissed" | null>(null);
 
