@@ -1,4 +1,11 @@
-import { type FocusEvent, use, useLayoutEffect, useRef, type ReactNode } from "react";
+import {
+  type FocusEvent,
+  type MouseEventHandler,
+  use,
+  useLayoutEffect,
+  useRef,
+  type ReactNode,
+} from "react";
 import { MaximizedContext } from "./PreviewPanelLayout";
 import { canReturnFocusTo, workspaceAreaProps } from "../../lib/workspaceFocus";
 
@@ -29,6 +36,8 @@ export function PreviewPanelShell(props: {
   workspaceLabel?: string;
   mode: PreviewPanelMode;
   open?: boolean;
+  onMouseDown?: MouseEventHandler<HTMLDivElement>;
+  onMouseUp?: MouseEventHandler<HTMLDivElement>;
   children: ReactNode;
 }) {
   const maximized = use(MaximizedContext);
@@ -84,6 +93,8 @@ export function PreviewPanelShell(props: {
       {...(props.workspaceArea ? panelArea : {})}
       data-workspace-focus-key={props.workspaceFocusKey}
       data-workspace-unavailable={collapsible && !open ? "true" : undefined}
+      onMouseDown={props.onMouseDown}
+      onMouseUp={props.onMouseUp}
       className={cn(
         "relative flex h-full min-h-0 w-full min-w-0 max-w-full flex-col self-stretch bg-background",
         props.mode === "inline" && !maximized && "border-l border-border",
