@@ -12,6 +12,7 @@ import {
 import { flushSync } from "react-dom";
 import { BackgroundThreadContext } from "./backgroundThread";
 import { collapseExpandedComposerCursor } from "../../composer-logic";
+import { collectComposerPromptInlineTokens } from "../../composer-editor-mentions";
 import {
   type ComposerFileAttachment,
   type ComposerThreadDraftState,
@@ -603,7 +604,12 @@ export function useComposerStash(input: {
       });
       return;
     }
-    const prompt = promptRef.current.trim();
+    const trimmedPrompt = promptRef.current.trim();
+    // A trailing chip only parses with whitespace after it, so keep one space to restore it.
+    const endsWithChip =
+      collectComposerPromptInlineTokens(promptRef.current).at(-1)?.end ===
+      promptRef.current.trimEnd().length;
+    const prompt = endsWithChip ? `${trimmedPrompt} ` : trimmedPrompt;
     const images = [...composerImagesRef.current];
     const files = [...composerFilesRef.current];
     const stashedRecords: ComposerContextRecord[] = [
