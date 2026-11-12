@@ -358,8 +358,10 @@ export interface ProjectionRecordFilter {
   readonly turnItemRunIds?: ReadonlyArray<RunId | null>;
   readonly turnItemNodeIds?: ReadonlyArray<NodeId>;
   readonly runIds?: ReadonlyArray<RunId>;
-  /** Reads through a status index and sorts the matches, so keep it to statuses few runs hold. */
+  /** Without `includeLatestRun`, reads through a status index and sorts the matches, so keep it to statuses few runs hold. */
   readonly runStatuses?: ReadonlyArray<OrchestrationV2Run["status"]>;
+  /** With `runStatuses`, also reads the latest run, skipping a never-started cancelled one. */
+  readonly includeLatestRun?: true;
   readonly runtimeRequestStatuses?: ReadonlyArray<OrchestrationV2RuntimeRequest["status"]>;
   readonly subagentIds?: ReadonlyArray<NodeId>;
   readonly subagentRunIds?: ReadonlyArray<RunId>;
@@ -3594,7 +3596,8 @@ export const layer: Layer.Layer<ProjectionStoreV2, never, SqlClient.SqlClient> =
           decodeThreadPayload(threadRow.payload_json),
           (fields !== undefined && !fields.includes("runs")) ||
           (window === undefined &&
-            (matchesNothing(filter?.runIds) || matchesNothing(filter?.runStatuses)))
+            (matchesNothing(filter?.runIds) ||
+              (matchesNothing(filter?.runStatuses) && filter?.includeLatestRun !== true)))
             ? Effect.succeed([])
             : window === undefined
               ? sql<PayloadRow>`
@@ -3605,10 +3608,20 @@ export const layer: Layer.Layer<ProjectionStoreV2, never, SqlClient.SqlClient> =
               ${
                 filter?.runStatuses === undefined
                   ? sql`ORDER BY ordinal ASC`
-                  : // `+ordinal` stops SQLite from walking every run in the (thread_id, ordinal)
-                    // index to skip a sort; a status index reads only matching runs.
-                    sql`AND status IN (SELECT value FROM json_each(${encodeIdList(filter.runStatuses)}))
+                  : filter.includeLatestRun !== true
+                    ? // `+ordinal` stops SQLite from walking every run in the (thread_id, ordinal)
+                      // index to skip a sort; a status index reads only matching runs.
+                      sql`AND status IN (SELECT value FROM json_each(${encodeIdList(filter.runStatuses)}))
                     ORDER BY +ordinal ASC`
+                    : sql`AND (status IN (SELECT value FROM json_each(${encodeIdList(filter.runStatuses)}))
+                    OR run_id = (
+                      SELECT run_id FROM orchestration_v2_projection_runs
+                      WHERE thread_id = ${threadId}
+                        AND (status <> 'cancelled' OR json_extract(payload_json, '$.startedAt') IS NOT NULL)
+                      ORDER BY ordinal DESC
+                      LIMIT 1
+                    ))
+                    ORDER BY ordinal ASC`
               }
           `
               : sql<PayloadRow>`
