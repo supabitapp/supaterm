@@ -73,6 +73,21 @@ describe("sidebar pointer lifecycle", () => {
     expect(drag.onFinish).toHaveBeenCalledExactlyOnceWith(true);
   });
 
+  it("keeps the click when a zero-button move precedes pointerup before activation", () => {
+    using _environment = setup();
+    const press = gesture();
+    document.dispatchEvent(pointer("pointermove", { clientX: 11 }));
+    document.dispatchEvent(pointer("pointermove", { buttons: 0, clientX: 12 }));
+    document.dispatchEvent(pointer("pointerup", { buttons: 0, clientX: 12 }));
+    const onClick = vi.fn();
+    document.body.addEventListener("click", onClick);
+    document.body.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    document.body.removeEventListener("click", onClick);
+
+    expect(press.onCancel).not.toHaveBeenCalled();
+    expect(onClick).toHaveBeenCalledOnce();
+  });
+
   it("cancels a missed sidebar release without committing a reorder", () => {
     using _environment = setup();
     const onDrop = vi.fn((point: { x: number; y: number }) => point.x > 50);
