@@ -2,6 +2,7 @@ import { SortableSidebarMarker } from "./SidebarListMarkers";
 import { ThreadHoverCard, ThreadHoverCardPopup } from "../ThreadHoverCard";
 import { CollapsibleSectionHeader } from "../ui/collapsible-section-header";
 import { discardComposerDraft } from "../../lib/discardComposerDraft";
+import { assistantCitationsToPlainText } from "@supaterm/shared/assistantCitations";
 import { replaceComposerContextReferences } from "@supaterm/shared/composerContextReferences";
 import * as Schema from "effect/Schema";
 import { SquarePenIcon } from "@supaterm/icons";
@@ -48,7 +49,9 @@ const SidebarDraftRow = memo(function SidebarDraftRow(props: {
 }) {
   const { composer, draftId, onContextMenu, onDiscard, onNavigate } = props;
   const promptPreview =
-    replaceComposerContextReferences(composer.prompt, (occurrence) => occurrence.label)
+    assistantCitationsToPlainText(
+      replaceComposerContextReferences(composer.prompt, (occurrence) => occurrence.label),
+    )
       .trim()
       .split("\n", 1)[0] ?? "";
   // images mirrors persistedAttachments once rehydration finishes; before
