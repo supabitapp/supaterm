@@ -298,6 +298,7 @@ jobs:
         env:
           SUPATERM_TRANSFER_BUDGET_REPORT_PATH: ${{ runner.temp }}/supaterm-transfer-budget.md
           SUPATERM_TRANSFER_BUDGET_RESULT_PATH: ${{ runner.temp }}/thread-transfer-result.json
+          SUPATERM_TRANSFER_BUDGET_SCENARIOS_PATH: ${{ runner.temp }}/thread-transfer-scenarios.json
         run: vp run --filter supaterm test --shard ${{ matrix.shard }}/${{ strategy.job-total }}
 
       # integration/transferBudgetV2.integration.test.ts writes the report; exactly one shard
@@ -328,7 +329,9 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: thread-transfer-results
-          path: ${{ runner.temp }}/thread-transfer-result.json
+          path: |
+            ${{ runner.temp }}/thread-transfer-result.json
+            ${{ runner.temp }}/thread-transfer-scenarios.json
           if-no-files-found: ignore
           retention-days: 30
 
