@@ -1586,13 +1586,28 @@ export const OrchestrationV2SecretRequestStatus = Schema.Literals([
 ]);
 export type OrchestrationV2SecretRequestStatus = typeof OrchestrationV2SecretRequestStatus.Type;
 
-const OrchestrationV2SecretRequestFields = {
-  type: Schema.Literal("secret_request"),
+/** One input of a multi-value card. `secret: false` shows what the user types, such as an email. */
+export const OrchestrationV2SecretRequestField = Schema.Struct({
+  name: TrimmedNonEmptyString,
+  label: TrimmedNonEmptyString,
+  secret: Schema.optional(Schema.Boolean),
+});
+export type OrchestrationV2SecretRequestField = typeof OrchestrationV2SecretRequestField.Type;
+
+const OrchestrationV2SecretRequestDetailFields = {
   label: TrimmedNonEmptyString,
   reason: Schema.String,
   url: Schema.optional(Schema.String),
   placeholder: Schema.optional(Schema.String),
+  fields: Schema.optional(Schema.Array(OrchestrationV2SecretRequestField)),
   secretStatus: OrchestrationV2SecretRequestStatus,
+  // Older clients decode `secretStatus` as a closed set, so a timeout stays `cancelled` plus this.
+  timedOut: Schema.optional(Schema.Boolean),
+} as const;
+
+const OrchestrationV2SecretRequestFields = {
+  type: Schema.Literal("secret_request"),
+  ...OrchestrationV2SecretRequestDetailFields,
 } as const;
 
 export const OrchestrationV2TurnItem = Schema.Union([
@@ -3518,11 +3533,7 @@ const OrchestrationV2InternalCommand = Schema.Union([
     runId: RunId,
     nodeId: NodeId,
     turnItemId: TurnItemId,
-    label: TrimmedNonEmptyString,
-    reason: Schema.String,
-    url: Schema.optional(Schema.String),
-    placeholder: Schema.optional(Schema.String),
-    secretStatus: OrchestrationV2SecretRequestStatus,
+    ...OrchestrationV2SecretRequestDetailFields,
   }),
 ]);
 export type OrchestrationV2InternalCommand = typeof OrchestrationV2InternalCommand.Type;

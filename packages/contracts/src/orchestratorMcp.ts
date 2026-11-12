@@ -32,6 +32,7 @@ import {
   OrchestrationV2Actor,
   OrchestrationV2CreationSource,
   OrchestrationV2RunStatus,
+  OrchestrationV2SecretRequestField,
   OrchestrationV2TurnItemStatus,
   ThreadPinnedMessage,
 } from "./orchestrationV2.ts";
@@ -680,6 +681,17 @@ const PastedSecretValue = Schema.String.check(
   Schema.makeFilter((value: string) => value.length > 0, { expected: "a non-empty string" }),
 );
 
+// Filters, not length or pattern checks: those would add to every agent's tool list.
+const RequestSecretFields = Schema.Array(OrchestrationV2SecretRequestField).check(
+  Schema.makeFilter((fields) => {
+    if (fields.length === 0 || fields.length > 8) return "Give 1 to 8 fields.";
+    if (new Set(fields.map((field) => field.name)).size !== fields.length) {
+      return "Field names must be unique.";
+    }
+    return true;
+  }),
+);
+
 export const OrchestratorMcpRequestSecretInput = Schema.Struct({
   label: TrimmedNonEmptyString.annotate({
     description: "Card title, such as 'GitHub token'.",
@@ -697,13 +709,13 @@ export const OrchestratorMcpRequestSecretInput = Schema.Struct({
     description: "Sign-in or setup page for the value. Shown as a button.",
   }),
   placeholder: Schema.optional(TrimmedNonEmptyString),
+  fields: Schema.optional(RequestSecretFields).annotate({
+    description:
+      "Several values in one card; `secret: false` shows typed text. Returns `files` by name.",
+  }),
   value: Schema.optional(PastedSecretValue).annotate({
     description: "Pasted in this thread; no card.",
   }),
-  /** Default 10 minutes. */
-  timeoutMs: Schema.optional(
-    Schema.Int.check(Schema.isBetween({ minimum: 1_000, maximum: 60 * 60 * 1_000 })),
-  ),
   clientRequestId: Schema.optional(OrchestratorMcpClientRequestId).annotate({
     description: "Retry key.",
   }),
@@ -716,6 +728,12 @@ export const OrchestratorMcpRequestSecretResult = Schema.Union([
     file: Schema.String.annotate({
       description:
         "Owner-only file with the value. Read it inside commands and never print it. Deleted after 24 hours.",
+    }),
+  }),
+  Schema.Struct({
+    status: Schema.Literal("saved"),
+    files: Schema.Record(Schema.String, Schema.String).annotate({
+      description: "A `file` per field name.",
     }),
   }),
   Schema.Struct({

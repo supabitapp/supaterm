@@ -20,6 +20,7 @@ import {
   ProviderThreadId,
   ProviderTurnId,
   RunId,
+  SECRET_REQUEST_UNSAVED_NOTE,
   ThreadId,
   type OrchestrationV2ServerCommand,
   type OrchestrationV2StoredEvent,
@@ -27,6 +28,7 @@ import {
   type ServerProvider,
 } from "@supaterm/contracts";
 import { checkpointWorkspace } from "@supaterm/provider-testing/replayWorkspace";
+import * as Cause from "effect/Cause";
 import * as DateTime from "effect/DateTime";
 import * as Deferred from "effect/Deferred";
 import * as Effect from "effect/Effect";
@@ -36,6 +38,7 @@ import * as Queue from "effect/Queue";
 import * as Ref from "effect/Ref";
 import * as Schema from "effect/Schema";
 import * as Stream from "effect/Stream";
+import * as TestClock from "effect/testing/TestClock";
 
 import { CodexProviderCapabilitiesV2 } from "../orchestration-v2/Adapters/CodexAdapterV2.ts";
 import * as CommandReceiptStore from "../orchestration-v2/CommandReceiptStore.ts";
@@ -1376,6 +1379,146 @@ describe("OrchestratorMcpService provider resolution", () => {
               runId: childRunId,
             });
           }
+        }
+      }).pipe(Effect.provide(layerOrchestratorService.pipe(Layer.provide(dependencies))));
+    }),
+  );
+
+  it.effect.each([
+    "saved",
+    "declined",
+    "the run ending",
+    "an answer before the wait",
+    "an answer during the first read",
+    "no answer",
+  ] as const)("a secret request returns on %s", (outcome) =>
+    Effect.gen(function* () {
+      const events = yield* Queue.unbounded<OrchestrationV2StoredEvent, Cause.Done>();
+      const subscribed = yield* Deferred.make<void>();
+      const file = "/secrets/files/0123456789abcdef0123456789abcdef";
+      const eventType = outcome === "the run ending" ? "run.updated" : "turn-item.updated";
+      let runStatus = "running";
+      let card:
+        | { readonly id: string; readonly secretStatus: string; readonly timedOut?: boolean }
+        | undefined;
+      let sequence = 0;
+      const commit = (type: string, payload: unknown) =>
+        Queue.offer(events, {
+          sequence: ++sequence,
+          event: { type, threadId: parentThreadId, payload },
+        } as unknown as OrchestrationV2StoredEvent);
+      const dependencies = Layer.mergeAll(
+        NodeServices.layer,
+        NodeCrypto.layer,
+        Layer.mock(ThreadManagementService.ThreadManagementService)({
+          getThreadShell: () =>
+            Effect.succeed(liveThreadShell(parentThreadId, { activeRunId: parentRunId })),
+          getThreadRecords: () =>
+            Effect.gen(function* () {
+              const projection = parentProjection([]);
+              const records = {
+                ...projection,
+                runs: projection.runs.map((run) => ({ ...run, status: runStatus })),
+                turnItems: card === undefined ? [] : [{ ...card, type: "secret_request" }],
+              } as unknown as OrchestrationV2ThreadProjection;
+              // The answer commits after this read's snapshot, before the wait subscribes.
+              if (
+                outcome === "an answer during the first read" &&
+                card?.secretStatus === "pending"
+              ) {
+                card = { id: card.id, secretStatus: "saved" };
+                yield* commit("turn-item.updated", card);
+              }
+              return records;
+            }),
+          getThreadEventSequence: () => Effect.sync(() => sequence),
+          streamStoredEventsFrom: (input) =>
+            input?.eventType === eventType
+              ? Stream.fromEffect(Deferred.succeed(subscribed, undefined)).pipe(
+                  Stream.drain,
+                  Stream.concat(Stream.fromQueue(events)),
+                  Stream.filter((stored) => stored.sequence > (input.afterSequence ?? 0)),
+                )
+              : Stream.empty,
+          dispatch: (command) =>
+            Effect.sync(() => {
+              // As the orchestrator does, a closed card keeps its outcome.
+              if (
+                command.type === "secret_request.record" &&
+                (card === undefined || card.secretStatus === "pending")
+              ) {
+                card = {
+                  id: command.turnItemId,
+                  secretStatus:
+                    outcome === "an answer before the wait" ? "saved" : command.secretStatus,
+                  ...(command.timedOut === undefined ? {} : { timedOut: command.timedOut }),
+                };
+              }
+              return { sequence: ++sequence, storedEvents: [] } as never;
+            }),
+        }),
+        ServerSettings.layerTest(),
+        providerRegistryLayer([]),
+        adapterRegistryLayer([codexInstanceId]),
+        Layer.mock(ProjectService.ProjectService)({}),
+        Layer.mock(SecretRequests.SecretRequests)({
+          saveToFile: () => Effect.succeed({ file }),
+        }),
+        Layer.mock(ScheduledTaskService.ScheduledTaskService)({}),
+      );
+      yield* Effect.gen(function* () {
+        const service = yield* OrchestratorMcpService.OrchestratorMcpService;
+        const waiting = yield* service
+          .requestSecret(scope, { label: "API key", reason: "Deploy.", clientRequestId: "key-1" })
+          .pipe(Effect.forkChild);
+        if (outcome !== "an answer before the wait") yield* Deferred.await(subscribed);
+        if (outcome === "saved" || outcome === "declined") {
+          card = { id: card!.id, secretStatus: outcome };
+          yield* commit("turn-item.updated", card);
+        } else if (outcome === "the run ending") {
+          runStatus = "interrupted";
+          yield* commit("run.updated", { id: parentRunId });
+        } else if (outcome === "an answer during the first read") {
+          // Nothing else arrives, so a wait that skipped the answer ends without one.
+          yield* Queue.end(events);
+        } else if (outcome === "no answer") {
+          // The card stays open for the whole hour a call may wait.
+          yield* TestClock.adjust("59 minutes");
+          assert.equal(card?.secretStatus, "pending");
+          yield* TestClock.adjust("1 minute");
+        }
+        const result = yield* Fiber.join(waiting);
+        const status = (
+          {
+            saved: "saved",
+            declined: "declined",
+            "the run ending": "cancelled",
+            "an answer before the wait": "saved",
+            "an answer during the first read": "saved",
+            "no answer": "timed_out",
+          } as const
+        )[outcome];
+        assert.deepEqual(
+          result,
+          status === "saved"
+            ? { status, file }
+            : { status, note: SECRET_REQUEST_UNSAVED_NOTE[status] },
+        );
+        // Only a timeout marks the card expired; a run that ended just closes it.
+        if (outcome === "the run ending") {
+          assert.deepEqual(card, { id: card!.id, secretStatus: "cancelled" });
+        }
+        if (outcome === "no answer") {
+          assert.deepEqual(card, { id: card!.id, secretStatus: "cancelled", timedOut: true });
+          // A retry with the same key still hears that the card timed out.
+          assert.deepEqual(
+            yield* service.requestSecret(scope, {
+              label: "API key",
+              reason: "Deploy.",
+              clientRequestId: "key-1",
+            }),
+            result,
+          );
         }
       }).pipe(Effect.provide(layerOrchestratorService.pipe(Layer.provide(dependencies))));
     }),

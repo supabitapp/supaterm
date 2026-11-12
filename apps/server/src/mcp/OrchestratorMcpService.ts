@@ -89,6 +89,7 @@ import * as Effect from "effect/Effect";
 import * as Exit from "effect/Exit";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
+import * as Predicate from "effect/Predicate";
 import * as Ref from "effect/Ref";
 import * as Schema from "effect/Schema";
 import * as Stream from "effect/Stream";
@@ -135,7 +136,6 @@ const TASK_WAKE_EVENTS = [
   { thread: "child", eventType: "provider-thread.updated" },
   { thread: "child", eventType: "runtime-request.updated" },
 ] as const;
-const SECRET_REQUEST_POLL_INTERVAL_MS = 500;
 const DEFAULT_THREAD_LIST_LIMIT = 50;
 const DEFAULT_THREAD_READ_LIMIT = 50;
 const DEFAULT_THREAD_RUN_LIMIT = 10;
@@ -2153,6 +2153,12 @@ const make = Effect.gen(function* () {
           "Asking for a secret requires an active run owned by this MCP provider session.",
         );
       }
+      if (input.fields !== undefined && input.value !== undefined) {
+        return yield* failure(
+          "invalid_request",
+          "`fields` opens a card for the user to fill in. Leave out `value`.",
+        );
+      }
       // A secret the user already pasted needs no card: it goes straight to a file.
       if (input.value !== undefined) {
         const file = yield* secretRequests
@@ -2173,14 +2179,14 @@ const make = Effect.gen(function* () {
       const turnItemId = TurnItemId.make(
         `turn-item:secret-request:${stablePart(threadId)}:${stablePart(key)}`,
       );
-      const record = (secretStatus: "pending" | "cancelled") =>
+      const record = (secretStatus: "pending" | "cancelled", timedOut = false) =>
         threadManagement
           .dispatch({
             type: "secret_request.record",
             commandId: stableCommandId({
               scope,
               requestKey: key,
-              operation: `secret-${secretStatus}`,
+              operation: timedOut ? "secret-timed-out" : `secret-${secretStatus}`,
             }),
             threadId: threadId,
             runId,
@@ -2190,7 +2196,9 @@ const make = Effect.gen(function* () {
             reason: input.reason,
             ...(input.url === undefined ? {} : { url: input.url }),
             ...(input.placeholder === undefined ? {} : { placeholder: input.placeholder }),
+            ...(input.fields === undefined ? {} : { fields: input.fields }),
             secretStatus,
+            ...(timedOut ? { timedOut } : {}),
           })
           .pipe(
             Effect.mapError((error) =>
@@ -2201,50 +2209,78 @@ const make = Effect.gen(function* () {
             ),
           );
       yield* record("pending");
-      // Only this call can hand the agent its ref, so the card must not
-      // outlive it: a timeout, a failed wait or an aborted call closes it as
-      // cancelled.
-      const closeCard = record("cancelled").pipe(
-        Effect.catch((error) =>
-          Effect.logWarning("Could not close a secret request card", { error: error.message }),
-        ),
-      );
+      // Only this call can hand the agent its file, so the card must not
+      // outlive it: a failed wait or an aborted call closes it as cancelled,
+      // and a timeout closes it as timed out.
+      const closeCard = (timedOut: boolean) =>
+        record("cancelled", timedOut).pipe(
+          Effect.catch((error) =>
+            Effect.logWarning("Could not close a secret request card", { error: error.message }),
+          ),
+        );
+
+      const readError = (error: unknown) =>
+        failure("orchestration_error", `Unable to read the secret request: ${errorMessage(error)}`);
+      const watchError = (error: unknown) =>
+        failure(
+          "orchestration_error",
+          `Unable to watch the secret request: ${errorMessage(error)}`,
+        );
+      const readAnswer = Effect.gen(function* () {
+        const projection = yield* threadManagement
+          .getThreadRecords(threadId, ["runs", "turnItems"], {
+            turnItemTypes: ["secret_request"],
+            messageRoles: [],
+          })
+          .pipe(Effect.mapError(readError));
+        const item = projection.turnItems.find((candidate) => candidate.id === turnItemId);
+        if (item?.type === "secret_request" && item.secretStatus !== "pending") {
+          return item.timedOut === true ? ("timed_out" as const) : item.secretStatus;
+        }
+        const current = projection.runs.find((candidate) => candidate.id === runId);
+        if (current === undefined || isOrchestrationV2RunSettled(current.status)) {
+          yield* record("cancelled");
+          return "cancelled" as const;
+        }
+        return undefined;
+      });
 
       const answered = yield* Effect.gen(function* () {
-        while (true) {
-          const projection = yield* threadManagement
-            .getThreadRecords(threadId, ["runs", "turnItems"], {
-              turnItemTypes: ["secret_request"],
-              messageRoles: [],
-            })
+        // Taken after the pending record: earlier answers show in the first read, later ones replay.
+        const afterSequence = yield* threadManagement
+          .getThreadEventSequence(threadId)
+          .pipe(Effect.mapError(watchError));
+        const initial = yield* readAnswer;
+        if (initial !== undefined) return Option.some(initial);
+        return yield* Stream.merge(
+          threadManagement
+            .streamStoredEventsFrom({ threadId, afterSequence, eventType: "turn-item.updated" })
             .pipe(
-              Effect.mapError((error) =>
-                failure(
-                  "orchestration_error",
-                  `Unable to read the secret request: ${errorMessage(error)}`,
-                ),
+              Stream.filter(
+                ({ event }) =>
+                  event.type === "turn-item.updated" && event.payload.id === turnItemId,
               ),
-            );
-          const item = projection.turnItems.find((candidate) => candidate.id === turnItemId);
-          if (item?.type === "secret_request" && item.secretStatus !== "pending") {
-            return item.secretStatus;
-          }
-          const current = projection.runs.find((candidate) => candidate.id === runId);
-          if (current === undefined || isOrchestrationV2RunSettled(current.status)) {
-            yield* record("cancelled");
-            return "cancelled" as const;
-          }
-          yield* Effect.sleep(Duration.millis(SECRET_REQUEST_POLL_INTERVAL_MS));
-        }
+            ),
+          threadManagement
+            .streamStoredEventsFrom({ threadId, afterSequence, eventType: "run.updated" })
+            .pipe(
+              Stream.filter(
+                ({ event }) => event.type === "run.updated" && event.payload.id === runId,
+              ),
+            ),
+        ).pipe(
+          Stream.mapError(watchError),
+          Stream.mapEffect(() => readAnswer),
+          Stream.filter(Predicate.isNotUndefined),
+          Stream.runHead,
+        );
       }).pipe(
-        Effect.timeoutOption(
-          Duration.millis(
-            Math.min(input.timeoutMs ?? DEFAULT_WAIT_TIMEOUT_MS, MAX_WAIT_TIMEOUT_MS),
-          ),
-        ),
-        Effect.onExit((exit) => (Exit.isSuccess(exit) ? Effect.void : closeCard)),
+        // The longest a provider lets one tool call run, so the card stays open until then.
+        Effect.timeoutOption(Duration.millis(MAX_WAIT_TIMEOUT_MS)),
+        Effect.map(Option.flatten),
+        Effect.onExit((exit) => (Exit.isSuccess(exit) ? Effect.void : closeCard(false))),
       );
-      if (Option.isNone(answered)) yield* closeCard;
+      if (Option.isNone(answered)) yield* closeCard(true);
       const status = Option.isSome(answered)
         ? answered.value
         : yield* threadManagement
@@ -2265,10 +2301,10 @@ const make = Effect.gen(function* () {
       yield* Effect.annotateCurrentSpan({ "secret_request.status": status });
       yield* Metrics.increment(Metrics.secretRequestsTotal, { status });
       if (status !== "saved") return { status, note: SECRET_REQUEST_UNSAVED_NOTE[status] };
-      const file = yield* secretRequests
+      const saved = yield* secretRequests
         .saveToFile({ threadId, turnItemId })
         .pipe(Effect.mapError((error) => failure("orchestration_error", error.message)));
-      return { status, file };
+      return { status, ...saved };
     }),
 
     capabilities: Effect.fn("OrchestratorMcpService.capabilities")(function* (scope, input = {}) {

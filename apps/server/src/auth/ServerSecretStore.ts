@@ -132,7 +132,7 @@ const isSecretStoreError = Schema.is(SecretStoreError);
 const isPlatformError = (value: unknown): value is PlatformError.PlatformError =>
   Predicate.isTagged(value, "PlatformError");
 
-export const isSecretAlreadyExistsError = (error: SecretStoreError): boolean =>
+const isSecretAlreadyExistsError = (error: SecretStoreError): boolean =>
   "cause" in error && isPlatformError(error.cause) && error.cause.reason._tag === "AlreadyExists";
 
 export class ServerSecretStore extends Context.Service<

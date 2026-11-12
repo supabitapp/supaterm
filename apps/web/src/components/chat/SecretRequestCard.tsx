@@ -1,20 +1,30 @@
 import { useAtomValue } from "@effect/atom-react";
 import { pipe } from "effect/Function";
 import {
-  SECRET_REQUEST_DEFAULT_PLACEHOLDER,
   secretRequestAnswerInput,
   secretRequestDisplay,
   secretRequestFailureMessage,
+  secretRequestInputs,
   secretRequestLink,
   SECRET_REQUEST_PRIVACY_NOTE,
+  secretRequestValue,
+  type SecretRequestInput,
   type SecretRequestItem,
+  type SecretRequestReply,
 } from "@supaterm/client-runtime/secret-request";
 import {
   isAtomCommandInterrupted,
   squashAtomCommandFailure,
 } from "@supaterm/client-runtime/state/runtime";
 import type { EnvironmentId, OrchestrationV2ProjectedTurnItem } from "@supaterm/contracts";
-import { CheckIcon, ExternalLinkIcon, LockIcon, MinusIcon, ShieldCheckIcon } from "@supaterm/icons";
+import {
+  CheckIcon,
+  ClockIcon,
+  ExternalLinkIcon,
+  LockIcon,
+  MinusIcon,
+  ShieldCheckIcon,
+} from "@supaterm/icons";
 import { useId, useRef, useState, type FormEvent } from "react";
 
 import { serverEnvironment } from "../../state/server";
@@ -30,6 +40,22 @@ export function SecretRequestCard(props: {
 }) {
   const { item } = props;
   const display = secretRequestDisplay(item, props.visibility);
+  if (display.kind === "expired") {
+    return (
+      <div
+        data-v2-item-type={item.type}
+        className="flex min-w-0 items-start gap-2.5 rounded-xl border border-border/60 bg-card p-4"
+      >
+        <ClockIcon className="mt-0.5 size-4 shrink-0 text-icon-muted" aria-hidden />
+        <div className="flex min-w-0 flex-col gap-1">
+          <p className="text-sm font-medium wrap-anywhere text-foreground">
+            {item.label} · {display.label}
+          </p>
+          <p className="text-sm text-muted-foreground">{display.hint}</p>
+        </div>
+      </div>
+    );
+  }
   if (display.kind === "answered" || display.kind === "pending-elsewhere") {
     const Icon =
       display.kind === "pending-elsewhere"
@@ -57,7 +83,9 @@ function PendingSecretRequestForm(props: {
   readonly item: SecretRequestItem;
 }) {
   const { item } = props;
-  const inputId = useId();
+  const formId = useId();
+  const inputs = secretRequestInputs(item);
+  const inputId = (index: number) => `${formId}-${index}`;
   const errorId = useId();
   const privacyId = useId();
   const answer = useAtomCommand(serverEnvironment.answerSecretRequest, {
@@ -69,29 +97,27 @@ function PendingSecretRequestForm(props: {
   const canAnswer = useAtomValue(
     serverEnvironment.answerSecretRequest.permissionAtom(props.environmentId),
   );
-  const [secret, setSecret] = useState("");
+  const [values, setValues] = useState<Readonly<Record<string, string>>>({});
   const [submitting, setSubmitting] = useState(false);
   const locked = submitting || !canAnswer;
   const [error, setError] = useState<string | null>(null);
   // Enter and click can both submit before a render.
   const inFlight = useRef(false);
 
-  const send = async (
-    reply: { readonly type: "save"; readonly secret: string } | { readonly type: "decline" },
-  ) => {
+  const send = async (reply: SecretRequestReply) => {
     const input = secretRequestAnswerInput(item, reply);
     if (input === null || inFlight.current || !canAnswer) return;
     inFlight.current = true;
     setSubmitting(true);
     setError(null);
+    // A filled login leaving the screen makes the system offer to save it as a password.
+    if (reply.type === "save") setValues({});
     const result = await answer({ environmentId: props.environmentId, input }).finally(() => {
       inFlight.current = false;
       setSubmitting(false);
     });
-    if (result._tag === "Success") {
-      setSecret("");
-      return;
-    }
+    if (result._tag === "Success") return;
+    if (reply.type === "save") setValues(reply.values);
     if (!isAtomCommandInterrupted(result)) {
       pipe(squashAtomCommandFailure(result), secretRequestFailureMessage, setError);
     }
@@ -99,9 +125,23 @@ function PendingSecretRequestForm(props: {
 
   const onSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    void send({ type: "save", secret });
+    void send({ type: "save", values });
   };
+  const incomplete = secretRequestAnswerInput(item, { type: "save", values }) === null;
   const link = secretRequestLink(item);
+  const renderField = (input: SecretRequestInput, index: number) => (
+    <SecretRequestField
+      key={input.key}
+      id={inputId(index)}
+      input={input}
+      value={secretRequestValue(values, input.key)}
+      disabled={locked}
+      invalid={error !== null}
+      describedBy={error !== null ? `${privacyId} ${errorId}` : privacyId}
+      showLabel={item.fields !== undefined}
+      onChange={(value) => setValues((current) => ({ ...current, [input.key]: value }))}
+    />
+  );
 
   return (
     <form
@@ -116,13 +156,18 @@ function PendingSecretRequestForm(props: {
         if (!(event.target instanceof Element)) return;
         if (event.target.closest("input, button, a")) return;
         if (window.getSelection()?.isCollapsed === false) return;
-        document.getElementById(inputId)?.focus();
+        const empty = inputs.findIndex((input) => secretRequestValue(values, input.key) === "");
+        document.getElementById(inputId(Math.max(empty, 0)))?.focus();
       }}
     >
       <div className="flex min-w-0 flex-col gap-1">
-        <label htmlFor={inputId} className="text-sm font-medium text-foreground">
-          {item.label}
-        </label>
+        {item.fields === undefined ? (
+          <label htmlFor={inputId(0)} className="text-sm font-medium text-foreground">
+            {item.label}
+          </label>
+        ) : (
+          <p className="text-sm font-medium text-foreground">{item.label}</p>
+        )}
         {item.reason.trim() ? (
           <p className="text-sm wrap-anywhere text-muted-foreground">{item.reason}</p>
         ) : null}
@@ -143,28 +188,10 @@ function PendingSecretRequestForm(props: {
           ) : null}
         </div>
       ) : null}
-      <div className="flex min-w-0 items-center gap-2">
-        <div className="min-w-0 flex-1">
-          <Input
-            id={inputId}
-            // A CSS-masked text field still exposes its value to screen readers.
-            type="password"
-            autoComplete="off"
-            autoCorrect="off"
-            autoCapitalize="off"
-            spellCheck={false}
-            data-1p-ignore
-            data-lpignore="true"
-            data-bwignore
-            placeholder={item.placeholder ?? SECRET_REQUEST_DEFAULT_PLACEHOLDER}
-            value={secret}
-            disabled={locked}
-            aria-invalid={error !== null || undefined}
-            aria-describedby={error !== null ? `${privacyId} ${errorId}` : privacyId}
-            onChange={(event) => setSecret(event.currentTarget.value)}
-          />
-        </div>
-        <Button type="submit" disabled={locked || secret.trim().length === 0}>
+      {inputs.slice(0, -1).map(renderField)}
+      <div className="flex min-w-0 items-end gap-2">
+        {inputs.slice(-1).map((input) => renderField(input, inputs.length - 1))}
+        <Button type="submit" disabled={locked || incomplete}>
           Send
         </Button>
       </div>
@@ -192,5 +219,44 @@ function PendingSecretRequestForm(props: {
         </Button>
       </div>
     </form>
+  );
+}
+
+function SecretRequestField(props: {
+  readonly id: string;
+  readonly input: SecretRequestInput;
+  readonly value: string;
+  readonly disabled: boolean;
+  readonly invalid: boolean;
+  readonly describedBy: string;
+  readonly showLabel: boolean;
+  readonly onChange: (value: string) => void;
+}) {
+  return (
+    <div className="flex min-w-0 flex-1 flex-col gap-1">
+      {props.showLabel ? (
+        <label htmlFor={props.id} className="text-xs font-medium text-muted-foreground">
+          {props.input.label}
+        </label>
+      ) : null}
+      <Input
+        id={props.id}
+        // A CSS-masked text field still exposes its value to screen readers.
+        type={props.input.masked ? "password" : "text"}
+        autoComplete="off"
+        autoCorrect="off"
+        autoCapitalize="off"
+        spellCheck={false}
+        data-1p-ignore
+        data-lpignore="true"
+        data-bwignore
+        placeholder={props.input.placeholder}
+        value={props.value}
+        disabled={props.disabled}
+        aria-invalid={props.invalid || undefined}
+        aria-describedby={props.describedBy}
+        onChange={(event) => props.onChange(event.currentTarget.value)}
+      />
+    </div>
   );
 }

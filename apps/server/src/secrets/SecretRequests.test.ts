@@ -43,6 +43,9 @@ const withService = <A, E>(
     readonly removeFails?: boolean;
     readonly closedFirst?: boolean;
     readonly failedRecords?: number;
+    readonly fields?: ReadonlyArray<{ readonly name: string; readonly label: string }>;
+    /** Interrupts the answer at this stored value, as a dropped client connection does. */
+    readonly interruptAtCreate?: number;
   } = {},
 ) =>
   Effect.gen(function* () {
@@ -50,6 +53,13 @@ const withService = <A, E>(
     const dispatched: Array<OrchestrationV2ServerCommand> = [];
     let secretStatus = "pending";
     let failedRecords = options.failedRecords ?? 0;
+    let writes = 0;
+    const write = (name: string, value: Uint8Array) =>
+      Effect.suspend(() => {
+        writes += 1;
+        if (writes === options.interruptAtCreate) return Effect.interrupt;
+        return Effect.sync(() => void stored.set(name, value));
+      });
     const requestThreadId = options.threadId ?? threadId;
     const layerDependencies = Layer.mergeAll(
       NodeCrypto.layer,
@@ -59,7 +69,7 @@ const withService = <A, E>(
         ServerSecretStore.ServerSecretStore.of({
           ...(options.directory === undefined ? {} : { directory: options.directory }),
           get: (name) => Effect.yieldNow.pipe(Effect.as(Option.fromNullishOr(stored.get(name)))),
-          set: (name, value) => Effect.sync(() => void stored.set(name, value)),
+          set: write,
           create: (name, value) =>
             stored.has(name)
               ? Effect.fail(
@@ -74,7 +84,7 @@ const withService = <A, E>(
                     ),
                   } as never),
                 )
-              : Effect.sync(() => void stored.set(name, value)),
+              : write(name, value),
           getOrCreateRandom: (name, bytes) =>
             Effect.sync(() => {
               const existing = stored.get(name);
@@ -109,6 +119,7 @@ const withService = <A, E>(
                 label: "GitHub token",
                 reason: "Used as GH_TOKEN.",
                 url: "https://github.com/settings/tokens",
+                ...(options.fields === undefined ? {} : { fields: options.fields }),
                 secretStatus,
               },
             ],
@@ -135,6 +146,11 @@ const withService = <A, E>(
       return yield* body({ service, stored, dispatched });
     }).pipe(Effect.provide(SecretRequests.layer.pipe(Layer.provide(layerDependencies))));
   });
+
+const saveFile = (service: SecretRequests.SecretRequests["Service"]) =>
+  service
+    .saveToFile({ threadId, turnItemId })
+    .pipe(Effect.map((saved) => ("file" in saved ? saved.file : assert.fail("expected one file"))));
 
 const valuesOf = (stored: Map<string, Uint8Array>) =>
   Array.from(stored.entries())
@@ -173,13 +189,9 @@ it.effect("two concurrent deliveries write one file and return the same path", (
             turnItemId,
             answer: { type: "save", secret: "ghp_secret" },
           });
-          const [first, second] = yield* Effect.all(
-            [
-              service.saveToFile({ threadId, turnItemId }),
-              service.saveToFile({ threadId, turnItemId }),
-            ],
-            { concurrency: "unbounded" },
-          );
+          const [first, second] = yield* Effect.all([saveFile(service), saveFile(service)], {
+            concurrency: "unbounded",
+          });
           assert.equal(first, second);
           assert.equal(yield* fs.readFileString(first), "ghp_secret");
           assert.deepEqual(valuesOf(stored), []);
@@ -187,6 +199,118 @@ it.effect("two concurrent deliveries write one file and return the same path", (
       { directory },
     );
   }).pipe(Effect.provide(NodeServices.layer)),
+);
+
+const loginFields = [
+  { name: "email", label: "Email" },
+  { name: "constructor", label: "Password" },
+  { name: "__proto__", label: "Code" },
+];
+// Built from entries: a literal `__proto__` key would set the prototype instead.
+const loginValues = (email: string, password: string, code = "482916") =>
+  Object.fromEntries([
+    ["email", email],
+    ["constructor", password],
+    ["__proto__", code],
+  ]);
+
+it.effect("a card with fields stores and delivers one file per field", () =>
+  Effect.gen(function* () {
+    const fs = yield* FileSystem.FileSystem;
+    const directory = yield* fs.makeTempDirectoryScoped({ prefix: "secret-files-test-" });
+    yield* withService(
+      ({ service, stored, dispatched }) =>
+        Effect.gen(function* () {
+          for (const answer of [
+            { type: "save", secret: "hunter2" },
+            { type: "save", values: { email: "qa@example.com" } },
+            {
+              type: "save",
+              values: { email: "qa@example.com", password: "hunter2", code: "482916" },
+            },
+          ] as const) {
+            const mismatch = yield* service
+              .answer({ threadId, turnItemId, answer })
+              .pipe(Effect.flip);
+            assert.equal(mismatch.reason, "fields_mismatch");
+          }
+          assert.deepEqual(valuesOf(stored), []);
+          assert.deepEqual(dispatched, []);
+
+          yield* service.answer({
+            threadId,
+            turnItemId,
+            answer: { type: "save", values: loginValues("qa@example.com", "hunter2") },
+          });
+          assert.equal(valuesOf(stored).length, 3);
+          assert.include(dispatched[0] as object, { secretStatus: "saved" });
+          assert.deepEqual((dispatched[0] as { fields?: unknown }).fields, loginFields);
+          assert.isFalse(JSON.stringify(dispatched).includes("hunter2"));
+
+          const saved = yield* service.saveToFile({ threadId, turnItemId });
+          assert.isTrue("files" in saved);
+          if (!("files" in saved)) return;
+          const files = new Map(Object.entries(saved.files));
+          assert.deepEqual([...files.keys()], ["email", "constructor", "__proto__"]);
+          assert.equal(yield* fs.readFileString(files.get("__proto__")!), "482916");
+          assert.notEqual(files.get("email"), files.get("constructor"));
+          assert.equal(yield* fs.readFileString(files.get("email")!), "qa@example.com");
+          assert.equal(yield* fs.readFileString(files.get("constructor")!), "hunter2");
+          assert.deepEqual(valuesOf(stored), []);
+        }),
+      { directory, fields: loginFields },
+    );
+  }).pipe(Effect.provide(NodeServices.layer)),
+);
+
+it.effect("an answer cut off midway never mixes with the next one", () =>
+  Effect.gen(function* () {
+    const fs = yield* FileSystem.FileSystem;
+    const directory = yield* fs.makeTempDirectoryScoped({ prefix: "secret-files-test-" });
+    yield* withService(
+      ({ service }) =>
+        Effect.gen(function* () {
+          const cut = yield* service
+            .answer({
+              threadId,
+              turnItemId,
+              answer: { type: "save", values: loginValues("first@example.com", "first-pass") },
+            })
+            .pipe(Effect.exit);
+          assert.isTrue(Exit.hasInterrupts(cut));
+          yield* service.answer({
+            threadId,
+            turnItemId,
+            answer: { type: "save", values: loginValues("second@example.com", "second-pass") },
+          });
+          const saved = yield* service.saveToFile({ threadId, turnItemId });
+          if (!("files" in saved)) return assert.fail("expected one file per field");
+          const files = new Map(Object.entries(saved.files));
+          assert.equal(yield* fs.readFileString(files.get("email")!), "second@example.com");
+          assert.equal(yield* fs.readFileString(files.get("constructor")!), "second-pass");
+        }),
+      // The salt is the first write, so the third is the second field.
+      { directory, fields: loginFields, interruptAtCreate: 3 },
+    );
+  }).pipe(Effect.provide(NodeServices.layer)),
+);
+
+it.effect("a card with fields that closed first deletes every value", () =>
+  withService(
+    ({ service, stored }) =>
+      Effect.gen(function* () {
+        const error = yield* service
+          .answer({
+            threadId,
+            turnItemId,
+            answer: { type: "save", values: loginValues("qa@example.com", "hunter2") },
+          })
+          .pipe(Effect.flip);
+        assert.equal(error.reason, "agent_stopped");
+        assert.deepEqual(valuesOf(stored), []);
+      }),
+    { closedFirst: true, fields: loginFields },
+  ),
 );
 
 it.effect("a save that loses to the card closing deletes the value and says so", () =>
@@ -258,7 +382,7 @@ it.effect("traces an answer and its delivery without ever recording the value", 
             turnItemId,
             answer: { type: "save", secret: "ghp_secret" },
           });
-          yield* service.saveToFile({ threadId, turnItemId });
+          yield* saveFile(service);
         }),
       { directory },
     ).pipe(Effect.withTracer(tracer));
@@ -321,7 +445,7 @@ it.effect("a file request moves its value to an owner-only file, once", () =>
             answer: { type: "save", secret: "cf_token'$(id)" },
           });
           assert.include(dispatched[0] as object, { secretStatus: "saved" });
-          const file = yield* service.saveToFile({ threadId, turnItemId });
+          const file = yield* saveFile(service);
           assert.equal(yield* fs.readFileString(file), "cf_token'$(id)");
           assert.deepEqual(valuesOf(stored), []);
           if ((yield* HostProcess.Platform) !== "win32") {
@@ -329,7 +453,7 @@ it.effect("a file request moves its value to an owner-only file, once", () =>
             assert.equal((yield* fs.stat(path.dirname(file))).mode & 0o777, 0o700);
           }
           // A retried request_secret gets the same file.
-          assert.equal(yield* service.saveToFile({ threadId, turnItemId }), file);
+          assert.equal(yield* saveFile(service), file);
           return file;
         }),
       { directory },
@@ -361,10 +485,10 @@ it.effect("a failed file write keeps the value, so the request can retry", () =>
           // A plain file where the files directory goes makes the write fail.
           const blocker = path.join(directory, "files");
           yield* fs.writeFileString(blocker, "");
-          const failed = yield* service.saveToFile({ threadId, turnItemId }).pipe(Effect.flip);
+          const failed = yield* saveFile(service).pipe(Effect.flip);
           assert.equal(failed.reason, "store_failed");
           yield* fs.remove(blocker);
-          const file = yield* service.saveToFile({ threadId, turnItemId });
+          const file = yield* saveFile(service);
           assert.equal(yield* fs.readFileString(file), "cf_token");
         }),
       { directory },
@@ -384,10 +508,10 @@ it.effect("a file is not delivered while its stored copy cannot be removed", () 
             turnItemId,
             answer: { type: "save", secret: "cf_token" },
           });
-          const first = yield* service.saveToFile({ threadId, turnItemId }).pipe(Effect.flip);
+          const first = yield* saveFile(service).pipe(Effect.flip);
           assert.equal(first.reason, "delivery_failed");
           // A retry finds the file but still will not hand it out until the removal works.
-          const retried = yield* service.saveToFile({ threadId, turnItemId }).pipe(Effect.flip);
+          const retried = yield* saveFile(service).pipe(Effect.flip);
           assert.equal(retried.reason, "delivery_failed");
         }),
       { directory, removeFails: true },

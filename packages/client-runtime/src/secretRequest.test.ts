@@ -10,6 +10,7 @@ import { describe, expect, it } from "vite-plus/test";
 import {
   secretRequestAnswerInput,
   secretRequestDisplay,
+  secretRequestInputs,
   secretRequestFailureMessage,
   secretRequestLink,
 } from "./secretRequest.ts";
@@ -27,16 +28,30 @@ describe("secretRequestDisplay", () => {
       outcome: "saved",
     });
   });
+
+  it("shows a request that timed out as expired, and one that ended with its run as ended", () => {
+    expect(
+      secretRequestDisplay({ secretStatus: "cancelled", timedOut: true }, "local"),
+    ).toMatchObject({ kind: "expired" });
+    expect(secretRequestDisplay({ secretStatus: "cancelled" }, "local")).toMatchObject({
+      kind: "answered",
+      outcome: "ended",
+    });
+  });
 });
 
 describe("secretRequestAnswerInput", () => {
   it("keeps surrounding whitespace through the contract and refuses blank values", () => {
-    const item = { threadId: ThreadId.make("thread-1"), id: TurnItemId.make("request-1") };
-    const input = secretRequestAnswerInput(item, { type: "save", secret: "  a b λ  " });
+    const item = {
+      threadId: ThreadId.make("thread-1"),
+      id: TurnItemId.make("request-1"),
+      label: "Token",
+    };
+    const input = secretRequestAnswerInput(item, { type: "save", values: { "": "  a b λ  " } });
     if (input === null) throw new Error("A nonblank secret must be accepted.");
     expect(input.answer).toEqual({ type: "save", secret: "  a b λ  " });
     expect(decodeAnswer(encodeAnswer(input))).toEqual(input);
-    expect(secretRequestAnswerInput(item, { type: "save", secret: " \n " })).toBeNull();
+    expect(secretRequestAnswerInput(item, { type: "save", values: { "": " \n " } })).toBeNull();
     expect(() =>
       decodeAnswer({
         threadId: item.threadId,
@@ -44,6 +59,39 @@ describe("secretRequestAnswerInput", () => {
         answer: { type: "save", secret: "\t\r\n" },
       }),
     ).toThrow();
+  });
+});
+
+describe("secretRequestAnswerInput with fields", () => {
+  const item = {
+    threadId: ThreadId.make("thread-1"),
+    id: TurnItemId.make("request-1"),
+    label: "Staging sign-in",
+    fields: [
+      { name: "email", label: "Email", secret: false },
+      { name: "constructor", label: "Password" },
+    ],
+  };
+
+  it("masks every input unless its field opts out", () => {
+    expect(secretRequestInputs(item).map((input) => [input.key, input.masked])).toEqual([
+      ["email", false],
+      ["constructor", true],
+    ]);
+  });
+
+  it("sends one value per field, and nothing until every field has one", () => {
+    expect(secretRequestAnswerInput(item, { type: "save", values: { email: "a@b.c" } })).toBeNull();
+    const input = secretRequestAnswerInput(item, {
+      type: "save",
+      values: { email: "a@b.c", constructor: " p w " },
+    });
+    if (input === null) throw new Error("A complete answer must be accepted.");
+    expect(input.answer).toEqual({
+      type: "save",
+      values: { email: "a@b.c", constructor: " p w " },
+    });
+    expect(decodeAnswer(encodeAnswer(input))).toEqual(input);
   });
 });
 
