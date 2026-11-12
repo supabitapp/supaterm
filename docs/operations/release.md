@@ -204,6 +204,7 @@ and pair a reachable server under Settings → Environments.
   - scheduled check of `main` every night at 08:08 UTC, just after midnight Pacific (`8 8 * * *`)
   - manual `workflow_dispatch` with `channel=nightly`
 - Automatic nightlies require commits ahead of the latest published nightly, including manual nightlies.
+- To pause automatic nightlies, run `gh variable set PAUSE_NIGHTLY -b true -R supabitapp/supaterm`. Scheduled runs then skip. Stable, preview, and manual nightly runs are unaffected. Resume with `gh variable delete PAUSE_NIGHTLY -R supabitapp/supaterm`.
 - Manual nightlies bypass the change check. Nightly runs remain serialized. Automatic runs wait for an active nightly to finish, then skip commits already included in the latest nightly.
 - Runs the same desktop quality gates and artifact matrix as the tagged release flow.
 - Publishes a GitHub prerelease only:
