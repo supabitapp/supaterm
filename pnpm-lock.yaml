@@ -2166,6 +2166,9 @@ importers:
 
   packages/tailscale:
     dependencies:
+      '@supaterm/contracts':
+        specifier: workspace:*
+        version: link:../contracts
       '@supaterm/shared':
         specifier: workspace:*
         version: link:../shared
