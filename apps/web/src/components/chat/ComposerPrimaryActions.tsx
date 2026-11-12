@@ -201,6 +201,70 @@ function SendActionsTooltip(props: {
   );
 }
 
+/** Where a Stop click on the given run stands, stepped each render and expired by its timers. */
+export function useComposerStop(input: {
+  readonly runId: string | null;
+  readonly canInterrupt: boolean;
+  readonly canOperateThread: boolean;
+}) {
+  const [storedStop, setStop] = useState<ComposerStopState>({
+    runId: input.runId,
+    phase: "idle",
+  });
+  const stop = stepComposerStop(storedStop, input);
+  if (stop !== storedStop) setStop(stop);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- timers that re-enable an unanswered Stop and lift the landed click guard
+  useEffect(() => {
+    const deadlineMs = composerStopDeadlineMs(stop.phase);
+    if (deadlineMs === null) return;
+    const timeout = setTimeout(() => setStop(expireComposerStop), deadlineMs);
+    return () => clearTimeout(timeout);
+  }, [stop.phase]);
+  return { phase: stop.phase, request: () => setStop(requestComposerStop) };
+}
+
+export function ComposerStopButton(props: {
+  readonly keybindings: ResolvedKeybindingsConfig;
+  readonly canOperateThread: boolean;
+  readonly stopping: boolean;
+  readonly insidePendingAction: boolean;
+  readonly preserveComposerFocusOnPointerDown: boolean;
+  readonly onStop: () => void;
+}) {
+  const { canOperateThread, stopping } = props;
+  return (
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <button
+            type="button"
+            className={cn(
+              "flex shrink-0 cursor-pointer items-center justify-center rounded-full bg-destructive/90 text-white shadow-xs shadow-destructive/24 inset-shadow-control-highlight transition-colors duration-150 ease-out hover:bg-destructive active:inset-shadow-control-pressed active:shadow-none disabled:cursor-default disabled:opacity-64 disabled:hover:bg-destructive/90 motion-reduce:transition-none [&_svg]:pointer-events-none",
+              props.insidePendingAction ? "size-8 sm:size-7" : "size-8 sm:h-8 sm:w-8",
+            )}
+            onPointerDown={
+              props.preserveComposerFocusOnPointerDown ? preventPointerFocus : undefined
+            }
+            disabled={!canOperateThread || stopping}
+            onClick={() => {
+              if (!canOperateThread || stopping) return;
+              props.onStop();
+            }}
+            aria-label={stopping ? "Stopping" : "Stop generation"}
+          />
+        }
+      >
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor" aria-hidden="true">
+          <rect x="2" y="2" width="8" height="8" rx="1.5" />
+        </svg>
+      </TooltipTrigger>
+      <TooltipPopup shortcut={shortcutLabelForCommand(props.keybindings, "thread.stop")}>
+        {stopping ? "Stopping…" : "Interrupt"}
+      </TooltipPopup>
+    </Tooltip>
+  );
+}
+
 export const ComposerPrimaryActions = memo(function ComposerPrimaryActions({
   compact,
   keybindings,
@@ -218,16 +282,7 @@ export const ComposerPrimaryActions = memo(function ComposerPrimaryActions({
   const pointerFocusProps = preserveComposerFocusOnPointerDown
     ? { onPointerDown: preventPointerFocus }
     : undefined;
-  const [storedStop, setStop] = useState<ComposerStopState>({ runId, phase: "idle" });
-  const stop = stepComposerStop(storedStop, { runId, canInterrupt, canOperateThread });
-  if (stop !== storedStop) setStop(stop);
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- timers that re-enable an unanswered Stop and lift the landed click guard
-  useEffect(() => {
-    const deadlineMs = composerStopDeadlineMs(stop.phase);
-    if (deadlineMs === null) return;
-    const timeout = setTimeout(() => setStop(expireComposerStop), deadlineMs);
-    return () => clearTimeout(timeout);
-  }, [stop.phase]);
+  const stop = useComposerStop({ runId, canInterrupt, canOperateThread });
   const shortcutModifiers = useShortcutModifierState();
   const action = resolveComposerPrimaryAction({
     ...facts,
@@ -238,34 +293,18 @@ export const ComposerPrimaryActions = memo(function ComposerPrimaryActions({
   const stopping = action.stop === "stopping";
 
   const renderStopGenerationButton = (insidePendingAction: boolean) => (
-    <Tooltip key="interrupt">
-      <TooltipTrigger
-        render={
-          <button
-            type="button"
-            className={cn(
-              "flex shrink-0 cursor-pointer items-center justify-center rounded-full bg-destructive/90 text-white shadow-xs shadow-destructive/24 inset-shadow-control-highlight transition-colors duration-150 ease-out hover:bg-destructive active:inset-shadow-control-pressed active:shadow-none disabled:cursor-default disabled:opacity-64 disabled:hover:bg-destructive/90 motion-reduce:transition-none [&_svg]:pointer-events-none",
-              insidePendingAction ? "size-8 sm:size-7" : "size-8 sm:h-8 sm:w-8",
-            )}
-            {...pointerFocusProps}
-            disabled={!canOperateThread || stopping}
-            onClick={() => {
-              if (!canOperateThread || stopping) return;
-              setStop(requestComposerStop);
-              onInterrupt();
-            }}
-            aria-label={stopping ? "Stopping" : "Stop generation"}
-          />
-        }
-      >
-        <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor" aria-hidden="true">
-          <rect x="2" y="2" width="8" height="8" rx="1.5" />
-        </svg>
-      </TooltipTrigger>
-      <TooltipPopup shortcut={shortcutLabelForCommand(keybindings, "thread.stop")}>
-        {stopping ? "Stopping…" : "Interrupt"}
-      </TooltipPopup>
-    </Tooltip>
+    <ComposerStopButton
+      key="interrupt"
+      keybindings={keybindings}
+      canOperateThread={canOperateThread}
+      stopping={stopping}
+      insidePendingAction={insidePendingAction}
+      preserveComposerFocusOnPointerDown={preserveComposerFocusOnPointerDown}
+      onStop={() => {
+        stop.request();
+        onInterrupt();
+      }}
+    />
   );
 
   if (action.kind === "answer") {

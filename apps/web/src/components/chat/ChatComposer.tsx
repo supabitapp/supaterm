@@ -240,7 +240,11 @@ import {
   ComposerQueuedAttachmentRow,
   ComposerRestingImagePreviews,
 } from "./ComposerAttachmentStrip";
-import { ComposerPrimaryActions } from "./ComposerPrimaryActions";
+import {
+  ComposerPrimaryActions,
+  ComposerStopButton,
+  useComposerStop,
+} from "./ComposerPrimaryActions";
 import {
   resolveComposerPrimaryAction,
   type ComposerPendingAnswer,
@@ -1344,12 +1348,16 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     canResume: showResumeAction,
     isEditingQueuedMessage,
   } satisfies Omit<ComposerPrimaryActionInput, "alternateModifier" | "stopPhase">;
-  // Collapsed only with no pending question; it has no Stop control and is inert during a run.
+  const collapsedComposerStop = useComposerStop({
+    runId: activeThread?.runtime?.activeRunId ?? null,
+    canInterrupt,
+    canOperateThread,
+  });
+  // Collapsed only with no pending question; during a run it offers only Stop.
   const collapsedComposerPrimaryAction = resolveComposerPrimaryAction({
     ...composerPrimaryActionFacts,
     pendingAction: null,
-    canInterrupt: false,
-    stopPhase: "idle",
+    stopPhase: collapsedComposerStop.phase,
     alternateModifier: false,
   });
   const collapsedComposerPrimaryActionDisabled =
@@ -3901,33 +3909,60 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
                   )}
                 </button>
                 {collapsedComposerImagePreviews}
-                <button
-                  type="button"
-                  data-chat-composer-transition-actions="true"
-                  className="flex size-8 shrink-0 items-center justify-center rounded-full bg-message-action text-message-action-foreground hover:bg-message-action-hover disabled:opacity-64"
-                  disabled={collapsedComposerPrimaryActionDisabled}
-                  aria-label={collapsedComposerPrimaryActionLabel}
-                  onPointerDown={(event) => event.preventDefault()}
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    if (collapsedComposerResumes) onResume();
-                    else submitComposer();
-                  }}
-                >
-                  {collapsedComposerResumes ? (
-                    <PlayIcon weight="fill" className="size-4" aria-hidden="true" />
-                  ) : (
-                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-                      <path
-                        d="M8 3L8 13M8 3L4 7M8 3L12 7"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      />
-                    </svg>
-                  )}
-                </button>
+                {collapsedComposerPrimaryAction.kind === "stop" ? (
+                  <span
+                    data-chat-composer-transition-actions="true"
+                    data-chat-composer-collapsed-controls="true"
+                    className="flex shrink-0"
+                  >
+                    <ComposerStopButton
+                      keybindings={keybindings}
+                      canOperateThread={canOperateThread}
+                      stopping={collapsedComposerPrimaryAction.stop === "stopping"}
+                      insidePendingAction={false}
+                      preserveComposerFocusOnPointerDown
+                      onStop={() => {
+                        collapsedComposerStop.request();
+                        handleInterruptPrimaryActionStable();
+                      }}
+                    />
+                  </span>
+                ) : (
+                  <button
+                    type="button"
+                    data-chat-composer-transition-actions="true"
+                    className="flex size-8 shrink-0 items-center justify-center rounded-full bg-message-action text-message-action-foreground hover:bg-message-action-hover disabled:opacity-64"
+                    disabled={collapsedComposerPrimaryActionDisabled}
+                    aria-label={collapsedComposerPrimaryActionLabel}
+                    onPointerDown={(event) => event.preventDefault()}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      if (collapsedComposerPrimaryAction.guarded) return;
+                      if (collapsedComposerResumes) onResume();
+                      else submitComposer();
+                    }}
+                  >
+                    {collapsedComposerResumes ? (
+                      <PlayIcon weight="fill" className="size-4" aria-hidden="true" />
+                    ) : (
+                      <svg
+                        width="16"
+                        height="16"
+                        viewBox="0 0 16 16"
+                        fill="none"
+                        aria-hidden="true"
+                      >
+                        <path
+                          d="M8 3L8 13M8 3L4 7M8 3L12 7"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                      </svg>
+                    )}
+                  </button>
+                )}
               </div>
             ) : null}
 
