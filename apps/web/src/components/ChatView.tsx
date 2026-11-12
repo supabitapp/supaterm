@@ -246,7 +246,7 @@ import { usePanelAnimationSettings, usePanelPresence } from "../panelAnimations"
 import { useNewThreadHandler } from "../hooks/useHandleNewThread";
 import { useOpenPanelPullRequestUrl } from "../hooks/useOpenPanelPullRequestUrl";
 import { isPreviewFocused } from "../lib/previewFocus";
-import { focusTerminalOnThreadEnter, getTerminalFocusOwner } from "../lib/terminalFocus";
+import { getTerminalFocusOwner } from "../lib/terminalFocus";
 import {
   deriveLogicalProjectKeyFromSettings,
   selectProjectGroupingSettings,
@@ -725,6 +725,7 @@ export default function ChatView(props: ChatViewProps) {
   const [restingComposerControlsHost, setRestingComposerControlsHost] =
     useState<HTMLDivElement | null>(null);
   const [restingComposerControlsVisible, setRestingComposerControlsVisible] = useState(false);
+  const [workspaceLayoutElement, setWorkspaceLayoutElement] = useState<HTMLDivElement | null>(null);
   const citeAssistantText = (
     citation: AssistantCitation,
     sourceAnchor: AssistantCitationSourceAnchor | undefined,
@@ -2241,9 +2242,12 @@ export default function ChatView(props: ChatViewProps) {
   };
 
   useFocusComposerOnThreadOpen(
-    activeThread?.id,
-    !terminalUiState.terminalOpen,
+    activeThreadRef,
+    workspaceLayoutElement,
+    true,
+    terminalUiState.terminalOpen,
     focusComposerStable,
+    isPaneInputOwner,
   );
 
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- window focus listener that refocuses the composer after the window regains focus
@@ -2834,14 +2838,6 @@ export default function ChatView(props: ChatViewProps) {
       );
     }
   }
-
-  // Entering a thread with its drawer open focuses the drawer terminal; opening
-  // it from a handler requests focus there. A closed drawer leaves focus to the
-  // composer effect above.
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- focuses the open drawer terminal when entering a thread
-  useEffect(() => {
-    if (activeThreadRef) return focusTerminalOnThreadEnter(activeThreadRef);
-  }, [activeThreadRef]);
 
   const {
     shortcuts: timelineRewindShortcuts,
@@ -3442,7 +3438,10 @@ export default function ChatView(props: ChatViewProps) {
     children: rightPanelContent,
   };
   const content = (
-    <div className="relative flex min-h-0 min-w-0 flex-1 overflow-hidden bg-background">
+    <div
+      ref={setWorkspaceLayoutElement}
+      className="relative flex min-h-0 min-w-0 flex-1 overflow-hidden bg-background"
+    >
       <DeviceSetupDialogHost
         threadKey={activeThreadKey}
         threadRef={activeThreadRef}
