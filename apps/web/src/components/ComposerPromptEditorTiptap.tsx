@@ -71,7 +71,6 @@ import {
 import { buildDocJson, buildTiptapContent, type SkillMeta } from "~/composer-rich-text-doc";
 import {
   ComposerBlockExtensions,
-  ComposerBoldSelectionOnlyExtension,
   ComposerCodeBlockExtension,
   ComposerListExtensions,
   convertBulletItemToTask,
@@ -801,7 +800,6 @@ function createComposerExtensions(richText: boolean) {
     ...(richText
       ? [
           ComposerMarkdownSourceExtension,
-          ComposerBoldSelectionOnlyExtension,
           ComposerItalicExtension,
           ComposerBoldExtension,
           ComposerStrikeExtension,
