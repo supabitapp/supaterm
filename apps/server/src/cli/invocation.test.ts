@@ -137,6 +137,37 @@ it.layer(NodeServices.layer)("root CLI commands", (it) => {
         }),
       ).toBe("sudo /opt/supaterm/supaterm browser setup");
 
+      // A standalone executable started directly (systemd, no launcher) is still this install.
+      expect(
+        yield* rootCommand({
+          node: "/opt/supaterm/supaterm",
+          entry: "/opt/supaterm/supaterm",
+          executable: true,
+          path: yield* pathWithSupaterm,
+        }),
+      ).toBe("sudo /opt/supaterm/supaterm browser setup");
+
+      // A global npm launcher runs the downloaded executable; PATH's `supaterm` is that launcher.
+      const prefix = path.join(home, "npm");
+      const npmLauncher = path.join(prefix, "lib/node_modules/supaterm/bin/supaterm.mjs");
+      yield* fs.makeDirectory(path.dirname(npmLauncher), { recursive: true });
+      yield* fs.makeDirectory(path.join(prefix, "bin"));
+      yield* fs.writeFileString(npmLauncher, "", { mode: 0o755 });
+      yield* fs.writeFileString(
+        path.join(prefix, "lib/node_modules/supaterm/package.json"),
+        `{"name":"supaterm","version":"${packageJson.version}"}`,
+      );
+      yield* fs.symlink(npmLauncher, path.join(prefix, "bin/supaterm"));
+      expect(
+        yield* rootCommand({
+          node: "/home/theo/.supaterm/runtime/versions/1.0.0/supaterm",
+          entry: "/home/theo/.supaterm/runtime/versions/1.0.0/supaterm",
+          executable: true,
+          path: path.join(prefix, "bin"),
+          env: { SUPATERM_NPM_LAUNCHER_PATH: npmLauncher },
+        }),
+      ).toBe('sudo env "PATH=$PATH" supaterm browser setup');
+
       expect(
         yield* rootCommand({
           ...desktop,
