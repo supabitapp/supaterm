@@ -911,6 +911,8 @@ const make = Effect.gen(function* () {
         ? await connectDesktop(snapshot)
         : null;
     if (desktop) opened.push(desktop.close);
+    // Attaching over CDP emulates a light scheme; a tab on System follows the desktop's.
+    if (desktop) await desktop.page.emulateMedia({ colorScheme: null });
     const opener =
       adopted?.openerTabId === undefined
         ? undefined
