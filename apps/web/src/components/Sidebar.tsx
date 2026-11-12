@@ -216,6 +216,7 @@ import {
 } from "./Sidebar.drag";
 import { SidebarPointerSensor } from "./Sidebar.pointer";
 import { createSidebarListMotion } from "./Sidebar.motion";
+import { createSidebarShiftGuard } from "./Sidebar.shiftGuard";
 import {
   pickSnoozePreset,
   resolveSnoozePresets,
@@ -1060,6 +1061,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
   const sidebarContentRef = useRef<HTMLDivElement | null>(null);
   const dragLabelOffsetRef = useRef(0);
   const listMotionRef = useRef<ReturnType<typeof createSidebarListMotion> | null>(null);
+  const shiftGuardRef = useRef<ReturnType<typeof createSidebarShiftGuard> | null>(null);
   const dragSensorRef = useRef<SidebarPointerSensor | null>(null);
   const contextDragKeyRef = useRef<string | null>(null);
   const dragScrollRef = useRef<{ readonly viewport: Element; readonly top: number } | null>(null);
@@ -1561,6 +1563,8 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
     listMotionRef.current?.dispose();
     listMotionRef.current = node === null ? null : createSidebarListMotion(node);
     listMotionRef.current?.update(false);
+    shiftGuardRef.current?.dispose();
+    shiftGuardRef.current = node === null ? null : createSidebarShiftGuard(node);
   };
   const prepareShelfMotion = () => listMotionRef.current?.prepare();
   const attachTreeRef = (node: HTMLUListElement) => {
@@ -1844,8 +1848,9 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
   };
   const previousGroupingRef = useRef(threadGrouping);
   const previousShelfStateRef = useRef(listMotionPass.shelfState);
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- tells the list motion controller to animate or not after each layout-affecting commit
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- records moved rows and updates list motion after each layout-affecting commit
   useLayoutEffect(() => {
+    shiftGuardRef.current?.update();
     if (previousGroupingRef.current !== listMotionPass.grouping) listMotionRef.current?.suspend();
     previousGroupingRef.current = listMotionPass.grouping;
     const shelfToggled = previousShelfStateRef.current !== listMotionPass.shelfState;
