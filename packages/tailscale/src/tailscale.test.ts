@@ -1,3 +1,4 @@
+import { ORCHESTRATION_PROTOCOL_VERSION } from "@supaterm/contracts";
 import { assert, describe, it } from "@effect/vitest";
 import * as Deferred from "effect/Deferred";
 import * as Duration from "effect/Duration";
@@ -109,6 +110,7 @@ describe("tailscale", () => {
       ] as const) {
         const reachable = yield* probeTailscaleHttpsEndpoint({
           baseUrl: "https://desktop.example.ts.net",
+          environmentId: "this-environment",
         }).pipe(
           Effect.provideService(
             HttpClient.HttpClient,
@@ -119,6 +121,35 @@ describe("tailscale", () => {
         );
         assert.isFalse(reachable, `HTTP ${status} without a Supaterm descriptor`);
       }
+    }),
+  );
+
+  it.effect("does not treat another Supaterm server behind the Serve URL as this server", () =>
+    Effect.gen(function* () {
+      const answer = (environmentId: string) =>
+        HttpClient.make((request) =>
+          Effect.succeed(
+            HttpClientResponse.fromWeb(
+              request,
+              Response.json({
+                environmentId,
+                label: "Supaterm server",
+                platform: { os: "linux", arch: "x64" },
+                serverVersion: "0.1.9",
+                orchestrationProtocolVersion: ORCHESTRATION_PROTOCOL_VERSION,
+                capabilities: {},
+              }),
+            ),
+          ),
+        );
+      const probe = (served: string) =>
+        probeTailscaleHttpsEndpoint({
+          baseUrl: "https://desktop.example.ts.net",
+          environmentId: "this-environment",
+        }).pipe(Effect.provideService(HttpClient.HttpClient, answer(served)));
+
+      assert.isTrue(yield* probe("this-environment"));
+      assert.isFalse(yield* probe("another-environment"));
     }),
   );
 
