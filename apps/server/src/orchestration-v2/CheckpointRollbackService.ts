@@ -10,6 +10,7 @@ import {
 import * as Context from "effect/Context";
 import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
+import * as Exit from "effect/Exit";
 import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
@@ -211,42 +212,90 @@ export const layer: Layer.Layer<
               };
             });
 
-      const { worktreePath, branch } = context.thread;
-      // Recreated only where the server would have made it, as turn start does.
-      if (
-        worktreePath != null &&
-        branch != null &&
-        !(yield* fileSystem.exists(worktreePath)) &&
-        (yield* isManagedWorktreePath(worktreePath))
-      ) {
-        const project = yield* projects.get(context.thread.projectId);
-        if (Option.isSome(project)) {
-          yield* gitWorkflow.pruneWorktrees({ cwd: project.value.workspaceRoot });
-          yield* gitWorkflow.createWorktree({
-            cwd: project.value.workspaceRoot,
-            refName: branch,
-            path: worktreePath,
-          });
-        }
-      }
-
-      const isolation =
-        input.restoreFiles === false
-          ? null
-          : yield* isCheckpointRestoreIsolated(context.thread, scope, {
-              fileSystem,
-              projections,
-              projects,
-              path,
-            });
-      if (isolation !== null && !isolation.isolated) {
-        return yield* new CheckpointRollbackExecutionError({
+      const restoreFiles = input.restoreFiles !== false;
+      const isolation = isCheckpointRestoreIsolated(context.thread, scope, {
+        fileSystem,
+        projections,
+        projects,
+        path,
+      });
+      const sharedWorkspace = (blockingSideChats: ReadonlyArray<string>) =>
+        new CheckpointRollbackExecutionError({
           reason: "shared-workspace",
           threadId: input.threadId,
           providerThreadId: input.providerThreadId,
           checkpointId: input.checkpointId,
-          blockingSideChats: isolation.blockingSideChats,
+          blockingSideChats,
         });
+
+      const { worktreePath, branch } = context.thread;
+      // Recreated only where the server would have made it, as turn start does.
+      if (worktreePath != null && branch != null) {
+        // A failed removal can leave the folder without its checkout; only a file restore replaces it.
+        const leftover =
+          restoreFiles &&
+          (yield* fileSystem.exists(worktreePath)) &&
+          !(yield* fileSystem.exists(path.join(worktreePath, ".git")));
+        if (
+          (leftover || !(yield* fileSystem.exists(worktreePath))) &&
+          (yield* isManagedWorktreePath(worktreePath))
+        ) {
+          const project = yield* projects.get(context.thread.projectId);
+          if (Option.isSome(project)) {
+            const recreate = gitWorkflow.pruneWorktrees({ cwd: project.value.workspaceRoot }).pipe(
+              Effect.andThen(
+                gitWorkflow.createWorktree({
+                  cwd: project.value.workspaceRoot,
+                  refName: branch,
+                  path: worktreePath,
+                }),
+              ),
+            );
+            if (leftover) {
+              const checked = yield* isolation;
+              if (!checked.isolated) return yield* sharedWorkspace(checked.blockingSideChats);
+              // Set aside, not removed: a checkout that fails puts the folder and its files back.
+              yield* Effect.acquireUseRelease(
+                Effect.gen(function* () {
+                  const aside = yield* fileSystem.makeTempDirectory({
+                    directory: path.dirname(worktreePath),
+                    prefix: ".supaterm-replaced-",
+                  });
+                  yield* fileSystem.rename(worktreePath, path.join(aside, "folder"));
+                  return aside;
+                }),
+                () => recreate,
+                (aside, exit) =>
+                  (Exit.isSuccess(exit)
+                    ? Effect.void
+                    : fileSystem
+                        .remove(worktreePath, { recursive: true, force: true })
+                        .pipe(
+                          Effect.andThen(
+                            fileSystem.rename(path.join(aside, "folder"), worktreePath),
+                          ),
+                        )
+                  ).pipe(
+                    Effect.andThen(fileSystem.remove(aside, { recursive: true, force: true })),
+                    Effect.catchCause((cause) =>
+                      Effect.logWarning("Edit from here left a worktree folder set aside", {
+                        worktreePath,
+                        setAside: path.join(aside, "folder"),
+                        cause,
+                      }),
+                    ),
+                  ),
+              );
+            } else {
+              yield* recreate;
+            }
+          }
+        }
+      }
+
+      if (restoreFiles) {
+        const checked = yield* isolation;
+        if (!checked.isolated) return yield* sharedWorkspace(checked.blockingSideChats);
       }
 
       const modelSelection = context.thread.modelSelection;
