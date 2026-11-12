@@ -1,6 +1,7 @@
-import type { UserInputQuestion } from "@supaterm/contracts";
+import type { ReviewCommentContextRecord, UserInputQuestion } from "@supaterm/contracts";
 import {
   formatModelContextText,
+  projectComposerContextForProvider,
   replaceComposerContextReferences,
 } from "@supaterm/shared/composerContextReferences";
 import { formatThreadLink } from "@supaterm/shared/threadLinks";
@@ -17,16 +18,18 @@ import type { ReferenceContextRecord } from "./lib/composerContextRecords";
 
 export function projectPendingUserInputAnswer(
   answer: unknown,
-  referenceContexts: ReadonlyArray<ReferenceContextRecord>,
+  records: ReadonlyArray<ReferenceContextRecord | ReviewCommentContextRecord>,
 ) {
-  if (typeof answer !== "string" || referenceContexts.length === 0) return answer;
-  const recordsById = new Map(referenceContexts.map((record) => [record.contextId, record]));
+  if (typeof answer !== "string" || records.length === 0) return answer;
+  const recordsById = new Map(records.map((record) => [record.contextId, record]));
   return replaceComposerContextReferences(answer, (reference) => {
     const record = recordsById.get(reference.contextId);
     if (record?.kind !== reference.kind) return reference.source;
     return record.kind === "thread"
       ? formatThreadLink(record, reference.label)
-      : formatModelContextText(record);
+      : record.kind === "model"
+        ? formatModelContextText(record)
+        : projectComposerContextForProvider({ text: reference.source, records: [record] });
   });
 }
 

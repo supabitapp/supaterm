@@ -6,7 +6,10 @@ import {
 } from "@supaterm/contracts";
 import { describe, expect, it } from "vite-plus/test";
 import { formatInlineContextReference } from "./lib/composerContextReferences";
-import { referenceContextReference } from "./lib/composerContextRecords";
+import {
+  referenceContextReference,
+  reviewCommentContextRecord,
+} from "./lib/composerContextRecords";
 import {
   modelContextRecord,
   threadContextRecord,
@@ -43,6 +46,29 @@ describe("projectPendingUserInputAnswer", () => {
     ).toBe(
       'Compare [Reference work](supaterm-thread://v2/env-answer/reference-thread) with Claude Opus 4.5 (delegate_task target {"providerInstanceId":"claudeAgent","model":"claude-opus-4-5"})',
     );
+  });
+
+  it("sends review comment chips with the comment text and diff", () => {
+    const comment = reviewCommentContextRecord({
+      id: "file-comment-1",
+      sectionId: "branch",
+      sectionTitle: "Changes",
+      filePath: "notes.md",
+      startIndex: 2,
+      endIndex: 2,
+      rangeLabel: "+2",
+      text: "Rename this to line two updated",
+      diff: "@@ -0,0 +2,1 @@\n+line two changed",
+      fenceLanguage: "diff",
+    });
+    const answer = `See my note: ${formatInlineContextReference({
+      kind: "review-comment",
+      contextId: comment.contextId,
+      label: comment.label,
+    })}`;
+    const projected = projectPendingUserInputAnswer(answer, [comment]);
+    expect(projected).toContain("Rename this to line two updated");
+    expect(projected).toContain("+line two changed");
   });
 
   it("preserves option values and exact answer text", () => {
