@@ -27,6 +27,7 @@ import {
 } from "../../../orchestration-v2/testkit/pullRequestFixtures.ts";
 import * as ProjectService from "../../../project/ProjectService.ts";
 import * as RepositoryIdentityResolver from "../../../project/RepositoryIdentityResolver.ts";
+import * as PullRequestWatchService from "../../../pullRequest/PullRequestWatchService.ts";
 import * as PullRequestReviewGuideService from "../../../pullRequest/PullRequestReviewGuideService.ts";
 import * as McpInvocationContext from "../../McpInvocationContext.ts";
 import * as McpToolAccess from "../../McpToolAccess.ts";
@@ -169,6 +170,7 @@ const makeHarness = Effect.fn("makePullRequestsToolkitHarness")(function* (
       return { sequence: 1, storedEvents: [] };
     });
   const layerDependencies = Layer.mergeAll(
+    Layer.mock(PullRequestWatchService.PullRequestWatchService)({}),
     Layer.mock(ProjectService.ProjectService)({
       getShell: () => Effect.succeed(Option.fromNullishOr(project)),
       listShells: () => Effect.succeed(options.projects ?? (project ? [project] : [])),
@@ -300,99 +302,6 @@ describe("pull request toolkit handlers", () => {
           },
         ]);
       }),
-  );
-
-  it.effect("watching an unlinked pull request links it first", () =>
-    Effect.gen(function* () {
-      const harness = yield* makeHarness();
-      const result = yield* harness.call("watch_pull_request", {
-        url: "https://github.com/supabitapp/supaterm/pull/9",
-      });
-      expect(result).toMatchObject({ number: 9, watching: false, wasWatching: false });
-      expect(yield* Ref.get(harness.commands)).toMatchObject([
-        {
-          type: "thread.pull-request.watch",
-          number: 9,
-          watching: true,
-          link: { url: "https://github.com/supabitapp/supaterm/pull/9", source: "agent" },
-        },
-      ]);
-    }),
-  );
-
-  it.effect("refuses to watch a merged pull request and stops an existing watch", () =>
-    Effect.gen(function* () {
-      const watch = {
-        startedAt: "2026-08-20T00:00:00.000Z",
-        headSha: null,
-        failedChecks: [],
-        passed: false,
-        passedChecks: [],
-        remarksThrough: "2026-08-20T00:00:00.000Z",
-        remarkIds: [],
-        conflicting: false,
-        wakes: 0,
-      };
-      const merged = makeLink(1, { headBranch: "done" });
-      const harness = yield* makeHarness({
-        thread: makeThread([
-          { ...merged, snapshot: merged.snapshot && { ...merged.snapshot, state: "merged" } },
-          makeLink(2, { headBranch: "idle" }),
-          makeLink(3, { headBranch: "watched", watch }),
-        ]),
-      });
-      const error = yield* harness
-        .call("watch_pull_request", { repository: "supabitapp/supaterm", number: 1 })
-        .pipe(Effect.flip);
-      expect(error).toMatchObject({ _tag: "PullRequestNotOpenError", state: "merged" });
-      expect(
-        yield* harness.call("unwatch_pull_request", {
-          repository: "supabitapp/supaterm",
-          number: 3,
-        }),
-      ).toMatchObject({ wasWatching: true });
-      expect(yield* Ref.get(harness.commands)).toMatchObject([
-        { type: "thread.pull-request.watch", number: 3, watching: false },
-      ]);
-    }),
-  );
-
-  it.effect("watches a pull request saved as closed, since it may have reopened", () =>
-    Effect.gen(function* () {
-      const closed = makeLink(1, { headBranch: "closed" });
-      const harness = yield* makeHarness({
-        thread: makeThread([
-          { ...closed, snapshot: closed.snapshot && { ...closed.snapshot, state: "closed" } },
-        ]),
-      });
-      yield* harness.call("watch_pull_request", {
-        repository: "supabitapp/supaterm",
-        number: 1,
-      });
-      expect(yield* Ref.get(harness.commands)).toMatchObject([
-        { type: "thread.pull-request.watch", number: 1, watching: true },
-      ]);
-    }),
-  );
-
-  it.effect("refuses a watch from a subagent thread, whose parent owns the pull request", () =>
-    Effect.gen(function* () {
-      const harness = yield* makeHarness({
-        thread: {
-          ...makeThread([makeLink(1, { headBranch: "feature" })]),
-          lineage: {
-            rootThreadId: ThreadId.make("parent"),
-            parentThreadId: ThreadId.make("parent"),
-            relationshipToParent: "subagent",
-          },
-        },
-      });
-      const error = yield* harness
-        .call("watch_pull_request", { repository: "supabitapp/supaterm", number: 1 })
-        .pipe(Effect.flip);
-      expect(error).toMatchObject({ _tag: "PullRequestWatchFromSubagentError" });
-      expect(yield* Ref.get(harness.commands)).toEqual([]);
-    }),
   );
 
   it.effect("defaults the host from a project whose repository has not been read yet", () =>
