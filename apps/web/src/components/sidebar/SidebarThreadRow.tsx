@@ -90,6 +90,7 @@ import {
   shouldRecedeSidebarThread,
   shouldShowSidebarV2Duration,
   useRetainedValue,
+  withoutRemovedCheckout,
   useSidebarRowSubscriptionLease,
   setFileDragActive,
 } from "../Sidebar.logic";
@@ -743,6 +744,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
     JSON.stringify([thread.environmentId, gitCwd]),
     gitStatus.data,
   );
+  const checkoutThread = withoutRemovedCheckout(thread, visibleGitStatus);
   const pr = linkedPullRequestStatus?.pr ?? null;
   const currentLinkedPr = resolveThreadCurrentPullRequestLink(thread.pullRequests);
 
@@ -861,11 +863,11 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
     : thread.modelSelection.model;
 
   const isRemote = thread.environmentId !== props.currentEnvironmentId;
-  const showsScratchMachine = !thread.branch && props.scratchMachineLabel !== null;
+  const showsScratchMachine = !checkoutThread.branch && props.scratchMachineLabel !== null;
 
   const detailsTooltip = (
     <SidebarThreadTooltip
-      thread={thread}
+      thread={checkoutThread}
       project={props.project}
       projectDisplayName={props.projectDisplayName}
       environmentLabel={props.environmentLabel}
@@ -1542,9 +1544,9 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
               </span>
             ) : null}
             <div className="mt-0.5 flex h-4 min-w-0 items-center gap-1.5 text-xs text-secondary-label">
-              {thread.branch ? (
+              {checkoutThread.branch ? (
                 <span className="flex min-w-0 flex-1">
-                  <MiddleTruncate value={thread.branch} showTitle={false} />
+                  <MiddleTruncate value={checkoutThread.branch} showTitle={false} />
                 </span>
               ) : (
                 <span dir="auto" className="min-w-0 flex-1 truncate">
