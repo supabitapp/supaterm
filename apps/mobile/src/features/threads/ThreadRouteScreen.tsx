@@ -1171,11 +1171,7 @@ function ThreadRouteContent(
           onRemoveDraftImage={composer.onRemoveDraftImage}
           serverConfig={serverConfig}
           onStopThread={awaitingBootstrapTurn ? handleCancelWorktreeSetup : handleStopThread}
-          onResumeQueue={
-            (composer.queueHeld || composer.resumableRunId !== null) && canOperateThread
-              ? handleResumeQueue
-              : null
-          }
+          onResumeQueue={composer.canResume && canOperateThread ? handleResumeQueue : null}
           onSendMessage={composer.onSendMessage}
           onSendVoiceMessage={composer.onSendVoiceMessage}
           onReconnectEnvironment={handleReconnectEnvironment}

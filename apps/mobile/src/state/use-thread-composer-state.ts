@@ -14,6 +14,7 @@ import {
   isDetailBehindShell,
 } from "@supaterm/client-runtime/state/thread-activity-announcement";
 import {
+  canResumeThread,
   deriveProviderSubagentStatus,
   deriveProviderExtensionStatuses,
   deriveResumableRunId,
@@ -382,6 +383,9 @@ export function useThreadComposerState() {
   const resumableRunId = selectedThreadProjection
     ? deriveResumableRunId(selectedThreadProjection.projection, selectedThreadRuntime)
     : null;
+  const canResume = selectedThreadProjection
+    ? canResumeThread(selectedThreadProjection.projection, resumableRunId, queueHeld)
+    : queueHeld;
 
   const runlessWorkStartedAt = selectedThreadProjection
     ? deriveRunlessWorkStartedAt(selectedThreadProjection.projection)
@@ -856,6 +860,7 @@ export function useThreadComposerState() {
     canSteerActiveTurn,
     queueHeld,
     resumableRunId,
+    canResume,
     queuedRunEdit,
     isSavingQueuedEdit,
     cancelQueuedRunEdit,
