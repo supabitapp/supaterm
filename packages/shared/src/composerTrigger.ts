@@ -80,7 +80,7 @@ export function detectComposerTrigger(text: string, cursorInput: number): Compos
   const token = text.slice(tokenStart, cursor);
   if (token.startsWith("/")) {
     const word = text.slice(tokenStart, tokenEndForCursor(text, cursor));
-    if (word.slice(1).includes("/")) return null;
+    if (/[/\\]/.test(word.slice(1))) return null;
     if (Array.from(text.slice(0, tokenStart)).every(isWhitespace)) {
       return {
         kind: "slash-command",
