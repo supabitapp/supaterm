@@ -508,6 +508,44 @@ it.effect("record reads restrict provider histories to delivery identities", () 
   }).pipe(Effect.provide(layerTest)),
 );
 
+it.effect("command reads seek the rows they keep, not every row of the thread", () =>
+  Effect.gen(function* () {
+    const store = yield* ProjectionStore.ProjectionStoreV2;
+    const sql = yield* SqlClient.SqlClient;
+    const threadId = yield* addRolledBackRecoveryCandidate("command-read-seeks");
+    const command = traceSqlStatements();
+    yield* store
+      .getThreadRecords(threadId, ["nodes", "subagents", "turnItems", "contextTransfers"], {
+        turnItemTypes: ["user_message", "error"],
+        omitSettledLeafNodes: true,
+        omitSettledSubagents: true,
+        contextTransferStatuses: ["pending"],
+      })
+      .pipe(Effect.withTracer(command.tracer));
+    for (const [table, seeks] of [
+      ["turn_items", ["USING INDEX orchestration_v2_projection_turn_items_conversation_idx"]],
+      ["nodes", ["nodes_settled_leaf_idx (thread_id=? AND <expr>=?)"]],
+      ["subagents", ["USING COVERING INDEX orchestration_v2_projection_subagents_settled_idx"]],
+      [
+        "context_transfers",
+        [
+          "source_thread_status_idx (source_thread_id=? AND status=?)",
+          "target_thread_idx (target_thread_id=? AND status=?)",
+        ],
+      ],
+    ] as const) {
+      const query = command.statements.find((statement) =>
+        statement.includes(`FROM orchestration_v2_projection_${table}`),
+      );
+      assert.isDefined(query);
+      const plan = (yield* sql.unsafe<{ readonly detail: string }>(`EXPLAIN QUERY PLAN ${query}`))
+        .map((row) => row.detail)
+        .join("\n");
+      for (const seek of seeks) assert.include(plan, seek);
+    }
+  }).pipe(Effect.provide(layerTest)),
+);
+
 it.effect("user-only message reads find ordinals through the user-message index", () =>
   Effect.gen(function* () {
     const store = yield* ProjectionStore.ProjectionStoreV2;
@@ -552,6 +590,16 @@ it.effect("user-only message reads find ordinals through the user-message index"
       plan.some((detail) => detail.includes("turn_items_user_message_idx")),
       plan.join("\n"),
     );
+    // With every user item loaded, the items give the order and the lookup does not run.
+    const withItems = traceSqlStatements();
+    const ordered = yield* store
+      .getThreadRecords(threadId, ["messages", "turnItems"], {
+        messageRoles: ["user"],
+        turnItemTypes: ["user_message"],
+      })
+      .pipe(Effect.withTracer(withItems.tracer));
+    assert.deepEqual(ordered.messages, userMessages.messages);
+    assert.isFalse(withItems.statements.some((statement) => statement.includes("MIN(ordinal)")));
   }).pipe(Effect.provide(layerTest)),
 );
 
