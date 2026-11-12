@@ -246,7 +246,9 @@ text selected while a tap still types a space, or turn it off. On web and deskto
 recording stays in the composer while you speak:
 
 - **Stop and review**, or `ctrl+m` again, transcribes the recording into the
-  draft where your cursor was, so you can edit it before sending.
+  draft where your cursor was, so you can edit it before sending. Changes that reach the
+  draft meanwhile, such as a cited message, are kept; the text then goes after your
+  selection instead of replacing it.
 - **Send**, or your send shortcut, sends the recording as your next message. With an empty draft in a
   thread that has started, it waits in the [queue](#queued-messages) like a typed message,
   even while you are offline, and the environment transcribes and sends it once it is
