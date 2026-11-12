@@ -2,6 +2,7 @@ import { pipe } from "effect/Function";
 import { scopeProjectRef } from "@supaterm/client-runtime/environment";
 
 import { pullRequestDetailToVcsStatus } from "@supaterm/client-runtime/state/pull-requests";
+import type { EnvironmentThreadShell } from "@supaterm/client-runtime/state/shell";
 import {
   resolveEnvironmentMachineKind,
   type EnvironmentId,
@@ -112,6 +113,33 @@ export function useLinkedThreadPullRequest(
           baseUrl: "",
         },
       };
+}
+
+/** The pull request a thread shows: its current link, else the one found for its branch. */
+export function useThreadDisplayedPullRequest(
+  environmentId: EnvironmentId,
+  thread: Pick<EnvironmentThreadShell, "pullRequests" | "branchPullRequest"> | null,
+  branchPr: ThreadPr = null,
+  branchSourceControlProvider?: VcsStatusResult["sourceControlProvider"],
+) {
+  const linkedStatus = useLinkedThreadPullRequest(
+    environmentId,
+    thread?.pullRequests,
+    thread?.branchPullRequest,
+  );
+  const currentLink = resolveThreadCurrentPullRequestLink(thread?.pullRequests ?? []);
+  const pr = linkedStatus?.pr ?? (currentLink === null ? branchPr : null);
+  return {
+    currentLink,
+    badge: resolveThreadPullRequestBadge(thread?.pullRequests),
+    pr,
+    status: prStatusIndicator(
+      pr,
+      linkedStatus?.sourceControlProvider ?? branchSourceControlProvider,
+    ),
+    number: currentLink?.number ?? pr?.number,
+    url: currentLink?.url ?? pr?.url,
+  };
 }
 
 function linkedPullRequestReference(fallback: ThreadLinkedPullRequest) {

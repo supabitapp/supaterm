@@ -4,11 +4,13 @@ import type {
   ProjectId,
   ProjectScript,
   ResolvedKeybindingsConfig,
-  ScopedThreadRef,
   ThreadId,
 } from "@supaterm/contracts";
 
-import type { DraftId } from "../../composerDraftStore";
+import { scopeProjectRef } from "@supaterm/client-runtime/environment";
+import { isScratchProject } from "@supaterm/client-runtime/state/projects";
+
+import type { ComposerThreadTarget, DraftId } from "../../composerDraftStore";
 import { useSupatermProjectFileScripts } from "../../hooks/useSupatermProjectFileScripts";
 import {
   shouldShowEnvironmentIndicator,
@@ -33,6 +35,8 @@ import { ThreadDetailsForkControl } from "./ThreadDetailsForkControl";
 import { ThreadServersPanel } from "./ThreadServersPanel";
 import { ThreadDetailsLimits, type ThreadDetailsLimitsInput } from "./ThreadDetailsLimits";
 import { ThreadDetailsItemsMenuItems } from "./ThreadDetailsItemsMenu";
+import { useProject, useServerConfigs } from "../../state/entities";
+import { ThreadDetailsThreadPrRows } from "./ThreadDetailsPrRows";
 import {
   resolveThreadDetailsVisibility,
   THREAD_DETAILS_ITEMS,
@@ -59,7 +63,7 @@ interface ThreadDetailsPanelProps extends Pick<
   /** A side chat or side chat draft, which works in its parent's checkout. */
   sideChat: boolean;
   draftId?: DraftId;
-  composerDraftTarget: ScopedThreadRef | DraftId;
+  composerDraftTarget: ComposerThreadTarget;
   activeProjectName: string | undefined;
   activeProjectScripts: ReadonlyArray<ProjectScript> | undefined;
   preferredScriptId: string | null;
@@ -116,6 +120,15 @@ export function ThreadDetailsPanel(props: ThreadDetailsPanelProps) {
     canPickEnvironment,
   });
   const activeThreadRef = { environmentId: props.environmentId, threadId: props.threadId };
+  const project = useProject(scopeProjectRef(props.environmentId, props.projectId));
+  const serverConfig = useServerConfigs().get(props.environmentId);
+  // A No project thread's folder sits inside the shared scratch root, so it must never get git.
+  // Until the config and project load, a No project thread looks like any other folder.
+  const offersGit =
+    props.gitCwd !== null &&
+    serverConfig !== undefined &&
+    project !== null &&
+    !isScratchProject(project, serverConfig.scratchWorkspaceRoot);
   const branchToolbarProps = {
     showGitControls: props.isGitRepo,
     environmentId: props.environmentId,
@@ -173,9 +186,11 @@ export function ThreadDetailsPanel(props: ThreadDetailsPanelProps) {
           environment: density === "full" && showEnvironment && visible.environment,
           openIn: density !== "essential" && visible.openIn && props.showOpenInPicker,
           scripts: visible.scripts && props.activeProjectScripts !== undefined,
-          branch: props.gitCwd !== null && props.isGitRepo && visible.branch,
+          branch: offersGit && props.isGitRepo && visible.branch,
+          // Without a branch selector, linked pull requests still need somewhere to show.
+          pullRequests: !(offersGit && props.isGitRepo) && visible.branch,
           git:
-            props.gitCwd !== null &&
+            offersGit &&
             props.activeProjectName !== undefined &&
             (visible.gitActions || (visible.changes && props.isGitRepo)),
           context: !props.draftId && visible.context,
@@ -234,7 +249,7 @@ export function ThreadDetailsPanel(props: ThreadDetailsPanelProps) {
                 </ThreadDetailsSection>
               ) : null}
 
-              {props.gitCwd && (show.branch || show.git) ? (
+              {show.branch || show.pullRequests || show.git ? (
                 <ThreadDetailsSection
                   headingId="thread-details-version-control-heading"
                   title="Version Control"
@@ -245,7 +260,14 @@ export function ThreadDetailsPanel(props: ThreadDetailsPanelProps) {
                     {show.branch ? (
                       <BranchToolbar layout="panel" panelSection="branch" {...branchToolbarProps} />
                     ) : null}
-                    {show.git ? (
+                    {show.pullRequests ? (
+                      <ThreadDetailsThreadPrRows
+                        threadRef={activeThreadRef}
+                        project={project}
+                        composerTarget={props.composerDraftTarget}
+                      />
+                    ) : null}
+                    {show.git && props.gitCwd ? (
                       <GitActionsControl
                         compact={density !== "full"}
                         showActions={visible.gitActions}

@@ -1,6 +1,5 @@
 import { ThreadDetailsComboboxControl } from "./chat/ThreadDetailsControl";
 import { ComposerContextLabel } from "./ComposerContextLabel";
-import { resolveThreadCurrentPullRequestLink } from "@supaterm/client-runtime/thread-pull-requests";
 import { useRightPanelStore } from "../rightPanelStore";
 import { scopeProjectRef, scopeThreadRef } from "@supaterm/client-runtime/environment";
 import {
@@ -40,7 +39,7 @@ import { useAtomCommand } from "../state/use-atom-command";
 import { vcsEnvironment } from "../state/vcs";
 import { cn } from "../lib/utils";
 import { THREAD_DETAILS_PANEL_ICON_CLASS } from "./chat/threadDetailsPanelStyles";
-import { ThreadDetailsPrRows } from "./chat/ThreadDetailsPrRows";
+import { ThreadDetailsThreadPrRows } from "./chat/ThreadDetailsPrRows";
 import { parsePullRequestReference } from "@supaterm/client-runtime/pull-request-link-input";
 import { getSourceControlPresentation } from "../sourceControlPresentation";
 import { useComposerMenuProps } from "./chat/composerEventScope";
@@ -58,10 +57,8 @@ import {
 } from "./BranchToolbar.logic";
 import {
   ThreadPullRequestBadgeControl,
-  prStatusIndicator,
   resolveDisplayedThreadPr,
-  resolveThreadPullRequestBadge,
-  useLinkedThreadPullRequest,
+  useThreadDisplayedPullRequest,
 } from "./ThreadStatusIndicators";
 
 import { ComboboxItem } from "./ui/combobox";
@@ -581,21 +578,19 @@ export function BranchToolbarBranchSelector({
     threadBranch: branchPrBranch,
     gitStatus: branchStatusQuery.data,
   });
-  const linkedStatus = useLinkedThreadPullRequest(
+  const {
+    badge: prBadge,
+    number: prNumber,
+    url: prUrl,
+    status: prStatus,
+  } = useThreadDisplayedPullRequest(
     environmentId,
-    serverThread?.pullRequests,
-    serverThread?.branchPullRequest,
+    serverThread,
+    branchPr,
+    branchStatusQuery.data?.sourceControlProvider,
   );
-  const currentLinkedPr = resolveThreadCurrentPullRequestLink(serverThread?.pullRequests ?? []);
-  const prBadge = resolveThreadPullRequestBadge(serverThread?.pullRequests);
-  const displayedPr = linkedStatus?.pr ?? (currentLinkedPr === null ? branchPr : null);
-  const displayedPrStatus = prStatusIndicator(
-    displayedPr,
-    linkedStatus?.sourceControlProvider ?? branchStatusQuery.data?.sourceControlProvider,
-  );
-  const prNumber = currentLinkedPr?.number ?? displayedPr?.number;
-  const prUrl = currentLinkedPr?.url ?? displayedPr?.url;
   const openPrLink = useOpenPrLink(threadRef);
+
   function selectPickerItem(itemValue: string) {
     if (itemValue === checkoutPullRequestItemValue && prReference && onCheckoutPullRequestRequest) {
       handleOpenChange(false);
@@ -740,7 +735,7 @@ export function BranchToolbarBranchSelector({
             pullRequests={serverThread?.pullRequests ?? []}
             number={prNumber}
             url={prUrl}
-            status={displayedPrStatus}
+            status={prStatus}
             onOpenList={() => useRightPanelStore.getState().open(threadRef, "pull-requests")}
             onOpenPullRequest={(event, targetUrl = prUrl) => {
               if (targetUrl) openPrLink(event, targetUrl);
@@ -783,22 +778,13 @@ export function BranchToolbarBranchSelector({
             <TooltipPopup shortcut={branchShortcut}>{triggerLabel}</TooltipPopup>
           </Tooltip>
         </span>
-        {displayMode === "panel" && prNumber !== undefined && prUrl !== undefined ? (
-          <ThreadDetailsPrRows
+        {displayMode === "panel" ? (
+          <ThreadDetailsThreadPrRows
             threadRef={threadRef}
-            links={serverThread?.pullRequests ?? []}
-            currentLink={currentLinkedPr}
-            onOpenLink={openPrLink}
-            environmentId={environmentId}
-            pr={displayedPr}
-            number={prNumber}
-            reference={currentLinkedPr}
-            status={displayedPrStatus}
             project={activeProject}
-            title={displayedPr?.title.trim() || null}
-            openAriaLabel={prUrl ?? `Open ${sourceControlPresentation.terminology.singular}`}
+            branchPr={branchPr}
+            branchSourceControlProvider={branchStatusQuery.data?.sourceControlProvider}
             composerTarget={composerDraftTarget ?? draftId ?? threadRef}
-            onOpen={(event) => openPrLink(event, prUrl)}
             onActed={() => branchStatusQuery.refresh()}
           />
         ) : null}
