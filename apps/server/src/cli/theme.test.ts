@@ -89,6 +89,40 @@ describe("supaterm theme", () => {
     }),
   );
 
+  it.effect("sets the theme of a dev server running in the default home", () =>
+    Effect.gen(function* () {
+      const home = makeBaseDir();
+      const devStateDir = NodePath.join(home, ".supaterm", "dev");
+      NodeFS.mkdirSync(devStateDir, { recursive: true });
+      NodeFS.writeFileSync(
+        NodePath.join(devStateDir, "server-runtime.json"),
+        `${JSON.stringify({
+          version: 1,
+          pid: process.pid,
+          port: 4888,
+          origin: "http://127.0.0.1:4888",
+          devUrl: "http://127.0.0.1:5999",
+          startedAt: "1970-01-01T00:00:00.000Z",
+        })}\n`,
+      );
+
+      const result = yield* runCli(["theme", "set", "ocean"]).pipe(
+        Effect.provideService(HostProcess.HomeDirectory, home),
+        Effect.provide(ConfigProvider.layer(ConfigProvider.fromEnv({ env: {} }))),
+        Effect.result,
+      );
+
+      assert.equal(
+        NodeFS.existsSync(NodePath.join(home, ".supaterm", "userdata", "settings.json")),
+        false,
+      );
+      if (result._tag === "Success") {
+        const devSettings = NodePath.join(devStateDir, "settings.json");
+        assert.equal(JSON.parse(NodeFS.readFileSync(devSettings, "utf8")).defaultTheme, "ocean");
+      }
+    }),
+  );
+
   it.effect("publishes a theme file under its filename and sets it", () =>
     Effect.gen(function* () {
       const baseDir = makeBaseDir();
