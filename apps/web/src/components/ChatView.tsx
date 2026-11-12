@@ -3448,6 +3448,7 @@ export default function ChatView(props: ChatViewProps) {
         <PreviewPanelSibling>
           <div
             data-chat-column
+            data-chat-column-maximized-away={rightPanelMaximized ? "true" : "false"}
             className="flex h-full min-h-0 min-w-0 flex-col overflow-x-clip bg-background"
           >
             <header
