@@ -700,7 +700,7 @@ describe("supaterm pair", () => {
           });
           const spawner = ChildProcessSpawner.make((command) => {
             const { args } = command as unknown as { readonly args: ReadonlyArray<string> };
-            const serve = args[0] === "serve";
+            const serve = args[0] === "serve" && args[1] !== "status";
             return Effect.succeed(
               ChildProcessSpawner.makeHandle({
                 pid: ChildProcessSpawner.ProcessId(1),
@@ -711,7 +711,11 @@ describe("supaterm pair", () => {
                 stdin: Sink.drain,
                 stdout: Stream.make(
                   new TextEncoder().encode(
-                    serve ? "" : '{"Self":{"DNSName":"pair-test.tail.ts.net."}}',
+                    serve
+                      ? ""
+                      : args[0] === "serve"
+                        ? "{}"
+                        : '{"Self":{"DNSName":"pair-test.tail.ts.net."}}',
                   ),
                 ),
                 stderr: Stream.make(
