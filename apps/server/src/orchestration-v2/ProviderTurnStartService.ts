@@ -845,8 +845,7 @@ export const layer: Layer.Layer<
       const goalDriver =
         session.driver === "codex" ||
         session.driver === "claudeAgent" ||
-        (session.driver === "opencode" &&
-          session.providerSession.capabilities.turns.supportsNativeGoals === true);
+        session.providerSession.capabilities.turns.supportsNativeGoals === true;
       const goalCommand = goalDriver && parseGoalCommand(message) !== null;
       // Delivered once: this run's provider turn marks the work as told. A
       // restart continuation is prompted by its own text or resumes natively.
