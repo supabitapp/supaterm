@@ -17,16 +17,26 @@ export function TimelineSystemDivider(props: {
   const Icon = props.icon;
   const content = (
     <>
-      {Icon ? <Icon className="size-3 shrink-0" /> : null}
-      <span className="font-medium">{props.label}</span>
+      <span
+        className={cn(
+          "inline-flex items-center gap-1.5 align-baseline font-medium",
+          props.wrapDetail && "shrink-0 whitespace-nowrap",
+        )}
+      >
+        {Icon ? <Icon className="size-3 shrink-0 self-center" /> : null}
+        {props.label}
+      </span>
       {props.detail ? (
         <span
           className={
-            typeof props.detail === "string"
-              ? props.wrapDetail
-                ? "min-w-0 max-w-80 whitespace-pre-wrap opacity-70"
-                : "min-w-0 max-w-80 truncate opacity-70"
-              : "inline-flex min-w-0 items-center opacity-70"
+            props.wrapDetail
+              ? cn(
+                  "ml-1.5 min-w-0 wrap-anywhere opacity-70",
+                  typeof props.detail === "string" && "whitespace-pre-wrap",
+                )
+              : typeof props.detail === "string"
+                ? "min-w-0 max-w-80 truncate opacity-70"
+                : "inline-flex min-w-0 items-center opacity-70"
           }
         >
           {props.showDetailSeparator === false ? null : "·\u00a0"}
@@ -52,7 +62,10 @@ export function TimelineSystemDivider(props: {
                 type="button"
                 aria-label={props.actionLabel}
                 onClick={props.onAction}
-                className="flex min-w-0 cursor-pointer items-center gap-1.5 rounded-full border border-border/70 bg-background px-2.5 py-1 transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/70"
+                className={cn(
+                  "min-w-0 cursor-pointer rounded-full border border-border/70 bg-background px-2.5 py-1 transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/70",
+                  props.wrapDetail ? "text-center" : "flex items-center gap-1.5",
+                )}
               />
             }
           >
@@ -61,7 +74,12 @@ export function TimelineSystemDivider(props: {
           <TooltipPopup side="top">{props.actionLabel}</TooltipPopup>
         </Tooltip>
       ) : (
-        <span className="flex min-w-0 flex-wrap items-center justify-center gap-1.5 rounded-full px-2 py-1">
+        <span
+          className={cn(
+            "min-w-0 rounded-full px-2 py-1",
+            props.wrapDetail ? "text-center" : "flex flex-wrap items-center justify-center gap-1.5",
+          )}
+        >
           {content}
         </span>
       )}
