@@ -51,6 +51,7 @@ export interface CommandScopeOptions {
 
 interface CommandScope {
   readonly run: CommandRunner;
+  readonly owns: (command: KeybindingCommand) => boolean;
   readonly options: CommandScopeOptions;
 }
 
@@ -111,6 +112,18 @@ function isKeybindingCaptureTarget(event: KeyboardEvent): boolean {
   return (
     event.target instanceof Element && event.target.closest("[data-keybinding-capture]") !== null
   );
+}
+
+/**
+ * Whether a bubble-phase command is bound to this keydown, for widgets that would otherwise
+ * consume it. Capture scopes have already run (and declined) by the time a widget sees it.
+ */
+export function hasCommandForKeyDown(event: KeyboardEvent): boolean {
+  return globalScopes.some((scope) => {
+    if (!isLive(scope)) return false;
+    const command = resolveKeyCommand(scope, event);
+    return command !== null && scope.owns(command);
+  });
 }
 
 function runKeyScopes(scopes: readonly CommandScope[], event: KeyboardEvent): boolean {
@@ -190,14 +203,17 @@ export function registerCommands(
   options: CommandScopeOptions = {},
 ): () => void {
   const scopes = options.capture ? captureScopes : globalScopes;
-  const run: CommandRunner =
-    typeof commands === "function"
-      ? commands
-      : (command, invocation) => {
-          const handler = commands[command];
-          return handler ? handler(invocation) : false;
-        };
-  return pushScope(scopes, { run, options });
+  if (typeof commands === "function") {
+    return pushScope(scopes, { run: commands, owns: () => true, options });
+  }
+  return pushScope(scopes, {
+    run: (command, invocation) => {
+      const handler = commands[command];
+      return handler ? handler(invocation) : false;
+    },
+    owns: (command) => commands[command] !== undefined,
+    options,
+  });
 }
 
 /**
