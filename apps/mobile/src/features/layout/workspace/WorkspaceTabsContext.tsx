@@ -33,6 +33,8 @@ export const WorkspaceTabsContext = createContext<{
   readonly recordScrollOffset: (tab: WorkspaceSearchTab, offset: number) => void;
   readonly getScrollAnchor: (tab: WorkspaceTab) => WorkspaceScrollAnchor | undefined;
   readonly recordScrollAnchor: (tab: WorkspaceTab, anchor: WorkspaceScrollAnchor) => void;
+  /** Leaves search and returns the list to where it was when search began. */
+  readonly cancelSearch: (tab: WorkspaceSearchTab) => void;
 } | null>(null);
 
 export function useWorkspaceTabs() {
@@ -91,10 +93,11 @@ export function WorkspaceTabsProvider(props: {
   const registry = use(RegistryContext);
   const [model] = useState(createWorkspaceTabsModel);
   const state = useAtomValue(model.resolved);
+  const dispatch = (action: WorkspaceTabsAction) =>
+    registry.set(model.stored, workspaceTabsReducer(registry.get(model.resolved), action));
   const context = {
     state,
-    dispatch: (action: WorkspaceTabsAction) =>
-      registry.set(model.stored, workspaceTabsReducer(registry.get(model.resolved), action)),
+    dispatch,
     isTabActive: (tab: WorkspaceTab) => registry.get(model.resolved).selectedTab === tab,
     bottomClearance: 0,
     settingsOpen: props.settingsOpen ?? false,
@@ -102,6 +105,10 @@ export function WorkspaceTabsProvider(props: {
     recordScrollOffset: model.recordScrollOffset,
     getScrollAnchor: model.getScrollAnchor,
     recordScrollAnchor: model.recordScrollAnchor,
+    cancelSearch: (tab: WorkspaceSearchTab) => {
+      model.recordScrollOffset(tab, registry.get(model.resolved).tabs[tab].searchEntryOffset);
+      dispatch({ type: "cancel", tab });
+    },
   };
   return <WorkspaceTabsContext value={context}>{props.children}</WorkspaceTabsContext>;
 }
