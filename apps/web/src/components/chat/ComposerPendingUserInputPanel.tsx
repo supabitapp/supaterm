@@ -311,6 +311,7 @@ const ComposerPendingUserInputCard = memo(function ComposerPendingUserInputCard(
               text={activeQuestion.question}
               cwd={cwd}
               threadRef={threadRef}
+              lineBreaks
               className={cn("font-medium text-foreground", questionTextAlign)}
             />
             <div className="-ms-2 mt-2 sm:-ms-1.5">
