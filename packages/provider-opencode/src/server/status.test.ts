@@ -493,6 +493,12 @@ describe("checkOpenCodeProviderStatus", () => {
             name: "Space Bunny Free",
             variants: [{ id: "low" }, { id: "medium" }, { id: "high" }],
           },
+          {
+            providerID: "opencode-go",
+            id: "deepseek-v4.1-flash",
+            name: "DeepSeek V4.1 Flash",
+            variants: [{ id: "low" }, { id: "high" }, { id: "max" }],
+          },
         ]),
       );
 
@@ -512,7 +518,7 @@ describe("checkOpenCodeProviderStatus", () => {
       );
       NodeAssert.deepEqual(
         snapshot.models.map((model) => model.slug),
-        ["opencode/big-pickle", "opencode/space-bunny-free"],
+        ["opencode/big-pickle", "opencode-go/deepseek-v4.1-flash", "opencode/space-bunny-free"],
       );
       const variant = snapshot.models.find((model) => model.slug === "opencode/space-bunny-free")
         ?.capabilities?.optionDescriptors?.[0];
@@ -525,6 +531,18 @@ describe("checkOpenCodeProviderStatus", () => {
           ? variant.options.find((option) => option.isDefault === true)?.id
           : undefined,
         "medium",
+      );
+      const goVariant = snapshot.models.find(
+        (model) => model.slug === "opencode-go/deepseek-v4.1-flash",
+      )?.capabilities?.optionDescriptors?.[0];
+      const goVariantIds =
+        goVariant?.type === "select" ? goVariant.options.map((option) => option.id) : [];
+      NodeAssert.deepEqual(goVariantIds, ["low", "high", "max"]);
+      NodeAssert.ok(
+        goVariant?.type === "select" &&
+          goVariant.currentValue !== undefined &&
+          goVariantIds.includes(goVariant.currentValue),
+        "an OpenCode Go model gets a default reasoning variant it lists",
       );
     }),
   );
