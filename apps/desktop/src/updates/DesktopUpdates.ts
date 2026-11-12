@@ -35,6 +35,7 @@ import * as ElectronUpdater from "../electron/ElectronUpdater.ts";
 import * as ElectronWindow from "../electron/ElectronWindow.ts";
 import * as IpcChannels from "../ipc/channels.ts";
 import * as DesktopAppSettings from "../settings/DesktopAppSettings.ts";
+import * as DesktopSshEnvironment from "../ssh/DesktopSshEnvironment.ts";
 import {
   normalizeDesktopUpdateReleaseNotes,
   releaseNotesOfOfferedVersion,
@@ -354,6 +355,7 @@ export const make = Effect.gen(function* () {
   const config = yield* DesktopConfig.DesktopConfig;
   const pool = yield* DesktopBackendPool.DesktopBackendPool;
   const codexMicro = yield* CodexMicro.CodexMicro;
+  const sshEnvironment = yield* DesktopSshEnvironment.DesktopSshEnvironment;
   const desktopState = yield* DesktopState.DesktopState;
   const electronUpdater = yield* ElectronUpdater.ElectronUpdater;
   const electronWindow = yield* ElectronWindow.ElectronWindow;
@@ -761,9 +763,9 @@ export const make = Effect.gen(function* () {
         return yield* Effect.gen(function* () {
           const { downloadedVersion } = yield* Ref.get(updateStateRef);
           if (downloadedVersion !== null) yield* writeInstallRecord(downloadedVersion);
-          // Stop every pool backend, not just the primary: quitAndInstall's app.quit() exits before
-          // the pool's scope finalizers run, so the WSL child would be hard-killed instead of
-          // getting SIGTERM and grace.
+          // Stop every pool backend, not just the primary, and every SSH tunnel: quitAndInstall's
+          // app.quit() exits before their scope finalizers run, so the WSL child would be
+          // hard-killed instead of getting SIGTERM and grace.
           const instances = yield* pool.list;
 
           const runningInstances = yield* Effect.filter(instances, (instance) =>
@@ -779,6 +781,7 @@ export const make = Effect.gen(function* () {
                 { concurrency: "unbounded", discard: true },
               ),
               codexMicro.pause,
+              sshEnvironment.closeAllTunnels,
             ],
             { concurrency: "unbounded", discard: true },
           );

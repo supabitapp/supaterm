@@ -224,7 +224,6 @@ const layerDesktopApplication = Layer.mergeAll(
   DesktopApplicationMenu.layer,
   DesktopLinuxUrlHandler.layer,
   DesktopCliCommand.layer,
-  layerDesktopSsh,
   DesktopRelayGateway.layer,
 ).pipe(
   Layer.provideMerge(layerDesktopWebLinks),
@@ -232,6 +231,8 @@ const layerDesktopApplication = Layer.mergeAll(
   Layer.provideMerge(layerDesktopSidePulse),
   Layer.provideMerge(DesktopUpdates.layer),
   Layer.provideMerge(layerDesktopCodexMicro),
+  // Updates closes the same tunnels the SSH IPC opens before quitAndInstall.
+  Layer.provideMerge(layerDesktopSsh),
   Layer.provideMerge(layerDesktopWslBackend),
   Layer.provideMerge(layerDesktopLocalEnvironmentAuth),
 );

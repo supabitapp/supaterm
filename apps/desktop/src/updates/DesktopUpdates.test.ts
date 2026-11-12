@@ -604,6 +604,7 @@ describe("DesktopUpdates", () => {
         assert.isFalse(yield* Ref.get(desktopState.quitting));
         assert.deepEqual(harness.installSteps, [
           "pauseCodexMicro",
+          "closeSshTunnels",
           "quitAndInstall",
           "startBackend",
           "resumeCodexMicro",
@@ -631,6 +632,7 @@ describe("DesktopUpdates", () => {
         yield* Fiber.interrupt(install);
         assert.deepEqual(harness.installSteps, [
           "pauseCodexMicro",
+          "closeSshTunnels",
           "quitAndInstall",
           "resumeCodexMicro",
         ]);
@@ -663,6 +665,7 @@ describe("DesktopUpdates", () => {
         assert.equal(result.state.errorContext, "install");
         assert.deepEqual(harness.installSteps, [
           "pauseCodexMicro",
+          "closeSshTunnels",
           "quitAndInstall",
           "resumeCodexMicro",
         ]);
@@ -761,6 +764,7 @@ describe("DesktopUpdates", () => {
         yield* flushCallbacks;
         assert.deepEqual(harness.installSteps, [
           "pauseCodexMicro",
+          "closeSshTunnels",
           "quitAndInstall",
           "startBackend",
         ]);
