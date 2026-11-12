@@ -5548,6 +5548,81 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
     }),
   );
 
+  it.effect("keeps a pull request watch its agent started after asking to mark done", () =>
+    Effect.gen(function* () {
+      const orchestrator = yield* Orchestrator.OrchestratorV2;
+      const eventSink = yield* EventSink.EventSinkV2;
+      const threadManagement = yield* ThreadManagementService.ThreadManagementService;
+      const projectId = ProjectId.make("runtime-layer-mark-done-then-watch-project");
+      const threadId = ThreadId.make("runtime-layer-mark-done-then-watch-thread");
+
+      yield* orchestrator.dispatch({
+        type: "thread.create",
+        createdBy: "user",
+        creationSource: "web",
+        commandId: CommandId.make("runtime-layer-mark-done-then-watch-create"),
+        threadId,
+        projectId,
+        title: "Mark done then watch",
+        modelSelection,
+        runtimeMode: "full-access",
+        interactionMode: "default",
+        branch: null,
+        worktreePath: "/tmp/runtime-layer-mark-done-then-watch",
+      });
+      yield* orchestrator.dispatch({
+        type: "message.dispatch",
+        createdBy: "user",
+        creationSource: "web",
+        commandId: CommandId.make("runtime-layer-mark-done-then-watch-message"),
+        threadId,
+        messageId: MessageId.make("runtime-layer-mark-done-then-watch-message"),
+        text: "Mark this thread done, then watch the pull request.",
+        attachments: [],
+        modelSelection,
+        dispatchMode: { type: "start_immediately" },
+      });
+      const run = (yield* orchestrator.getThreadProjection(threadId)).runs[0];
+      if (run === undefined) return yield* Effect.die(new Error("Run missing."));
+
+      // The deferred mark done that `markThreadDone` forks for its own agent's active run.
+      const settleRequest = yield* threadManagement
+        .markDoneAfterRun({ projectId, threadId, runId: run.id })
+        .pipe(Effect.forkChild);
+      yield* orchestrator.dispatch({
+        type: "thread.pull-request.watch",
+        commandId: CommandId.make("runtime-layer-mark-done-then-watch-watch"),
+        threadId,
+        host: "github.com",
+        repository: "supabitapp/supaterm",
+        number: 7,
+        watching: true,
+        link: { url: "https://github.com/supabitapp/supaterm/pull/7", source: "agent" },
+      });
+      assert.isDefined((yield* orchestrator.getThreadShell(threadId))?.pullRequests?.[0]?.watch);
+
+      const now = yield* DateTime.now;
+      yield* eventSink.write({
+        commandId: CommandId.make("runtime-layer-mark-done-then-watch-completed"),
+        events: [
+          {
+            id: EventId.make("runtime-layer-mark-done-then-watch-completed"),
+            type: "run.updated",
+            threadId,
+            runId: run.id,
+            occurredAt: now,
+            payload: { ...run, status: "completed", startedAt: now, completedAt: now },
+          },
+        ],
+      });
+      yield* Fiber.join(settleRequest);
+
+      const shell = yield* orchestrator.getThreadShell(threadId);
+      assert.isDefined(shell?.pullRequests?.[0]?.watch);
+      assert.isNull(shell?.doneOverride ?? null);
+    }),
+  );
+
   it.effect("marks done past held automatic runs but not held user messages", () =>
     Effect.gen(function* () {
       const orchestrator = yield* Orchestrator.OrchestratorV2;

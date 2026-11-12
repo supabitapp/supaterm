@@ -66,6 +66,7 @@ import * as CommandReceiptStore from "./CommandReceiptStore.ts";
 import * as Orchestrator from "./Orchestrator.ts";
 import * as ServerEnvironment from "../environment/ServerEnvironment.ts";
 import { projectedRowEncodedBytes } from "./threadHistoryPaging.ts";
+import { threadPullRequestsOf } from "../sourceControl/threadPullRequests.ts";
 import * as ProviderSessionManager from "./ProviderSessionManager.ts";
 import * as ThreadCommandExecutor from "./ThreadCommandExecutor.ts";
 import { DispatchModeLimit, exceededDispatchModeLimit } from "./DispatchModeLimit.ts";
@@ -938,12 +939,22 @@ const make = Effect.gen(function* () {
   const markDoneAfterRun: ThreadManagementServiceShape["markDoneAfterRun"] = Effect.fn(
     "orchestrationV2.threadManagement.markDoneAfterRun",
   )(function* (input) {
+    const requestedAt = yield* DateTime.now;
     const { run } = yield* waitForThread({ ...input, timeoutMs: MARK_DONE_AFTER_RUN_WAIT_MS });
     if (run?.status !== "completed") return;
     const afterSequence = yield* orchestrator.getThreadEventSequence(input.threadId);
     const tryMarkDone = Effect.gen(function* () {
       const sequence = yield* orchestrator.getThreadEventSequence(input.threadId);
       const records = yield* getProjectThreadRecords(input, ["runs"]);
+      // Marking done ends every watch; one the agent started after asking to mark done must outlive it.
+      if (
+        threadPullRequestsOf(records.thread).some(
+          (link) =>
+            link.watch !== undefined &&
+            !DateTime.isLessThan(DateTime.makeUnsafe(link.watch.startedAt), requestedAt),
+        )
+      )
+        return true;
       const following = records.runs.filter((candidate) => candidate.ordinal > run.ordinal);
       if (following.length > 0) {
         const { messages } = yield* getProjectThreadRecords(input, ["messages"], {
