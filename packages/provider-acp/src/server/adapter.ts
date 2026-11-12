@@ -145,6 +145,36 @@ export const ACP_PROTOCOL = "acp.ndjson-jsonrpc" as const;
  * wake.
  */
 const ACP_DEFERRED_FINALIZE_DEBOUNCE: Duration.Input = "3000 millis";
+const ACP_BUSY_PROMPT_RETRY_INTERVAL: Duration.Input = "1 second";
+
+// pi-agent-core agents (oh-my-pi) end a turn while background work runs and reject
+// prompts until it finishes; the prompt is resent rather than failing the turn.
+function isAgentBusyPromptError(error: EffectAcpErrors.AcpError): boolean {
+  return (
+    error._tag === "AcpRequestError" && error.errorMessage.startsWith("Agent is already processing")
+  );
+}
+
+function sendPromptWhenIdle<A>(
+  turn: { readonly interrupted: boolean; readonly finalized: boolean },
+  prompt: () => Effect.Effect<A, EffectAcpErrors.AcpError>,
+): Effect.Effect<A, EffectAcpErrors.AcpError> {
+  // A Stop can land during the wait, so the flags are rechecked before each resend.
+  const stopped = () => turn.interrupted || turn.finalized;
+  return prompt().pipe(
+    Effect.catchIf(
+      (error) => isAgentBusyPromptError(error) && !stopped(),
+      (error) =>
+        Effect.sleep(ACP_BUSY_PROMPT_RETRY_INTERVAL).pipe(
+          Effect.andThen(
+            Effect.suspend(() =>
+              stopped() ? Effect.fail(error) : sendPromptWhenIdle(turn, prompt),
+            ),
+          ),
+        ),
+    ),
+  );
+}
 
 /**
  * A segment's first chunk and close emit at once; later chunks inside this window
@@ -8468,7 +8498,9 @@ export const makeAcpAdapterV2 = Effect.fn("makeAcpAdapterV2")(function* (
               : undefined;
             yield* (
               compactSession === undefined
-                ? runtime.prompt({ prompt: promptParts!.prompt }, promptOptions)
+                ? sendPromptWhenIdle(context, () =>
+                    runtime.prompt({ prompt: promptParts!.prompt }, promptOptions),
+                  )
                 : Deferred.succeed(context.promptDispatched, undefined).pipe(
                     Effect.andThen(compactSession(runtime, requestedSessionId)),
                     Effect.as({ stopReason: "end_turn" } satisfies EffectAcpSchema.PromptResponse),
