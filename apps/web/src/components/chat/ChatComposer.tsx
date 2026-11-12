@@ -2246,6 +2246,12 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
       });
       return null;
     }
+    // An empty draft has nothing to send; Enter does what the Resume thread button does.
+    if (showResumeAction && !activePendingProgress) {
+      event?.preventDefault();
+      if (!isSendBusy && environmentUnavailable === null) onResume();
+      return null;
+    }
     let sending: Promise<void> | null = null;
     const submission = submitComposerDraft({
       prompt: promptRef.current,
