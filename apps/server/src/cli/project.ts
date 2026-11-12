@@ -39,7 +39,7 @@ import * as SupatermProjectFileLoader from "../project/SupatermProjectFileLoader
 import * as ServerSettings from "../serverSettings.ts";
 import {
   clearPersistedServerRuntimeState,
-  readPersistedServerRuntimeState,
+  readLiveServerRuntimeState,
 } from "../serverRuntimeState.ts";
 import * as WorkspacePaths from "../workspace/WorkspacePaths.ts";
 import { type CliAuthLocationFlags, projectLocationFlags, resolveCliAuthConfig } from "./config.ts";
@@ -377,7 +377,7 @@ const tryResolveLiveProjectExecutionMode = Effect.fn("tryResolveLiveProjectExecu
     environmentAuth: EnvironmentAuth.EnvironmentAuth["Service"],
     config: ServerConfig.ServerConfig["Service"],
   ) {
-    const runtimeState = yield* readPersistedServerRuntimeState(config.serverRuntimeStatePath);
+    const runtimeState = yield* readLiveServerRuntimeState(config.serverRuntimeStatePath);
     if (Option.isNone(runtimeState)) {
       return Option.none<{ readonly origin: string }>();
     }

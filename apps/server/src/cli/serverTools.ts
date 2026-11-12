@@ -16,7 +16,7 @@ import * as ServerConfig from "../config.ts";
 import { mcpToolSession, type McpToolSession } from "../mcp/AcpMcpStdioBridge.ts";
 import { expandHomePath } from "../os-jank.ts";
 import * as ProcessRunner from "../processRunner.ts";
-import { readPersistedServerRuntimeState } from "../serverRuntimeState.ts";
+import { readLiveServerRuntimeState } from "../serverRuntimeState.ts";
 import {
   CliServerVersionMismatchError,
   requireMatchingServerVersion,
@@ -163,7 +163,7 @@ export const withServerTools = Effect.fn("cli.serverTools.withServerTools")(func
   );
   // Checked before the auth layer opens the database, so a home with no server
   // is left untouched.
-  const runtimeState = yield* readPersistedServerRuntimeState(config.serverRuntimeStatePath);
+  const runtimeState = yield* readLiveServerRuntimeState(config.serverRuntimeStatePath);
   if (Option.isNone(runtimeState)) {
     return yield* new CliServerNotRunningError({
       baseDir: config.baseDir,
