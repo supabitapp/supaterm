@@ -21,7 +21,10 @@ import { sourceControlClients } from "@supaterm/client-runtime/source-control-cl
 import { resolveNewThreadModelSelection } from "@supaterm/shared/usageLimits";
 import { queuedRunEditBlockedReason } from "@supaterm/client-runtime/queued-run-edit";
 import { useFocusComposerOnThreadOpen } from "./chat/useFocusComposerOnThreadOpen";
-import { announcedRun, isDetailBehindShell } from "./chat/threadActivityAnnouncement";
+import {
+  announcedRun,
+  isDetailBehindShell,
+} from "@supaterm/client-runtime/state/thread-activity-announcement";
 import {
   deriveAvailableRevertTurnCounts,
   deriveThreadPendingBackgroundTasks,

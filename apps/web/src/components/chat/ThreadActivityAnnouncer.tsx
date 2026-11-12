@@ -8,7 +8,7 @@ import {
   nextThreadAnnouncement,
   type ThreadActivitySnapshot,
   type ThreadAnnouncementMemory,
-} from "./threadActivityAnnouncement";
+} from "@supaterm/client-runtime/state/thread-activity-announcement";
 import {
   nextTurnDetailAnnouncement,
   NO_TURN_DETAIL,
