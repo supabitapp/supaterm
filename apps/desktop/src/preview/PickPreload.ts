@@ -1392,7 +1392,7 @@ function startAnnotation(sendEnabled: boolean): void {
   const onCancel = (): void => teardown(false);
   const onCaptured = (): void => teardown(false);
   const onKeyDown = (event: KeyboardEvent): void => {
-    if (event.key === "Escape") {
+    if (event.key === "Escape" && !event.isComposing) {
       event.preventDefault();
       event.stopPropagation();
       teardown(true);
