@@ -488,6 +488,7 @@ export function PendingUserInputCard(props: PendingUserInputCardProps) {
                 threadId={props.threadId}
                 workspaceRoot={props.workspaceRoot}
                 setDirection={setDirection}
+                preserveSoftBreaks
               />
               {question.multiSelect ? (
                 <Text className="font-sans text-xs text-foreground-muted">
