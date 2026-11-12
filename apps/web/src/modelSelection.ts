@@ -361,6 +361,42 @@ export function getCustomModelOptionsByInstance(
   return out;
 }
 
+function getTextGenerationModelOptionsForInstance(
+  settings: UnifiedSettings,
+  entry: ProviderInstanceEntry,
+  selectedModel?: string | null,
+): AppModelOption[] {
+  const unsupported = new Set(
+    entry.models
+      .filter((model) => model.supportsTextGeneration === false)
+      .map((model) => model.slug),
+  );
+  // Filter after custom entries are rebuilt so a display-name override cannot restore a model.
+  return getAppModelOptionsForInstance(settings, entry, selectedModel).filter(
+    (option) => !unsupported.has(option.slug),
+  );
+}
+
+export function getTextGenerationModelOptionsByInstance(
+  settings: UnifiedSettings,
+  providers: ReadonlyArray<ServerProvider>,
+  selectedInstanceId?: ProviderInstanceId | null,
+  selectedModel?: string | null,
+): ReadonlyMap<ProviderInstanceId, ReadonlyArray<ModelEsque>> {
+  return new Map(
+    deriveProviderInstanceEntries(
+      providers.filter((provider) => provider.supportsTextGeneration !== false),
+    ).map((entry) => [
+      entry.instanceId,
+      getTextGenerationModelOptionsForInstance(
+        settings,
+        entry,
+        entry.instanceId === selectedInstanceId ? selectedModel : null,
+      ),
+    ]),
+  );
+}
+
 export function resolveAppModelSelectionState(
   settings: UnifiedSettings,
   providers: ReadonlyArray<ServerProvider>,
@@ -381,7 +417,7 @@ export function resolveAppModelSelectionState(
   if (entry) {
     const selectedModel = selectedEntry ? selection.model : null;
     // Use the cheap generation default; the catalog default is the expensive chat flagship.
-    const options = getAppModelOptionsForInstance(settings, entry);
+    const options = getTextGenerationModelOptionsForInstance(settings, entry);
     const model =
       resolveSelectableModel(entry.driverKind, selectedModel, options) ??
       resolveSelectableModel(
@@ -389,13 +425,9 @@ export function resolveAppModelSelectionState(
         DEFAULT_TEXT_GENERATION_MODEL_BY_PROVIDER[entry.driverKind],
         options,
       ) ??
-      resolveAppModelSelectionForInstance(
-        entry.instanceId,
-        settings,
-        supportedProviders,
-        selectedModel,
-      ) ??
-      entry.models[0]?.slug ??
+      options.find((option) => option.isDefault)?.slug ??
+      options[0]?.slug ??
+      entry.models.find((model) => model.supportsTextGeneration !== false)?.slug ??
       DEFAULT_TEXT_GENERATION_MODEL_BY_PROVIDER[entry.driverKind];
     if (!model) {
       return createModelSelection(entry.instanceId, "", []);

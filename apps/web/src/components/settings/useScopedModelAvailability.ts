@@ -1,7 +1,10 @@
 import type { ProviderInstanceId, ServerProvider, UnifiedSettings } from "@supaterm/contracts";
 
 import { mergeEnvironmentSettings } from "../../hooks/useSettings";
-import { getCustomModelOptionsByInstance } from "../../modelSelection";
+import {
+  getCustomModelOptionsByInstance,
+  getTextGenerationModelOptionsByInstance,
+} from "../../modelSelection";
 import {
   applyProviderInstanceSettings,
   deriveProviderInstanceEntries,
@@ -13,8 +16,12 @@ import { useSettingsScope } from "./SettingsScopeContext";
 export function useScopedModelDisabledReason(
   settings: UnifiedSettings,
   entries: readonly ProviderInstanceEntry[],
-  supportsCapability?: (provider: ServerProvider) => boolean,
+  options: {
+    readonly supportsCapability?: (provider: ServerProvider) => boolean;
+    readonly textGeneration?: boolean;
+  } = {},
 ) {
+  const { supportsCapability, textGeneration = false } = options;
   const { targets } = useSettingsScope();
   const { environments } = useEnvironments();
   const providersByEnvironment = useEnvironmentProviders();
@@ -31,7 +38,10 @@ export function useScopedModelDisabledReason(
         candidate.settings,
         candidate.projectId,
       ).find((option) => option.instanceId === instanceId);
-      const options = getCustomModelOptionsByInstance(
+      const optionsForInstance = textGeneration
+        ? getTextGenerationModelOptionsByInstance
+        : getCustomModelOptionsByInstance;
+      const options = optionsForInstance(
         mergeEnvironmentSettings(candidate.settings, settings),
         providers,
       ).get(instanceId);
