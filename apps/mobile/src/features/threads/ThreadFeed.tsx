@@ -3569,7 +3569,7 @@ export const ThreadFeed = memo(function ThreadFeed(props: ThreadFeedProps) {
           });
         },
         unfold: (messageId) => {
-          const runId = messageFoldRunId(props.feed, messageId);
+          const runId = messageFoldRunId(props.feed, messageId, presentedFeed);
           if (!runId) return;
           setInteractionState((current) => ({
             ...current,
