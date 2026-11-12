@@ -1,3 +1,4 @@
+import { resolveProviderProbeTimeoutMs } from "@supaterm/provider-core/server/snapshotProbe";
 import {
   type ModelCapabilities,
   ProviderDriverKind,
@@ -376,7 +377,7 @@ export const checkKiroProviderStatus = Effect.fn("checkKiroProviderStatus")(func
 
   const probeEnvironment = providerProbeEnvironment(environment);
   const versionResult = yield* runKiroCli(settings, ["--version"], probeEnvironment).pipe(
-    Effect.timeoutOption(DEFAULT_TIMEOUT_MS),
+    Effect.timeoutOption(resolveProviderProbeTimeoutMs("kiro", DEFAULT_TIMEOUT_MS, environment)),
     Effect.result,
   );
   if (Result.isFailure(versionResult) || Option.isNone(versionResult.success)) {
@@ -407,7 +408,10 @@ export const checkKiroProviderStatus = Effect.fn("checkKiroProviderStatus")(func
     settings,
     ["whoami", "--format", "json"],
     probeEnvironment,
-  ).pipe(Effect.timeoutOption(AUTH_PROBE_TIMEOUT_MS), Effect.result);
+  ).pipe(
+    Effect.timeoutOption(resolveProviderProbeTimeoutMs("kiro", AUTH_PROBE_TIMEOUT_MS, environment)),
+    Effect.result,
+  );
   const auth = kiroAuthFromWhoami(
     Result.isSuccess(whoamiResult) ? Option.getOrUndefined(whoamiResult.success) : undefined,
     environment,
@@ -433,12 +437,16 @@ export const checkKiroProviderStatus = Effect.fn("checkKiroProviderStatus")(func
               ["chat", "--list-models", "--format", "json"],
               probeEnvironment,
             ).pipe(
-              Effect.timeoutOption(AUTH_PROBE_TIMEOUT_MS),
+              Effect.timeoutOption(
+                resolveProviderProbeTimeoutMs("kiro", AUTH_PROBE_TIMEOUT_MS, environment),
+              ),
               Effect.map((output) => kiroModelsFromList(Option.getOrUndefined(output))),
               Effect.orElseSucceed(() => undefined),
             ),
             probeKiroAgents(settings, probeEnvironment).pipe(
-              Effect.timeoutOption(AUTH_PROBE_TIMEOUT_MS),
+              Effect.timeoutOption(
+                resolveProviderProbeTimeoutMs("kiro", AUTH_PROBE_TIMEOUT_MS, environment),
+              ),
               Effect.map(Option.getOrUndefined),
               Effect.orElseSucceed(() => undefined),
             ),

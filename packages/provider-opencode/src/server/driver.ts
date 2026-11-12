@@ -1,3 +1,4 @@
+import { resolveProviderProbeTimeoutMs } from "@supaterm/provider-core/server/snapshotProbe";
 import {
   ProviderDriverKind,
   ProviderSetupError,
@@ -308,6 +309,7 @@ export const OpenCodeDriver: ProviderDriver<
     };
     const loadOpenCode2Models = yield* makeOpenCode2ModelLoader(
       openCode2Server.withConnection(({ client }) => loadOpenCode2Catalog(client, host.paths.cwd)),
+      processEnv,
     );
     const listOpenCode2Workspace = (cwd: string) =>
       openCode2Server.withConnection(({ client, events }) =>
@@ -351,6 +353,7 @@ export const OpenCodeDriver: ProviderDriver<
                 ),
             // OpenCode answers provider.list for a location only once its skill scan has ended.
             client.provider.list({ location }).pipe(Effect.timeout("10 seconds"), Effect.ignore),
+            processEnv,
           );
         }).pipe(Effect.scoped),
       );
@@ -561,6 +564,7 @@ export const OpenCodeDriver: ProviderDriver<
                         openCode2Server.withConnection(({ client }) =>
                           loadOpenCode2DirectoryCatalog(client, cwd),
                         ),
+                        processEnv,
                       ).pipe(
                         Effect.map(
                           Option.map((catalog) =>
@@ -569,7 +573,10 @@ export const OpenCodeDriver: ProviderDriver<
                         ),
                       ),
                       listOpenCode2Workspace(cwd).pipe(
-                        Effect.timeout("20 seconds"),
+                        // Leaves room for the reads around the scan wait, which uses the same override.
+                        Effect.timeout(
+                          2 * resolveProviderProbeTimeoutMs("opencode", 10_000, processEnv),
+                        ),
                         Effect.mapError(
                           (cause) =>
                             new ProviderDriverError({
