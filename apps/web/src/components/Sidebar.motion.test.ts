@@ -80,6 +80,7 @@ function fixture(rows: TestRow[], viewportHeight?: number) {
         : { getBoundingClientRect: () => ({ top: 0, bottom: viewportHeight }) },
     ownerDocument: { defaultView: { matchMedia: () => media } },
     getBoundingClientRect: () => ({ top: parent.top }),
+    getClientRects: () => [parent.getBoundingClientRect()],
     append(node: TestRow) {
       parent.children.push(node);
       node.remove.mockImplementation(() => {
