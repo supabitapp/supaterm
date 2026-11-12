@@ -10,6 +10,7 @@ import { startElectronBrowserHost } from "./browser/ElectronBrowserHost";
 import { startThreadOverlayRetention } from "./components/chat/threadOverlayRetention";
 import { startBrowserProfileReporting } from "./browser/BrowserProfileReporter";
 import { startPreviewTitleRecording } from "./browserHistoryStore";
+import { resolveWindowTitleThreadStatus } from "./components/Sidebar.logic";
 import { startBackgroundThreadAnnouncements } from "./components/BackgroundThreadAnnouncer";
 import { startSshPasswordPromptQueue } from "./components/desktop/SshPasswordPromptDialog";
 import { startHostFreezeToasts } from "./components/HostFreezeToastCoordinator";
@@ -119,7 +120,10 @@ function readOpenThreadRef(router: AppRouter): ScopedThreadRef | null {
   return resolveActiveThreadRouteRef(target, draft);
 }
 
-/** Names the open thread and its project in the window title, or the app when none is open. */
+/**
+ * Names the open thread and its project in the window title, or the app when none is open.
+ * Screen readers read it on Alt+Tab, so it can lead with the thread and what it's doing.
+ */
 function startDocumentTitle(router: AppRouter): void {
   let openThreadRef = readOpenThreadRef(router);
   const write = () => {
@@ -139,6 +143,11 @@ function startDocumentTitle(router: AppRouter): void {
       appDisplayName: APP_DISPLAY_NAME,
       projectTitle: project?.title ?? null,
       threadTitle: thread?.title ?? null,
+      ...(getClientSettings().screenReaderWindowTitle && {
+        screenReader: {
+          threadStatus: thread === null ? null : resolveWindowTitleThreadStatus(thread),
+        },
+      }),
       desktop: isElectron,
     });
     // Projects change whenever any project does; most changes leave the title alone.
@@ -168,6 +177,7 @@ function startDocumentTitle(router: AppRouter): void {
   watchOpenThread();
   write();
   appAtomRegistry.subscribe(environmentProjects.projectsAtom, write);
+  subscribeClientSettings(write);
   router.subscribe("onResolved", updateOpenThread);
   useComposerDraftStore.subscribe(updateOpenThread);
 }

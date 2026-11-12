@@ -458,6 +458,14 @@ export const SETTINGS_SEARCH_ITEMS = [
     ],
   },
   {
+    id: "screen-reader-window-title",
+    title: "Screen reader window title",
+    to: "/settings/chat",
+    searchTerms: [
+      "accessibility a11y screen reader nvda jaws voiceover orca narrator window title tab title alt tab taskbar thread status order working approval",
+    ],
+  },
+  {
     id: "proactive-panels",
     title: "Open pull requests and changes panels proactively",
     to: "/settings/diffs",

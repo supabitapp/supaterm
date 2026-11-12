@@ -29,6 +29,7 @@ import {
 } from "@supaterm/client-runtime/state/thread-sort";
 import type { SidebarThreadSummary, Thread } from "../types";
 import { normalizeSearchText } from "../lib/utils";
+import { THREAD_STATUS_TEXT } from "@supaterm/client-runtime/state/thread-activity-announcement";
 import { observeIntersection } from "../lib/observeIntersection";
 import { deadlineAfter, deadlineStore, type ClockStore } from "@supaterm/client-runtime/clock";
 import { useDeadlinePassed } from "../hooks/useDeadline";
@@ -845,6 +846,26 @@ export function resolveSidebarThreadStatus(
 ): SidebarThreadStatus {
   const status = resolveThreadRowStatus(thread);
   return status === "working" && thread.runtime?.status === "preparing" ? "preparing" : status;
+}
+
+/** What the window title says the open thread is doing, in the words its announcer uses. */
+export function resolveWindowTitleThreadStatus(
+  thread: Parameters<typeof resolveThreadRowStatus>[0],
+): string | null {
+  switch (resolveSidebarThreadStatus(thread)) {
+    case "approval":
+      return THREAD_STATUS_TEXT.approval;
+    case "input":
+      return THREAD_STATUS_TEXT.input;
+    case "preparing":
+    case "working":
+      return THREAD_STATUS_TEXT.working;
+    case "waiting":
+      // Waiting on a child thread is still this turn, so it must not read as finished.
+      return thread.runtime?.status === "running" ? THREAD_STATUS_TEXT.working : null;
+    default:
+      return null;
+  }
 }
 
 export type SidebarV2TopStatusKind =
