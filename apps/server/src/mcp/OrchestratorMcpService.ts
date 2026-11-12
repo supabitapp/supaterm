@@ -915,6 +915,24 @@ function threadSnooze(
   };
 }
 
+// Provider-internal links (parentTaskId, providerInstanceId) stay out of agent results.
+function threadBackgroundWork(
+  thread: Pick<OrchestrationV2ThreadShell, "blockedOnThreadWait" | "pendingBackgroundTasks">,
+): Required<Pick<OrchestratorMcpThreadListItem, "blockedOnThreadWait" | "pendingBackgroundTasks">> {
+  return {
+    blockedOnThreadWait: thread.blockedOnThreadWait === true,
+    pendingBackgroundTasks: (thread.pendingBackgroundTasks ?? []).map((task) => ({
+      taskId: task.taskId,
+      kind: task.kind,
+      ...(task.description === undefined ? {} : { description: task.description }),
+      ...(task.awaited === undefined ? {} : { awaited: task.awaited }),
+      ...(task.kind === "subagent" && task.childThreadId !== undefined
+        ? { childThreadId: task.childThreadId }
+        : {}),
+    })),
+  };
+}
+
 function threadPullRequests(
   links: OrchestrationV2ThreadShell["pullRequests"],
   includeLinks = true,
@@ -968,6 +986,7 @@ function listItemFromShell(
     ...threadPullRequests(shell.pullRequests),
     ...threadDone(shell),
     ...threadSnooze(shell, nowMs),
+    ...threadBackgroundWork(shell),
     parentThreadId: shell.lineage.parentThreadId,
     relationshipToParent: shell.lineage.relationshipToParent,
     itemCount: shell.visibleItemCount,
@@ -1031,6 +1050,7 @@ function threadDetail(
 
     ...threadSnooze(shell, nowMs),
     pinnedMessages: projection.thread.pinnedMessages ?? [],
+    ...threadBackgroundWork(shell),
     createdAt: DateTime.formatIso(projection.thread.createdAt),
     updatedAt: DateTime.formatIso(projection.thread.updatedAt),
   };
