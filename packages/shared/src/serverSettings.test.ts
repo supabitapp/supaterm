@@ -373,6 +373,13 @@ describe("serverSettings helpers", () => {
     expect(settings.sourceControlWriterModelSelection).toBe(sourceControlWriterModelSelection);
   });
 
+  it("treats a removed instance whose id matches an inherited object key as disabled", () => {
+    for (const id of ["constructor", "toString", "valueOf"]) {
+      const selection = createModelSelection(ProviderInstanceId.make(id), "gpt-5.4-mini");
+      expect(isModelSelectionProviderEnabled(DEFAULT_SERVER_SETTINGS, selection)).toBe(false);
+    }
+  });
+
   it("falls back from a writer provider that cannot generate application text", () => {
     const instanceId = ProviderInstanceId.make("acp_writer");
     const sourceControlWriterModelSelection = createModelSelection(instanceId, "default");

@@ -45,7 +45,9 @@ export function isModelSelectionProviderEnabled(
   settings: ServerSettings,
   selection: ModelSelection,
 ): boolean {
-  const instanceConfig = settings.providerInstances[selection.instanceId];
+  const instanceConfig = Object.hasOwn(settings.providerInstances, selection.instanceId)
+    ? settings.providerInstances[selection.instanceId]
+    : undefined;
   if (instanceConfig !== undefined) {
     return resolveProviderInstanceEnabled(instanceConfig);
   }
