@@ -109,7 +109,7 @@ import {
   workspaceTabColumns,
   workspaceTabNavigationState,
 } from "./workspace/workspace-tab-navigation";
-import type { WorkspaceTab } from "./workspace/workspace-tabs-state";
+import { workspaceTabOf, type WorkspaceTab } from "./workspace/workspace-tabs-state";
 import { workspaceRoutesOf } from "./workspace-overlay-routes";
 import { SettingsWorkspaceLayout } from "../settings/SettingsWorkspaceLayout";
 import { WorkspaceThreadSidebar } from "./workspace/WorkspaceThreadSidebar";
@@ -567,10 +567,7 @@ function AdaptiveWorkspaceLayoutContent(
       setFileInspectorPreferredVisible(false);
       setInspectorSheetRoute(null);
       if (layout.variant === "medium") setPrimarySidebarVisible(false);
-      workspace?.dispatch({
-        type: "select",
-        tab: detail.name === "Thread" ? "threads" : "pullRequests",
-      });
+      workspace?.dispatch({ type: "select", tab: workspaceTabOf(detail.name) });
       startOpeningDetail(detail);
       navigation.dispatch(selectWorkspaceDetail(detail, sheet));
     });

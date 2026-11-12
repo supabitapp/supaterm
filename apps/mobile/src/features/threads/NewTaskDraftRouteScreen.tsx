@@ -91,7 +91,7 @@ const idleBranchCheckoutAtom = Atom.make(AsyncResult.initial<BranchCheckoutResul
 
 export function NewTaskDraftRouteScreen({ route }: StaticScreenProps<NewTaskDraftRouteParams>) {
   const currentRoute = useRoute();
-  const goBack = useWorkspaceBackNavigation("threads");
+  const goBack = useWorkspaceBackNavigation();
   const params = route.params ?? {};
   const flowRoute = draftFlowRoute(currentRoute.key, params);
   const { pendingTaskId, draftId } = flowRoute;

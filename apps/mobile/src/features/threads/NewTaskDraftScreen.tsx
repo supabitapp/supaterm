@@ -161,7 +161,7 @@ export function NewTaskDraftScreen(props: {
   const projects = useProjects();
   const flow = useNewTaskFlow();
   const navigation = useNavigation();
-  const goBack = useWorkspaceBackNavigation("threads");
+  const goBack = useWorkspaceBackNavigation();
   const focused = useIsFocused();
   const { panes } = useWorkspacePaneState();
   const heldDraftKey = focused && panes.primarySidebarVisible ? flow.draftKey : null;
