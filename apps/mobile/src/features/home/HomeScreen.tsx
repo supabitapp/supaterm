@@ -713,9 +713,9 @@ export function HomeScreen(props: HomeScreenProps) {
         "this environment");
   const emptyState = resolveHomeEmptyState({
     phase: props.catalogState.phase,
+    catalogPending: props.catalogState.catalogPending,
     projectCount: props.projects.length,
   });
-  const canAddEnvironment = props.catalogState.phase.type !== "connected";
 
   if (!hasAnyThreads) {
     return (
@@ -738,10 +738,10 @@ export function HomeScreen(props: HomeScreenProps) {
               <EmptyState
                 title={emptyState.title}
                 detail={emptyState.detail}
-                actionLabel={canAddEnvironment ? "Add environment" : undefined}
-                onAction={canAddEnvironment ? props.onAddConnection : undefined}
+                actionLabel={emptyState.showsAddEnvironment ? "Add environment" : undefined}
+                onAction={emptyState.showsAddEnvironment ? props.onAddConnection : undefined}
                 action={
-                  Platform.OS === "android" && canAddEnvironment ? (
+                  Platform.OS === "android" && emptyState.showsAddEnvironment ? (
                     <FloatingActionButton
                       label="Add environment"
                       icon="plus"

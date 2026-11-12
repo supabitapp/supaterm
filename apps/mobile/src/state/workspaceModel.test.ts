@@ -1,4 +1,7 @@
-import type { EnvironmentShellSummary } from "@supaterm/client-runtime/state/shell";
+import {
+  EMPTY_SHELL_STATE,
+  type EnvironmentShellSummary,
+} from "@supaterm/client-runtime/state/shell";
 import {
   BearerConnectionProfile,
   BearerConnectionTarget,
@@ -7,7 +10,7 @@ import { EnvironmentId } from "@supaterm/contracts";
 import { describe, expect, it } from "@effect/vitest";
 import * as Option from "effect/Option";
 
-import { projectWorkspaceState } from "./workspaceModel";
+import { isEnvironmentShellPending, projectWorkspaceState } from "./workspaceModel";
 import { projectEnvironmentConnectionSummary as projectWorkspaceEnvironment } from "@supaterm/client-runtime/state/presentation";
 import type { EnvironmentPresentation } from "./environments";
 
@@ -82,6 +85,7 @@ describe("mobile workspace projection", () => {
       input: { ...READY, isReady: false, environments: [] },
       phase: { type: "loading-catalog", offline: false },
       connectionState: "available",
+      catalogPending: false,
       awaitingProjects: true,
       shellsSettled: false,
     },
@@ -90,6 +94,7 @@ describe("mobile workspace projection", () => {
       input: { ...READY, networkStatus: "offline", environments: [] },
       phase: { type: "no-environments", offline: true },
       connectionState: "available",
+      catalogPending: false,
       awaitingProjects: false,
       shellsSettled: true,
     },
@@ -98,6 +103,7 @@ describe("mobile workspace projection", () => {
       input: { ...READY, networkStatus: "offline", environments: [environment("connected")] },
       phase: { type: "unavailable", reason: "offline", error: null, shell: "none" },
       connectionState: "offline",
+      catalogPending: false,
       awaitingProjects: false,
       shellsSettled: true,
     },
@@ -106,6 +112,7 @@ describe("mobile workspace projection", () => {
       input: { ...READY, networkStatus: "offline", environments: [reconnecting] },
       phase: { type: "unavailable", reason: "offline", error: null, shell: "none" },
       connectionState: "offline",
+      catalogPending: false,
       awaitingProjects: true,
       shellsSettled: false,
     },
@@ -119,6 +126,7 @@ describe("mobile workspace projection", () => {
         shell: "none",
       },
       connectionState: "unsupported",
+      catalogPending: false,
       awaitingProjects: false,
       shellsSettled: true,
     },
@@ -127,6 +135,7 @@ describe("mobile workspace projection", () => {
       input: { ...READY, environments: [reconnecting], shellSummary: CACHED_SHELL_SUMMARY },
       phase: { type: "connecting", environments: [reconnecting], shell: "syncing" },
       connectionState: "reconnecting",
+      catalogPending: true,
       awaitingProjects: false,
       shellsSettled: false,
     },
@@ -139,6 +148,7 @@ describe("mobile workspace projection", () => {
         shell: "none",
       },
       connectionState: "reconnecting",
+      catalogPending: true,
       awaitingProjects: false,
       shellsSettled: true,
     },
@@ -147,6 +157,7 @@ describe("mobile workspace projection", () => {
       input: { ...READY, environments: [reconnecting], shellSummary: LOADING_SHELL_SUMMARY },
       phase: { type: "connecting", environments: [reconnecting], shell: "loading" },
       connectionState: "reconnecting",
+      catalogPending: true,
       awaitingProjects: true,
       shellsSettled: false,
     },
@@ -160,6 +171,7 @@ describe("mobile workspace projection", () => {
       },
       phase: { type: "connected", shell: "loading" },
       connectionState: "connected",
+      catalogPending: true,
       awaitingProjects: true,
       shellsSettled: false,
     },
@@ -168,6 +180,7 @@ describe("mobile workspace projection", () => {
       input: { ...READY, environments: [environment("connected"), reconnecting] },
       phase: { type: "connected", shell: "none" },
       connectionState: "connected",
+      catalogPending: true,
       awaitingProjects: true,
       shellsSettled: false,
     },
@@ -180,15 +193,29 @@ describe("mobile workspace projection", () => {
       },
       phase: { type: "connected", shell: "loaded" },
       connectionState: "connected",
+      catalogPending: true,
       awaitingProjects: false,
       shellsSettled: false,
     },
-  ] as const)("$name", ({ input, phase, connectionState, awaitingProjects, shellsSettled }) => {
-    const state = projectWorkspaceState(input);
+  ] as const)(
+    "$name",
+    ({ input, phase, connectionState, catalogPending, awaitingProjects, shellsSettled }) => {
+      const state = projectWorkspaceState(input);
 
-    expect(state.phase).toEqual(phase);
-    expect(state.connectionState).toBe(connectionState);
-    expect(state.awaitingProjects).toBe(awaitingProjects);
-    expect(state.shellsSettled).toBe(shellsSettled);
+      expect(state.phase).toEqual(phase);
+      expect(state.connectionState).toBe(connectionState);
+      expect(state.catalogPending).toBe(catalogPending);
+      expect(state.awaitingProjects).toBe(awaitingProjects);
+      expect(state.shellsSettled).toBe(shellsSettled);
+    },
+  );
+
+  it("waits for shell cache initialization and synchronization, but not completed reads", () => {
+    expect(isEnvironmentShellPending(EMPTY_SHELL_STATE)).toBe(true);
+    expect(isEnvironmentShellPending({ ...EMPTY_SHELL_STATE, status: "synchronizing" })).toBe(true);
+    expect(isEnvironmentShellPending({ ...EMPTY_SHELL_STATE, status: "cached" })).toBe(false);
+    expect(
+      isEnvironmentShellPending({ ...EMPTY_SHELL_STATE, error: Option.some("Cache failed.") }),
+    ).toBe(false);
   });
 });
