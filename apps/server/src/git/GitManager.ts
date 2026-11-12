@@ -138,10 +138,16 @@ export class GitManager extends Context.Service<
     /**
      * `refresh` asks the host again. `freshGitState` rereads the branch's git
      * state without forcing a host refresh; use it before persisting a result.
+     * A merged or closed answer is confirmed against git state unless
+     * `confirmTerminal` is false; callers that opt out confirm before acting on it.
      */
     readonly branchPullRequest: (
       input: { readonly cwd: string; readonly branch: string },
-      options?: { readonly refresh?: boolean; readonly freshGitState?: boolean },
+      options?: {
+        readonly refresh?: boolean;
+        readonly freshGitState?: boolean;
+        readonly confirmTerminal?: boolean;
+      },
     ) => Effect.Effect<GitBranchPullRequest | null, GitManagerServiceError>;
     /** Whether Supaterm checked this pull request out onto the branch, which ties it to later threads. */
     readonly checkedOutPullRequest: (input: {
@@ -2504,7 +2510,8 @@ export const make = Effect.gen(function* () {
     return mergeGitStatusParts(local, remote);
   });
   // A merged or closed answer can settle a thread or remove its worktree, so
-  // branchPullRequest confirms one against fresh reads, and discovery asks for
+  // branchPullRequest confirms one against fresh reads unless a caller skipped that
+  // (`confirmTerminal: false`) and confirms before acting, and discovery asks for
   // fresh reads (`freshGitState`) before it persists an answer.
   const prLookupGitStateByKey = new Map<
     string,
@@ -2805,7 +2812,14 @@ export const make = Effect.gen(function* () {
       refresh,
       freshGitState,
     });
-    if (pullRequest === null || pullRequest.state === "open" || freshGitState) return pullRequest;
+    if (
+      pullRequest === null ||
+      pullRequest.state === "open" ||
+      freshGitState ||
+      options?.confirmTerminal === false
+    ) {
+      return pullRequest;
+    }
     // A confirmed closed or merged result stays final until the branch or remotes change,
     // with a periodic fresh lookup so a new PR from a reused branch still shows up.
     const doneKey = `${cacheCwd}\u0000${branch}`;

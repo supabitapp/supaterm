@@ -1133,6 +1133,12 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
         "for-each-ref",
       ]);
       expect(freshLookups()).toBe(0);
+      gitCommands.length = 0;
+      yield* manager.branchPullRequest(
+        { cwd: repoDir, branch: "feature/done" },
+        { confirmTerminal: false },
+      );
+      expect(gitCommands).toEqual([]);
 
       NodeFS.writeFileSync(NodePath.join(repoDir, "done.txt"), "new work\n");
       yield* runGit(repoDir, ["add", "done.txt"]);
