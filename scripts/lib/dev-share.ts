@@ -18,6 +18,7 @@ const DIAGNOSTIC_EXPLANATIONS: Record<TailscaleStderrDiagnostic, string | undefi
   "no-existing-handler": "no mapping existed for that port",
   "not-logged-in": "this machine is not logged into a tailnet — run `tailscale up`",
   "permission-denied": "permission denied — `tailscale serve` may need elevated privileges",
+  "unsupported-target": "this Tailscale install can only proxy to localhost",
   unknown: undefined,
 };
 
