@@ -367,6 +367,31 @@ function makeCursorAgentSdkProtocolLogger(input: {
       .pipe(Effect.ignore);
 }
 
+interface CursorShellStreamOutput {
+  readonly conversationId?: unknown;
+  readonly toolCallId?: unknown;
+  readonly event: {
+    readonly case: "stdout" | "stderr";
+    readonly value: { readonly data: unknown };
+  };
+}
+
+// The SDK reports shell-output-delta only for user-started shell commands. Agent
+// shell output reaches this hook only from an @cursor/sdk patch that publishes it.
+const SHELL_STREAM_OUTPUT_HOOK = Symbol.for("@cursor/sdk.shellStreamOutput");
+const shellStreamListeners = new Set<(output: CursorShellStreamOutput) => void>();
+
+function subscribeShellStreamOutput(listener: (output: CursorShellStreamOutput) => void) {
+  const hooks = globalThis as Record<symbol, unknown>;
+  hooks[SHELL_STREAM_OUTPUT_HOOK] ??= (output: CursorShellStreamOutput) => {
+    for (const notify of shellStreamListeners) notify(output);
+  };
+  shellStreamListeners.add(listener);
+  return () => {
+    shellStreamListeners.delete(listener);
+  };
+}
+
 export const makeCursorAgentSdkRunner = Effect.fn("makeCursorAgentSdkRunner")(function* (
   protocolLoggerFor: (input: CursorAgentSdkOpenInput) => CursorAgentSdkProtocolLogger | undefined,
 ) {
@@ -595,6 +620,15 @@ export const makeCursorAgentSdkRunner = Effect.fn("makeCursorAgentSdkRunner")(fu
             },
           });
           callbacksReady = true;
+          const unsubscribeShellOutput = subscribeShellStreamOutput((output) => {
+            if (output.conversationId !== agent.agentId || typeof output.toolCallId !== "string") {
+              return;
+            }
+            void dispatchUpdate({
+              type: "shell-output-delta",
+              event: { ...output.event, toolCallId: output.toolCallId },
+            });
+          });
           for (const update of pendingUpdates) {
             yield* Effect.tryPromise({
               try: () => dispatchUpdate(update),
@@ -616,6 +650,7 @@ export const makeCursorAgentSdkRunner = Effect.fn("makeCursorAgentSdkRunner")(fu
               },
               catch: (cause) => runnerError(cause, "run.wait"),
             }).pipe(
+              Effect.ensuring(Effect.sync(unsubscribeShellOutput)),
               Effect.tap((result) =>
                 log({
                   direction: "incoming",
