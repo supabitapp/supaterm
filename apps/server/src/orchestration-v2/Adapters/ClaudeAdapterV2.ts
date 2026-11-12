@@ -5699,6 +5699,8 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
         );
         const absorbedWakes = yield* Ref.make(new Set<string>());
         const heldProposedPlansByToolUseId = new Map<string, string>();
+        // /clear moves a live process to a new native session; persist that one so a reopen resumes it.
+        const clearedNativeSessions = new Map<string, string>();
         const runtimeContext = yield* Effect.context<never>();
         const runPromise = Effect.runPromiseWith(runtimeContext);
 
@@ -5717,6 +5719,23 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
                       pagesUsed: budget.committed.pages,
                     },
                   },
+                },
+              };
+            }
+            const nativeSessionId = clearedNativeSessions.get(
+              event.providerThread.nativeThreadRef?.nativeId ?? "",
+            );
+            if (nativeSessionId !== undefined) {
+              event = {
+                ...event,
+                providerThread: {
+                  ...event.providerThread,
+                  nativeThreadRef: {
+                    driver: CLAUDE_PROVIDER,
+                    nativeId: nativeSessionId,
+                    strength: "strong",
+                  },
+                  nativeConversationHeadRef: null,
                 },
               };
             }
@@ -11876,6 +11895,7 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
             path,
           });
           const closedExistingNativeThreadId = existing !== null ? existing.nativeThreadId : null;
+          clearedNativeSessions.delete(nativeThreadId);
           if (existing !== null) {
             yield* existing.query.close.pipe(Effect.ignore);
             if (existing.nativeThreadId !== nativeThreadId) {
@@ -12051,6 +12071,14 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
                     context.receivedInit = true;
                     context.capabilities = new Set(message.capabilities ?? []);
                     context.claudeCodeVersion = message.claude_code_version;
+                  }
+                  if (
+                    message.type === "system" &&
+                    message.subtype === "init" &&
+                    message.session_id.length > 0 &&
+                    message.session_id !== context.nativeThreadId
+                  ) {
+                    clearedNativeSessions.set(context.nativeThreadId, message.session_id);
                   }
                   if (
                     message.type === "system" &&
@@ -12747,7 +12775,11 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
 
         const closeLiveQueryForNativeThread = Effect.fnUntraced(function* (nativeThreadId: string) {
           const existing = yield* Ref.get(queryContext);
-          if (existing === null || existing.nativeThreadId !== nativeThreadId) {
+          if (
+            existing === null ||
+            (existing.nativeThreadId !== nativeThreadId &&
+              clearedNativeSessions.get(existing.nativeThreadId) !== nativeThreadId)
+          ) {
             return;
           }
 
@@ -12770,7 +12802,7 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
           );
           if (ownedLiveQuery) {
             yield* finalizeActiveTurnAfterQueryExit(existing);
-            yield* endSubagentCallsOfClosedQuery(nativeThreadId, "interrupted");
+            yield* endSubagentCallsOfClosedQuery(existing.nativeThreadId, "interrupted");
           } else {
             yield* endSubagentsOfReplacedQuery(existing);
           }
