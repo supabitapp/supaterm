@@ -177,6 +177,7 @@ describe("CursorAdapterV2", () => {
           modelSelection,
           runtimePolicy,
         });
+        assert.equal(providerThread.nativeMetadata?.cursorStoreCwd, workspace);
         const now = yield* DateTime.now;
         yield* runtime.startTurn({
           threadId,

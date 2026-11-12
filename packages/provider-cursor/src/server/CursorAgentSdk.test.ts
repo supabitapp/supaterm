@@ -4,6 +4,7 @@ import { assert, describe, it } from "@effect/vitest";
 import { ProviderSessionId, ThreadId } from "@supaterm/contracts";
 import * as Effect from "effect/Effect";
 import * as Fiber from "effect/Fiber";
+import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
 import * as Exit from "effect/Exit";
 import * as Cause from "effect/Cause";
@@ -198,6 +199,43 @@ describe("CursorAgentSdkRunner", () => {
       assert.equal((yield* Fiber.join(second)).agentId, "agent-cursor-agent-sdk-test");
       assert.isTrue(primed);
     }).pipe(Effect.provide(layerTest)),
+  );
+
+  it.effect("resumes from the original store after the working directory changes", () =>
+    Effect.gen(function* () {
+      const fileSystem = yield* FileSystem.FileSystem;
+      const workspace = yield* fileSystem.makeTempDirectoryScoped({ prefix: "cursor-resume-" });
+      const loaders = yield* Effect.promise(() =>
+        vi.importActual<typeof import("./sdk.ts")>("./sdk.ts"),
+      );
+      const sdk = loaders.loadCursorSdk();
+      const store = new sdk.JsonlLocalAgentStore(workspace);
+      const storeCwd = `${workspace}/checkout`;
+      const cwd = `${workspace}/worktree`;
+      const platform = yield* Effect.promise(() =>
+        sdk.createAgentPlatform({ localStore: store, workspaceRef: storeCwd }),
+      );
+      const { agent } = yield* Effect.promise(() =>
+        platform.store.createAgent({ agentId: "agent-moved", workspaceRef: storeCwd }),
+      );
+      const runner = yield* CursorAgentSdk.makeCursorAgentSdkRunner(() => undefined).pipe(
+        Effect.provideService(CursorSdk.CursorSdk, {
+          load: loaders.loadCursorSdk,
+          loadSqlite: loaders.loadCursorSqlite,
+        }),
+      );
+      const session = yield* runner.open({
+        operation: "resume",
+        agentId: agent.agentId,
+        storeCwd,
+        options: { apiKey: "synthetic-cursor-key", local: { cwd, store } },
+        threadId: ThreadId.make("moved-workspace"),
+        providerSessionId: ProviderSessionId.make("moved-workspace"),
+      });
+      assert.equal(session.agentId, agent.agentId);
+      assert.deepStrictEqual(yield* session.listMessages, []);
+      yield* session.close;
+    }).pipe(Effect.provide(NodeServices.layer)),
   );
 
   it.effect("constructs without loading and reports first-use load failures as runner errors", () =>
