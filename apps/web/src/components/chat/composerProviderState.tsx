@@ -86,7 +86,7 @@ function resolveComposerOptionSelections(
 
 export function getComposerProviderState(input: ComposerProviderStateInput): ComposerProviderState {
   const { provider, model, models, modelOptions, promptInjectionState = "none" } = input;
-  if (provider === "opencode") {
+  if (provider === "opencode" || provider === "cursor") {
     const normalizedModel = normalizeModelSlug(model, provider);
     const modelIsInCatalog = models.some((candidate) => candidate.slug === normalizedModel);
     if (!modelIsInCatalog) {
