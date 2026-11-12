@@ -105,6 +105,8 @@ interface ThreadLifecycleInput {
   readonly serverConfig: EnvironmentPresentation["serverConfig"] | null;
   readonly runtimeMode: RuntimeMode;
   readonly isWorking: boolean;
+  /** Also true while the server prepares, starts, or queues a run this client did not send. */
+  readonly runIsLive: boolean;
   readonly pendingBackgroundTasks: Parameters<typeof backgroundWorkBannerItem>[0]["tasks"];
   readonly activePendingApproval: PendingThreadRequests["activePendingApproval"];
   readonly activePendingUserInput: PendingThreadRequests["activePendingUserInput"];
@@ -147,6 +149,7 @@ export function useThreadLifecycle(input: ThreadLifecycleInput) {
     serverConfig,
     runtimeMode,
     isWorking,
+    runIsLive,
     pendingBackgroundTasks,
     activePendingApproval,
     activePendingUserInput,
@@ -381,8 +384,8 @@ export function useThreadLifecycle(input: ThreadLifecycleInput) {
   const handleSwitchCheckoutToThreadStable = useStableCallback(handleSwitchCheckoutToThread);
   // The stack renders items[0] front-most, so order is priority and the parked-thread banner goes
   // last. Background work can outlive the turn and its stop button, so its banner is the only
-  // visible stop; the interrupt path accepts a completed run while background work remains.
-  const activeBackgroundTasks = !isWorking && activeThread ? pendingBackgroundTasks : [];
+  // visible stop while no run is live.
+  const activeBackgroundTasks = activeThread ? pendingBackgroundTasks : [];
   const [backgroundWorkStops, setBackgroundWorkStops] = useState<
     Record<string, BackgroundWorkStopRequest | undefined>
   >({});
@@ -559,7 +562,8 @@ export function useThreadLifecycle(input: ThreadLifecycleInput) {
         pullRequests: activeThread.pullRequests,
         tasks: activeBackgroundTasks,
         outputHandle: backgroundTaskOutputHandle,
-        stopDisabled: !canOperateThread || isStoppingBackgroundWork,
+        // Interrupt stops the active run first, not this work; the composer owns that Stop.
+        stopDisabled: runIsLive || !canOperateThread || isStoppingBackgroundWork,
         stopping: isStoppingBackgroundWork,
         onStop: handleStopBackgroundWorkStable,
         onOpenThread: onOpenRelatedThreadStable,
