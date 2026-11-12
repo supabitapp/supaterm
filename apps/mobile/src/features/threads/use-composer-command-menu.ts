@@ -19,7 +19,7 @@ const EMPTY_THREAD_SHELLS: ReadonlyArray<EnvironmentThreadShell> = [];
 import { COMPOSER_CONTEXT_MAX_RECORDS } from "@supaterm/contracts";
 import { formatComposerContextReference } from "@supaterm/shared/composerContextReferences";
 import { pullRequestComposerContext } from "../../lib/composerContext";
-import { buildModelOptions } from "../../lib/modelOptions";
+import { buildModelOptions, serverConfigForCwd } from "../../lib/modelOptions";
 import { uuidv4 } from "../../lib/uuid";
 import {
   getComposerDraftSnapshot,
@@ -39,7 +39,6 @@ import {
   scoreQueryMatch,
 } from "@supaterm/shared/searchRanking";
 import {
-  createProviderWorkspaceSnapshotRefreshAtomFamily,
   dedupeProviderSkillsByName,
   getProviderSkillsForSlashMenu,
   getProviderSlashCommandsForSlashMenu,
@@ -53,7 +52,7 @@ import { useEffect, useState } from "react";
 
 import type { ComposerEditorSelection } from "../../components/ComposerEditor";
 import { showSkillsInSlashMenuAtom } from "../../state/preferences";
-import { serverEnvironment } from "../../state/server";
+import { providerWorkspaceSnapshotRefresh } from "../../state/provider-workspace-snapshot-refresh";
 import {
   useComposerPathSearch,
   useComposerPullRequestSearch,
@@ -61,11 +60,6 @@ import {
 } from "../../state/queries";
 import type { ComposerCommandItem } from "./ComposerCommandPopover";
 import { matchesCommandMenuSkillQuery } from "./composerCommandMenuSkillSearch";
-
-const providerWorkspaceSnapshotRefresh = createProviderWorkspaceSnapshotRefreshAtomFamily({
-  providers: serverEnvironment.providersValueAtom,
-  refreshProviders: serverEnvironment.refreshProviders,
-});
 
 const idleWorkspaceSnapshotRefreshAtom: Atom.Atom<unknown> = Atom.make<void>(undefined).pipe(
   Atom.withLabel("mobile:provider-workspace-snapshot-refresh:idle"),
@@ -488,7 +482,10 @@ export function useComposerCommandMenu({
         : [];
       return [
         ...threadItems,
-        ...matchComposerModelItems(composerModelCandidates(serverConfig, projectId), trigger.query),
+        ...matchComposerModelItems(
+          composerModelCandidates(serverConfigForCwd(serverConfig, projectCwd), projectId),
+          trigger.query,
+        ),
         ...pathSearch.entries.map((entry) => {
           const parts = entry.path.split("/");
           return {
