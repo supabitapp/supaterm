@@ -11,6 +11,7 @@ export type ThreadActivityStatus = "working" | "approval" | "input" | "idle";
 
 /** Background threads say these too, so a status sounds the same wherever it's heard. */
 export const THREAD_STATUS_TEXT = {
+  working: "Working",
   approval: "Needs approval",
   input: "Needs your input",
   done: "Done",
@@ -139,7 +140,7 @@ export function nextThreadAnnouncement(
             ? null
             : THREAD_STATUS_TEXT.input
           : turnStarted
-            ? "Working"
+            ? THREAD_STATUS_TEXT.working
             : null;
     return { memory: { ...memory, turnRunId: nextTurnRunId }, announcement };
   }
