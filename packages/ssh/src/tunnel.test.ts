@@ -202,7 +202,7 @@ describe("ssh tunnel scripts", () => {
         );
         NodeFS.writeFileSync(
           NodePath.join(bin, "curl"),
-          "#!/bin/sh\necho 'download attempt' >&2\nexit 22\n",
+          "#!/bin/sh\necho 'download attempt' >&2\necho 'curl: (6) Could not resolve host: github.com' >&2\nexit 6\n",
           { mode: 0o755 },
         );
         const runner = NodePath.join(root, "run-supaterm.sh");
@@ -214,6 +214,9 @@ describe("ssh tunnel scripts", () => {
         assert.notEqual(result.status, 0);
         if (downloads) {
           assert.include(result.stderr, "download attempt");
+          // A bare curl error does not tell the user that supaterm itself could not be downloaded.
+          assert.include(result.stderr, ARCHIVE.archiveVersion);
+          assert.include(result.stderr, "https://github.com/supabitapp/supaterm/releases/download");
         } else {
           assert.notInclude(result.stderr, "download attempt");
           assert.include(result.stderr, "has no Supaterm release archive.");
