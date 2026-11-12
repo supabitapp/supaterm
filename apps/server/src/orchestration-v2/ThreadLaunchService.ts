@@ -249,6 +249,11 @@ const make = Effect.gen(function* () {
   const ids = yield* IdAllocator.IdAllocatorV2;
   const threads = yield* ThreadManagement.ThreadManagementService;
   const managedFolders = yield* ManagedProjectFolders.ManagedProjectFolders;
+  // A project-folder launch that names no branch records the folder's checkout, as the composer does.
+  const launchBranch = (strategy: ThreadLaunchWorkspaceStrategy, workspaceRoot: string) =>
+    strategy.type === "root" && strategy.branch === undefined
+      ? git.currentBranch(workspaceRoot).pipe(Effect.orElseSucceed(() => null))
+      : Effect.succeed(strategy.branch ?? null);
   const preparationScope = yield* Scope.make("sequential");
   const scheduledLaunches = yield* Ref.make<ReadonlySet<CommandId>>(new Set());
   yield* Effect.addFinalizer(() => Scope.close(preparationScope, Exit.void));
@@ -458,7 +463,7 @@ const make = Effect.gen(function* () {
         const uuid = yield* randomUuidV4;
         branch = buildTemporaryWorktreeBranchName(() => uuid.replaceAll("-", ""));
       } else {
-        branch = requestedBranch ?? null;
+        branch = yield* launchBranch(input.workspaceStrategy, project.workspaceRoot);
       }
       let worktreePath =
         input.workspaceStrategy.type === "existing_worktree"
@@ -1009,7 +1014,7 @@ const make = Effect.gen(function* () {
                 },
               )
             : input.workspaceStrategy;
-        const initialBranch = workspaceStrategy.branch ?? null;
+        const initialBranch = yield* launchBranch(workspaceStrategy, project.workspaceRoot);
         const initialWorktreePath =
           workspaceStrategy.type === "existing_worktree" ? workspaceStrategy.worktreePath : null;
         const claimDispatch =
