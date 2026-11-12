@@ -186,6 +186,7 @@ import * as ServerSettings from "./serverSettings.ts";
 import * as DatabaseStorage from "./persistence/DatabaseStorage.ts";
 import * as StorageCleanup from "./storageCleanup.ts";
 import * as TerminalManager from "./terminal/Manager.ts";
+import { makePrepareTerminalLaunch } from "./workspace/restoreMissingWorktree.ts";
 import { terminalOutputStream, withOutputWindow } from "./terminal/OutputProtocol.ts";
 import * as ServerBrowser from "./preview/ServerBrowser.ts";
 import * as DeviceService from "./device/DeviceService.ts";
@@ -1387,6 +1388,9 @@ export const layerWsRpc = (
       const vcsProvisioning = yield* VcsProvisioningService.VcsProvisioningService;
       const vcsStatusBroadcaster = yield* VcsStatusBroadcaster.VcsStatusBroadcaster;
       const terminalManager = yield* TerminalManager.TerminalManager;
+      const prepareTerminalLaunch = yield* makePrepareTerminalLaunch(
+        threadManagement.getThreadShell,
+      );
       const previewManager = yield* PreviewManager.PreviewManager;
       const portDiscovery = yield* PortScanner.PortDiscovery;
       const providerRegistry = yield* ProviderRegistry.ProviderRegistry;
@@ -2969,9 +2973,24 @@ export const layerWsRpc = (
         [WS_METHODS.reviewGetBranchCommits]: (input) => review.getBranchCommits(input),
         [WS_METHODS.reviewGetDiffPreview]: (input) => review.getDiffPreview(input),
         [WS_METHODS.reviewGetDiffFileContents]: (input) => review.getDiffFileContents(input),
-        [WS_METHODS.terminalOpen]: (input) => terminalManager.open(input),
+        [WS_METHODS.terminalOpen]: (input) =>
+          prepareTerminalLaunch(input).pipe(
+            Effect.flatMap((launch) =>
+              terminalManager
+                .open(launch.input)
+                .pipe(Effect.provideService(TerminalManager.TerminalCwdRecovery, launch.recover)),
+            ),
+          ),
         [WS_METHODS.terminalAttach]: (input, metadata) =>
-          terminalManager.attachOutputStream(input, terminalViewerId(metadata)),
+          Stream.unwrap(
+            prepareTerminalLaunch(input).pipe(
+              Effect.map((launch) =>
+                terminalManager
+                  .attachOutputStream(launch.input, terminalViewerId(metadata))
+                  .pipe(Stream.provideService(TerminalManager.TerminalCwdRecovery, launch.recover)),
+              ),
+            ),
+          ),
         [WS_METHODS.terminalWrite]: (input) => terminalManager.write(input),
         [WS_METHODS.terminalResize]: (input, metadata) =>
           terminalManager.resize(input, terminalViewerId(metadata)),
