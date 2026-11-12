@@ -27,13 +27,27 @@ const MISMATCH_HINT =
   "Version mismatch. Try syncing the client and server to the same Supaterm version.";
 
 describe("versionSkew", () => {
-  it("updates only the proven npm prefix and safely quotes its path", () => {
+  it("updates only the proven install and safely quotes its paths", () => {
     expect(manualServerUpdateCommand("0.0.45", { kind: "npm-global", prefix: "/opt/node" })).toBe(
       "npm install --global --prefix '/opt/node' supaterm@0.0.45",
     );
     expect(
       manualServerUpdateCommand("0.0.45", { kind: "npm-global", prefix: "/opt/maria's node" }),
     ).toBe("npm install --global --prefix '/opt/maria'\\''s node' supaterm@0.0.45");
+    expect(
+      manualServerUpdateCommand("0.0.45", {
+        kind: "supaterm-launcher",
+        launcher: "supaterm",
+        baseDir: "/home/u/.supaterm",
+      }),
+    ).toBe("'supaterm' update --base-dir '/home/u/.supaterm' 0.0.45");
+    expect(
+      manualServerUpdateCommand("0.0.45", {
+        kind: "supaterm-launcher",
+        launcher: "/opt/maria's bin/supaterm",
+        baseDir: "/data/supaterm home",
+      }),
+    ).toBe("'/opt/maria'\\''s bin/supaterm' update --base-dir '/data/supaterm home' 0.0.45");
   });
 
   beforeEach(() => {
