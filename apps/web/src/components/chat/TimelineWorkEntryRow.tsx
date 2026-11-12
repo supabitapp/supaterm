@@ -530,15 +530,12 @@ function WorkEntryLogRow(props: WorkEntryRowProps) {
           !toolIconAcceptsTint(entryToolIcon, entryIconName) ? (
             <XIcon aria-hidden className={cn("size-3 shrink-0", failedToolIconClassName)} />
           ) : null}
+          {canExpandProjectedItem ? (
+            <span className="flex size-4 shrink-0 items-center justify-center text-icon-muted opacity-70">
+              <DisclosureChevron open={expanded} />
+            </span>
+          ) : null}
           <TimelineRowTimestamp createdAt={workEntry.createdAt} timestampFormat={timestampFormat} />
-          <span
-            className={cn(
-              "flex size-4 shrink-0 items-center justify-center text-icon-muted opacity-70",
-              !canExpandProjectedItem && "invisible",
-            )}
-          >
-            <DisclosureChevron open={expanded} />
-          </span>
         </>
       }
     >
