@@ -29,6 +29,7 @@ const cursorSdkMock = vi.hoisted(() => {
     durationMs: 1,
   }));
   const runCancel = vi.fn(async () => {});
+  const runSteer = vi.fn(async () => "complete_delivered" as const);
   const agentClose = vi.fn(() => {
     closeExecutionOrder.push("sdk:agent.close");
     if (agentCloseFailure !== undefined) {
@@ -55,6 +56,7 @@ const cursorSdkMock = vi.hoisted(() => {
         agentId: "agent-cursor-agent-sdk-test",
         wait: runWait,
         cancel: runCancel,
+        steer: runSteer as typeof runSteer | undefined,
       };
     },
   );
@@ -89,6 +91,7 @@ const cursorSdkMock = vi.hoisted(() => {
     resume,
     runOperations,
     runCancel,
+    runSteer,
     runWait,
     send,
     setAgentCloseFailure: (failure: unknown) => {
@@ -262,6 +265,38 @@ describe("CursorAgentSdkRunner", () => {
           cwd: process.cwd(),
         },
       ]);
+    }).pipe(Effect.provide(layerTest)),
+  );
+
+  it.effect("forwards Run.steer and reports a missing method as a follow-up", () =>
+    Effect.gen(function* () {
+      cursorSdkMock.runSteer.mockClear();
+      const runner = yield* CursorAgentSdk.CursorAgentSdkRunner;
+      const session = yield* runner.open({
+        operation: "create",
+        options: {},
+        threadId: ThreadId.make("thread-cursor-agent-sdk-steer"),
+        providerSessionId: ProviderSessionId.make("provider-session-cursor-agent-sdk-steer"),
+      });
+      const run = yield* session.send({ message: "continue" });
+      assert.equal(yield* run.steer!("keep going"), "complete_delivered");
+      assert.deepStrictEqual(cursorSdkMock.runSteer.mock.calls, [["keep going"]]);
+
+      cursorSdkMock.runSteer.mockImplementationOnce(async () => {
+        throw new Error("steer transport failed");
+      });
+      const failed = yield* run.steer!("again").pipe(Effect.exit);
+      assert(Exit.isFailure(failed));
+
+      cursorSdkMock.send.mockImplementationOnce(async () => ({
+        id: "run-without-steer",
+        agentId: "agent-cursor-agent-sdk-test",
+        wait: cursorSdkMock.runWait,
+        cancel: cursorSdkMock.runCancel,
+        steer: undefined,
+      }));
+      const plain = yield* session.send({ message: "plain" });
+      assert.equal(yield* plain.steer!("later"), "revert_to_followup");
     }).pipe(Effect.provide(layerTest)),
   );
 });

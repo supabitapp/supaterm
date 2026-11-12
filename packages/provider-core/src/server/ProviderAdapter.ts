@@ -344,6 +344,15 @@ export class ProviderAdapterSteerRunUnsupportedError extends Schema.TaggedError<
   }
 }
 
+export class ProviderAdapterSteerDeclinedError extends Schema.TaggedError<ProviderAdapterSteerDeclinedError>()(
+  "ProviderAdapterSteerDeclinedError",
+  {
+    driver: ProviderDriverKind,
+    providerThreadId: ProviderThreadId,
+    providerTurnId: ProviderTurnId,
+  },
+) {}
+
 export class ProviderAdapterSteerRunError extends Schema.TaggedError<ProviderAdapterSteerRunError>()(
   "ProviderAdapterSteerRunError",
   {
@@ -454,6 +463,7 @@ export const ProviderAdapterV2Error = Schema.Union([
   ProviderAdapterTurnStartError,
   ProviderAdapterSteerRunUnsupportedError,
   ProviderAdapterSteerRunError,
+  ProviderAdapterSteerDeclinedError,
   ProviderAdapterInterruptError,
   ProviderAdapterInterruptTimeoutError,
   ProviderAdapterRuntimeRequestResponseError,
