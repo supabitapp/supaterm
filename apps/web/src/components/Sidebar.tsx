@@ -3245,12 +3245,13 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                         type="button"
                         data-sidebar-row="done:more"
                         data-sidebar-parent="shelf:done"
-                        disabled={olderDoneShelf.loading}
+                        aria-disabled={olderDoneShelf.loading}
                         onClick={() => {
+                          if (olderDoneShelf.loading) return;
                           olderDoneShelf.retry();
                           showMoreDone();
                         }}
-                        className="flex h-9 w-full cursor-pointer items-center gap-2.5 rounded-md px-2.5 text-left text-sm text-sidebar-muted-foreground/55 hover:bg-sidebar-row-hover hover:text-sidebar-foreground disabled:cursor-default"
+                        className="flex h-9 w-full cursor-pointer items-center gap-2.5 rounded-md px-2.5 text-left text-sm text-sidebar-muted-foreground/55 hover:bg-sidebar-row-hover hover:text-sidebar-foreground aria-disabled:cursor-default"
                       >
                         <PlusIcon aria-hidden className="size-4 shrink-0" />
                         {olderDoneShelf.loading
