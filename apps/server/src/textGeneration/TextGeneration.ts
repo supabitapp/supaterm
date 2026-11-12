@@ -9,10 +9,7 @@ import {
 } from "@supaterm/contracts";
 import * as DateTime from "effect/DateTime";
 import { exhaustedUsageWindow } from "@supaterm/shared/usageLimits";
-import {
-  defaultTextGenerationModel,
-  fallbackTextGenerationModelSelection,
-} from "@supaterm/shared/serverSettings";
+import { fallbackTextGenerationModelSelection } from "@supaterm/shared/serverSettings";
 import * as ServerSettings from "../serverSettings.ts";
 import type { ProviderTextGeneration } from "@supaterm/provider-core/server/textGeneration";
 import { TextGenerationError } from "@supaterm/contracts";
@@ -107,21 +104,25 @@ export const make = Effect.gen(function* () {
         ),
       );
       selection =
-        fallbackTextGenerationModelSelection(settings.providerInstances, (instanceId, driver) => {
-          const provider = snapshots.find((candidate) => candidate.instanceId === instanceId);
-          return (
-            instanceId !== selection.instanceId &&
-            provider?.enabled === true &&
-            resolveProjectProviderInstanceEnabled(settings, projectId ?? null, instanceId) &&
-            provider.installed &&
-            provider.auth.status !== "unauthenticated" &&
-            provider.status !== "error" &&
-            isProviderAvailable(provider) &&
-            isProviderTextGenerationCapable(provider) &&
-            (operation !== "generateReviewGuide" || INVESTIGATING_DRIVERS.has(driver)) &&
-            !exhaustedUsageWindow(provider, now, defaultTextGenerationModel(driver))
-          );
-        }) ?? selection;
+        fallbackTextGenerationModelSelection(
+          settings.providerInstances,
+          (instanceId, driver, model) => {
+            const provider = snapshots.find((candidate) => candidate.instanceId === instanceId);
+            return (
+              instanceId !== selection.instanceId &&
+              provider?.enabled === true &&
+              resolveProjectProviderInstanceEnabled(settings, projectId ?? null, instanceId) &&
+              provider.installed &&
+              provider.auth.status !== "unauthenticated" &&
+              provider.status !== "error" &&
+              isProviderAvailable(provider) &&
+              isProviderTextGenerationCapable(provider) &&
+              (operation !== "generateReviewGuide" || INVESTIGATING_DRIVERS.has(driver)) &&
+              !exhaustedUsageWindow(provider, now, model)
+            );
+          },
+          { defaultModelSelection: settings.defaultModelSelection },
+        ) ?? selection;
     }
     return yield* installationGate.execute(
       selection.instanceId,
