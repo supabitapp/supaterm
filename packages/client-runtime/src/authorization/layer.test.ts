@@ -5,6 +5,7 @@ import {
 } from "@supaterm/contracts";
 import { describe, expect, it } from "@effect/vitest";
 import * as Effect from "effect/Effect";
+import * as Fiber from "effect/Fiber";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import * as TestClock from "effect/testing/TestClock";
@@ -35,7 +36,7 @@ const DESCRIPTOR = {
   capabilities: {},
 };
 
-type RecordedResponse = Response | ((init: RequestInit) => Response);
+type RecordedResponse = Response | ((init: RequestInit) => Response | Promise<Response>);
 
 function recordedFetch(responses: ReadonlyArray<RecordedResponse>) {
   const calls: Array<readonly [RequestInfo | URL, RequestInit]> = [];
@@ -67,7 +68,7 @@ const presentation = Layer.succeed(
   }),
 );
 
-function makeHarness(responses: ReadonlyArray<Response>) {
+function makeHarness(responses: ReadonlyArray<RecordedResponse>) {
   const fetch = recordedFetch(responses);
   const layer = RemoteEnvironmentAuthorization.layer.pipe(
     Layer.provide(Layer.mergeAll(layerRemoteHttpClient(fetch.fetchFn), presentation)),
@@ -143,15 +144,18 @@ describe("RemoteEnvironmentAuthorization", () => {
     }),
   );
 
-  it.effect("reuses a matching descriptor a check just read, once, while fresh, over HTTPS", () =>
+  it.effect("reuses a matching descriptor a check just read, once, while fresh", () =>
     Effect.gen(function* () {
       const descriptor = DESCRIPTOR as ExecutionEnvironmentDescriptor;
       const harness = makeHarness([
         websocketTicket("reused"),
-        ...Array.from({ length: 5 }, () => [
+        ...Array.from({ length: 4 }, () => [
           Response.json(descriptor),
           websocketTicket("fresh"),
         ]).flat(),
+        websocketTicket("reused over plain HTTP"),
+        Response.json(descriptor),
+        websocketTicket("fresh"),
       ]);
 
       yield* Effect.gen(function* () {
@@ -166,7 +170,7 @@ describe("RemoteEnvironmentAuthorization", () => {
           });
         const authorize = authorizeAt(ENDPOINT.httpBaseUrl);
         const remember = (value: Option.Option<ExecutionEnvironmentDescriptor>) =>
-          remote.rememberCheckedDescriptor(ENDPOINT.httpBaseUrl, value);
+          remote.rememberCheckedDescriptor(ENDPOINT.httpBaseUrl, value, true);
 
         yield* remember(Option.some(descriptor));
         yield* authorize;
@@ -183,18 +187,70 @@ describe("RemoteEnvironmentAuthorization", () => {
         yield* remember(Option.some(descriptor));
         yield* remember(Option.none());
         yield* authorize;
+        // Plain HTTP is no reason to read again where the address keeps its host.
+        yield* remote.rememberCheckedDescriptor(
+          "http://127.0.0.1:3773",
+          Option.some(descriptor),
+          true,
+        );
+        yield* authorizeAt("http://127.0.0.1:3773");
         // After a network change, a plain LAN address can belong to another machine.
-        yield* remote.rememberCheckedDescriptor("http://192.168.1.2:3773", Option.some(descriptor));
+        yield* remote.rememberCheckedDescriptor(
+          "http://192.168.1.2:3773",
+          Option.some(descriptor),
+          false,
+        );
         yield* authorizeAt("http://192.168.1.2:3773");
       }).pipe(Effect.provide(harness.layer));
 
       expect(harness.fetch.calls.map(([url]) => new URL(String(url)).pathname)).toEqual([
         "/api/auth/websocket-ticket/rpc",
-        ...Array.from({ length: 5 }, () => [
+        ...Array.from({ length: 4 }, () => [
           "/.well-known/supaterm/environment",
           "/api/auth/websocket-ticket/rpc",
         ]).flat(),
+        "/api/auth/websocket-ticket/rpc",
+        "/.well-known/supaterm/environment",
+        "/api/auth/websocket-ticket/rpc",
       ]);
+    }),
+  );
+
+  it.effect("gives up on a silent loopback or LAN address sooner than on a remote one", () =>
+    Effect.gen(function* () {
+      const silent = () => new Promise<Response>(() => {});
+      const harness = makeHarness([silent, silent, silent]);
+
+      yield* Effect.gen(function* () {
+        const remote = yield* RemoteEnvironmentAuthorization.RemoteEnvironmentAuthorization;
+        const authorizeAt = (httpBaseUrl: string, connectionMethod: "direct" | "ssh" = "direct") =>
+          remote
+            .authorizeBearer({
+              expectedEnvironmentId: ENVIRONMENT_ID,
+              httpBaseUrl,
+              wsBaseUrl: httpBaseUrl.replace(/^http/, "ws"),
+              bearerToken: "bearer-token",
+              connectionMethod,
+            })
+            .pipe(Effect.flip, Effect.forkChild);
+        const lan = yield* authorizeAt("http://192.168.1.2:3773");
+        const tailnet = yield* authorizeAt("http://100.101.102.103:3773");
+        // An SSH forward listens on loopback but reaches a remote host.
+        const forwarded = yield* authorizeAt("http://127.0.0.1:4010", "ssh");
+
+        yield* TestClock.adjust("3 seconds");
+        expect(lan.pollUnsafe()).toBeDefined();
+        expect(tailnet.pollUnsafe()).toBeUndefined();
+        expect(forwarded.pollUnsafe()).toBeUndefined();
+        expect(yield* Fiber.join(lan)).toMatchObject({
+          _tag: "ConnectionTransientError",
+          reason: "timeout",
+        });
+
+        yield* TestClock.adjust("7 seconds");
+        expect(tailnet.pollUnsafe()).toBeDefined();
+        expect(forwarded.pollUnsafe()).toBeDefined();
+      }).pipe(Effect.provide(harness.layer));
     }),
   );
 

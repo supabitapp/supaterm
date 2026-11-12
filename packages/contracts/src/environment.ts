@@ -131,6 +131,12 @@ export const ExecutionEnvironmentCapabilities = Schema.Struct({
   /** Server holds a steer sent while a run prepares or starts and delivers it once the provider
       turn runs; older servers reject that steer. */
   deferredSteering: Schema.optionalKey(Schema.Boolean),
+  /**
+   * The server config's flags of the same names. A server that names them here lets a client
+   * load the shell snapshot before the socket opens, and answers its `resumeFrom`.
+   */
+  shellThreadFamilies: Schema.optionalKey(Schema.Boolean),
+  shellOlderDone: Schema.optionalKey(Schema.Boolean),
 });
 export type ExecutionEnvironmentCapabilities = typeof ExecutionEnvironmentCapabilities.Type;
 

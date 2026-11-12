@@ -164,6 +164,13 @@ function labelledTailscale(route: ConnectionRoute): boolean {
   return profile?._tag === "BearerConnectionProfile" && profile.network === "tailscale";
 }
 
+function directAddressKind(hostname: string, tailscale = false): ConnectionRouteKind {
+  if (isLocalLoopbackHost(hostname)) return "loopback";
+  if (isTailnetHost(hostname) || (tailscale && isTailnetAddress(hostname))) return "tailnet";
+  if (isSharedAddressSpaceHost(hostname)) return "vpn";
+  return isPrivateNetworkHost(hostname) ? "lan" : "public";
+}
+
 export function connectionRouteKind(route: ConnectionRoute): ConnectionRouteKind {
   switch (route.target._tag) {
     case "SshConnectionTarget":
@@ -177,13 +184,29 @@ export function connectionRouteKind(route: ConnectionRoute): ConnectionRouteKind
       } catch {
         return "public";
       }
-      const hostname = url.hostname;
-      if (isLocalLoopbackHost(hostname)) return "loopback";
-      if (isTailnetHost(hostname) || (labelledTailscale(route) && isTailnetAddress(hostname)))
-        return "tailnet";
-      if (isSharedAddressSpaceHost(hostname)) return "vpn";
-      return isPrivateNetworkHost(hostname) ? "lan" : "public";
+      return directAddressKind(url.hostname, labelledTailscale(route));
     }
+  }
+}
+
+/**
+ * Whether the route's address reaches the same machine on every network: TLS
+ * proves who answers, and loopback cannot move. Any other plain http address,
+ * a tailnet one too once Tailscale is down, can belong to another machine after
+ * a network change, so an answer from it is not kept.
+ */
+export function routeKeepsItsHost(route: ConnectionRoute): boolean {
+  if (routeHttpBaseUrl(route)?.startsWith("https:") === true) return true;
+  return connectionRouteKind(route) === "loopback";
+}
+
+/** A loopback or LAN host answers within a few seconds or is not there. */
+export function isNearbyAddress(httpBaseUrl: string): boolean {
+  try {
+    const kind = directAddressKind(new URL(httpBaseUrl).hostname);
+    return kind === "loopback" || kind === "lan";
+  } catch {
+    return false;
   }
 }
 
