@@ -17,6 +17,7 @@ describe("classifyMarkdownImageSource", () => {
     expect(classifyMarkdownImageSource(source, workspaceRoot)).toEqual({
       _tag: "WorkspaceFile",
       path,
+      ...(source.startsWith("file:") ? {} : { relative: true }),
     });
   });
 
