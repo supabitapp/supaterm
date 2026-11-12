@@ -23,6 +23,7 @@ import {
   buildTailscaleHttpsBaseUrl,
   DEFAULT_TAILSCALE_SERVE_PORT,
   ensureTailscaleServe,
+  readTailscaleServeRootHolder,
   readTailscaleStatus,
 } from "@supaterm/tailscale";
 import * as Config from "effect/Config";
@@ -421,6 +422,15 @@ const resolveTailscalePairingBase = Effect.fn("pair.resolveTailscalePairingBase"
     const localTarget = resolveTailscaleLocalTarget(input.target.state);
     if (isDevServerNotProxiableError(localTarget)) {
       return yield* localTarget;
+    }
+    // The probe above fails whenever this host cannot reach its own MagicDNS name, so the Serve
+    // config, not the probe, decides whether the port is free.
+    const holder = yield* readTailscaleServeRootHolder(input.servePort, {
+      host: (localTarget.localHost ?? "127.0.0.1").replace(/^\[|\]$/gu, ""),
+      port: localTarget.localPort,
+    }).pipe(Effect.mapError((cause) => new TailscaleUnavailableError({ cause })));
+    if (holder === "other") {
+      return yield* new ServePortOccupiedError({ servePort: input.servePort });
     }
     yield* ensureTailscaleServe({
       localPort: localTarget.localPort,
