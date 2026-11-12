@@ -37,8 +37,12 @@ export function recordHomeTransitionStart(closing: boolean): void {
   if (!closing) setHomeVisible(true);
 }
 
-export function recordHomeTransitionEnd(closing: boolean): void {
-  if (closing) setHomeVisible(false);
+/**
+ * Each iOS tab slot shows its own copy of the Home route, and the slot a tab switch leaves
+ * disappears last. So a disappear hides Home only when another route has the focus.
+ */
+export function recordHomeTransitionEnd(closing: boolean, homeFocused: boolean): void {
+  if (closing && !homeFocused) setHomeVisible(false);
 }
 
 /** Popping a sheet or a deep-linked route above Home has no appear event. */
