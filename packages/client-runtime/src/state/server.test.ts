@@ -51,6 +51,7 @@ import type { RpcSession } from "../rpc/session.ts";
 import {
   applyServerWelcomeEvent,
   createServerEnvironmentAtoms,
+  type FetchedMachineCatalog,
   makeEnvironmentServerWelcomeState,
   makeEnvironmentServerConfigState,
   isLegacyUpdateHandoffLoss,
@@ -398,6 +399,7 @@ describe("accepted server update recovery", () => {
 
 const makeConfigPersistenceHarness = Effect.fn("test.makeConfigPersistenceHarness")(function* (
   saveServerConfig: Persistence.EnvironmentCacheStore["Service"]["saveServerConfig"],
+  machineCatalogs?: Stream.Stream<ReadonlyArray<FetchedMachineCatalog>>,
 ) {
   const events = yield* Queue.unbounded<ServerConfigStreamEvent>();
   const client = {
@@ -426,7 +428,10 @@ const makeConfigPersistenceHarness = Effect.fn("test.makeConfigPersistenceHarnes
     clearVcsRefs: () => Effect.void,
     clear: () => Effect.void,
   });
-  const state = yield* makeEnvironmentServerConfigState({ environmentThemes: true }).pipe(
+  const state = yield* makeEnvironmentServerConfigState(
+    { environmentThemes: true },
+    machineCatalogs,
+  ).pipe(
     Effect.provideService(EnvironmentSupervisor.EnvironmentSupervisor, supervisor),
     Effect.provideService(Persistence.EnvironmentCacheStore, cache),
   );
@@ -440,7 +445,7 @@ const makeConfigPersistenceHarness = Effect.fn("test.makeConfigPersistenceHarnes
       Effect.map(Option.getOrThrow),
     );
   });
-  return { send };
+  return { send, state };
 });
 
 describe("server state projection", () => {
@@ -583,6 +588,92 @@ describe("server state projection", () => {
         }),
       );
       expect(yield* Ref.get(saved)).toEqual([CONFIG]);
+    }),
+  );
+
+  it.effect("caches the lists a cwd snapshot loaded for a catalog digest", () =>
+    Effect.gen(function* () {
+      const saved = yield* Ref.make<ReadonlyArray<ServerConfig>>([]);
+      const catalogs = yield* Queue.unbounded<ReadonlyArray<FetchedMachineCatalog>>();
+      const instanceId = ProviderInstanceId.make("claudeAgent");
+      const otherInstanceId = ProviderInstanceId.make("codex");
+      const thirdInstanceId = ProviderInstanceId.make("cursor");
+      const slashCommands = [{ name: "compact" }];
+      // What the server sends: a digest in place of the two lists.
+      const snapshot = (catalogDigest = "d1") =>
+        snapshotEvent({
+          ...CONFIG,
+          providers: [
+            { instanceId, slashCommands: [], skills: [], catalogDigest },
+            { instanceId: otherInstanceId, slashCommands: [], skills: [], catalogDigest: "c1" },
+            { instanceId: thirdInstanceId, slashCommands: [], skills: [], catalogDigest: "t1" },
+          ],
+        } as unknown as ServerConfig);
+      yield* Effect.scoped(
+        Effect.gen(function* () {
+          const h = yield* makeConfigPersistenceHarness(
+            (_id, config) => Ref.update(saved, (values) => [...values, config]),
+            Stream.fromQueue(catalogs),
+          );
+          yield* h.send(snapshot());
+          yield* Queue.offer(catalogs, [{ instanceId, digest: "d1", slashCommands, skills: [] }]);
+          const loaded = yield* SubscriptionRef.changes(h.state).pipe(
+            Stream.map((value) => Option.getOrThrow(value).config.providers[0]),
+            Stream.filter((provider) => provider?.loadedCatalogDigest === "d1"),
+            Stream.runHead,
+          );
+          expect(Option.getOrThrow(loaded)?.slashCommands).toEqual(slashCommands);
+
+          yield* TestClock.adjust("10 seconds");
+          expect((yield* Ref.get(saved)).at(-1)?.providers[0]).toMatchObject({
+            slashCommands,
+            loadedCatalogDigest: "d1",
+          });
+
+          // A reconnect sends the digest again, and the loaded lists stay.
+          const reconnected = yield* h.send(snapshot());
+          expect(reconnected.config.providers[0]).toMatchObject({
+            slashCommands,
+            loadedCatalogDigest: "d1",
+          });
+
+          // A reply for an older catalog that lands late does not replace the current lists.
+          const late = { instanceId, digest: "d0", slashCommands: [{ name: "old" }], skills: [] };
+          yield* Queue.offer(catalogs, [late]);
+          yield* Queue.offer(catalogs, [
+            late,
+            { instanceId: otherInstanceId, digest: "c1", slashCommands: [], skills: [] },
+          ]);
+          const done = yield* SubscriptionRef.changes(h.state).pipe(
+            Stream.map((value) => Option.getOrThrow(value).config.providers),
+            Stream.filter((providers) => providers[1]?.loadedCatalogDigest === "c1"),
+            Stream.runHead,
+          );
+          expect(Option.getOrThrow(done)[0]).toMatchObject({
+            slashCommands,
+            loadedCatalogDigest: "d1",
+          });
+
+          // A reply for a newer catalog can land before the config names its digest. It is
+          // kept, and applies when the config does.
+          const newer = { instanceId, digest: "d2", slashCommands: [{ name: "new" }], skills: [] };
+          yield* Queue.offer(catalogs, [
+            newer,
+            { instanceId: thirdInstanceId, digest: "t1", slashCommands: [], skills: [] },
+          ]);
+          const kept = yield* SubscriptionRef.changes(h.state).pipe(
+            Stream.map((value) => Option.getOrThrow(value).config.providers),
+            Stream.filter((providers) => providers[2]?.loadedCatalogDigest === "t1"),
+            Stream.runHead,
+          );
+          expect(Option.getOrThrow(kept)[0]).toMatchObject({ loadedCatalogDigest: "d1" });
+          const advanced = yield* h.send(snapshot("d2"));
+          expect(advanced.config.providers[0]).toMatchObject({
+            slashCommands: newer.slashCommands,
+            loadedCatalogDigest: "d2",
+          });
+        }),
+      );
     }),
   );
 
@@ -1188,6 +1279,23 @@ describe("server state projection", () => {
     // Nothing fetched leaves the config as streamed.
     const streamed = configWith([provider(claude)]);
     expect(withFetchedWorkspaceSnapshots(streamed, [])).toBe(streamed);
+
+    // A catalog digest stands for the lists: loading them keeps the snapshot, a new digest retires it.
+    const digested = (catalogDigest: string, slashCommands: ReadonlyArray<{ name: string }> = []) =>
+      ({ ...provider(claude, undefined, slashCommands), catalogDigest }) as ReturnType<
+        typeof provider
+      >;
+    const fetchedByDigest = recordFetchedWorkspaceSnapshot(
+      [],
+      { instanceId: claude, cwd: "/a", fresh: false },
+      [provider(claude, [claudeA])],
+      digested("d1"),
+    );
+    const snapshotsFor = (current: ReturnType<typeof provider>) =>
+      withFetchedWorkspaceSnapshots(configWith([current]), fetchedByDigest).providers[0]
+        ?.workspaceSnapshots;
+    expect(snapshotsFor(digested("d1", [{ name: "loaded" }]))).toEqual([claudeA]);
+    expect(snapshotsFor(digested("d2"))).toBeUndefined();
 
     // A fresh scan drops the cwd's other provider snapshots, as the server does.
     expect(record(fetched, claude, true, [])).toEqual([]);
