@@ -30,9 +30,17 @@ export class DatabaseMissingError extends Schema.TaggedError<DatabaseMissingErro
 
 export class DatabaseInUseError extends Schema.TaggedError<DatabaseInUseError>()(
   "DatabaseInUseError",
-  { path: Schema.String, cause: Schema.Defect() },
+  {
+    path: Schema.String,
+    cause: Schema.Defect(),
+    pid: Schema.optional(Schema.Int),
+    serviceManaged: Schema.optional(Schema.Boolean),
+  },
 ) {
   override get message() {
+    if (this.pid !== undefined) {
+      return `Stop Supaterm server process ${this.pid}${this.serviceManaged ? "" : ", which the background service did not start,"} before compacting the database.`;
+    }
     return "Stop the Supaterm server and desktop app before compacting the database.";
   }
 }
