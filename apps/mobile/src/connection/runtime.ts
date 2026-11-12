@@ -35,7 +35,13 @@ type ConnectionLayerSource =
   | typeof BackgroundActivity.layerReporter;
 
 const layerProvidedClientConnection = layerSnapshotLoader.pipe(
-  Layer.provideMerge(Connection.layerWithOptions({ providerCatalogsOnDemand: true })),
+  Layer.provideMerge(
+    Connection.layerWithOptions({
+      providerCatalogsOnDemand: true,
+      providerCatalogDigests: true,
+      providerStatusDeltas: true,
+    }),
+  ),
   Layer.provideMerge(
     Layer.mergeAll(
       Runtime.layer,
