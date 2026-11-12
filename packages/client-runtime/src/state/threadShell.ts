@@ -86,8 +86,12 @@ export function pendingSubagentRequestsByThread(
       continue;
     }
     const request = subagentRequest(child);
-    // The coordinator answers child questions; only approvals need user attention.
-    if (request === null || request === "user_input") continue;
+    // The coordinator answers child questions; approvals and user-only cards need the user.
+    if (
+      request === null ||
+      (request === "user_input" && child.pendingRuntimeRequest?.userOnly !== true)
+    )
+      continue;
     byId ??= new Map(threads.map((thread) => [thread.id, thread] as const));
     const seen = new Set<ThreadId>([child.id]);
     let current: OrchestrationV2ThreadShell | undefined = child;

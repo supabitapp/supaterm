@@ -516,6 +516,11 @@ export const loadOlderDoneThreadsPage = Effect.fn("ShellStream.loadOlderDoneThre
   },
 );
 
+// A subagent's secret or link card, or a user message past a link card, starts or ends a wait
+// only the user can answer; dropping these leaves the parent's "Input needed" stale.
+const turnItemCanChangeUserWait = (item: { readonly type: string }) =>
+  item.type === "secret_request" || item.type === "link_request" || item.type === "user_message";
+
 /** Focused subagents receive these updates through their thread subscription. */
 export function shouldPublishShellApplicationEvent(
   stored: ApplicationStoredEvent,
@@ -531,6 +536,9 @@ export function shouldPublishShellApplicationEvent(
   }
   if (event.type === "thread.deleted") {
     // Replay and the live tail overlap; keep known IDs so late events stay filtered.
+    return true;
+  }
+  if (event.type === "turn-item.updated" && turnItemCanChangeUserWait(event.payload)) {
     return true;
   }
   return !(
