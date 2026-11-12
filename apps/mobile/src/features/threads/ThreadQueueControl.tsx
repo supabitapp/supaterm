@@ -5,6 +5,10 @@ import {
   queuedRunEditBlockedReason,
 } from "@supaterm/client-runtime/queued-run-edit";
 import {
+  isAtomCommandInterrupted,
+  squashAtomCommandFailure,
+} from "@supaterm/client-runtime/state/runtime";
+import {
   AuthOrchestrationOperateScope,
   type EnvironmentId,
   type RunId,
@@ -22,6 +26,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Reanimated, { FadeOut } from "react-native-reanimated";
 
 import { Button } from "../../components/ui/Button";
+import * as Dialog from "../../components/ui/Dialog";
 import { AppText as Text } from "../../components/ui/AppText";
 import { SymbolView } from "../../components/ui/AppSymbol";
 import { scopedThreadKey } from "../../lib/scopedEntities";
@@ -68,6 +73,10 @@ export function ThreadQueueSheet({ route }: StaticScreenProps<QueueTarget>) {
   const promote = useAtomCommand(threadEnvironment.promoteQueuedRun, "promote queued message");
   const cancel = useAtomCommand(threadEnvironment.cancelQueuedRun, "remove queued message");
   const resume = useAtomCommand(threadEnvironment.resumeThreadQueue, "resume queue");
+  const resumeHeldQueue = useAtomCommand(threadEnvironment.resumeThreadQueue, {
+    label: "resume queue",
+    reportFailure: false,
+  });
   const [resuming, setResuming] = useState(false);
   const [busyRunId, setBusyRunId] = useState<RunId | null>(null);
   const busyRef = useRef(false);
@@ -290,9 +299,20 @@ export function ThreadQueueSheet({ route }: StaticScreenProps<QueueTarget>) {
                   return;
                 busyRef.current = true;
                 setResuming(true);
-                await resume({ ...target, input: { threadId: target.threadId } });
+                const result = await resumeHeldQueue({
+                  ...target,
+                  input: { threadId: target.threadId },
+                });
                 busyRef.current = false;
                 setResuming(false);
+                // A usage limit holds the queue until the composer's Resume thread continues the run.
+                if (result._tag === "Failure" && !isAtomCommandInterrupted(result)) {
+                  const error = squashAtomCommandFailure(result);
+                  Dialog.alert(
+                    "Could not resume queue",
+                    error instanceof Error ? error.message : "Try again.",
+                  );
+                }
               }}
             />
           </View>
