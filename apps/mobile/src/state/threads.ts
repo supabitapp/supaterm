@@ -13,6 +13,7 @@ import {
   createThreadEnvironmentAtoms,
   createThreadFamilyAtoms,
 } from "@supaterm/client-runtime/state/threads";
+import { createSteadyShellAtoms } from "@supaterm/client-runtime/state/shell";
 import type { EnvironmentId, ThreadId } from "@supaterm/contracts";
 import { AsyncResult, Atom } from "effect/reactivity";
 
@@ -68,6 +69,22 @@ export const runningThreadKeepAliveAtom = createRunningThreadKeepAliveAtom({
   threadsAtom: environmentThreadShells.environmentThreadsAtom,
   stateAtom: environmentThreads.stateAtom,
 });
+const steadyShells = createSteadyShellAtoms({
+  catalogValueAtom: environmentCatalog.catalogValueAtom,
+  snapshotAtom: threadEnvironment.snapshotAtom,
+  shellStateAtom: environmentShell.stateValueAtom,
+  rowActionsAtom: threadEnvironment.rowActionsAtom,
+  connectionStateAtom: environmentCatalog.stateAtom,
+});
+/**
+ * The threads that lists arrange. Rows wait while their environment synchronizes, so a list
+ * changes once when environments connect, not once per environment.
+ */
+export const steadyShellsHoldingAtom = steadyShells.holdingAtom;
+export const steadyNavigationThreadShellsAtom = createEnvironmentThreadShellAtoms({
+  catalogValueAtom: environmentCatalog.catalogValueAtom,
+  snapshotAtom: steadyShells.snapshotAtom,
+}).navigationThreadShellsAtom;
 export const childThreadApprovalsAtom = createChildThreadApprovalsAtom({
   childThreadInputsAtom: environmentThreadShells.childThreadInputsAtom,
   pendingRequestsAtom: environmentThreadDetails.pendingRequestsAtom,

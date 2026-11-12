@@ -27,7 +27,7 @@ import { scopedThreadKey } from "../../lib/scopedEntities";
 import { deriveThreadArrangementSizing } from "../../lib/layout";
 import { environmentServerConfigsAtom } from "../../state/server";
 import { threadListEnvironmentsAtom } from "../../state/presentation";
-import { environmentThreadShells } from "../../state/threads";
+import { steadyNavigationThreadShellsAtom, steadyShellsHoldingAtom } from "../../state/threads";
 import { sortDoneThreads } from "@supaterm/client-runtime/state/thread-sort";
 import { useOlderDoneShelf, useOlderDoneShelfGrowth } from "../../state/olderDoneShelf";
 import {
@@ -186,12 +186,13 @@ function ThreadArrangementSheet(props: { onClose: () => void }) {
     baseFontSize: appearance.baseFontSize,
     fontScale,
   });
-  const threads = useAtomValue(environmentThreadShells.navigationThreadShellsAtom);
+  const threads = useAtomValue(steadyNavigationThreadShellsAtom);
   const configs = useAtomValue(environmentServerConfigsAtom);
   const listEnvironments = useAtomValue(threadListEnvironmentsAtom);
   const queuedThreadKeys = useAtomValue(queuedThreadKeysAtom);
   const pendingOrder = useAtomValue(pendingThreadOrderAtom);
   const dropBusy = useAtomValue(threadDropBusyAtom);
+  const holdingRows = useAtomValue(steadyShellsHoldingAtom);
   const { moveThread } = useThreadListActions();
   const now = useThreadListNow(threads);
   const [expanded, setExpanded] = useState({ snoozed: false, done: false });
@@ -504,6 +505,7 @@ function ThreadArrangementSheet(props: { onClose: () => void }) {
                               disabled={
                                 dropBusy ||
                                 pendingOrder !== null ||
+                                holdingRows ||
                                 !loaded ||
                                 !listEnvironments.reorderEnvironmentIds.has(thread.environmentId)
                               }

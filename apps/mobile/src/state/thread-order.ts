@@ -11,7 +11,7 @@ import {
   nextSnoozeWakeAfter,
 } from "../features/threads/threadListV2";
 import { appAtomRegistry } from "./atom-registry";
-import { environmentThreadShells } from "./threads";
+import { steadyNavigationThreadShellsAtom } from "./threads";
 import { queuedThreadKeysAtom } from "./use-thread-outbox";
 
 export const threadArrangementOpenAtom = Atom.make(false).pipe(Atom.keepAlive);
@@ -62,7 +62,7 @@ export function beginPendingThreadOrder(pending: PendingThreadOrder) {
     if (refreshPendingOrder !== refresh) return;
     const current = appAtomRegistry.get(pendingThreadOrderAtom);
     if (current === null) return;
-    const threads = appAtomRegistry.get(environmentThreadShells.threadShellsAtom);
+    const threads = appAtomRegistry.get(steadyNavigationThreadShellsAtom);
     const nowMs = Date.now();
     const ordered = getThreadListV2OrderedSection({
       threads,
@@ -83,13 +83,11 @@ export function beginPendingThreadOrder(pending: PendingThreadOrder) {
   teardownPendingOrder = teardown;
   appAtomRegistry.set(pendingThreadOrderAtom, pending);
   unsubscribers.push(
-    appAtomRegistry.subscribe(environmentThreadShells.threadShellsAtom, refresh),
+    appAtomRegistry.subscribe(steadyNavigationThreadShellsAtom, refresh),
     appAtomRegistry.subscribe(queuedThreadKeysAtom, refresh),
     minuteTick.subscribe(refresh),
   );
-  armWake(
-    nextSnoozeWakeAfter(appAtomRegistry.get(environmentThreadShells.threadShellsAtom), Date.now()),
-  );
+  armWake(nextSnoozeWakeAfter(appAtomRegistry.get(steadyNavigationThreadShellsAtom), Date.now()));
   return {
     isPending: () => {
       refresh();
