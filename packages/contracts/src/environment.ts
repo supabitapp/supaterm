@@ -146,6 +146,8 @@ export const ExecutionEnvironmentCapabilities = Schema.Struct({
    */
   shellThreadFamilies: Schema.optionalKey(Schema.Boolean),
   shellOlderDone: Schema.optionalKey(Schema.Boolean),
+  /** Publishes a pull request refresh when linked-thread answers change; older servers need polling. */
+  linkedThreadRefreshes: Schema.optionalKey(Schema.Boolean),
 });
 export type ExecutionEnvironmentCapabilities = typeof ExecutionEnvironmentCapabilities.Type;
 
