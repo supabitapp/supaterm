@@ -239,6 +239,9 @@ export const make = Effect.gen(function* () {
         ? { serverSelfUpdateProgress: true }
         : {}),
       ...(desktopAppUpdate ? { desktopAppUpdate: true, desktopAppChannelSwitch: true } : {}),
+      peerLinks: true,
+      mcpModeLimitHeader: true,
+      linkFence: true,
       mcpApprovalCodes: true,
     },
   };

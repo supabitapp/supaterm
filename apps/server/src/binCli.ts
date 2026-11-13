@@ -1,4 +1,5 @@
 import { doctorCommand } from "./cli/doctor.ts";
+import { environmentCommand } from "./cli/environment.ts";
 import * as NodeRuntime from "@effect/platform-node/NodeRuntime";
 import * as NodeCrypto from "@effect/platform-node/NodeCrypto";
 import * as NodeServices from "@effect/platform-node/NodeServices";
@@ -59,6 +60,7 @@ export const makeCli = () =>
       appCommand,
       pairCommand,
       authCommand,
+      environmentCommand,
       browserCommand,
       projectCommand,
       threadCommand,

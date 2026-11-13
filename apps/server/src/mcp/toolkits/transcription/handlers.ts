@@ -43,22 +43,26 @@ export const layer = McpToolAccess.toLayer(
     const transcription = yield* Transcription.Transcription;
     const pendingUploads = yield* McpPendingUploads.McpPendingUploads;
     return {
-      supaterm_transcription_transcribe: McpToolAccess.writes((input) =>
-        Effect.gen(function* () {
-          yield* pendingUploads.requireOwner(input.audioAttachmentId);
-          const { thread } = yield* McpInvocationContext.McpInvocationContext;
-          const context = input.context ?? (thread && { threadId: thread.threadId });
-          return yield* transcription
-            .transcribe({ ...input, ...(context && { context }) })
-            .pipe(Effect.mapError(transcriptionFailure));
-        }),
+      supaterm_transcription_transcribe: McpToolAccess.writes(
+        (input) =>
+          Effect.gen(function* () {
+            yield* pendingUploads.requireOwner(input.audioAttachmentId);
+            const { thread } = yield* McpInvocationContext.McpInvocationContext;
+            const context = input.context ?? (thread && { threadId: thread.threadId });
+            return yield* transcription
+              .transcribe({ ...input, ...(context && { context }) })
+              .pipe(Effect.mapError(transcriptionFailure));
+          }),
+        { linkedCallers: "allowed" },
       ),
-      supaterm_transcription_cancel: McpToolAccess.writes((input) =>
-        Effect.gen(function* () {
-          yield* pendingUploads.requireOwner(input.audioAttachmentId);
-          yield* transcription.cancel(input);
-          return {};
-        }),
+      supaterm_transcription_cancel: McpToolAccess.writes(
+        (input) =>
+          Effect.gen(function* () {
+            yield* pendingUploads.requireOwner(input.audioAttachmentId);
+            yield* transcription.cancel(input);
+            return {};
+          }),
+        { linkedCallers: "allowed" },
       ),
     };
   }),

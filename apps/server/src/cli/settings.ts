@@ -25,6 +25,7 @@ const BOOLEAN_SETTING = { kind: "boolean", expected: "true or false" } as const;
 const STRING_SETTING = { kind: "string", expected: "a string" } as const;
 const SETTABLE_SETTINGS = {
   publicRelayEnabled: BOOLEAN_SETTING,
+  linkedEnvironmentsEnabled: BOOLEAN_SETTING,
   publicRelayUrl: { kind: "string", expected: "a ws:// or wss:// URL" },
   responseStreamingMode: { kind: "string", expected: ResponseStreamingMode.literals.join(" | ") },
   enableProviderUpdateChecks: BOOLEAN_SETTING,

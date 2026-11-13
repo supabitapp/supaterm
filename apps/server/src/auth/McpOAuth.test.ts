@@ -4,6 +4,7 @@ import {
   AuthStandardClientScopes,
   type AuthCreatePairingCredentialInput,
   EnvironmentHttpApi,
+  MCP_PEER_LINK_SOFTWARE_ID,
 } from "@supaterm/contracts";
 import { expect, it } from "@effect/vitest";
 import * as Context from "effect/Context";
@@ -20,6 +21,7 @@ import * as Schema from "effect/Schema";
 
 import * as ServerConfig from "../config.ts";
 import * as ServerEnvironment from "../environment/ServerEnvironment.ts";
+import * as ServerSettings from "../serverSettings.ts";
 import * as Sqlite from "../persistence/Sqlite.ts";
 import * as EnvironmentAuth from "./EnvironmentAuth.ts";
 import * as McpOAuth from "./McpOAuth.ts";
@@ -45,7 +47,12 @@ const makeLayerRoutes = (capture: (auth: EnvironmentAuth.EnvironmentAuth["Servic
     ),
     HttpApiBuilder.layer(AuthTestApi).pipe(
       Layer.provide(AuthHttp.layer),
-      Layer.provide(McpOAuthHttp.layer.pipe(Layer.provide(McpOAuth.layer))),
+      Layer.provide(
+        McpOAuthHttp.layer.pipe(
+          Layer.provide(McpOAuth.layer),
+          Layer.provide(ServerSettings.layerTest({ linkedEnvironmentsEnabled: true })),
+        ),
+      ),
       Layer.provide(AuthHttp.layerAuthenticatedAuth),
     ),
   ).pipe(
@@ -486,6 +493,23 @@ it.live("an app approval code approves only an app sign-in, at its own level", (
         .exchangeBootstrapCredentialForAccessToken(code, undefined, { deviceType: "bot" })
         .pipe(Effect.flip);
       expect(exchanged._tag).toBe("ServerAuthInvalidCredentialError");
+      const peer = yield* handler(
+        at("/oauth/mcp/register", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: encodeJson({
+            client_name: "Studio",
+            software_id: MCP_PEER_LINK_SOFTWARE_ID,
+            redirect_uris: [REDIRECT],
+          }),
+        }),
+      ).pipe(Effect.flatMap(json<{ client_id: string }>));
+      const linked = yield* decide(handler, authorizeParams(peer.client_id), {
+        _tag: "pairing-code",
+        access: "approval-required",
+        code,
+      });
+      expect(linked.status).toBe(400);
 
       // Supervised and Auto share scopes, so only the code's own level may spend it.
       const otherLevel = yield* decide(handler, params, {

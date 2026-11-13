@@ -113,6 +113,7 @@ const withServer = <A, E, R>(
       layerAttachmentUploadRoute,
     ).pipe(
       Layer.provide(McpPendingUploads.layer),
+      Layer.provide(ServerSettings.layerTest()),
       Layer.provide(
         Layer.mock(McpSessionRegistry.McpSessionRegistry)({
           resolve: () => Effect.undefined,

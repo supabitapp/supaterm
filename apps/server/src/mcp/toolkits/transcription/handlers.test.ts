@@ -143,6 +143,52 @@ it.effect("only the caller that prepared an upload can transcribe or cancel it",
   );
 });
 
+it.effect("a linked environment transcribes and cancels the recording it uploaded", () => {
+  const linked: McpInvocationContext.McpInvocationScope = {
+    ...scope,
+    requestNamespace: "client:linked-session",
+    thread: undefined,
+    client: {
+      sessionId: "linked-session",
+      label: "Supaterm · laptop",
+      access: "auto",
+      linked: true,
+    },
+  };
+  const used: Array<string> = [];
+  return Effect.gen(function* () {
+    yield* McpPendingUploads.McpPendingUploads.pipe(
+      Effect.flatMap((uploads) => uploads.record(audioAttachmentId)),
+      Effect.provideService(McpInvocationContext.McpInvocationContext, linked),
+    );
+
+    const transcribed = yield* callTranscribe({}, linked);
+    const cancelled = yield* callTool(
+      "supaterm_transcription_cancel",
+      { audioAttachmentId },
+      linked,
+    );
+
+    expect(declaredFailure(transcribed)).toBeUndefined();
+    expect(declaredFailure(cancelled)).toBeUndefined();
+    expect(used).toEqual(["transcribe", "cancel"]);
+  }).pipe(
+    Effect.provide(
+      withTranscription({
+        transcribe: () =>
+          Effect.sync(() => {
+            used.push("transcribe");
+            return { text: "from the laptop" };
+          }),
+        cancel: () =>
+          Effect.sync(() => {
+            used.push("cancel");
+          }),
+      }),
+    ),
+  );
+});
+
 it.effect("a rate-limited account tells the agent when to try again", () =>
   Effect.gen(function* () {
     yield* prepareUpload;

@@ -152,6 +152,7 @@ it("treats usage-limited and other provider-finished runs as forkable", () => {
 
 it.effect("resets a fork's pin, snooze and done state but keeps its origin", () =>
   Effect.gen(function* () {
+    const linkOrigin = { sessionId: "mcp-session:fork-source", label: "Linked laptop" };
     const sourceThread: OrchestrationV2AppThread = {
       ...makeSourceThread(),
       lastSnoozeWakeAt: snoozedAt,
@@ -160,6 +161,7 @@ it.effect("resets a fork's pin, snooze and done state but keeps its origin", () 
       activeOrderKey: "a1",
       autoMarkDoneDisabledAt: snoozedAt,
       historyOrigin: "v1_import",
+      linkOrigin,
     };
     const sourceRun = makeSourceRun("completed");
     const result = yield* planFork(sourceRun, sourceThread);
@@ -172,6 +174,7 @@ it.effect("resets a fork's pin, snooze and done state but keeps its origin", () 
     assert.isNull(result.targetThread.activeOrderKey);
     assert.isNull(result.targetThread.autoMarkDoneDisabledAt);
     assert.equal(result.targetThread.historyOrigin, "v1_import");
+    assert.deepEqual(result.targetThread.linkOrigin, linkOrigin);
     assert.equal(result.targetThread.projectId, sourceThread.projectId);
     assert.equal(result.targetThread.providerInstanceId, sourceThread.providerInstanceId);
     assert.deepEqual(result.targetThread.modelSelection, sourceThread.modelSelection);
