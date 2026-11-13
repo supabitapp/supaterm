@@ -17,6 +17,8 @@ import {
 } from "@supaterm/contracts";
 import { GitBranchIcon } from "@supaterm/icons";
 import {
+  useEffect,
+  useEffectEvent,
   useImperativeHandle,
   useOptimistic,
   useState,
@@ -31,6 +33,7 @@ import { useShortcutLabel } from "../hooks/useShortcutLabel";
 import { readLocalApi } from "../localApi";
 import { useOpenPrLink } from "../lib/openPullRequestLink";
 import { usePaginatedBranches } from "../state/queries";
+import { useProjectClone } from "../state/projectClones";
 import { readThreadShell, useProject, useQuietThreadShell } from "../state/entities";
 import { useEnvironmentQuery } from "../state/query";
 import { readEnvironmentScope, useEnvironmentScope } from "~/state/session";
@@ -543,6 +546,19 @@ export function BranchToolbarBranchSelector({
       }
     });
   };
+
+  const projectCloneDone = useProjectClone(activeProjectRef)?.phase === "done";
+  const refreshRefsAfterClone = useEffectEvent(() => {
+    if (branchCwd === null) return;
+    void refreshLocalStatusForPicker({
+      environmentId,
+      input: { cwd: branchCwd, localOnly: true },
+    });
+  });
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- refs listed while the project was cloning are empty; reload them past the server's snapshot when the clone finishes
+  useEffect(() => {
+    if (projectCloneDone) refreshRefsAfterClone();
+  }, [projectCloneDone]);
 
   const handleOpenChange = (open: boolean) => {
     setIsBranchMenuOpen(open);

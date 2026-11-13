@@ -181,15 +181,19 @@ export function resolveDraftEnvModeAfterBranchChange(input: {
 }
 
 /** Resolve the base once for both the branch picker and worktree submission. */
+/**
+ * The base a New worktree thread gets. Without a selection only a listed ref qualifies: during a
+ * clone the status names an unborn HEAD that no ref backs.
+ */
 export function resolveWorktreeBaseBranch(input: {
   selectedBranch: string | null;
-  refs: ReadonlyArray<Pick<VcsRef, "name" | "isDefault">>;
+  refs: ReadonlyArray<Pick<VcsRef, "name" | "isDefault" | "current">>;
   refsLoading: boolean;
-  currentGitBranch: string | null;
 }): string | null {
   if (input.selectedBranch) return input.selectedBranch;
   if (input.refsLoading) return null;
-  return input.refs.find((ref) => ref.isDefault)?.name ?? input.currentGitBranch;
+  const { refs } = input;
+  return (refs.find((ref) => ref.isDefault) ?? refs.find((ref) => ref.current))?.name ?? null;
 }
 
 export function resolveBranchToolbarValue(input: {

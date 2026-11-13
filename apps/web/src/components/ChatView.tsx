@@ -2315,7 +2315,6 @@ export default function ChatView(props: ChatViewProps) {
         selectedBranch: selectedThreadBranch,
         refs: worktreeBaseRefs.refs,
         refsLoading: worktreeBaseRefsLoading,
-        currentGitBranch: gitStatusQuery.data?.refName ?? null,
       })
     : selectedThreadBranch;
   const worktreeBaseRefsSettled = worktreeBaseRefs.data !== null && !worktreeBaseRefs.isRefreshing;

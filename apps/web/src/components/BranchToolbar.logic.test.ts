@@ -41,15 +41,13 @@ describe("resolveDraftEnvModeAfterBranchChange", () => {
 });
 
 describe("resolveWorktreeBaseBranch", () => {
-  const refs = [{ name: "origin/main", isDefault: true }];
+  const refs = [
+    { name: "feature/current", isDefault: false, current: true },
+    { name: "origin/main", isDefault: true, current: false },
+  ];
 
   it("resolves the repository default before the current checkout without a saved selection", () => {
-    const branch = resolveWorktreeBaseBranch({
-      selectedBranch: null,
-      refs,
-      refsLoading: false,
-      currentGitBranch: "feature/current",
-    });
+    const branch = resolveWorktreeBaseBranch({ selectedBranch: null, refs, refsLoading: false });
     expect(branch).toBe("origin/main");
     expect(
       resolveBranchToolbarValue({
@@ -67,42 +65,29 @@ describe("resolveWorktreeBaseBranch", () => {
         selectedBranch: "upstream/release",
         refs,
         refsLoading: true,
-        currentGitBranch: "feature/current",
       }),
     ).toBe("upstream/release");
   });
 
   it("waits for the default branch before falling back to the current checkout", () => {
+    const current = refs.filter((ref) => ref.current);
     expect(
-      resolveWorktreeBaseBranch({
-        selectedBranch: null,
-        refs: [],
-        refsLoading: true,
-        currentGitBranch: "feature/current",
-      }),
+      resolveWorktreeBaseBranch({ selectedBranch: null, refs: current, refsLoading: true }),
     ).toBeNull();
     expect(
-      resolveWorktreeBaseBranch({
-        selectedBranch: null,
-        refs: [],
-        refsLoading: false,
-        currentGitBranch: "feature/current",
-      }),
+      resolveWorktreeBaseBranch({ selectedBranch: null, refs: current, refsLoading: false }),
     ).toBe("feature/current");
   });
 
-  it("requires a selection when neither a default nor a checkout branch is known", () => {
+  it("offers nothing while a clone has no refs, then the default branch once they are listed", () => {
     expect(
-      resolveWorktreeBaseBranch({
-        selectedBranch: null,
-        refs: [],
-        refsLoading: false,
-        currentGitBranch: null,
-      }),
+      resolveWorktreeBaseBranch({ selectedBranch: null, refs: [], refsLoading: false }),
     ).toBeNull();
+    expect(resolveWorktreeBaseBranch({ selectedBranch: null, refs, refsLoading: false })).toBe(
+      "origin/main",
+    );
   });
 });
-
 describe("resolveBranchToolbarValue", () => {
   it("does not display an unresolved checkout fallback as a worktree base", () => {
     expect(
