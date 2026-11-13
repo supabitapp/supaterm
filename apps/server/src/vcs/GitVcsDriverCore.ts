@@ -2730,7 +2730,15 @@ export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(function* 
             { env, maxOutputBytes: REVIEW_METADATA_MAX_OUTPUT_BYTES },
           ).pipe(Effect.map((stdout) => stdout.trim()));
           if (stagedSummary.length === 0) {
-            return null;
+            // Like git commit, a merge resolved to HEAD's tree still records its merge commit.
+            const mergeHeadPath = yield* runGitStdout(
+              "GitVcsDriver.prepareCommitContext.mergeHead",
+              cwd,
+              ["rev-parse", "--git-path", "MERGE_HEAD"],
+            );
+            if (!(yield* fileSystem.exists(path.resolve(physicalCwd, mergeHeadPath.trim())))) {
+              return null;
+            }
           }
 
           if (options?.includePatch === false) return { stagedSummary, stagedPatch: "" };
