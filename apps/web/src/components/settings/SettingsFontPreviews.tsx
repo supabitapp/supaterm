@@ -96,6 +96,7 @@ function StaticDiffHtml({ html }: { html: string }) {
   const attachHtml = (host: HTMLDivElement | null) => {
     if (host === null) return;
     const shadow = host.shadowRoot ?? host.attachShadow({ mode: "open" });
+    // react-doctor-disable-next-line react-doctor/dangerous-html-sink -- html is the diff renderer's output for DIFF_PREVIEW_PATCH, a constant in this file.
     shadow.innerHTML = html;
     const bridge = document.createElement("style");
     bridge.textContent = DIFF_PREVIEW_THEME_BRIDGE;

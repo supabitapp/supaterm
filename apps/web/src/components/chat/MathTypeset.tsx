@@ -35,6 +35,6 @@ function typeset(tex: string, display: boolean): string {
 export default function MathTypeset(props: { tex: string; display: boolean; fallback: ReactNode }) {
   const html = typeset(props.tex, props.display);
   if (!html) return props.fallback;
-  // KaTeX escapes the TeX it renders, and `trust: false` keeps it from emitting links or attributes.
+  // react-doctor-disable-next-line react-doctor/dangerous-html-sink -- KaTeX escapes the TeX it renders, and `trust: false` keeps it from emitting links or attributes.
   return <span dangerouslySetInnerHTML={{ __html: html }} />;
 }

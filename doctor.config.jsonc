@@ -1,0 +1,148 @@
+{
+  "$schema": "https://react.doctor/schema/config.json",
+  // Scans stay on this machine: no score upload and no dependency lookups.
+  "noScore": true,
+  "supplyChain": { "enabled": false },
+  "projects": ["*"],
+  "ignore": {
+    "files": ["**/.generated/**"],
+    "overrides": [
+      {
+        // Disclosure and composer heights animate so the content below reflows with them.
+        // Each runs once for at most 200ms; a transform cannot move siblings.
+        "files": [
+          "**/components/AnimatedHeight.tsx",
+          "**/components/chat/composerAttachmentMotion.ts",
+          "**/components/chat/useComposerRestingTransition.ts",
+        ],
+        "rules": ["react-doctor/no-layout-property-animation"],
+      },
+    ],
+  },
+  // A rule is off when a full scan showed it does not find defects in this codebase.
+  // Rules that never fired stay on. Turn one off here, with its reason, when it proves wrong.
+  "rules": {
+    // Size, complexity, and Fast Refresh opinions. None changes what ships.
+    "react-doctor/no-high-complexity-react-function": "off",
+    "react-doctor/no-giant-component": "off",
+    "react-doctor/only-export-components": "off",
+    "react-doctor/duplicate-jsx-subtree": "off",
+
+    // oxlint already enforces these (vite.config.ts), and this scanner cannot read the
+    // reasoned suppressions on those rules.
+    "react-hooks-js/set-state-in-effect": "off",
+    "react-hooks-js/refs": "off",
+    "react-hooks-js/purity": "off",
+    "react-doctor/exhaustive-deps": "off",
+    "react-doctor/no-array-index-as-key": "off",
+
+    // The lint config already declines this advice (no-await-in-loop, prefer-set-has).
+    "react-doctor/async-await-in-loop": "off",
+    "react-doctor/js-set-map-lookups": "off",
+    // Lookups over a handful of items.
+    "react-doctor/js-index-maps": "off",
+    // The flagged awaits are ordered on purpose or do no I/O worth overlapping.
+    "react-doctor/async-parallel": "off",
+    "react-doctor/async-defer-await": "off",
+    "react-doctor/server-sequential-independent-await": "off",
+
+    // Cleanup here runs through cleanup arrays, terminated workers, and sibling effects,
+    // which these rules do not follow.
+    "react-doctor/effect-needs-cleanup": "off",
+    "react-doctor/effect-observer-needs-disconnect": "off",
+    // Atom commands resolve to a result and never reject, so no flag can be stranded.
+    "react-doctor/no-loading-flag-reset-outside-finally": "off",
+    "react-doctor/no-floating-then-in-jsx-handler": "off",
+    // Base UI `render={<a />}` receives its children and label at runtime.
+    "react-doctor/anchor-has-content": "off",
+    "react-doctor/control-has-associated-label": "off",
+    // The update runs in a helper the rule does not follow.
+    "react-doctor/three-require-projection-matrix-update": "off",
+    // Flags a predicate prop and test probes.
+    "react-doctor/no-prop-callback-in-render": "off",
+    // Parses atom family keys the same module stringified.
+    "react-doctor/no-unsafe-json-parse": "off",
+    // The catch is further down the same chain.
+    "react-doctor/no-promise-then-side-effect-in-effect-without-catch": "off",
+
+    // Upstream still calls runOnJS, which Reanimated 4 keeps as a wrapper. Migrating alone
+    // would only add port conflicts.
+    "react-doctor/rn-reanimated-4-use-worklets-scheduler": "off",
+
+    // The rest fired only on code that is correct as written. Each note says on what.
+    // Mount-time latches and initial seeds on keyed components.
+    "react-doctor/no-derived-useState": "off",
+    // The composer mirrors the Tiptap document, which React does not own.
+    "react-doctor/no-derived-state": "off",
+    "react-doctor/no-derived-state-effect": "off",
+    // DOM measurement, store subscriptions, exit animations, and recycled-row resets.
+    "react-doctor/no-adjust-state-on-prop-change": "off",
+    // Load-more loops that wait on server data.
+    "react-doctor/no-pass-data-to-parent": "off",
+    // The suggested fix is Server Components, which this app does not have.
+    "react-doctor/no-fetch-in-effect": "off",
+    // The setters sit behind an abort check the rule does not see.
+    "react-doctor/no-set-state-after-await-in-effect": "off",
+    // A single-flight pending flag, not error state.
+    "react-doctor/no-unowned-async-error-clear": "off",
+    // The handler changes only with a value already in the dependency list.
+    "react-doctor/prefer-use-effect-event": "off",
+    // Reacts to data that loads later, not to a user event.
+    "react-doctor/no-effect-event-handler": "off",
+    // The state is read in render or effects, or set in the same batch as visible state.
+    "react-doctor/rerender-state-only-in-handlers": "off",
+    // Trivial initializers: resolved promises, small literals, lookups.
+    "react-doctor/rerender-lazy-ref-init": "off",
+    "react-doctor/rerender-lazy-state-init": "off",
+    "react-doctor/no-eager-new-in-use-state-initializer": "off",
+    // The in-flight call is aborted before a newer one can set state.
+    "react-doctor/rerender-functional-setstate": "off",
+    // The handlers change only with real dependencies; re-adding a few listeners is cheap.
+    "react-doctor/advanced-event-handler-refs": "off",
+    // Flags the import. Each use is a deliberate synchronous commit.
+    "react-doctor/no-flush-sync": "off",
+    // Formatters built on cache-miss, input, or settings paths that render rarely.
+    "react-doctor/js-hoist-intl": "off",
+    // The URL's owner revokes it elsewhere: a finalizer, a store, or a finally block.
+    "react-doctor/no-create-object-url-without-revoke": "off",
+    // The caller checks the status, or the URL is a blob or data URL.
+    "react-doctor/no-fetch-response-used-without-status-check": "off",
+    // A preceding filter, size check, or as-const key guarantees the lookup.
+    "react-doctor/no-non-null-assertion-on-maybe-undefined-result": "off",
+    "react-doctor/no-array-index-deref-without-bounds-or-empty-guard": "off",
+    // Only fires in tests.
+    "react-doctor/no-json-parse-stringify-clone": "off",
+    "react-doctor/no-create-ref-in-function-component": "off",
+
+    // A decorative, aria-hidden span.
+    "react-doctor/shadcn-icon-button-requires-label": "off",
+    // The role sits inside another button, where a native button would be invalid HTML.
+    "react-doctor/prefer-tag-over-role": "off",
+    // Mouse-only extras on wrappers around real buttons: middle-click close, drag, focus.
+    "react-doctor/no-static-element-interactions": "off",
+    "react-doctor/no-noninteractive-element-interactions": "off",
+    // Tooltip triggers made focusable so keyboard users can read them.
+    "react-doctor/no-noninteractive-tabindex": "off",
+    // Delegated click handlers beside a real, keyboard-reachable control.
+    "react-doctor/click-events-have-key-events": "off",
+    // Non-modal, labelled overlays.
+    "react-doctor/prefer-html-dialog": "off",
+    // The role overrides one set by a spread before it.
+    "react-doctor/no-redundant-roles": "off",
+    // The inline rename input the user just opened.
+    "react-doctor/no-autofocus": "off",
+
+    // Safe-area and keyboard insets that change in one discrete step.
+    "react-doctor/rn-scrollview-dynamic-padding": "off",
+    // Short bounded lists: filter pills, attachments, accounts, setup stages.
+    "react-doctor/rn-no-scrollview-mapped-list": "off",
+    // Redundant but harmless with item recycling off.
+    "react-doctor/rn-no-renderitem-key": "off",
+    // A store fallback read outside any component.
+    "react-doctor/rn-no-dimensions-get": "off",
+    // Both the iOS shadow props and elevation are set.
+    "react-doctor/rn-no-legacy-shadow-styles": "off",
+    // A style preference; the reaction tracks its dependencies correctly.
+    "react-doctor/rn-animation-reaction-as-derived": "off",
+  },
+}
