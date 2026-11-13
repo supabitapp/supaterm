@@ -30,6 +30,7 @@ import {
   deriveThreadPendingBackgroundTasks,
   presentThreadShellFromProjection,
   type LocalThreadErrorEntry,
+  isThreadEnvironmentLocked,
   makeThreadErrorSetter,
   resolveDraftHeroState,
 } from "./ChatView.logic";
@@ -1339,7 +1340,13 @@ export default function ChatView(props: ChatViewProps) {
       : clampFileAttachmentUploadBytes(advertisedFileAttachmentBytes);
   // A side chat runs in its parent's checkout, so it never picks its own.
   const envLocked =
-    isSideChat || Boolean(activeThread && (activeMessageCount > 0 || activeRuntime !== null));
+    isSideChat ||
+    (Boolean(activeThread) &&
+      isThreadEnvironmentLocked({
+        messageCount: activeMessageCount,
+        hasRuntime: activeRuntime !== null,
+        activeProviderThreadId: serverThread?.activeProviderThreadId ?? null,
+      }));
 
   const canChangeEnvironment =
     hasMultipleEnvironments && !envLocked && draftId !== null && !draftThread?.promotedTo;

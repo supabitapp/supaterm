@@ -8,7 +8,11 @@ import {
   mergeDirectPreviewAnnotation,
   deriveThreadPendingBackgroundTasks,
 } from "./ChatView.logic";
-import { recallCheckoutIsRepo, rememberCheckoutIsRepo } from "./ChatView.logic";
+import {
+  isThreadEnvironmentLocked,
+  recallCheckoutIsRepo,
+  rememberCheckoutIsRepo,
+} from "./ChatView.logic";
 import { ProviderDriverKind, type ServerProvider } from "@supaterm/contracts";
 import { deriveProviderInstanceEntries, NO_PROVIDER_MODEL_SELECTION } from "../providerInstances";
 import { ensureInlineContextReferences } from "../lib/composerContextReferences";
@@ -163,6 +167,26 @@ describe("deriveComposerSendState", () => {
     expect(state.trimmedPrompt).toBe("yoo  waddup");
     expect(state.expiredTerminalContextCount).toBe(1);
     expect(state.hasSendableContent).toBe(true);
+  });
+});
+
+describe("isThreadEnvironmentLocked", () => {
+  it.each([
+    { name: "an empty unbound thread", providerThread: null, expected: false },
+    {
+      name: "an imported session bound before its first run",
+      providerThread: "imported",
+      expected: true,
+    },
+  ])("locks $name: $expected", ({ providerThread, expected }) => {
+    expect(
+      isThreadEnvironmentLocked({
+        messageCount: 0,
+        hasRuntime: false,
+        activeProviderThreadId:
+          providerThread === null ? null : ProviderThreadId.make(providerThread),
+      }),
+    ).toBe(expected);
   });
 });
 
