@@ -35,6 +35,7 @@ import { act, fakeTimers, render, stubGlobal } from "../../../test/render";
 import { ChangedFilesCard } from "./ChangedFilesTree";
 import { MessagesTimeline } from "./MessagesTimeline";
 import { shouldRefocusComposerOnWindowFocus } from "../ChatView.logic";
+import { createWorkspaceFocusController, workspaceAreaProps } from "../../lib/workspaceFocus";
 import { resolveTimelineIsAtEnd } from "./MessagesTimeline.logic";
 import { makeStreamingTimelineFixture } from "../../test-fixtures";
 import { deriveTimelineEntriesFromVisibleTurnItems } from "../../session-logic";
@@ -631,6 +632,38 @@ describe("MessagesTimeline messages", () => {
     await expectHeadingInView("First turn", "Turn 1:");
     expect(headingFor("Last turn")).toBeDefined();
     await expectHeadingInView("Last turn", "Turn 118:");
+  });
+
+  it("scrolls from the keyboard once F6 moves into the conversation", async () => {
+    setup();
+    const props = baseProps();
+    const entries = Array.from({ length: 40 }, (_, index) =>
+      message(`Turn ${index}:\n\n${"x ".repeat(200)}`, {}, `turn-${index}`),
+    );
+    await using _screen = await renderElement(
+      <>
+        <div
+          {...workspaceAreaProps("conversation", 1, "Conversation")}
+          className="relative flex min-h-0 flex-1 flex-col"
+        >
+          <MessagesTimeline {...props} timelineEntries={entries} />
+        </div>
+        <div {...workspaceAreaProps("composer", 2, "Message input")}>
+          <button type="button">Send</button>
+        </div>
+      </>,
+    );
+    const focus = createWorkspaceFocusController(document);
+    using _focus = { [Symbol.dispose]: focus.dispose };
+    const viewport = props.listRef.current!.getScrollableNode()!;
+    await vi.waitFor(() => expect(viewport.scrollTop).toBeGreaterThan(0));
+    const atEnd = viewport.scrollTop;
+    page.getByRole("button", { name: "Send" }).element().focus();
+    await userEvent.keyboard("{F6}");
+    focus.move(-1);
+    expect(viewport).toHaveAttribute("data-workspace-keyboard-focus");
+    await userEvent.keyboard("{PageUp}");
+    await vi.waitFor(() => expect(viewport.scrollTop).toBeLessThan(atEnd));
   });
 
   it("disables the minimap's next turn button at the bottom of the thread", async () => {

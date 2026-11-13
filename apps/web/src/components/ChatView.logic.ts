@@ -936,8 +936,8 @@ export function deriveCommittedServerUserMessageIds(
 }
 
 // Window return puts the caret in the composer unless focus is deliberate: another text field,
-// a terminal, an open dialog, menu, or popup, a region or sidebar row reached from the keyboard,
-// a text selection's action (only Tab reaches it), or a region with its own keys
+// a terminal, an open dialog, menu, or popup, a region, timeline, or sidebar row reached from the
+// keyboard, a text selection's action (only Tab reaches it), or a region with its own keys
 // (aria-keyshortcuts). A plain focused button or a clicked row yields to the composer.
 export function shouldRefocusComposerOnWindowFocus(
   activeElement:
