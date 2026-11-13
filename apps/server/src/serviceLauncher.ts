@@ -1266,8 +1266,8 @@ export class Launcher {
 }
 
 export async function main(): Promise<void> {
-  const baseDir = process.env.SUPATERM_HOME?.trim();
-  if (baseDir === undefined || baseDir === "") {
+  const baseDir = process.env.SUPATERM_HOME;
+  if (baseDir === undefined || baseDir.trim() === "") {
     throw new Error("SUPATERM_HOME is required by the Supaterm service launcher.");
   }
   const environment = await readServiceEnvironment(baseDir);
