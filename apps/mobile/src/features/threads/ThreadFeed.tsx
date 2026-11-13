@@ -52,7 +52,7 @@ import {
   type ChatFileAttachment,
   type ChatImageAttachment,
   type EnvironmentId,
-  type MessageId,
+  MessageId,
   type OrchestrationV2ProjectedTurnItem,
   type RepositoryIdentity,
   type RunId,
@@ -1824,6 +1824,26 @@ function renderFeedEntry(
         frameWidth={props.contentWidth}
         iconColor={iconSubtleColor}
       />
+    );
+  }
+
+  if (entry.type === "sent-message") {
+    return (
+      <View className="mb-1 px-1">
+        <MarkdownImageAvailableWidthContext value={props.markdownContentWidth}>
+          <AssistantMarkdownContent
+            markdown={entry.text}
+            environmentId={props.environmentId}
+            markdownStyles={markdownStyles.assistant}
+            linkHandlers={props.markdownLinkHandlers}
+            onUseArtifactTemplate={props.onUseArtifactTemplate}
+            messageId={MessageId.make(entry.itemId)}
+            onAnnotate={props.onAnnotateAssistantText}
+            renderImage={props.renderMarkdownImage}
+            skills={props.skills}
+          />
+        </MarkdownImageAvailableWidthContext>
+      </View>
     );
   }
 
