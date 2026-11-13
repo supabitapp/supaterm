@@ -3,6 +3,7 @@ import { useNavigation } from "@react-navigation/native";
 import type { EnvironmentId } from "@supaterm/contracts";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { SettingsScreen } from "./components/SettingsScreen";
+import { LinkedEnvironmentsSection } from "../connection/LinkedEnvironmentsSection";
 import { LocalEnvironmentList } from "../connection/LocalEnvironmentList";
 import { PullRequestRoutingSettings } from "../connection/PullRequestRoutingSettings";
 import { useUniwindTheme } from "../../lib/useUniwindTheme";
@@ -87,6 +88,7 @@ export function SettingsEnvironmentsRouteScreen() {
           onSetEnabled={onSetEnvironmentEnabled}
           onUpdate={handleUpdateEnvironment}
         />
+        <LinkedEnvironmentsSection />
         <PullRequestRoutingSettings />
       </ScrollView>
     </SettingsScreen>

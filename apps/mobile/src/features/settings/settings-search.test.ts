@@ -48,6 +48,8 @@ describe("filterSettingsSections", () => {
     { query: "KEYBOARD", expected: [["Interface", ["Keyboard"]]] },
     { query: "dark mode", expected: [["Interface", ["Appearance"]]] },
     { query: "agent credits", expected: [["Server settings", ["Source control"]]] },
+    { query: "linked environments", expected: [["Connections", ["Environments"]]] },
+    { query: "link machine", expected: [["Connections", ["Environments"]]] },
     {
       query: "server settings",
       expected: [["Server settings", ["Provider accounts", "Source control"]]],
