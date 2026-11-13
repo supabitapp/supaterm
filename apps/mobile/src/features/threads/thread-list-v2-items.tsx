@@ -1356,6 +1356,7 @@ export const ThreadListV2Row = memo(function ThreadListV2Row(props: {
                   "text-xs font-supaterm-bold",
                   selected ? selectedThreadRowColors.foregroundClassName : statusLabel.className,
                 )}
+                environmentId={thread.environmentId}
                 label={statusLabel.label}
                 startedAt={durationStartedAt}
               />

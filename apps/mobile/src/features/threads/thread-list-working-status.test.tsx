@@ -1,7 +1,9 @@
+import { EnvironmentId } from "@supaterm/contracts";
 import { act, create, type ReactTestInstance, type ReactTestRenderer } from "react-test-renderer";
 import { afterEach, beforeEach, expect, it, vi } from "vite-plus/test";
 import { ThreadListWorkingStatus } from "./thread-list-working-status";
 
+const environmentId = EnvironmentId.make("environment");
 const app = vi.hoisted(() => ({
   state: "active",
   listeners: new Set<(state: string) => void>(),
@@ -41,7 +43,12 @@ afterEach(async () => {
 async function mount(start: string | null, label = "Working") {
   await act(() => {
     renderer = create(
-      <ThreadListWorkingStatus label={label} startedAt={start} className="text-xs" />,
+      <ThreadListWorkingStatus
+        environmentId={environmentId}
+        label={label}
+        startedAt={start}
+        className="text-xs"
+      />,
     );
   });
 }
@@ -56,7 +63,14 @@ it("updates seconds, minutes, and hours without rerendering the row", async () =
   const rowRender = vi.fn();
   function Row() {
     rowRender();
-    return <ThreadListWorkingStatus label="Working" startedAt={startedAt} className="text-xs" />;
+    return (
+      <ThreadListWorkingStatus
+        environmentId={environmentId}
+        label="Working"
+        startedAt={startedAt}
+        className="text-xs"
+      />
+    );
   }
   await act(() => {
     renderer = create(<Row />);
@@ -119,6 +133,7 @@ it("resets when a recycled row receives a different work start, then removes the
     renderer?.update(
       <ThreadListWorkingStatus
         key={nextStart}
+        environmentId={environmentId}
         label="Working"
         startedAt={nextStart}
         className="text-xs"
@@ -128,7 +143,14 @@ it("resets when a recycled row receives a different work start, then removes the
   expect(text()).toBe("Working 5s");
   expect(vi.getTimerCount()).toBe(1);
   await act(() => {
-    renderer?.update(<ThreadListWorkingStatus label="Done" startedAt={null} className="text-xs" />);
+    renderer?.update(
+      <ThreadListWorkingStatus
+        environmentId={environmentId}
+        label="Done"
+        startedAt={null}
+        className="text-xs"
+      />,
+    );
   });
   expect(text()).toBe("Done");
   expect(vi.getTimerCount()).toBe(0);
