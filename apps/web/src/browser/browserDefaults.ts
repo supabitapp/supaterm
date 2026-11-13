@@ -5,6 +5,7 @@ import {
   type DesktopPreviewTabDefaults,
   type PreviewAppearancePreference,
   type PreviewViewportSetting,
+  type PreviewZoomFactor,
 } from "@supaterm/contracts";
 
 import {
@@ -17,7 +18,7 @@ import { resolveResponsiveBrowserViewportSize } from "./browserViewportLayout";
 
 export interface BrowserDefaults {
   readonly viewport: PreviewViewportSetting;
-  readonly zoomFactor: number;
+  readonly zoomFactor: PreviewZoomFactor;
   readonly appearance: PreviewAppearancePreference;
   readonly profiles: ReadonlyArray<BrowserProfile>;
   readonly profileId: string;
@@ -25,7 +26,7 @@ export interface BrowserDefaults {
 
 const toBrowserDefaults = (settings: {
   readonly browserDefaultViewport: PreviewViewportSetting;
-  readonly browserDefaultZoomFactor: number;
+  readonly browserDefaultZoomFactor: PreviewZoomFactor;
   readonly browserDefaultAppearance: PreviewAppearancePreference;
   readonly browserProfiles: ReadonlyArray<BrowserProfile>;
   readonly browserDefaultProfileId: string;
