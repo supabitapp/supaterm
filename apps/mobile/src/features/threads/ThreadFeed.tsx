@@ -170,6 +170,7 @@ import { copyTextWithHaptic } from "../../lib/copyTextWithHaptic";
 
 import { downloadAndShareAttachment } from "../../lib/attachmentDownload";
 import { splitMarkdownDetails } from "../../lib/markdownDetails";
+import { markdownReferenceDefinitions, withReferenceDefinitions } from "../../lib/markdownDocument";
 import { hasWideMarkdownBlock } from "../../lib/wideMarkdownBlocks";
 
 import {
@@ -1280,6 +1281,8 @@ const AssistantMarkdownContent = memo(function AssistantMarkdownContent(props: {
 function AssistantMarkdownBlocks(props: {
   readonly isStreaming?: boolean;
   readonly markdown: string;
+  /** The reply's reference definitions, passed down by the enclosing fold. */
+  readonly definitions?: ReadonlyArray<string> | undefined;
   readonly markdownStyles: MarkdownStyleSet;
   readonly linkHandlers: MarkdownLinkHandlers;
   readonly onUseArtifactTemplate?: ((template: CodexArtifactTemplate) => void) | undefined;
@@ -1292,6 +1295,11 @@ function AssistantMarkdownBlocks(props: {
       ? block
       : { ...block, segments: splitCodexArtifactTemplateMarkdown(block.markdown) },
   );
+  const [first] = blocks;
+  // A reply rendered as one document resolves its own references; skip the extra parse.
+  const whole = blocks.length === 1 && first?.kind === "markdown" && first.segments.length === 1;
+  const definitions =
+    props.definitions ?? (whole ? [] : markdownReferenceDefinitions(props.markdown));
   return blocks.map((block) => {
     if (block.kind === "details") {
       return (
@@ -1300,7 +1308,7 @@ function AssistantMarkdownBlocks(props: {
           summary={block.summary}
           initiallyOpen={block.open}
         >
-          <AssistantMarkdownBlocks {...props} markdown={block.body} />
+          <AssistantMarkdownBlocks {...props} markdown={block.body} definitions={definitions} />
         </MarkdownDetailsFold>
       );
     }
@@ -1319,7 +1327,9 @@ function AssistantMarkdownBlocks(props: {
       return (
         <SelectableMarkdownText
           key={`markdown:${offset}`}
-          markdown={renderCodexInlineDirectivesAsMarkdown(segment.markdown)}
+          markdown={renderCodexInlineDirectivesAsMarkdown(
+            withReferenceDefinitions(segment.markdown, definitions),
+          )}
           isStreaming={props.isStreaming}
           skills={props.skills}
           textStyle={props.markdownStyles.nativeTextStyle}
