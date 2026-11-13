@@ -79,7 +79,9 @@ Unlinking on the linking side only forgets the token.
   such a call there once the tool's access declaration has checked the caller,
   so a read-only or ended caller is refused before anything is sent. The
   thread or project the call names is checked where it lives. A tool that acts
-  as the calling thread itself cannot take a linked environment.
+  as the calling thread itself cannot take a linked environment. A side chat's
+  writes are refused here too: a thread there is never its own, and the other
+  environment cannot know the caller is a side chat.
 - **Every forwarded call carries the calling agent's modes** in
   `Supaterm-Mode-Limit`, which the receiving `/mcp` only ever narrows the client's
   approved access with. A plan-mode agent therefore cannot start full-access
