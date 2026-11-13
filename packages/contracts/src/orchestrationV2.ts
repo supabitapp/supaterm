@@ -1373,6 +1373,8 @@ export const OrchestrationV2ConversationMessage = Schema.Struct({
   notification: Schema.optional(OrchestrationV2Notification),
   ...OrchestrationV2CreationFields,
   scheduledTaskId: Schema.optional(ScheduledTaskId),
+  /** A scheduled delivery that named no model; it runs on the thread's selection at start. */
+  followsThreadSelection: Schema.optional(Schema.Literal(true)),
   senderThreadId: Schema.optional(ThreadId),
   /**
    * The message is the script a provider-native workflow run executes, not prose. Clients show
