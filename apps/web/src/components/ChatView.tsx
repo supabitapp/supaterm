@@ -445,6 +445,8 @@ function useChatComposerRef() {
 
 const DismissedFallbackWindowSchema = Schema.NullOr(Schema.String);
 
+const ignoreComposerFocus = () => {};
+
 export default function ChatView(props: ChatViewProps) {
   const {
     environmentId,
@@ -784,6 +786,8 @@ export default function ChatView(props: ChatViewProps) {
   const viewportUsesPlanSidebarSheet = useMediaQuery(RIGHT_PANEL_INLINE_LAYOUT_MEDIA_QUERY);
   const prefersPlanSidebarSheet = viewportUsesPlanSidebarSheet || paneScope?.narrow === true;
   const isMobileViewport = useMediaQuery("max-sm");
+  // Focusing the composer without a tap raises the on-screen keyboard on touch devices.
+  const isCoarsePointer = useMediaQuery({ pointer: "coarse" });
   const threadPanelPopoverAnchorRef = useRef<HTMLElement | null>(null);
   const [terminalUiLaunchContext, setTerminalUiLaunchContext] =
     useState<TerminalLaunchContext | null>(null);
@@ -2246,13 +2250,14 @@ export default function ChatView(props: ChatViewProps) {
     workspaceLayoutElement,
     true,
     terminalUiState.terminalOpen,
-    focusComposerStable,
+    isCoarsePointer ? ignoreComposerFocus : focusComposerStable,
     isPaneInputOwner,
   );
 
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- window focus listener that refocuses the composer after the window regains focus
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- window focus listener that refocuses the composer after the window regains focus on a fine pointer
   useEffect(() => {
-    if (!activeThread?.id || terminalUiState.terminalOpen || isMobileViewport) return;
+    if (!activeThread?.id || terminalUiState.terminalOpen || isMobileViewport || isCoarsePointer)
+      return;
     let frame: number | null = null;
     const onWindowFocus = () => {
       if (frame !== null) window.cancelAnimationFrame(frame);
@@ -2277,6 +2282,7 @@ export default function ChatView(props: ChatViewProps) {
   }, [
     activeThread?.id,
     focusComposerStable,
+    isCoarsePointer,
     isMobileViewport,
     isPaneInputOwner,
     terminalUiState.terminalOpen,
