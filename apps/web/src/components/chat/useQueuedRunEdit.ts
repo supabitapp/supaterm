@@ -25,7 +25,7 @@ import { Atom } from "effect/reactivity";
 import type { RefObject } from "react";
 import { useAssetUrls } from "../../assets/assetUrls";
 import {
-  DraftId,
+  queuedRunEditDraftId,
   useComposerDraftStore,
   type ComposerFileAttachment,
   type ComposerImageAttachment,
@@ -87,10 +87,6 @@ export interface QueuedRunEditContent {
 
 const isDraftOwnedRecord = (record: ComposerContextRecord): record is ReferenceContextRecord =>
   record.kind === "thread" || record.kind === "model";
-
-function queuedEditDraftTarget(routeThreadRef: ScopedThreadRef, runId: RunId) {
-  return DraftId.make(`queued-edit:${scopedThreadKey(routeThreadRef)}:${runId}`);
-}
 
 async function submitQueuedRunEdit(input: {
   readonly environmentId: EnvironmentId;
@@ -207,7 +203,7 @@ export function useQueuedRunEdit(input: {
   const editing = activeThreadId === null ? null : storedEdit;
   const isSaving = useAtomValue(queuedRunEdits.savingAtom)[editKey] === true;
   const draftTarget =
-    editing === null ? threadDraftTarget : queuedEditDraftTarget(routeThreadRef, editing.runId);
+    editing === null ? threadDraftTarget : queuedRunEditDraftId(routeThreadRef, editing.runId);
 
   const imageResources = (editing?.existingAttachments ?? [])
     .filter((attachment) => attachment.type === "image")
@@ -233,12 +229,12 @@ export function useQueuedRunEdit(input: {
   const clearEditDraft = (runId: RunId) =>
     useComposerDraftStore
       .getState()
-      .clearComposerContent(queuedEditDraftTarget(routeThreadRef, runId));
+      .clearComposerContent(queuedRunEditDraftId(routeThreadRef, runId));
 
   const beginEdit = useStableCallback((request: EditQueuedRunRequest) => {
     if (activeThreadId === null) return;
     if (editing !== null && editing.runId !== request.runId) clearEditDraft(editing.runId);
-    const target = queuedEditDraftTarget(routeThreadRef, request.runId);
+    const target = queuedRunEditDraftId(routeThreadRef, request.runId);
     const text = stripAttachmentOnlyBootstrapPrompt(request.text);
     const context = serverProjection?.messages.find(
       (message) => message.id === request.messageId,
@@ -281,7 +277,7 @@ export function useQueuedRunEdit(input: {
         // unscoped and names the thread: the user may be anywhere by now.
         onRunLeftQueue: (_, edit) => {
           const recovery = recoverQueuedMessageEdit({
-            editTarget: queuedEditDraftTarget(routeThreadRef, edit.runId),
+            editTarget: queuedRunEditDraftId(routeThreadRef, edit.runId),
             threadTarget: threadDraftTarget,
             originalText: edit.originalText,
             removedExistingAttachment: edit.removedExistingAttachment === true,
