@@ -1090,21 +1090,17 @@ function feedEntryFoldRunId(entry: ThreadFeedEntry, runlessKey: RunId | null): R
     : null;
 }
 
-function answersBeforeSteers(feed: ReadonlyArray<ThreadFeedEntry>): ReadonlySet<MessageId> {
+function finalAnswerIds(feed: ReadonlyArray<ThreadFeedEntry>): ReadonlySet<MessageId> {
   const ids = new Set<MessageId>();
-  let previous: ThreadFeedEntry | undefined;
   for (const entry of feed) {
     if (
       entry.type === "message" &&
-      isSteerMessage(entry.message) &&
-      previous?.type === "message" &&
-      previous.message.role === "assistant" &&
-      previous.message.projectedItem?.item.type === "assistant_message" &&
-      previous.message.projectedItem.item.phase === "final_answer"
+      entry.message.role === "assistant" &&
+      entry.message.projectedItem?.item.type === "assistant_message" &&
+      entry.message.projectedItem.item.phase === "final_answer"
     ) {
-      ids.add(previous.message.id);
+      ids.add(entry.message.id);
     }
-    previous = entry;
   }
   return ids;
 }
@@ -1116,7 +1112,7 @@ function deriveThreadFeedRunFolds(
   feedFailedRunIds: ReadonlySet<RunId>,
 ): ReadonlyMap<string, ThreadFeedRunFold> {
   const terminalAssistantMessageIdByRun = new Map<RunId, string>();
-  const retainedAnswerIds = answersBeforeSteers(feed);
+  const retainedAnswerIds = finalAnswerIds(feed);
   const interruptedRunIds = new Set<RunId>();
   const failedRunIds = new Set(feedFailedRunIds);
   const promptIndexByRunId = new Map<RunId, number>();

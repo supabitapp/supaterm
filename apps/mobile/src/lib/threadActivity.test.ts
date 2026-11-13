@@ -2015,6 +2015,15 @@ describe("buildThreadFeed", () => {
         ),
       ).toBe(phase === "final_answer");
     }
+    const confirmed = { ...answer, phase: "final_answer" as const };
+    const continued = buildThreadFeed(
+      [user, confirmed, passed, final].map((item, index) => projected(item, index)),
+    );
+    expect(
+      deriveThreadFeedPresentation(continued, null, new Set()).some(
+        (row) => row.type === "message" && row.message.id === answer.messageId,
+      ),
+    ).toBe(true);
   });
 
   it("uses a stable Thinking row while work has started without a projected item", () => {
