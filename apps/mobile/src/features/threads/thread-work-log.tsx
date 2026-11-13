@@ -1101,9 +1101,10 @@ export function ThreadWorkGroupToggle(props: {
 export function ThreadThinkingRow(props: {
   readonly rowSizing: ReturnType<typeof deriveThreadWorkLogSizing>;
   readonly iconSubtleColor: ColorValue;
+  readonly label?: string | undefined;
   readonly providerStartingLabel?: string | undefined;
 }) {
-  const label = props.providerStartingLabel ?? "Thinking";
+  const label = props.providerStartingLabel ?? props.label ?? "Thinking";
   return (
     <View
       accessible

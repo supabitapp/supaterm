@@ -1976,6 +1976,39 @@ describe("buildThreadFeed", () => {
     ).toEqual([{ type: "thinking", id: "live-activity-row", createdAt: startedAt, runId }]);
   });
 
+  it("says the run waits on its running subagents until newer parent work follows", () => {
+    const startedAt = "2026-06-20T00:00:01.000Z";
+    const run = { runId, status: "running" as const, startedAt, completedAt: null };
+    const agent = (id: string, index: number) =>
+      projected(
+        {
+          ...base(id, startedAt, index),
+          type: "subagent",
+          status: "running",
+          completedAt: null,
+          subagentId: NodeId.make(id),
+          origin: "app_owned",
+          driver: ProviderDriverKind.make("codex"),
+          providerInstanceId: ProviderInstanceId.make("codex"),
+          childThreadId: ThreadId.make(`child-${id}`),
+          prompt: "Task",
+          result: null,
+        },
+        index,
+      );
+    const thinking = (items: ReadonlyArray<ReturnType<typeof projected>>) =>
+      deriveThreadFeedPresentation(buildThreadFeed(items), run, new Set(), new Set(), startedAt).at(
+        -1,
+      );
+    expect(thinking([agent("a", 1), agent("b", 2)])).toMatchObject({
+      type: "thinking",
+      label: "Waiting on 2 subagents",
+    });
+    expect(
+      thinking([agent("a", 1), projected(command("2026-06-20T00:00:03.000Z"), 3)]),
+    ).not.toHaveProperty("label");
+  });
+
   it("does not show Thinking once the open run's provider turn has ended", () => {
     const startedAt = "2026-04-01T00:00:01.000Z";
     const run = { runId, status: "running" as const, startedAt, completedAt: null };

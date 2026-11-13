@@ -5,7 +5,10 @@ import type {
 import { turnItemIsWorkspacePreparation } from "@supaterm/client-runtime/state/turn-item-presentation";
 import type { ThreadCheckpointSummary } from "@supaterm/client-runtime/state/thread-checkpoints";
 import { formatSubagentDisplayTitle } from "@supaterm/client-runtime/state/subagent-display";
-import { isLiveSubagentTurnItem } from "@supaterm/client-runtime/state/subagentRuntime";
+import {
+  isLiveSubagentTurnItem,
+  waitingOnSubagentsLabel,
+} from "@supaterm/client-runtime/state/subagentRuntime";
 import { extractToolActivityPresentation } from "@supaterm/client-runtime/work-log/tool-presentation";
 import {
   turnItemDetailRevision,
@@ -254,6 +257,7 @@ type ThreadFeedEntryContent =
       readonly id: string;
       readonly createdAt: string;
       readonly runId: RunId | null;
+      readonly label?: string;
       readonly providerStartingLabel?: string;
     };
 
@@ -1646,7 +1650,15 @@ export function deriveThreadFeedPresentation(
           row.activities[0]?.projectedItem.item.status === "running"),
     )
   ) {
-    result.push(thinkingRow(activeWorkStartedAt, activeRunId, latestRun?.providerStartingLabel));
+    const waitingOn = activeRunId === null ? 0 : runningSubagentsAtRunTail(feed, activeRunId);
+    result.push(
+      thinkingRow(
+        activeWorkStartedAt,
+        activeRunId,
+        waitingOn > 0 ? waitingOnSubagentsLabel(waitingOn) : null,
+        latestRun?.providerStartingLabel,
+      ),
+    );
   }
   const checkpointByRunId = new Map<RunId, ThreadCheckpointSummary>();
   for (const entry of sourceFeed) {
@@ -1752,14 +1764,29 @@ function isWorkLogFeedRow(row: ThreadFeedEntry | undefined): boolean {
 
 const LIVE_ACTIVITY_ROW_ID = "live-activity-row";
 
+/** Reads the feed before tool visibility filters it, so hidden newer parent work still counts. */
+function runningSubagentsAtRunTail(feed: ReadonlyArray<ThreadFeedEntry>, runId: RunId): number {
+  let running = 0;
+  for (let index = feed.length - 1; index >= 0; index -= 1) {
+    const entry = feed[index]!;
+    if (entry.type !== "activity-group" || entry.runId !== runId) break;
+    const items = entry.activities.map((activity) => activity.projectedItem.item);
+    if (items.some((item) => item.type !== "subagent")) break;
+    running += items.filter(isLiveSubagentTurnItem).length;
+  }
+  return running;
+}
+
 function thinkingRow(
   createdAt: string,
   runId: RunId | null,
+  label: string | null,
   providerStartingLabel: string | undefined,
 ) {
   if (
     cachedThinkingRow?.createdAt !== createdAt ||
     cachedThinkingRow.runId !== runId ||
+    (cachedThinkingRow.label ?? null) !== label ||
     cachedThinkingRow.providerStartingLabel !== providerStartingLabel
   ) {
     cachedThinkingRow = {
@@ -1767,6 +1794,7 @@ function thinkingRow(
       id: LIVE_ACTIVITY_ROW_ID,
       createdAt,
       runId,
+      ...(label === null ? {} : { label }),
       ...(providerStartingLabel === undefined ? {} : { providerStartingLabel }),
     };
   }
