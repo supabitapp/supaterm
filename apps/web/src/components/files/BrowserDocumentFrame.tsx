@@ -112,7 +112,7 @@ function PdfDocumentRevision(props: {
     !/iPad|iPhone|iPod/.test(navigator.userAgent) &&
     !(navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
   return native ? (
-    // oxlint-disable-next-line react/iframe-missing-sandbox -- Chromium's PDF plugin requires an unsandboxed frame; src is an exact-file asset grant.
+    // oxlint-disable-next-line react/iframe-missing-sandbox, react-doctor/iframe-missing-sandbox -- Chromium's PDF plugin requires an unsandboxed frame; src is an exact-file asset grant.
     <iframe
       src={`${src.split("#", 1)[0]}#navpanes=0&view=FitH`}
       title={props.title}
