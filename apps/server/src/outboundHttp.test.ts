@@ -5,6 +5,7 @@ import * as NodeTls from "node:tls";
 
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { it } from "@effect/vitest";
+import { satisfiesSemverRange } from "@supaterm/shared/semver";
 import * as Effect from "effect/Effect";
 import * as Stream from "effect/Stream";
 import { ChildProcess, ChildProcessSpawner } from "effect/process";
@@ -135,11 +136,11 @@ describe("ignoreMacosTypeOfServiceEinval", () => {
     expect(() => prototype.setTypeOfService.call(socket, 0)).toThrow();
   });
 
-  // Bundled undici 7 calls this API from a socket callback. Keep the real fetch
-  // in a child so an escaped EINVAL exits that process instead of breaking Vitest.
+  // Bundled undici 7 through 7.30.1 calls this API from a socket callback. Keep the real
+  // fetch in a child so an escaped EINVAL exits that process instead of breaking Vitest.
   it.effect.runIf(
     typeof (NodeNet.Socket.prototype as { setTypeOfService?: unknown }).setTypeOfService ===
-      "function" && process.versions.undici?.startsWith("7.") === true,
+      "function" && satisfiesSemverRange(process.versions.undici ?? "", ">=7.0.0 <7.30.2"),
   )("keeps built-in fetch working when setTypeOfService throws EINVAL", () =>
     Effect.gen(function* () {
       const child = yield* runNode([
