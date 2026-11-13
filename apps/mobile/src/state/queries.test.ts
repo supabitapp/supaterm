@@ -1,8 +1,10 @@
+import { threadPullRequestKeyOf } from "@supaterm/client-runtime/thread-pull-requests";
 import { filterComposerPullRequestMatches } from "@supaterm/shared/composerPullRequestMatches";
 import { expect, it } from "@effect/vitest";
 
 it("keeps an older exact PR in the mobile menu ahead of twenty newer substring matches", () => {
   const exact = {
+    host: "github.com",
     number: 42,
     projectId: "project",
     repository: "example/repo",
@@ -14,6 +16,7 @@ it("keeps an older exact PR in the mobile menu ahead of twenty newer substring m
     updatedAt: "2026-01-01",
   }));
   const matches = filterComposerPullRequestMatches({
+    keyOf: threadPullRequestKeyOf,
     entries: [exact, ...recent, exact],
     projectId: exact.projectId,
     repository: exact.repository,
