@@ -69,6 +69,7 @@ import {
   isTerminalSplitShortcut,
   isTerminalSplitVerticalShortcut,
   isTerminalToggleShortcut,
+  isThreadNavigationShortcut,
   terminalDeleteShortcutData,
   terminalNavigationShortcutData,
 } from "../keybindings";
@@ -97,6 +98,7 @@ import { TerminalSplitPanels } from "./TerminalSplitPanels";
 import { useAtomCommand } from "../state/use-atom-command";
 import { preventTerminalCloseShortcut } from "../lib/terminalCloseShortcut";
 import { observeResize } from "../lib/observeResize";
+import { threadShortcutContext } from "./Sidebar.logic";
 import {
   consumePendingTerminalFocus,
   focusTerminal,
@@ -582,6 +584,7 @@ function TerminalSessionViewport({
   const hasHandledExitRef = useRef(false);
   const selectionActionRequestIdRef = useRef(0);
   const readKeybindings = useEffectEvent(() => keybindings);
+  const readThreadShortcutContext = useEffectEvent(() => threadShortcutContext(threadRef));
   const handleSessionExited = useEffectEvent(() => {
     if (hasTerminalWriteAccess()) onSessionExited();
   });
@@ -947,7 +950,11 @@ function TerminalSessionViewport({
           isTerminalSplitShortcut(event, currentKeybindings, options) ||
           isTerminalSplitVerticalShortcut(event, currentKeybindings, options) ||
           isTerminalNewShortcut(event, currentKeybindings, options) ||
-          isDiffToggleShortcut(event, currentKeybindings, options)
+          isDiffToggleShortcut(event, currentKeybindings, options) ||
+          // Match Sidebar's context, or a key it will reject skips the shell.
+          isThreadNavigationShortcut(event, currentKeybindings, {
+            context: { ...readThreadShortcutContext(), terminalFocus: true },
+          })
         ) {
           return false;
         }
