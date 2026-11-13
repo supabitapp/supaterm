@@ -50,7 +50,7 @@ function outerDocument(src: string, allow: string, secret: string) {
   return `<!doctype html><html><head><meta name="viewport" content="width=device-width, initial-scale=1">
 <style>html,body{margin:0;height:100%;background:transparent}iframe{border:0;display:block;width:100%;height:100%}</style></head>
 <body><iframe id="app" sandbox="allow-scripts allow-forms" allow="${attribute(allow)}"></iframe>
-<script>(function(){var frame=document.getElementById("app"),secret=${JSON.stringify(secret)},loads=0,live=true;
+<script>(function(){var frame=document.getElementById("app"),secret=${JSON.stringify(secret).replace(/</g, "\\u003c")},loads=0,live=true;
 var send=function(m){var u=navigator.userActivation;window.ReactNativeWebView.postMessage(JSON.stringify({secret:secret,active:!!(u&&u.isActive)&&document.activeElement===frame,message:m}));};
 frame.addEventListener("load",function(){loads+=1;if(loads>1&&live){live=false;send({supaterm:"navigated"});}});
 window.addEventListener("message",function(e){if(live&&e.source===frame.contentWindow)send(e.data);});
