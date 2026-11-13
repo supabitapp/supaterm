@@ -68,7 +68,6 @@ it.effect("finds the revert boundary across pages of newest-first turns", () =>
         ],
       }),
     ),
-    Effect.scoped,
   ),
 );
 
@@ -105,7 +104,6 @@ it.effect("finds the oldest surviving removed ID without crossing retained histo
         ],
       }),
     ),
-    Effect.scoped,
   ),
 );
 
@@ -129,6 +127,5 @@ it.effect.each(["count", "ids"] as const)("rejects repeated cursors in %s mode",
         ],
       }),
     ),
-    Effect.scoped,
   ),
 );

@@ -2503,7 +2503,7 @@ it.layer(
         { type: "snapshot", snapshot: { status: "running", pid: ptyAdapter.processes[0]?.pid } },
       ]);
       expect(ptyAdapter.processes).toHaveLength(1);
-    }).pipe(Effect.scoped),
+    }),
   );
 
   it.effect("resyncs bounded history and follows close/reopen across a stalled stream", () =>
@@ -2577,7 +2577,7 @@ it.layer(
       ptyAdapter.processes.at(-1)!.emitData("new session only\n");
       expect(yield* pull).toMatchObject([{ type: "output", data: "new session only\n" }]);
       expect(ptyAdapter.spawnInputs).toHaveLength(4);
-    }).pipe(Effect.scoped),
+    }),
   );
 
   it.effect.each([
@@ -2624,7 +2624,7 @@ it.layer(
 
       yield* Deferred.await(restored);
       expect(process.resizeCalls.at(-1)).toEqual({ cols: 130, rows: 15 });
-    }).pipe(Effect.scoped),
+    }),
   );
 
   it.effect("sends bounded attach streams only the history the client retains", () =>
@@ -2675,7 +2675,7 @@ it.layer(
       expect(yield* full).toEqual(yield* bounded);
       yield* manager.attachStream({ ...openInput(), restartIfNotRunning: true }, () => Effect.void);
       yield* expectRetained();
-    }).pipe(Effect.scoped),
+    }),
   );
 
   it.effect("does not replay in-flight output already included in an observer snapshot", () =>
@@ -2712,7 +2712,7 @@ it.layer(
       expect(observed.filter((event) => event.type === "output")).toMatchObject([
         { data: "after\n" },
       ]);
-    }).pipe(Effect.scoped),
+    }),
   );
 
   it.effect("observes terminal history and live output without changing the process", () =>

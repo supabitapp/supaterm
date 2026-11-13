@@ -618,7 +618,7 @@ const runCleanupTest = <A, E>(
     | Path.Path
     | Scope.Scope
   >,
-) => effect.pipe(Effect.provide(cleanupTestLayer), Effect.scoped);
+) => effect.pipe(Effect.provide(cleanupTestLayer));
 
 const cleanupWithoutDefaultRules = {
   ...DEFAULT_SERVER_SETTINGS.storageCleanup,
@@ -1020,7 +1020,7 @@ describe("subagent worktree ownership", () => {
                   ? "Thread is running or has pending work"
                   : "Not done",
       });
-    }).pipe(Effect.provide(cleanupTestLayer), Effect.scoped),
+    }).pipe(Effect.provide(cleanupTestLayer)),
   );
 
   it.effect.each([
@@ -1225,7 +1225,7 @@ describe("subagent worktree ownership", () => {
                       ? "Marked done moments ago"
                       : "Not done",
       });
-    }).pipe(Effect.provide(cleanupTestLayer), Effect.scoped),
+    }).pipe(Effect.provide(cleanupTestLayer)),
   );
 
   it.effect("keeps a checkout two top-level threads store through a symlinked parent", () =>
@@ -1247,7 +1247,7 @@ describe("subagent worktree ownership", () => {
         expect.objectContaining({ outcome: "kept", reason: "Shared by 2 threads" }),
       ]);
       expect(yield* fixture.fs.exists(fixture.worktree)).toBe(true);
-    }).pipe(Effect.provide(cleanupTestLayer), Effect.scoped),
+    }).pipe(Effect.provide(cleanupTestLayer)),
   );
 
   it.effect("keeps a checkout two top-level threads store in different case on Windows", () =>
@@ -1271,7 +1271,7 @@ describe("subagent worktree ownership", () => {
         expect.objectContaining({ outcome: "kept", reason: "Shared by 2 threads" }),
       ]);
       expect(yield* fixture.fs.exists(fixture.worktree)).toBe(true);
-    }).pipe(Effect.provide(cleanupTestLayer), Effect.scoped),
+    }).pipe(Effect.provide(cleanupTestLayer)),
   );
 
   it.effect.each([
@@ -1377,7 +1377,7 @@ describe("deleted thread worktrees", () => {
           reason: "Thread was deleted",
         });
         expect(yield* fixture.fs.exists(fixture.worktree)).toBe(false);
-      }).pipe(Effect.provide(cleanupTestLayer), Effect.scoped),
+      }).pipe(Effect.provide(cleanupTestLayer)),
   );
 
   it.effect("applies the remaining subagent's rules when deletion cleanup is off", () =>
@@ -1399,7 +1399,7 @@ describe("deleted thread worktrees", () => {
         reason: "Inactive for 30 days",
       });
       expect(yield* fixture.fs.exists(fixture.worktree)).toBe(false);
-    }).pipe(Effect.provide(cleanupTestLayer), Effect.scoped),
+    }).pipe(Effect.provide(cleanupTestLayer)),
   );
 
   // Releases one stopped-session event after the startup sweep and returns the snapshot reads it caused.
@@ -1458,7 +1458,7 @@ describe("deleted thread worktrees", () => {
       const fixture = yield* cleanupFixture();
       const reads = yield* stopSessionAfterStartupSweep(fixture, ThreadId.make("thread-1"));
       expect(reads, "a live thread's stopped session re-read every thread").toBe(0);
-    }).pipe(Effect.provide(cleanupTestLayer), Effect.scoped),
+    }).pipe(Effect.provide(cleanupTestLayer)),
   );
 
   it.effect("removes a deleted thread's worktree once its session stops", () =>
@@ -1480,7 +1480,7 @@ describe("deleted thread worktrees", () => {
       );
       expect(reads).toBeGreaterThan(0);
       expect(yield* fixture.fs.exists(fixture.worktree)).toBe(false);
-    }).pipe(Effect.provide(cleanupTestLayer), Effect.scoped),
+    }).pipe(Effect.provide(cleanupTestLayer)),
   );
 
   it.effect("removes a deleted thread's worktree once a live thread's session in it stops", () =>
@@ -1510,7 +1510,7 @@ describe("deleted thread worktrees", () => {
       );
       expect(reads).toBeGreaterThan(0);
       expect(yield* fixture.fs.exists(fixture.worktree)).toBe(false);
-    }).pipe(Effect.provide(cleanupTestLayer), Effect.scoped),
+    }).pipe(Effect.provide(cleanupTestLayer)),
   );
 
   it.effect(
@@ -1556,7 +1556,7 @@ describe("deleted thread worktrees", () => {
         );
         expect(reads).toBeGreaterThan(0);
         expect(yield* fixture.fs.exists(fixture.worktree)).toBe(false);
-      }).pipe(Effect.provide(cleanupTestLayer), Effect.scoped),
+      }).pipe(Effect.provide(cleanupTestLayer)),
   );
 
   it.effect(
@@ -1589,7 +1589,7 @@ describe("deleted thread worktrees", () => {
         );
         expect(reads).toBeGreaterThan(0);
         expect(yield* fixture.fs.exists(fixture.worktree)).toBe(false);
-      }).pipe(Effect.provide(cleanupTestLayer), Effect.scoped),
+      }).pipe(Effect.provide(cleanupTestLayer)),
   );
 
   it.effect("does not sweep for a kept deleted worktree when a session elsewhere stops", () =>
@@ -1611,7 +1611,7 @@ describe("deleted thread worktrees", () => {
       );
       expect(reads).toBe(0);
       expect(yield* fixture.fs.exists(fixture.worktree)).toBe(true);
-    }).pipe(Effect.provide(cleanupTestLayer), Effect.scoped),
+    }).pipe(Effect.provide(cleanupTestLayer)),
   );
 
   it.effect(
@@ -1641,7 +1641,7 @@ describe("deleted thread worktrees", () => {
           fixture.repo,
         );
         expect(reads).toBe(0);
-      }).pipe(Effect.provide(cleanupTestLayer), Effect.scoped),
+      }).pipe(Effect.provide(cleanupTestLayer)),
   );
 
   it.effect(
@@ -1715,7 +1715,7 @@ describe("deleted thread worktrees", () => {
         yield* Deferred.await(delivered);
         yield* fixture.service.drain;
         expect(yield* fixture.fs.exists(fixture.worktree)).toBe(false);
-      }).pipe(Effect.provide(cleanupTestLayer), Effect.scoped),
+      }).pipe(Effect.provide(cleanupTestLayer)),
   );
 
   it.effect("waits out the done grace of a subagent just marked done", () =>
@@ -1736,7 +1736,7 @@ describe("deleted thread worktrees", () => {
         reason: "Marked done moments ago",
       });
       expect(yield* fixture.fs.exists(fixture.worktree)).toBe(true);
-    }).pipe(Effect.provide(cleanupTestLayer), Effect.scoped),
+    }).pipe(Effect.provide(cleanupTestLayer)),
   );
 });
 

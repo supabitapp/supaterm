@@ -310,5 +310,5 @@ it.effect("a remote policy refresh preserves a newer health result on the regist
       assert.strictEqual(updated?.status, "error");
       assert.strictEqual(updated?.message, "Authentication failed");
     }).pipe(Effect.provide(ProviderRegistry.layer.pipe(Layer.provide(layerDependencies))));
-  }).pipe(Effect.scoped),
+  }),
 );

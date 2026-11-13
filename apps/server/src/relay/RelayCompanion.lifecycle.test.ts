@@ -37,7 +37,7 @@ it.effect("rejects preparation revoked by its owner and closes the late listener
     expect((yield* Fiber.join(opening))._tag).toBe("Failure");
     yield* Fiber.join(closing);
     expect(close).toHaveBeenCalledTimes(1);
-  }).pipe(Effect.provide(RelayCompanion.layer()), Effect.scoped),
+  }).pipe(Effect.provide(RelayCompanion.layer())),
 );
 
 it.effect("interrupting one pending tab preserves another tab's lease", () =>
@@ -58,7 +58,7 @@ it.effect("interrupting one pending tab preserves another tab's lease", () =>
     expect(close).not.toHaveBeenCalled();
     yield* companion.close(address, "tab-b");
     expect(close).toHaveBeenCalledTimes(1);
-  }).pipe(Effect.provide(RelayCompanion.layer()), Effect.scoped),
+  }).pipe(Effect.provide(RelayCompanion.layer())),
 );
 
 it.effect("revokes an owner waiting behind a close without reopening its listener", () =>
@@ -94,7 +94,7 @@ it.effect("revokes an owner waiting behind a close without reopening its listene
     expect((yield* Fiber.join(opening))._tag).toBe("Failure");
     expect(openLoopbackRelay).toHaveBeenCalledTimes(1);
     expect(yield* companion.open(address, "tab-c")).toBe("http://127.0.0.1:4322");
-  }).pipe(Effect.provide(RelayCompanion.layer()), Effect.scoped),
+  }).pipe(Effect.provide(RelayCompanion.layer())),
 );
 
 it.effect("interrupting an owner waiting behind a close never binds its replacement", () =>
@@ -127,7 +127,7 @@ it.effect("interrupting an owner waiting behind a close never binds its replacem
     yield* Fiber.join(firstClose);
     expect(yield* companion.open(address, "tab-c")).toBe("http://127.0.0.1:4322");
     expect(openLoopbackRelay).toHaveBeenCalledTimes(2);
-  }).pipe(Effect.provide(RelayCompanion.layer()), Effect.scoped),
+  }).pipe(Effect.provide(RelayCompanion.layer())),
 );
 
 it.effect("a released pending owner cannot borrow its later lease from the same endpoint", () =>
@@ -159,7 +159,7 @@ it.effect("a released pending owner cannot borrow its later lease from the same 
     expect(close).not.toHaveBeenCalled();
     yield* companion.close(address, "tab-b");
     expect(close).toHaveBeenCalledTimes(1);
-  }).pipe(Effect.provide(RelayCompanion.layer()), Effect.scoped),
+  }).pipe(Effect.provide(RelayCompanion.layer())),
 );
 
 it.effect("disposal closes a pending listener and prevents later opens", () =>
@@ -188,7 +188,7 @@ it.effect("disposal closes a pending listener and prevents later opens", () =>
     yield* Fiber.join(disposed);
     expect(openLoopbackRelay).toHaveBeenCalledTimes(1);
     expect(close).toHaveBeenCalledTimes(1);
-  }).pipe(Effect.scoped),
+  }),
 );
 
 it.effect("a closed session releases every lease even when one listener fails to close", () =>
@@ -215,7 +215,7 @@ it.effect("a closed session releases every lease even when one listener fails to
       "wss://relay.example",
       "wss://relay.supaterm.com",
     ]);
-  }).pipe(Effect.provide(RelayCompanion.layer()), Effect.scoped),
+  }).pipe(Effect.provide(RelayCompanion.layer())),
 );
 
 it.effect("a later open refreshes direct candidates without reopening the shared tunnel", () =>
@@ -236,5 +236,5 @@ it.effect("a later open refreshes direct candidates without reopening the shared
       }),
     );
     expect(close).toHaveBeenCalledTimes(1);
-  }).pipe(Effect.provide(RelayCompanion.layer()), Effect.scoped),
+  }).pipe(Effect.provide(RelayCompanion.layer())),
 );

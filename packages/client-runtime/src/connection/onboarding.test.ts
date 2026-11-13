@@ -489,7 +489,7 @@ describe("connection onboarding", () => {
           yield* Effect.promise(() => closed.promise);
           expect(closes).toBe(1);
         }).pipe(Effect.provide(gatewayLayer));
-      }).pipe(Effect.scoped),
+      }),
   );
 
   it.effect("times out relay preparation when there is no usable fallback", () =>
@@ -637,7 +637,7 @@ describe("connection onboarding", () => {
         expect(urls(calls).filter((url) => url.endsWith("/oauth/token"))).toEqual([
           `${loopback}/oauth/token`,
         ]);
-      }).pipe(Effect.scoped),
+      }),
   );
 
   it.effect("pairs a new device through a link route and saves the reachable address", () =>

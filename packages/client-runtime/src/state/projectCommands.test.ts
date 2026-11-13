@@ -190,7 +190,7 @@ describe("writeFile metadata", () => {
         yield* AtomRegistry.getResult(h.registry, metadata, { suspendOnWaiting: true }),
       ).toBeNull();
       expect(h.metadataRequests).toEqual([["/repo/foo"]]);
-    }).pipe(Effect.scoped),
+    }),
   );
 
   it.effect("does not restore old metadata from a read completed after a write", () =>
@@ -233,7 +233,7 @@ describe("writeFile metadata", () => {
       h.registry.refresh(metadata);
       expect(yield* readMetadata()).toEqual({ kind: "file", byteLength: 10 });
       expect(h.metadataRequests).toHaveLength(2);
-    }).pipe(Effect.scoped),
+    }),
   );
 
   it.effect("refreshes retained canonical and original paths after an aliased write", () =>
@@ -272,7 +272,7 @@ describe("writeFile metadata", () => {
         "/repo/foo",
         "/repo/./foo",
       ]);
-    }).pipe(Effect.scoped),
+    }),
   );
 });
 
@@ -291,7 +291,7 @@ describe("openScratch", () => {
 
         expect(yield* h.openScratch).toMatchObject({ _tag: "Success", value: PROJECT });
         expect(h.ensureScratch).not.toHaveBeenCalled();
-      }).pipe(Effect.scoped),
+      }),
   );
 
   it.effect("does not reuse a cached project from a different environment", () =>
@@ -304,7 +304,7 @@ describe("openScratch", () => {
 
       expect(yield* h.openScratch).toMatchObject({ _tag: "Success", value: PROJECT });
       expect(h.ensureScratch).toHaveBeenCalledOnce();
-    }).pipe(Effect.scoped),
+    }),
   );
 
   it.effect("does not reuse a project when the configured scratch root changes", () =>
@@ -317,7 +317,7 @@ describe("openScratch", () => {
 
       expect(yield* h.openScratch).toMatchObject({ _tag: "Success", value: updated });
       expect(h.ensureScratch).toHaveBeenCalledOnce();
-    }).pipe(Effect.scoped),
+    }),
   );
 
   it.effect("resolves once the created project reaches the client store", () =>
@@ -330,6 +330,6 @@ describe("openScratch", () => {
       const result = yield* Fiber.join(opening);
       expect(result).toMatchObject({ _tag: "Success", value: PROJECT });
       expect(ensureScratch).toHaveBeenCalledOnce();
-    }).pipe(Effect.scoped),
+    }),
   );
 });

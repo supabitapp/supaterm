@@ -392,10 +392,7 @@ it.layer(layerTest)("CodexDriver", (it) => {
           lockKey: "codex-native",
           env: { CODEX_HOME: sharedHome },
         });
-      }).pipe(
-        Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, noSpawn),
-        Effect.scoped,
-      ),
+      }).pipe(Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, noSpawn)),
   );
 
   it.effect.skipIf(windowsHost)(
@@ -449,10 +446,7 @@ it.layer(layerTest)("CodexDriver", (it) => {
             env: { CODEX_HOME: installHome },
           });
         }
-      }).pipe(
-        Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, noSpawn),
-        Effect.scoped,
-      ),
+      }).pipe(Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, noSpawn)),
   );
 
   it.effect.skipIf(windowsHost)("derives the standalone update home from either command path", () =>
@@ -496,7 +490,7 @@ it.layer(layerTest)("CodexDriver", (it) => {
           CODEX_HOME: fixture.home,
         });
       }
-    }).pipe(Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, noSpawn), Effect.scoped),
+    }).pipe(Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, noSpawn)),
   );
 
   // regression: #23937 `codex update` installs the native channel's release, which can lag npm.
@@ -574,10 +568,7 @@ it.layer(layerTest)("CodexDriver", (it) => {
             maintenanceCapabilities: capabilities,
           }).status,
         ).not.toBe("behind_latest");
-      }).pipe(
-        Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, noSpawn),
-        Effect.scoped,
-      ),
+      }).pipe(Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, noSpawn)),
   );
 
   it.effect("uses each instance's environment CODEX_HOME for continuation", () =>
@@ -595,7 +586,7 @@ it.layer(layerTest)("CodexDriver", (it) => {
         });
         expect(instance.continuationIdentity.continuationKey).toBe(`codex:home:${codexHome}`);
       }
-    }).pipe(Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, noSpawn), Effect.scoped),
+    }).pipe(Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, noSpawn)),
   );
 
   it.effect.skipIf(windowsHost)(
@@ -624,10 +615,7 @@ it.layer(layerTest)("CodexDriver", (it) => {
         expect(yield* fs.readLink(NodePath.join(shadowHome, "sessions"))).toBe(
           NodePath.join(codexHome, "sessions"),
         );
-      }).pipe(
-        Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, noSpawn),
-        Effect.scoped,
-      ),
+      }).pipe(Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, noSpawn)),
   );
 
   for (const fixture of [
@@ -703,10 +691,7 @@ it.layer(layerTest)("CodexDriver", (it) => {
         } else {
           expect(update).toBeNull();
         }
-      }).pipe(
-        Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, noSpawn),
-        Effect.scoped,
-      ),
+      }).pipe(Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, noSpawn)),
     );
   }
 
@@ -855,7 +840,7 @@ it.layer(layerTest)("CodexDriver", (it) => {
         } else {
           expect(capabilities.update).toBeNull();
         }
-      }).pipe(Effect.scoped),
+      }),
     { skip: windowsHost },
   );
 
@@ -906,6 +891,6 @@ it.layer(layerTest)("CodexDriver", (it) => {
       yield* TestClock.adjust("250 millis");
 
       yield* Queue.take(probes);
-    }).pipe(Effect.scoped),
+    }),
   );
 });

@@ -658,7 +658,7 @@ describe("AcpRegistryAdapterV2", () => {
           answer("session/set_mode", {}),
         ],
         storedModePick: "autoEdit",
-      }).pipe(Effect.provide(layerTest), Effect.scoped),
+      }).pipe(Effect.provide(layerTest)),
     );
 
     it.effect("switches a mode config option under its own id", () =>
@@ -673,7 +673,7 @@ describe("AcpRegistryAdapterV2", () => {
           answer("session/set_config_option", { configOptions: [permissionModeOption("auto")] }),
         ],
         storedModePick: "auto",
-      }).pipe(Effect.provide(layerTest), Effect.scoped),
+      }).pipe(Effect.provide(layerTest)),
     );
 
     const modelOption = (id: string, currentValue: string, grouped = false) => ({
@@ -803,7 +803,7 @@ describe("AcpRegistryAdapterV2", () => {
               { models: ["hermes", "auto", "default"], current: "hermes" },
             ],
           );
-        }).pipe(Effect.provide(layerTest), Effect.scoped),
+        }).pipe(Effect.provide(layerTest)),
     );
 
     // Copilot's session/new reports its built-in default, not the model it will run
@@ -881,7 +881,7 @@ describe("AcpRegistryAdapterV2", () => {
               configOptions: [copilotModel("claude-sonnet-5.5"), effort("xhigh")],
             }),
           ],
-        }).pipe(Effect.provide(layerTest), Effect.scoped);
+        }).pipe(Effect.provide(layerTest));
       },
     );
 
@@ -943,7 +943,7 @@ describe("AcpRegistryAdapterV2", () => {
                   }),
                 ]
               : [],
-        }).pipe(Effect.provide(layerTest), Effect.scoped);
+        }).pipe(Effect.provide(layerTest));
       },
     );
 
@@ -993,7 +993,7 @@ describe("AcpRegistryAdapterV2", () => {
           configurations.map((configuration) => configuration?.currentModelId),
           ["hermes", "hermes", "hermes", "other", "other", "other", "other", "other"],
         );
-      }).pipe(Effect.provide(layerTest), Effect.scoped),
+      }).pipe(Effect.provide(layerTest)),
     );
     it.effect(
       "fails configuration when an option write errors for a reason other than refusal",
@@ -1041,7 +1041,7 @@ describe("AcpRegistryAdapterV2", () => {
               },
             },
           ],
-        }).pipe(Effect.provide(layerTest), Effect.scoped);
+        }).pipe(Effect.provide(layerTest));
       },
     );
     const modelOptions = [
@@ -1125,7 +1125,7 @@ describe("AcpRegistryAdapterV2", () => {
           storedModel: model,
         });
         assert.equal(opened.configurations.at(-1)?.currentModelId, "codex");
-      }).pipe(Effect.provide(layerTest), Effect.scoped),
+      }).pipe(Effect.provide(layerTest)),
     );
   });
 
@@ -1220,7 +1220,7 @@ describe("AcpRegistryAdapterV2", () => {
       const terminal = completed.at(-1)!;
       if (terminal.type !== "turn.terminal") throw new Error("Missing fallback terminal");
       assert.equal(terminal.status, "completed");
-    }).pipe(Effect.provide(layerTest), Effect.scoped),
+    }).pipe(Effect.provide(layerTest)),
   );
 
   // regression: #26695 cancelling a Copilot prompt kills its background agents
@@ -1256,7 +1256,7 @@ describe("AcpRegistryAdapterV2", () => {
         ...copilot,
         supportsSteeringByInterruptRestart: true,
       });
-    }).pipe(Effect.provide(layerTest), Effect.scoped),
+    }).pipe(Effect.provide(layerTest)),
   );
 
   it.effect("gives Copilot Supaterm's MCP server over HTTP when it advertises HTTP", () =>
@@ -1392,7 +1392,7 @@ describe("AcpRegistryAdapterV2", () => {
           load: stdio("Bearer rotated-token"),
         },
       );
-    }).pipe(Effect.provide(layerTest), Effect.scoped),
+    }).pipe(Effect.provide(layerTest)),
   );
 
   it.effect("the agent process env names the thread it serves", () =>
@@ -1471,7 +1471,7 @@ describe("AcpRegistryAdapterV2", () => {
       assert.equal(agentEnvironment?.SUPATERM_THREAD_ID, "thread-acp-registry-thread-env");
       assert.equal(agentEnvironment?.SUPATERM_ACP_MCP_ENDPOINT, endpoint);
       assert.equal(agentEnvironment?.SUPATERM_ACP_MCP_AUTHORIZATION, "Bearer thread-env-token");
-    }).pipe(Effect.provide(layerTest), Effect.scoped),
+    }).pipe(Effect.provide(layerTest)),
   );
 
   it.effect.each(["before", "after"] as const)(
@@ -1568,7 +1568,7 @@ describe("AcpRegistryAdapterV2", () => {
             );
           }
         }
-      }).pipe(Effect.provide(layerTest), Effect.scoped),
+      }).pipe(Effect.provide(layerTest)),
   );
 
   it.effect("settles Claude's accepted foreground reply while retaining child output", () =>
@@ -1772,7 +1772,7 @@ describe("AcpRegistryAdapterV2", () => {
         ),
         "autonomous root echoes only signal acceptance",
       );
-    }).pipe(Effect.provide(layerTest), Effect.scoped),
+    }).pipe(Effect.provide(layerTest)),
   );
 
   it.effect.each([
@@ -1957,7 +1957,7 @@ describe("AcpRegistryAdapterV2", () => {
         ),
         "detached requests are cancelled before turn admission",
       );
-    }).pipe(Effect.provide(layerTest), Effect.scoped),
+    }).pipe(Effect.provide(layerTest)),
   );
 
   it.effect("retains streamed child tool output through the generic Devin route", () =>
@@ -2094,7 +2094,7 @@ describe("AcpRegistryAdapterV2", () => {
           (event) => event.type === "message.updated" && event.message.text.includes("onetwo"),
         ),
       );
-    }).pipe(Effect.provide(layerTest), Effect.scoped),
+    }).pipe(Effect.provide(layerTest)),
   );
 
   it.effect("replaces streamed root tool output with a later content list", () =>
@@ -2157,7 +2157,7 @@ describe("AcpRegistryAdapterV2", () => {
         text("replacement-more"),
         { type: "Text", text: "replacement-morePATCH" },
       ]);
-    }).pipe(Effect.provide(layerTest), Effect.scoped),
+    }).pipe(Effect.provide(layerTest)),
   );
 
   it.effect("keeps stopped child tools interrupted when a late output chunk arrives", () =>
@@ -2264,7 +2264,7 @@ describe("AcpRegistryAdapterV2", () => {
       assert.deepEqual(tools.at(-1)?.output, [
         { type: "content", content: { type: "text", text: "stoppingcancelled" } },
       ]);
-    }).pipe(Effect.provide(layerTest), Effect.scoped),
+    }).pipe(Effect.provide(layerTest)),
   );
 
   it.effect("keeps native child tools interrupted after idle and late output", () =>
@@ -2304,7 +2304,7 @@ describe("AcpRegistryAdapterV2", () => {
       assert.deepEqual(tools.at(-1)?.output, [
         { type: "content", content: { type: "text", text: "late" } },
       ]);
-    }).pipe(Effect.provide(layerTest), Effect.scoped),
+    }).pipe(Effect.provide(layerTest)),
   );
 
   it.effect.each(["error", "end_turn"])(
@@ -2601,7 +2601,7 @@ describe("AcpRegistryAdapterV2", () => {
           "a new execution does not append the previous execution's text",
         );
         assert.isFalse(yield* session.runtime.hasPendingBackgroundWork!);
-      }).pipe(Effect.provide(layerTest), Effect.scoped),
+      }).pipe(Effect.provide(layerTest)),
   );
 
   it.effect("fails active Claude work and releases its children when the process exits", () =>
@@ -2671,7 +2671,7 @@ describe("AcpRegistryAdapterV2", () => {
             event.turnItem.status === "interrupted",
         ),
       );
-    }).pipe(Effect.provide(layerTest), Effect.scoped),
+    }).pipe(Effect.provide(layerTest)),
   );
 
   it.effect("keeps Claude activity after a refused Stop and closes it on retry", () =>
@@ -2789,7 +2789,7 @@ describe("AcpRegistryAdapterV2", () => {
       assert.equal(queuedTerminal.status, "interrupted");
       assert.isNull(queuedTerminal.failure);
       assert.isFalse(yield* queued.runtime.hasPendingBackgroundWork!);
-    }).pipe(Effect.provide(layerTest), Effect.scoped),
+    }).pipe(Effect.provide(layerTest)),
   );
   it.effect("routes /compact to Copilot's native command", () =>
     Effect.gen(function* () {
@@ -2842,7 +2842,7 @@ describe("AcpRegistryAdapterV2", () => {
       });
 
       assert.isDefined((yield* openSession("github-copilot-cli")).compactThread);
-    }).pipe(Effect.provide(layerTest), Effect.scoped),
+    }).pipe(Effect.provide(layerTest)),
   );
 
   it.effect.each([
@@ -3013,6 +3013,6 @@ describe("AcpRegistryAdapterV2", () => {
       assert.equal(yield* runTurn(1), "failed");
       assert.equal(yield* runTurn(2), "completed");
       assert.equal(spawned, restarts ? 2 : 1);
-    }).pipe(Effect.provide(layerTest), Effect.scoped),
+    }).pipe(Effect.provide(layerTest)),
   );
 });

@@ -45,7 +45,7 @@ it.layer(NodeServices.layer)("Claude Fast availability", (it) => {
         yield* fs.remove(file);
         yield* fast.refresh;
         assert.isFalse(yield* fast.isBlocked);
-      }).pipe(Effect.scoped),
+      }),
   );
 
   it.effect("keeps cached denials local to the instance's config directory", () =>
@@ -56,7 +56,7 @@ it.layer(NodeServices.layer)("Claude Fast availability", (it) => {
       yield* second.write(true);
       assert.isTrue(yield* (yield* first.make()).isBlocked);
       assert.isFalse(yield* (yield* second.make()).isBlocked);
-    }).pipe(Effect.scoped),
+    }),
   );
 
   it.effect(
@@ -69,7 +69,7 @@ it.layer(NodeServices.layer)("Claude Fast availability", (it) => {
         yield* fast.update("extra_usage_disabled");
         yield* fast.refresh;
         assert.isFalse(yield* fast.isBlocked);
-      }).pipe(Effect.scoped),
+      }),
   );
 
   it.effect("applies cached org denials behind gateways and explicit credentials", () =>
@@ -84,7 +84,7 @@ it.layer(NodeServices.layer)("Claude Fast availability", (it) => {
       ]) {
         assert.isTrue(yield* (yield* make(environment)).isBlocked);
       }
-    }).pipe(Effect.scoped),
+    }),
   );
 
   it.effect("skips the cached org check only when Claude Code skips it", () =>
@@ -119,7 +119,7 @@ it.layer(NodeServices.layer)("Claude Fast availability", (it) => {
         JSON.stringify({ env: { CLAUDE_CODE_SKIP_FAST_MODE_ORG_CHECK: "0" } }),
       );
       assert.isTrue(yield* fast.refresh);
-    }).pipe(Effect.scoped),
+    }),
   );
 
   it.effect(
@@ -151,7 +151,7 @@ it.layer(NodeServices.layer)("Claude Fast availability", (it) => {
           yield* fast.update(reason);
           assert.isFalse(yield* fast.refresh);
         }
-      }).pipe(Effect.scoped),
+      }),
   );
 });
 

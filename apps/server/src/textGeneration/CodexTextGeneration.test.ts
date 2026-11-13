@@ -384,7 +384,7 @@ it.layer(layerCodexTextGenerationTest)("CodexTextGeneration", (it) => {
             expect(generated.stops).toEqual([]);
           }),
       );
-    }).pipe(Effect.scoped),
+    }),
   );
 
   it.effect("lists an investigation's MCP servers with its checkout untrusted", () =>
@@ -414,7 +414,7 @@ it.layer(layerCodexTextGenerationTest)("CodexTextGeneration", (it) => {
             expect(generated.stops).toEqual([]);
           }),
       );
-    }).pipe(Effect.scoped),
+    }),
   );
 
   it.effect("preserves custom PR instructions while allowing checkout inspection", () =>
