@@ -418,25 +418,48 @@ function WorkspaceBinaryFilePreview(props: {
   readonly name: string;
   readonly document: boolean;
   readonly draftCwd: string | null;
+  readonly workspaceMutationId: string | null;
+  readonly refreshRevision: number;
 }) {
+  const resource =
+    props.document && props.draftCwd !== null
+      ? { _tag: "draft-workspace-file" as const, cwd: props.draftCwd, path: props.absolutePath }
+      : {
+          _tag: "media-file" as const,
+          threadId: props.threadRef.threadId,
+          path: props.absolutePath,
+          ...(props.document ? {} : { disposition: "attachment" as const }),
+        };
+  // Drafts keep reloading on every workspace mutation, as before.
+  const revisioned = props.document && resource._tag === "media-file";
+  const assetUrl = useAssetUrlState(
+    props.environmentId,
+    revisioned ? resource : null,
+    props.workspaceMutationId ?? undefined,
+  );
+  const resolved =
+    assetUrl._tag === "Success" ? (assetUrl.fileRevision ?? props.workspaceMutationId) : undefined;
+  // A reconnect reports Loading and keeps the last revision, so the open file stays loaded;
+  // a failure (say the file was deleted) remounts so the preview shows its error.
+  const [shown, setShown] = useState(resolved);
+  if (resolved !== undefined && resolved !== shown) setShown(resolved);
+  const revision = !revisioned
+    ? props.workspaceMutationId
+    : assetUrl._tag === "Failure"
+      ? `failure:${props.workspaceMutationId}`
+      : (resolved ?? shown);
+  // Waiting on the first revision keeps the preview from mounting twice when it opens.
+  if (revisioned && revision === undefined && assetUrl._tag === "Loading") {
+    return <FileSurfaceLoading />;
+  }
   return (
     <AttachmentFilePreview
+      key={props.document ? `${revision}:${props.refreshRevision}` : "download"}
       name={fileBasename(props.name)}
       mimeType="application/octet-stream"
       sizeBytes={0}
       {...(props.document ? {} : { kind: "unsupported" as const })}
-      asset={{
-        environmentId: props.environmentId,
-        resource:
-          props.document && props.draftCwd !== null
-            ? { _tag: "draft-workspace-file", cwd: props.draftCwd, path: props.absolutePath }
-            : {
-                _tag: "media-file",
-                threadId: props.threadRef.threadId,
-                path: props.absolutePath,
-                ...(props.document ? {} : { disposition: "attachment" as const }),
-              },
-      }}
+      asset={{ environmentId: props.environmentId, resource }}
       origin="File"
     />
   );
@@ -1568,17 +1591,15 @@ export default function FilePreviewPanel({
               absolutePath &&
               (isDocument || file.readError?.failure === "binary_file") ? (
               <WorkspaceBinaryFilePreview
-                key={
-                  isDocument
-                    ? `${environmentId}:${absolutePath}:${workspaceMutationId}:${fileRefreshRevision}`
-                    : `${environmentId}:${absolutePath}`
-                }
+                key={`${environmentId}:${absolutePath}`}
                 environmentId={environmentId}
                 threadRef={threadRef}
                 absolutePath={absolutePath}
                 name={relativePath}
                 document={isDocument}
                 draftCwd={draft ? cwd : null}
+                workspaceMutationId={workspaceMutationId}
+                refreshRevision={fileRefreshRevision}
               />
             ) : relativePath && file.error && file.data === null ? (
               <div
