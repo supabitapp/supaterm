@@ -10,10 +10,11 @@ and mode selections, unless the destination project has its own model default.
 Its branch and workspace mode come from your configured defaults. To continue in
 an existing worktree, use **New thread in this worktree** from the branch toolbar.
 
-On mobile, **New thread** starts in the last project you opened or chose on that
-device. If it is not available, the project picker opens; tap the project in the
-draft to pick another. Turn off **Settings → General → Use last project** to choose
-a project every time.
+On mobile, **New thread** starts in the project the thread list is filtered to,
+or else in the last project you opened or chose on that device. If neither is
+available, the project picker opens; tap the project in the draft to pick
+another. Turn off **Settings → General → Use last project** to choose a project
+every time.
 When you pick a project that is on more than one machine, the thread starts on a
 connected one if any is connected.
 
