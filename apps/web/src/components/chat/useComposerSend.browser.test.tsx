@@ -143,6 +143,7 @@ function sendInput(
     clearUsageLimitsFor: () => {},
     needsLoadBalancing: false,
     loadBalancing: { pending: false } as never,
+    refreshBeforeSend: () => null,
     readPendingEnvironmentChange: () => null,
     pendingApprovals: [
       {
