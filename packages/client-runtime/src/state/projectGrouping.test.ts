@@ -385,6 +385,27 @@ describe("buildProjectGroups", () => {
     expect(groups[1]?.label).toBe("julius/supaterm-fork");
   });
 
+  // regression: #15049 a rename to the repository name snapped back to the display path
+  it("labels a renamed group by its title even when it matches the repository name", () => {
+    const displayed = { ...repositoryIdentity, displayName: "Supaterm" };
+    const folderTitles = [
+      makeProject("supaterm", "/work/supaterm", {
+        title: "supaterm",
+        repositoryIdentity: displayed,
+      }),
+      makeProject("supaterm-2", "/work/supaterm-2", {
+        title: "supaterm",
+        repositoryIdentity: displayed,
+      }),
+    ];
+    const renamed = folderTitles.map((project) => ({ ...project, hasCustomTitle: true }));
+
+    const label = (projects: ReadonlyArray<EnvironmentProject>) =>
+      buildProjectGroups({ projects, settings: settings("repository") })[0]?.label;
+    expect(label(folderTitles)).toBe("Supaterm");
+    expect(label(renamed)).toBe("supaterm");
+  });
+
   it("applies a physical-project override without dropping its siblings", () => {
     const first = makeProject("supaterm", "/work/supaterm");
     const second = makeProject("supaterm-2", "/work/supaterm-2");
