@@ -305,7 +305,7 @@ export function ReviewThreadCard({
       contentEditable={false}
       onPointerDown={(event) => event.stopPropagation()}
     >
-      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+      <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
         <Icon className={cn("size-3.5", thread.isResolved && "text-success-foreground")} />
         <button
           type="button"
