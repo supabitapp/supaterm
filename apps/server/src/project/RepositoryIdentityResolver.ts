@@ -1,7 +1,9 @@
 import type { RepositoryIdentity, SourceControlProviderError } from "@supaterm/contracts";
+import { parseGitRemoteHost } from "@supaterm/source-control-core/shared/definition";
 import { repositoryPathFromRemoteUrl } from "@supaterm/source-control-core/server/SourceControlProvider";
 import {
   GH_RESOLVED_CONFIG_ARGS,
+  normalizeGitRemoteUrl,
   parseGhResolvedRemotes,
   parseGitRemoteFetchUrls,
 } from "@supaterm/shared/git";
@@ -210,7 +212,11 @@ const resolveRepositoryIdentityCacheKey = Effect.fn("RepositoryIdentityResolver.
   },
 );
 
-/** The remote `gh repo set-default` made the base, where this checkout's pull requests go. */
+/**
+ * The remote `gh repo set-default` chose, where this checkout's pull requests go. gh marks one
+ * remote with `base`, or with OWNER/REPO when it picked a parent repository; the identity follows
+ * that mark only to a remote that fetches it, since review checkouts fetch through the locator.
+ */
 const readGhBaseRemote = Effect.fn("RepositoryIdentityResolver.readGhBaseRemote")(function* (
   cacheKey: string,
   remotes: ReadonlyMap<string, string>,
@@ -230,9 +236,20 @@ const readGhBaseRemote = Effect.fn("RepositoryIdentityResolver.readGhBaseRemote"
   const [mark, ...others] = parseGhResolvedRemotes(result.value.stdout).filter(({ remoteName }) =>
     remotes.has(remoteName),
   );
-  if (mark?.resolution !== "base" || others.length > 0) return null;
-  const remoteUrl = remotes.get(mark.remoteName);
-  return remoteUrl === undefined ? null : { remoteName: mark.remoteName, remoteUrl };
+  if (mark === undefined || others.length > 0) return null;
+  const markedUrl = remotes.get(mark.remoteName);
+  if (markedUrl === undefined) return null;
+  if (mark.resolution === "base") return { remoteName: mark.remoteName, remoteUrl: markedUrl };
+  // Compare hosts with HTTP ports kept: one hostname can serve separate forges on two ports.
+  const host = parseGitRemoteHost(markedUrl)?.host;
+  const markedPath = mark.resolution.toLowerCase();
+  const [remoteName, remoteUrl] =
+    [...remotes.entries()].find(
+      ([, url]) =>
+        parseGitRemoteHost(url)?.host === host &&
+        normalizeGitRemoteUrl(url).split("/").slice(1).join("/") === markedPath,
+    ) ?? [];
+  return remoteName && remoteUrl ? { remoteName, remoteUrl } : null;
 });
 
 const resolveRepositoryIdentityFromCacheKey = Effect.fn(
