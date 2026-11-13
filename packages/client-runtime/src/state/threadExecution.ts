@@ -370,13 +370,7 @@ export function deriveThreadStructureRuntime(
     }),
   );
   // A pull request watch can hold a thread that never ran.
-  if (
-    latestRun === null &&
-    projection.thread.activeProviderThreadId === null &&
-    !backgroundWorkHoldsRun
-  ) {
-    return null;
-  }
+  if (latestRun === null && !backgroundWorkHoldsRun) return null;
   const activeRunId =
     latestMatchingRun(projection, (run) => isOrchestrationV2RunInterruptible(run.status))?.id ??
     null;
