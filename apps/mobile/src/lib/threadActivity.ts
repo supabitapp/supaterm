@@ -2,6 +2,7 @@ import type {
   ThreadPendingApproval,
   ThreadPendingUserInput,
 } from "@supaterm/client-runtime/state/thread-requests";
+import { linkRequestTargetName } from "@supaterm/client-runtime/link-request";
 import { turnItemIsWorkspacePreparation } from "@supaterm/client-runtime/state/turn-item-presentation";
 import type { ThreadCheckpointSummary } from "@supaterm/client-runtime/state/thread-checkpoints";
 import { formatSubagentDisplayTitle } from "@supaterm/client-runtime/state/subagent-display";
@@ -624,7 +625,7 @@ function itemSummary(
     case "secret_request":
       return item.label;
     case "link_request":
-      return `Link ${item.url ?? "a machine"}`;
+      return `Link ${linkRequestTargetName(item)}`;
     case "dynamic_tool": {
       const classified = classifyToolActivity({
         itemType: "dynamic_tool_call",

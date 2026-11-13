@@ -111,6 +111,10 @@
       "types": "./src/secretRequest.ts",
       "default": "./src/secretRequest.ts"
     },
+    "./link-request": {
+      "types": "./src/linkRequest.ts",
+      "default": "./src/linkRequest.ts"
+    },
     "./connection": {
       "types": "./src/connection/index.ts",
       "default": "./src/connection/index.ts"
@@ -263,9 +267,17 @@
       "types": "./src/state/deviceHubAccess.ts",
       "default": "./src/state/deviceHubAccess.ts"
     },
+    "./state/peerLinks": {
+      "types": "./src/state/peerLinks.ts",
+      "default": "./src/state/peerLinks.ts"
+    },
     "./state/environmentHttpAuth": {
       "types": "./src/state/environmentHttpAuth.ts",
       "default": "./src/state/environmentHttpAuth.ts"
+    },
+    "./state/peerPairingCode": {
+      "types": "./src/state/peerPairingCode.ts",
+      "default": "./src/state/peerPairingCode.ts"
     },
     "./state/preview": {
       "types": "./src/state/preview.ts",
