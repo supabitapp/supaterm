@@ -30,7 +30,7 @@ import { appAtomRegistry } from "../state/atom-registry";
 import { mobilePreferencesAtom } from "../state/preferences";
 import { useOpenLinkedThread } from "../features/threads/useOpenLinkedThread";
 import { ComposerContextSheet } from "./ComposerContextSheet";
-import { annotatedDraftFits, promptAssistantAnnotation } from "./assistantAnnotationPrompt";
+import { annotatedDraftRejection, promptAssistantAnnotation } from "./assistantAnnotationPrompt";
 import { assistantCitationFromToken } from "../lib/assistantAnnotation";
 import { AppText as Text } from "./ui/AppText";
 import {
@@ -217,13 +217,15 @@ export function ComposerEditor({
             if (props.readOnly || props.editable === false) return;
             promptAssistantAnnotation(citation, "edit", (annotated) => {
               const text = draftKey ? getComposerDraftSnapshot(draftKey).text : props.value;
-              if (text.slice(selection.start, selection.end) !== selection.source) return;
+              if (text.slice(selection.start, selection.end) !== selection.source) return null;
               const token = serializeAssistantCitation(annotated);
               const next = text.slice(0, selection.start) + token + text.slice(selection.end);
-              if (!annotatedDraftFits(next.length)) return;
+              const rejection = annotatedDraftRejection(next.length);
+              if (rejection !== null) return rejection;
               changeText(next);
               const caret = selection.start + token.length;
               props.onSelectionChange?.({ start: caret, end: caret });
+              return null;
             });
             return;
           }

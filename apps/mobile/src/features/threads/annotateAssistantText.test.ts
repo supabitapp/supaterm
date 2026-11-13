@@ -45,6 +45,7 @@ import { appAtomRegistry } from "../../state/atom-registry";
 import { beginQueuedRunEdit, queuedEditDraftKey } from "../../state/queued-run-edit";
 import {
   getComposerDraftSnapshot,
+  rememberComposerDraftSelection,
   setComposerDraftText,
   waitForComposerDraftsLoaded,
 } from "../../state/use-composer-drafts";
@@ -110,18 +111,23 @@ it("reopens the prompt with the typed comment when it is too long, then saves th
   expect(comments(threadKey)).toEqual(["Shorter"]);
 });
 
-it("leaves the draft alone when the encoded quote would push it past the send limit", async () => {
-  const { source, threadKey } = await setup("thread-over-limit");
+it("checks the draft the quote would produce against the send limit", async () => {
+  const { source, threadKey, comments } = await setup("thread-over-limit");
   const filler = "x".repeat(PROVIDER_SEND_TURN_MAX_INPUT_CHARS - 1000);
+  const selection = { text: "引".repeat(ASSISTANT_CITATION_MAX_TEXT_LENGTH), start: 0 };
   setComposerDraftText(threadKey, filler);
 
-  annotateAssistantText({
-    source,
-    draftKey: threadKey,
-    selection: { text: "引".repeat(ASSISTANT_CITATION_MAX_TEXT_LENGTH), start: 0 },
-  });
-  dialog.prompts[0]!.onConfirm("");
+  annotateAssistantText({ source, draftKey: threadKey, selection });
+  dialog.prompts[0]!.onConfirm("Why this part");
 
   expect(getComposerDraftSnapshot(threadKey).text).toBe(filler);
   expect(dialog.alerts.map((alert) => alert.title)).toEqual(["Message is too long"]);
+  dialog.alerts[0]!.buttons[0]!.onPress?.();
+  expect(dialog.prompts[1]!.initialValue).toBe("Why this part");
+
+  // The quote replaces the composer's selection, so that text does not count.
+  rememberComposerDraftSelection(threadKey, filler, { start: 0, end: filler.length });
+  dialog.prompts[1]!.onConfirm("Why this part");
+  expect(comments(threadKey)).toEqual(["Why this part"]);
+  expect(getComposerDraftSnapshot(threadKey).text).not.toContain("xxxx");
 });

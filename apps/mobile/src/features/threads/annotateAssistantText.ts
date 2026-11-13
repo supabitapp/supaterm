@@ -8,7 +8,7 @@ import { serializeAssistantCitation } from "@supaterm/shared/assistantCitations"
 import * as Haptics from "expo-haptics";
 
 import {
-  annotatedDraftFits,
+  annotatedDraftRejection,
   promptAssistantAnnotation,
 } from "../../components/assistantAnnotationPrompt";
 import * as Dialog from "../../components/ui/Dialog";
@@ -17,7 +17,7 @@ import { scopedThreadKey } from "../../lib/scopedEntities";
 import type { MarkdownTextSelection } from "../../native/SelectableMarkdownText.types";
 import { activeComposerDraftKey, getQueuedRunEdit } from "../../state/queued-run-edit";
 import {
-  getComposerDraftSnapshot,
+  captureComposerDraftInsertion,
   insertComposerDraftContext,
 } from "../../state/use-composer-drafts";
 
@@ -44,11 +44,14 @@ export function annotateAssistantText(input: {
     // A queued edit can end while the prompt is open; the quote follows the composer.
     const draftKey = activeComposerDraftKey(threadKey, input.draftKey, getQueuedRunEdit(threadKey));
     const text = serializeAssistantCitation(annotated);
-    // Insertion can pad the quote with a space on each side.
-    if (!annotatedDraftFits(getComposerDraftSnapshot(draftKey).text.length + text.length + 2)) {
-      return;
-    }
-    insertComposerDraftContext(draftKey, { text, context: { version: 1, records: [] } });
+    const target = captureComposerDraftInsertion(draftKey);
+    // The quote replaces the composer's selection and can gain a space on each side.
+    const rejection = annotatedDraftRejection(
+      target.text.length - (target.end - target.start) + text.length + 2,
+    );
+    if (rejection !== null) return rejection;
+    insertComposerDraftContext(draftKey, { text, context: { version: 1, records: [] } }, target);
     void Haptics.selectionAsync();
+    return null;
   });
 }

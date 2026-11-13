@@ -1645,7 +1645,11 @@ function ThreadDetailBody(
                   skills={selectedProviderSkills}
                   onUseArtifactTemplate={handleUseArtifactTemplate}
                   onAnnotateAssistantText={
-                    isProviderSubagent || props.draftMode || props.composerDraftKey === null
+                    // A queued edit's save has already read its draft, so a quote added now is lost.
+                    isProviderSubagent ||
+                    props.draftMode ||
+                    props.isSavingQueuedEdit ||
+                    props.composerDraftKey === null
                       ? undefined
                       : handleAnnotateAssistantText
                   }
