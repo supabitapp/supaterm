@@ -427,7 +427,7 @@ export function useComposerPathSearch(target: ComposerPathSearchTarget) {
   const searchTarget =
     debouncedTarget.environmentId !== null &&
     debouncedTarget.cwd !== null &&
-    debouncedTarget.query.length > 0
+    debouncedTarget.query !== null
       ? {
           environmentId: debouncedTarget.environmentId,
           input: {
