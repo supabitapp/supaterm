@@ -1,5 +1,6 @@
 import {
   TimelineRowCtx,
+  type WorkGroupViewedImage,
   type TimelineWorkEntry,
   WorkGroupViewCtx,
   type TimelineRow,
@@ -35,8 +36,13 @@ import {
 } from "./MessagesTimeline.logic";
 import { WorkLogList, WorkLogRow, WorkLogButton } from "./WorkLog";
 import type { WorktreeSetupSnapshot, ToolActivityIcon } from "@supaterm/contracts";
-import { liveThoughtLine } from "@supaterm/client-runtime/work-log/presentation";
+import {
+  liveThoughtLine,
+  resolveViewedImageAsset,
+  workEntriesViewedImagePaths,
+} from "@supaterm/client-runtime/work-log/presentation";
 import { resolveWorkGroupScrollAnchor } from "@supaterm/client-runtime/work-log/scroll-anchor";
+import { useAssetUrls } from "~/assets/assetUrls";
 import { observeResize } from "~/lib/observeResize";
 import { tickTextContent } from "~/lib/tickTextContent";
 import { formatElapsedSeconds } from "./AgentElapsed";
@@ -45,6 +51,7 @@ import { memo, use, useRef, useEffect, useState, useLayoutEffect, type ReactNode
 import { type LegendListRef, LegendList } from "@legendapp/list/react";
 import { workEntryDisplayIndicatesToolFailure } from "../../session-logic";
 import ChatMarkdown from "../ChatMarkdown";
+import { assetMediaActionsSource } from "./ChatMarkdownMedia";
 import { ShrinkIcon, XIcon } from "@supaterm/icons";
 import { Button } from "../ui/button";
 import { getVirtualizedScrollFadeClassName } from "../ui/scroll-area";
@@ -86,6 +93,7 @@ export const WorkGroupSection = memo(function WorkGroupSection({
         anchorKey={anchorKey}
         disclosureAnchorKey={disclosureAnchorKey}
         entries={nonEmptyEntries}
+        groupedEntries={groupedEntries}
         workspaceRoot={workspaceRoot}
       />
     );
@@ -114,15 +122,60 @@ const compactWorkEntryHeight = 24;
 // Outlasts the collapsible panel's 150ms close.
 const closingWorkEntryRoomMs = 300;
 
+// The thumbnail strip below the group is its own virtualized row, so the gallery an expanded
+// entry opens is built from the same entries rather than from the strip's mounted images.
+function useWorkGroupViewedImages(
+  groupedEntries: ReadonlyArray<TimelineWorkEntry>,
+): ReadonlyArray<WorkGroupViewedImage> {
+  const { threadRef, workspaceRoot, activeThreadEnvironmentId } = use(TimelineRowCtx);
+  const viewed = threadRef
+    ? workEntriesViewedImagePaths(groupedEntries).flatMap((path) => {
+        const asset = resolveViewedImageAsset(path, {
+          threadId: threadRef.threadId,
+          workspaceRoot,
+        });
+        return asset ? [{ path, asset }] : [];
+      })
+    : [];
+  const environmentId = threadRef?.environmentId ?? activeThreadEnvironmentId;
+  const urls = useAssetUrls(
+    environmentId,
+    viewed.map(({ asset }) => asset.resource),
+  );
+  return viewed.map(({ path, asset }, index) => {
+    const url = urls[index];
+    if (!url) return { path, item: null };
+    const src = url + asset.srcFragment;
+    const name = asset.alt.trim() || "image";
+    return {
+      path,
+      item: {
+        src,
+        name,
+        actionsSource: assetMediaActionsSource({
+          environmentId,
+          resource: asset.resource,
+          kind: "image",
+          name: asset.alt || "image",
+          src,
+          workspaceRoot,
+        }),
+      },
+    };
+  });
+}
+
 function ExpandedWorkGroupEntries({
   anchorKey,
   disclosureAnchorKey,
   entries,
+  groupedEntries,
   workspaceRoot,
 }: {
   anchorKey: string;
   disclosureAnchorKey: string;
   entries: TimelineWorkEntry[];
+  groupedEntries: ReadonlyArray<TimelineWorkEntry>;
   workspaceRoot: string | undefined;
 }) {
   const {
@@ -174,8 +227,10 @@ function ExpandedWorkGroupEntries({
     setExpandedContentHeight(height);
   };
 
+  const viewedImages = useWorkGroupViewedImages(groupedEntries);
   const groupView = {
     state: viewState,
+    viewedImages,
     onToggleEntry: (entryId: string, collapsed: boolean) => {
       const timers = closingEntryTimersRef.current;
       window.clearTimeout(timers.get(entryId));

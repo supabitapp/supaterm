@@ -17,7 +17,7 @@ import { type MouseEvent, createContext, useEffect, useRef } from "react";
 import type { LegendListRef } from "@legendapp/list/react";
 import type { CodexArtifactTemplate } from "@supaterm/shared/codexArtifactTemplates";
 import type { ChatFileAttachment } from "../../types";
-import type { ExpandedImagePreview } from "./ExpandedImagePreview";
+import type { ExpandedImageItem, ExpandedImagePreview } from "./ExpandedImagePreview";
 import type { AssistantCitationTarget } from "./AssistantCitationSource";
 import type { TimestampFormat } from "@supaterm/contracts/settings";
 import type { HandoffTimelineRun } from "./V2LifecycleRow";
@@ -96,8 +96,15 @@ export interface WorkGroupViewState {
   expandedEntries: Set<string>;
 }
 
+/** One image the group's agent viewed; `item` is null until its URL resolves. */
+export interface WorkGroupViewedImage {
+  readonly path: string;
+  readonly item: ExpandedImageItem | null;
+}
+
 export const WorkGroupViewCtx = createContext<{
   state: WorkGroupViewState;
+  viewedImages: ReadonlyArray<WorkGroupViewedImage>;
   onToggleEntry: (entryId: string, collapsed: boolean) => void;
   onContentReady?: ((entryId: string) => void) | undefined;
 } | null>(null);

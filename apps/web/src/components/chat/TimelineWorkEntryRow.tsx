@@ -61,6 +61,8 @@ import {
 } from "../../session-logic";
 import ChatMarkdown from "../ChatMarkdown";
 import { ChatMarkdownAssetImage } from "./ChatMarkdownMedia";
+import type { ExpandedImagePreview } from "./ExpandedImagePreview";
+import { workGroupImageGallery } from "./markdownImageGallery";
 import { CircleAlertIcon, RotateCcwIcon, XIcon } from "@supaterm/icons";
 import { Button, InlineButton } from "../ui/button";
 import { useAssetUrls } from "../../assets/assetUrls";
@@ -579,6 +581,13 @@ function WorkEntryLogDetails({
   onInitialOutputReady: () => void;
 }) {
   const ctx = use(TimelineRowCtx);
+  const groupViewedImages = use(WorkGroupViewCtx)?.viewedImages;
+  // Images in this entry's expanded body page through the group's viewed images, like its strip.
+  const expandImage =
+    viewedImage && groupViewedImages
+      ? (preview: ExpandedImagePreview) =>
+          ctx.onImageExpand(workGroupImageGallery(groupViewedImages, viewedImagePath, preview))
+      : ctx.onImageExpand;
   const isReasoning = workEntry.itemType === "reasoning";
   const expandedBody = isReasoning
     ? null
@@ -602,7 +611,7 @@ function WorkEntryLogDetails({
             srcFragment={viewedImage.srcFragment}
             workspaceRoot={workspaceRoot}
             maxHeightRem={16}
-            onImageExpand={ctx.onImageExpand}
+            onImageExpand={expandImage}
           />
         </WorkLogDetails>
       ) : null}
@@ -624,7 +633,7 @@ function WorkEntryLogDetails({
               cwd={ctx.markdownCwd}
               workspaceRoot={workspaceRoot}
               onOpenToolDiff={ctx.onOpenToolDiff}
-              onImageExpand={ctx.onImageExpand}
+              onImageExpand={expandImage}
             />
           ) : (
             <>
@@ -636,7 +645,7 @@ function WorkEntryLogDetails({
                   onInitialOutputReady={onInitialOutputReady}
                   projectedItem={workEntry.projectedItem}
                   environmentId={ctx.activeThreadEnvironmentId}
-                  onImageExpand={ctx.onImageExpand}
+                  onImageExpand={expandImage}
                 />
               ) : null}
             </>
