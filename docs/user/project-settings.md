@@ -162,14 +162,14 @@ captures and log retention remain machine-wide.
 
 Worktrees can be removed after a chosen number of inactive days, a chosen number of days after
 their thread is marked done, after merging, or when they have no commits beyond the default
-branch. Set **Delete done worktrees** to 0 days to remove a worktree at the next cleanup after its
-thread is marked done. A thread marked done automatically counts its done days from its last
-activity, not from when it was marked done. In repositories without remotes, unchanged-worktree
-cleanup compares against the branch checked out in the project workspace; if that checkout has a
-detached HEAD, the worktree is kept. Only Supaterm-managed worktrees are eligible. Active
-sessions prevent removal, and so do other threads sharing the worktree, except a thread's own
-subagents: their shared worktree is removed once the parent qualifies and every subagent is idle.
-**Keep worktrees with local changes** defaults
+branch and their thread is marked done or archived. Set **Delete done worktrees** to 0 days to
+remove a worktree at the next cleanup after its thread is marked done. A thread marked done
+automatically counts its done days from its last activity, not from when it was marked done. In
+repositories without remotes, unchanged-worktree cleanup compares against the branch checked out
+in the project workspace; if that checkout has a detached HEAD, the worktree is kept. Only
+Supaterm-managed worktrees are eligible. Active sessions prevent removal, and so do other threads
+sharing the worktree, except a thread's own subagents: their shared worktree is removed once the
+parent qualifies and every subagent is idle. **Keep worktrees with local changes** defaults
 to **Uncommitted changes**, which protects tracked edits and untracked files but deletes ignored
 files such as `.env` and build output. **Any local files** also protects ignored files other than
 `node_modules`. **Edited tracked files** protects only tracked edits and allows untracked and
