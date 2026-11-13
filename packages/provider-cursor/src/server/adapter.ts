@@ -312,6 +312,7 @@ const CURSOR_AGENT_SETTING_SOURCES = [
 export function makeCursorAgentOptions(input: {
   readonly apiKey?: string;
   readonly modelSelection: ModelSelection;
+  readonly models?: ReadonlyArray<ServerProviderModel>;
   readonly runtimePolicy: ProviderAdapter.ProviderAdapterV2RuntimePolicy;
   readonly threadId: ThreadId;
   readonly mcpSession: McpProviderSession.McpProviderSessionConfig | undefined;
@@ -320,7 +321,7 @@ export function makeCursorAgentOptions(input: {
   const policy = cursorRuntimeAgentPolicy(input.runtimePolicy, input.platform);
   const mcpServers = cursorMcpServers(input.mcpSession);
   return {
-    model: cursorSdkModelSelection(input.modelSelection),
+    model: cursorSdkModelSelection(input.modelSelection, input.models),
     name: `supaterm ${input.threadId}`,
     mode: input.runtimePolicy.interactionMode === "plan" ? "plan" : "agent",
     ...(input.apiKey === undefined ? {} : { apiKey: input.apiKey }),
@@ -2303,6 +2304,7 @@ export const makeCursorAdapterV2 = Effect.fn("makeCursorAdapterV2")(function* (
           const options = makeCursorAgentOptions({
             ...(apiKey === undefined ? {} : { apiKey }),
             modelSelection: openInput.modelSelection,
+            models: adapterOptions.getModels?.() ?? [],
             runtimePolicy: openInput.runtimePolicy,
             platform,
             threadId: openInput.threadId,
@@ -2493,7 +2495,10 @@ export const makeCursorAdapterV2 = Effect.fn("makeCursorAdapterV2")(function* (
                 message,
                 summarize: compacted,
                 options: {
-                  model: cursorSdkModelSelection(turnInput.modelSelection),
+                  model: cursorSdkModelSelection(
+                    turnInput.modelSelection,
+                    adapterOptions.getModels?.() ?? [],
+                  ),
                   mode: turnInput.runtimePolicy.interactionMode === "plan" ? "plan" : "agent",
                   ...(Object.keys(turnMcpServers).length === 0
                     ? {}
