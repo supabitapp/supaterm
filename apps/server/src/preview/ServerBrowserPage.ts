@@ -902,7 +902,8 @@ export const drag = async (
   const target = targetLocator(page, { locator: input.target })!;
   await pointer(await targetPoint(page, source, {}, timeout), "move");
 
-  const dragFailure = source.dragTo(target, { timeout }).then(
+  // Chromium delivers a single move before dragstart; steps give the page mousemoves during the drag.
+  const dragFailure = source.dragTo(target, { timeout, steps: 5 }).then(
     () => null,
     (error: unknown) => ({ error }),
   );
