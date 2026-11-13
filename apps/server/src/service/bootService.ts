@@ -76,8 +76,16 @@ export interface BootServicePlan {
   readonly handedOff?: boolean;
 }
 
+// systemd refuses an executable with a quote, backslash or control character even when
+// quoted. The executable lives under the Supaterm home, so this also catches a home with a newline.
+const systemdUnsafeValue = (plan: BootServicePlan) =>
+  /[\x00-\x1f\x7f"'\\]/.test(plan.program[0] ?? "");
+
 /** Service units cannot rely on the user's shell or PATH. */
 export function renderBootServiceUnit(plan: BootServicePlan): string {
+  if (systemdUnsafeValue(plan)) {
+    throw new BootServiceBaseDirUnsupportedError({ baseDir: plan.baseDir });
+  }
   // The user manager has no reliable network-online target; server networking retries itself.
   return [
     "[Unit]",
@@ -536,8 +544,22 @@ export class BootServiceOtherBaseDirError extends Schema.TaggedError<BootService
   }
 }
 
+export class BootServiceBaseDirUnsupportedError extends Schema.TaggedError<BootServiceBaseDirUnsupportedError>()(
+  "BootServiceBaseDirUnsupportedError",
+  { baseDir: Schema.String },
+) {
+  override get message(): string {
+    return `systemd cannot run Supaterm from ${JSON.stringify(this.baseDir)}: the path contains a quote, backslash or control character. Choose another Supaterm home with --base-dir.`;
+  }
+
+  override get [CliError.userMessage]() {
+    return this.message;
+  }
+}
+
 export type BootServiceError =
   | BootServiceUnsupportedError
+  | BootServiceBaseDirUnsupportedError
   | BootServiceOtherBaseDirError
   | BootServiceCommandError
   | BootServiceInstallError
@@ -861,6 +883,9 @@ export const make = Effect.fn("cloud.boot_service.make")(function* (input: {
     readonly start?: boolean;
   }) {
     let manager = yield* requireManager;
+    if (manager.kind === "systemd" && systemdUnsafeValue(plan)) {
+      return yield* new BootServiceBaseDirUnsupportedError({ baseDir: input.baseDir });
+    }
     // The unit is per user. Rewriting one that serves another home moves the
     // service onto this home's data, which looks like every thread vanished.
     const refuseOtherBaseDir = Effect.gen(function* () {
@@ -1198,6 +1223,7 @@ export const make = Effect.fn("cloud.boot_service.make")(function* (input: {
       problems,
       current:
         problems.length === 0 &&
+        !(manager.kind === "systemd" && systemdUnsafeValue(planForUnit(unit))) &&
         normalizeUnit(unit) === normalizeUnit(manager.render(planForUnit(unit))) &&
         runtimeEntryExists &&
         Option.isSome(runtimeSentinel) &&
