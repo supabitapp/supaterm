@@ -1023,7 +1023,7 @@ describe("subagent worktree ownership", () => {
     }).pipe(Effect.provide(cleanupTestLayer), Effect.scoped),
   );
 
-  it.live.each([
+  it.effect.each([
     "parent-reopened",
     "parent-redone",
     "child-reopened",
@@ -1032,6 +1032,7 @@ describe("subagent worktree ownership", () => {
   ] as const)("cancels inherited done state during measurement (%s)", (change) =>
     runCleanupTest(
       Effect.gen(function* () {
+        yield* TestClock.setTime(NOW_MS);
         const fixture = yield* pausedMeasurementFixture({
           ...cleanupWithoutDefaultRules,
           worktreeDoneAfterDays: 0,
@@ -1273,7 +1274,7 @@ describe("subagent worktree ownership", () => {
     }).pipe(Effect.provide(cleanupTestLayer), Effect.scoped),
   );
 
-  it.live.each([
+  it.effect.each([
     "running",
     "pending",
     "activity",
@@ -1285,6 +1286,7 @@ describe("subagent worktree ownership", () => {
   ] as const)("cancels removal when a child changes during measurement (%s)", (change) =>
     runCleanupTest(
       Effect.gen(function* () {
+        yield* TestClock.setTime(NOW_MS);
         const fixture = yield* pausedMeasurementFixture();
         const root = shell({ branch: "feature", worktreePath: fixture.worktree });
         const child = {
@@ -2743,12 +2745,13 @@ describe("storage cleanup reports and local file policies", () => {
       }),
     ),
   );
-  it.live.each([
+  it.effect.each([
     { days: 8, reason: "Inactive for 1 of 8 days" },
     { days: null, reason: "No rules apply" },
   ])("keeps an ineligible age/delete-only worktree without Git ($days)", ({ days, reason }) =>
     runCleanupTest(
       Effect.gen(function* () {
+        yield* TestClock.setTime(NOW_MS);
         const fixture = yield* cleanupFixture({
           ...DEFAULT_SERVER_SETTINGS.storageCleanup,
           worktreeAfterDays: days,
@@ -2760,9 +2763,7 @@ describe("storage cleanup reports and local file policies", () => {
           shell({
             branch: "feature",
             worktreePath: fixture.worktree,
-            latestUserMessageAt: DateTime.makeUnsafe(
-              DateTime.toEpochMillis(yield* DateTime.now) - DAY_MS,
-            ),
+            latestUserMessageAt: at(-DAY_MS),
           }),
         ]);
         yield* fixture.fs.writeFileString(`${fixture.worktree}/tracked.txt`, "local edit\n");
@@ -2828,7 +2829,7 @@ describe("storage cleanup reports and local file policies", () => {
       }),
     ),
   );
-  it.live.each([
+  it.effect.each([
     [
       "its owner's branch is cleared",
       (worktree: string) => [shell({ branch: null, worktreePath: worktree, updatedAt: at(0) })],
@@ -2865,6 +2866,7 @@ describe("storage cleanup reports and local file policies", () => {
   ] as const)("keeps a worktree when %s during size measurement", ([, threadsWhileMeasuring]) =>
     runCleanupTest(
       Effect.gen(function* () {
+        yield* TestClock.setTime(NOW_MS);
         const fixture = yield* pausedMeasurementFixture();
         const { fs, worktree } = fixture;
         fixture.setPolicy("tracked-changes");
@@ -3012,7 +3014,7 @@ describe("storage cleanup reports and local file policies", () => {
       }),
     ),
   );
-  it.live.each([
+  it.effect.each([
     ["unchanged", "removed", "No commits beyond the project branch"],
     ["unmerged", "kept", "Has commits beyond the project branch"],
     ["detached", "kept", "Project branch is unavailable"],
@@ -3020,6 +3022,7 @@ describe("storage cleanup reports and local file policies", () => {
   ] as const)("cleans archived local-only worktrees: %s", ([state, outcome, reason]) =>
     runCleanupTest(
       Effect.gen(function* () {
+        yield* TestClock.setTime(NOW_MS);
         const { service, fs, repo, worktree, command, setThreads } = yield* cleanupFixture({
           ...DEFAULT_SERVER_SETTINGS.storageCleanup,
           worktreeUnchanged: state !== "merged-only",
@@ -3454,11 +3457,12 @@ describe("storage cleanup reports and local file policies", () => {
 });
 
 describe("done worktree rechecks", () => {
-  it.live.each(["autoResumeLimitedThreads", "snoozeLimitedThreads"] as const)(
+  it.effect.each(["autoResumeLimitedThreads", "snoozeLimitedThreads"] as const)(
     "keeps a usage-limited checkout when %s is enabled during measurement",
     (preference) =>
       runCleanupTest(
         Effect.gen(function* () {
+          yield* TestClock.setTime(NOW_MS);
           const fixture = yield* pausedMeasurementFixture();
           fixture.setSettings({ autoResumeLimitedThreads: false, snoozeLimitedThreads: false });
           fixture.setThreads([
@@ -3476,16 +3480,20 @@ describe("done worktree rechecks", () => {
           fixture.setSettings({ [preference]: true });
           yield* Deferred.succeed(fixture.resume, undefined);
           const report = yield* Fiber.join(run);
-          expect(report.entries[0]?.outcome).toBe("kept");
+          expect(report.entries[0]).toMatchObject({
+            outcome: "kept",
+            reason: "Settings changed since check",
+          });
           expect(yield* fixture.fs.exists(fixture.worktree)).toBe(true);
         }),
       ),
   );
-  it.live.each([{ doneAt: null }, { doneAt: at(DAY_MS) }])(
+  it.effect.each([{ doneAt: null }, { doneAt: at(DAY_MS) }])(
     "keeps a checkout changed during measurement (%j)",
     (change) =>
       runCleanupTest(
         Effect.gen(function* () {
+          yield* TestClock.setTime(NOW_MS);
           const fixture = yield* pausedMeasurementFixture();
           const thread = shell({
             branch: "feature",
@@ -3513,9 +3521,10 @@ describe("done worktree rechecks", () => {
   );
 });
 
-it.live("keeps saved usage data when removing a done checkout", () =>
+it.effect("keeps saved usage data when removing a done checkout", () =>
   runCleanupTest(
     Effect.gen(function* () {
+      yield* TestClock.setTime(NOW_MS);
       const fixture = yield* cleanupFixture();
       fixture.setSettings({
         storageCleanup: { ...cleanupWithoutDefaultRules, worktreeDoneAfterDays: 0 },
