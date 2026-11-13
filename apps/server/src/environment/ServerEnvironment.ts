@@ -227,6 +227,7 @@ export const make = Effect.gen(function* () {
       queuedRunStart: true,
       projectOrganization: true,
       ignoredFileListing: true,
+      ignoredFileSearch: true,
       triage: true,
       threadProjectFromScratch: true,
       oneTimeSchedules: true,
