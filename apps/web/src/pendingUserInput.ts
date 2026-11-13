@@ -1,4 +1,9 @@
-import type { ReviewCommentContextRecord, UserInputQuestion } from "@supaterm/contracts";
+import type {
+  PreviewAnnotationContextRecord,
+  PreviewAnnotationPayload,
+  ReviewCommentContextRecord,
+  UserInputQuestion,
+} from "@supaterm/contracts";
 import {
   formatModelContextText,
   projectComposerContextForProvider,
@@ -14,11 +19,41 @@ import {
 } from "@supaterm/client-runtime/state/pending-user-input";
 
 import { collectInlineContextIds } from "./lib/composerContextReferences";
-import type { ReferenceContextRecord } from "./lib/composerContextRecords";
+import {
+  previewAnnotationContextRecord,
+  type ReferenceContextRecord,
+  reviewCommentContextRecord,
+} from "./lib/composerContextRecords";
+import type { ReviewCommentContext } from "./reviewCommentContext";
+
+type AnswerContextRecord =
+  | ReferenceContextRecord
+  | ReviewCommentContextRecord
+  | PreviewAnnotationContextRecord;
+
+// Diff comments and preview annotations land in the thread draft even when their chip is in an answer.
+export function answerContextRecords(
+  questionDraft: { referenceContexts: ReadonlyArray<ReferenceContextRecord> } | null | undefined,
+  threadDraft:
+    | {
+        reviewComments: ReadonlyArray<ReviewCommentContext>;
+        previewAnnotations: ReadonlyArray<PreviewAnnotationPayload>;
+      }
+    | null
+    | undefined,
+): AnswerContextRecord[] {
+  return [
+    ...(questionDraft?.referenceContexts ?? []),
+    ...(threadDraft?.reviewComments ?? []).map(reviewCommentContextRecord),
+    ...(threadDraft?.previewAnnotations ?? []).map((annotation) =>
+      previewAnnotationContextRecord(annotation),
+    ),
+  ];
+}
 
 export function projectPendingUserInputAnswer(
   answer: unknown,
-  records: ReadonlyArray<ReferenceContextRecord | ReviewCommentContextRecord>,
+  records: ReadonlyArray<AnswerContextRecord>,
 ) {
   if (typeof answer !== "string" || records.length === 0) return answer;
   const recordsById = new Map(records.map((record) => [record.contextId, record]));

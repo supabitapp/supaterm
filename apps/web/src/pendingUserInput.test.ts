@@ -6,16 +6,14 @@ import {
 } from "@supaterm/contracts";
 import { describe, expect, it } from "vite-plus/test";
 import { formatInlineContextReference } from "./lib/composerContextReferences";
-import {
-  referenceContextReference,
-  reviewCommentContextRecord,
-} from "./lib/composerContextRecords";
+import { referenceContextReference } from "./lib/composerContextRecords";
 import {
   modelContextRecord,
   threadContextRecord,
 } from "@supaterm/shared/composerContextReferences";
 
 import {
+  answerContextRecords,
   carryDisplacedCustomAnswerIntoPrompt,
   derivePendingUserInputProgress,
   projectPendingUserInputAnswer,
@@ -49,8 +47,8 @@ describe("projectPendingUserInputAnswer", () => {
     );
   });
 
-  it("sends review comment chips with the comment text and diff", () => {
-    const comment = reviewCommentContextRecord({
+  it("sends thread draft chips with their full content", () => {
+    const reviewComment = {
       id: "file-comment-1",
       sectionId: "branch",
       sectionTitle: "Changes",
@@ -61,15 +59,36 @@ describe("projectPendingUserInputAnswer", () => {
       text: "Rename this to line two updated",
       diff: "@@ -0,0 +2,1 @@\n+line two changed",
       fenceLanguage: "diff",
+    };
+    const annotation = {
+      id: "annotation-1",
+      pageUrl: "http://localhost:3000/",
+      pageTitle: "Home",
+      comment: "FIRST NOTE: this features section looks too bare; add three feature cards",
+      elements: [],
+      regions: [],
+      strokes: [],
+      styleChanges: [],
+      screenshot: null,
+      createdAt: "2026-01-01T00:00:00.000Z",
+    };
+    const records = answerContextRecords(undefined, {
+      reviewComments: [reviewComment],
+      previewAnnotations: [annotation],
     });
-    const answer = `See my note: ${formatInlineContextReference({
-      kind: "review-comment",
-      contextId: comment.contextId,
-      label: comment.label,
-    })}`;
-    const projected = projectPendingUserInputAnswer(answer, [comment]);
+    const answer = `See my notes: ${records
+      .map((record) =>
+        formatInlineContextReference({
+          kind: record.kind,
+          contextId: record.contextId,
+          label: record.label,
+        }),
+      )
+      .join(" ")}`;
+    const projected = projectPendingUserInputAnswer(answer, records);
     expect(projected).toContain("Rename this to line two updated");
     expect(projected).toContain("+line two changed");
+    expect(projected).toContain(`comment: ${annotation.comment}`);
   });
 
   it("preserves option values and exact answer text", () => {
