@@ -22,6 +22,7 @@ import { constVoid } from "effect/Function";
 import { MousePointer, MousePointerFilled } from "@supaterm/icons/nodes";
 import type { CDPSession, ConsoleMessage, Frame, Locator, Page } from "playwright-core";
 import * as NodeCrypto from "node:crypto";
+import * as NodeUtil from "node:util";
 import { BrowserControlInterrupted } from "./SessionControl.ts";
 
 const MAX_EVALUATION_BYTES = 64_000;
@@ -59,7 +60,7 @@ export const toOperationError = (
   if (cause instanceof Error && cause.name === "TimeoutError") {
     return new ServerBrowserOperationError(
       "PreviewAutomationTimeoutError",
-      firstLine,
+      withActionabilityReason(firstLine, cause),
       timeoutMs === undefined ? undefined : { timeoutMs },
     );
   }
@@ -70,6 +71,17 @@ export const toOperationError = (
     return new ServerBrowserOperationError("PreviewAutomationTargetNotEditableError", firstLine);
   }
   return new ServerBrowserOperationError("PreviewAutomationExecutionError", firstLine);
+};
+
+/** Playwright puts why an element was not actionable in its call log, below the first line. */
+const withActionabilityReason = (message: string, cause: Error) => {
+  // Playwright dims call-log lines with ANSI escapes when colour is on.
+  const reason = NodeUtil.stripVTControlCharacters(cause.message)
+    .split("\n")
+    .map((line) => line.trim())
+    .findLast((line) => line.startsWith("- element is "))
+    ?.slice(2);
+  return reason === undefined ? message : `${message} Playwright last saw: ${reason}.`;
 };
 
 const DEFAULT_TIMEOUT_MS = 15_000;
@@ -156,11 +168,11 @@ const targetPoint = async (
   page: Page,
   locator: Locator | null,
   input: { readonly x?: number | undefined; readonly y?: number | undefined },
-  timeout: number,
+  timeout: () => number,
 ) => {
   if (locator === null) return { x: input.x ?? 0, y: input.y ?? 0 };
-  await scrollIntoView(locator, timeout);
-  const box = await locator.boundingBox({ timeout });
+  await scrollIntoView(locator, timeout());
+  const box = await locator.boundingBox({ timeout: timeout() });
   if (box) return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
   const viewport = page.viewportSize();
   return { x: (viewport?.width ?? 0) / 2, y: (viewport?.height ?? 0) / 2 };
@@ -723,10 +735,12 @@ export const click = async (
   input: PreviewAutomationClickInput,
   pointer: PointerReporter = noPointer,
 ): Promise<{ readonly x: number; readonly y: number }> => {
-  const timeout = input.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+  // One deadline across steps keeps the reply inside the broker's grace; Playwright reads 0 as none.
+  const deadline = Date.now() + (input.timeoutMs ?? DEFAULT_TIMEOUT_MS);
+  const remaining = () => Math.max(1, deadline - Date.now());
   const locator = targetLocator(page, input);
   try {
-    return await clickTarget(page, locator, input, timeout, pointer);
+    return await clickTarget(page, locator, input, remaining, pointer);
   } catch (cause) {
     throw locator === null ? cause : await namedTargetTimeout(locator, input, cause);
   }
@@ -762,10 +776,11 @@ const namedTargetTimeout = async (
       : matches === 0
         ? `The click may have happened and removed its target or navigated; check the page before retrying. No element matches ${target} after the timeout; take a fresh snapshot and use its locator.`
         : `The click may have happened; check the page before retrying. ${target} still matches an element after the timeout.`;
+  const message = withActionabilityReason(reason, cause);
   return new ServerBrowserOperationError(
     "PreviewAutomationTimeoutError",
-    reason,
-    { reason },
+    message,
+    { reason: message },
     { cause },
   );
 };
@@ -774,7 +789,7 @@ const clickTarget = async (
   page: Page,
   locator: Locator | null,
   input: PreviewAutomationClickInput,
-  timeout: number,
+  timeout: () => number,
   pointer: PointerReporter,
 ) => {
   const point = await targetPoint(page, locator, input, timeout);
@@ -783,7 +798,7 @@ const clickTarget = async (
   const clicked =
     locator === null
       ? page.mouse.click(point.x, point.y, options)
-      : locator.click({ ...options, timeout });
+      : locator.click({ ...options, timeout: timeout() });
   let onDialog = constVoid;
   const dialogOpened = new Promise<"dialog">((resolve) => {
     onDialog = () => resolve("dialog");
@@ -866,7 +881,7 @@ export const hover = async (
 ) => {
   const timeout = input.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   const locator = targetLocator(page, input);
-  await pointer(await targetPoint(page, locator, input, timeout), "move");
+  await pointer(await targetPoint(page, locator, input, () => timeout), "move");
   if (locator === null) {
     await page.mouse.move(input.x ?? 0, input.y ?? 0);
     return;
@@ -917,7 +932,7 @@ export const drag = async (
   const timeout = input.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   const source = targetLocator(page, { locator: input.source })!;
   const target = targetLocator(page, { locator: input.target })!;
-  await pointer(await targetPoint(page, source, {}, timeout), "move");
+  await pointer(await targetPoint(page, source, {}, () => timeout), "move");
 
   // Chromium delivers a single move before dragstart; steps give the page mousemoves during the drag.
   const dragFailure = source.dragTo(target, { timeout, steps: 5 }).then(
