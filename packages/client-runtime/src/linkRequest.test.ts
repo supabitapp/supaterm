@@ -7,6 +7,7 @@ import { BearerConnectionTarget, SshConnectionTarget } from "./connection/model.
 import type { EnvironmentPresentation } from "./connection/presentation.ts";
 import {
   ANOTHER_ADDRESS,
+  type LinkableMachine,
   linkableMachines,
   linkedEnvironmentNames,
   linkRequestAnswerInput,
@@ -15,6 +16,8 @@ import {
   linkRequestInitialMachine,
   linkRequestTarget,
   linkRequestTargetName,
+  peerLinkCreateInput,
+  peerLinkTarget,
   rankMachinesByHint,
 } from "./linkRequest.ts";
 
@@ -363,5 +366,103 @@ describe("linkRequestFailureMessage", () => {
     expect(linkRequestFailureMessage({ _tag: "SchemaError", message: "code=abc" })).toBe(
       "Could not answer the request. Try again.",
     );
+  });
+});
+
+const linkable = (id: string, urls: ReadonlyArray<string>): LinkableMachine => ({
+  environmentId: EnvironmentId.make(id),
+  label: id.toUpperCase(),
+  machine: "server",
+  connected: true,
+  linked: false,
+  urls,
+});
+const vps = linkable("vps", ["https://vps.tailnet.ts.net", "http://100.64.0.2:3773"]);
+const relayOnly = linkable("laptop", []);
+
+describe("peerLinkTarget", () => {
+  it.each([
+    { name: "nothing until a machine is picked", choice: null, expected: { kind: "none" } },
+    {
+      name: "a machine by this app's addresses",
+      choice: "vps",
+      expected: { kind: "machine", machine: vps },
+    },
+    {
+      name: "a typed address for a machine reached only over the relay",
+      choice: "laptop",
+      expected: { kind: "address", machine: relayOnly },
+    },
+    {
+      name: "a typed address for another address",
+      choice: ANOTHER_ADDRESS,
+      expected: { kind: "address", machine: null },
+    },
+    {
+      name: "a typed address for a machine that left the list",
+      choice: "gone",
+      expected: { kind: "address", machine: null },
+    },
+  ])("links $name", ({ choice, expected }) => {
+    expect(peerLinkTarget([vps, relayOnly], choice)).toEqual(expected);
+  });
+
+  it("leaves only a typed address when the app knows no other machine", () => {
+    expect(peerLinkTarget([], null)).toEqual({ kind: "address", machine: null });
+  });
+});
+
+describe("peerLinkCreateInput", () => {
+  const link = (
+    input: Partial<Parameters<typeof peerLinkCreateInput>[0]> &
+      Pick<Parameters<typeof peerLinkCreateInput>[0], "target">,
+  ) => peerLinkCreateInput({ address: "", access: "auto", pairingCode: "code-1", ...input });
+
+  it("links one of the app's machines by every address it has and names the machine", () => {
+    expect(link({ target: { kind: "machine", machine: vps }, pairingCode: " code-1 " })).toEqual({
+      url: "https://vps.tailnet.ts.net",
+      alternateUrls: ["http://100.64.0.2:3773"],
+      expectedEnvironmentId: "vps",
+      expectedLabel: "VPS",
+      pairingCode: "code-1",
+      access: "auto",
+    });
+  });
+
+  it("leaves alternates out for a machine with one address", () => {
+    const target = peerLinkTarget([linkable("vps", ["https://vps.tailnet.ts.net"])], "vps");
+
+    expect(link({ target })).toEqual({
+      url: "https://vps.tailnet.ts.net",
+      expectedEnvironmentId: "vps",
+      expectedLabel: "VPS",
+      pairingCode: "code-1",
+      access: "auto",
+    });
+  });
+
+  it.each([
+    { name: "a relay-only machine", target: { kind: "address", machine: relayOnly } as const },
+    { name: "another address", target: { kind: "address", machine: null } as const },
+  ])("links the typed address alone for $name, naming no machine", ({ target }) => {
+    expect(link({ target, address: " https://box.example.com " })).toEqual({
+      url: "https://box.example.com",
+      pairingCode: "code-1",
+      access: "auto",
+    });
+  });
+
+  it.each([
+    { name: "no target", input: { target: { kind: "none" } as const } },
+    {
+      name: "a blank code",
+      input: { target: { kind: "machine", machine: vps } as const, pairingCode: "  " },
+    },
+    {
+      name: "a blank address",
+      input: { target: { kind: "address", machine: null } as const, address: " " },
+    },
+  ])("builds nothing for $name", ({ input }) => {
+    expect(link(input)).toBeNull();
   });
 });

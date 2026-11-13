@@ -1,5 +1,10 @@
 import { useAtomValue } from "@effect/atom-react";
-import { ANOTHER_ADDRESS, linkRequestFailureMessage } from "@supaterm/client-runtime/link-request";
+import {
+  ANOTHER_ADDRESS,
+  linkRequestFailureMessage,
+  peerLinkCreateInput,
+  peerLinkTarget,
+} from "@supaterm/client-runtime/link-request";
 import {
   AuthAccessWriteScope,
   type AuthMcpClientAccess,
@@ -237,25 +242,20 @@ function LinkEnvironmentAction({ environmentId }: { readonly environmentId: Envi
   const inFlight = useRef(false);
   const formId = useId();
   const link = useAtomCommand(peerLinkEnvironment.link, { label: "link environment" });
-  const selected = choice ?? (machines.length === 0 ? ANOTHER_ADDRESS : null);
-  const machine = machines.find((candidate) => candidate.environmentId === selected) ?? null;
-  const targetId = machine?.environmentId ?? null;
-  const connected = usePreparedConnection(targetId);
-  const mayMint = useEnvironmentScope(targetId, AuthAccessWriteScope);
-  // A picked machine that left the list has no address here either.
-  const needsAddress = selected !== null && (machine === null || machine.urls.length === 0);
+  const target = peerLinkTarget(machines, choice);
+  const machine = target.kind === "none" ? null : target.machine;
+  const needsAddress = target.kind === "address";
   // This client mints a code there only for its own addresses: anything can answer
   // as that machine at one typed in, so that one gets a code the user fetched.
-  const canMint =
-    targetId !== null &&
-    !needsAddress &&
-    Option.isSome(connected) &&
-    mayMint &&
-    !mintFailed.has(targetId);
+  const mintable = target.kind === "machine" ? target.machine.environmentId : null;
+  const connected = usePreparedConnection(mintable);
+  const mayMint = useEnvironmentScope(mintable, AuthAccessWriteScope);
+  const mintOn =
+    mintable !== null && Option.isSome(connected) && mayMint && !mintFailed.has(mintable)
+      ? mintable
+      : null;
   const ready =
-    selected !== null &&
-    (!needsAddress || address.trim().length > 0) &&
-    (canMint || pairingCode.trim().length > 0);
+    mintOn !== null || peerLinkCreateInput({ target, address, access, pairingCode }) !== null;
   const handleOpenChange = (next: boolean) => {
     setOpen(next);
     if (!next) {
@@ -267,36 +267,21 @@ function LinkEnvironmentAction({ environmentId }: { readonly environmentId: Envi
     }
   };
   const resolvePairingCode = async () => {
-    if (!canMint || targetId === null) return pairingCode.trim();
-    const minted = await mintPairingCodeOn(targetId, access);
+    if (mintOn === null) return pairingCode;
+    const minted = await mintPairingCodeOn(mintOn, access);
     if (Result.isSuccess(minted)) return minted.success;
-    setMintFailed((failed) => new Set(failed).add(targetId));
+    setMintFailed((failed) => new Set(failed).add(mintOn));
     failureToast("Could not link the environment", linkRequestFailureMessage(minted.failure));
     return null;
   };
   const submit = async () => {
-    const [url, ...alternateUrls] =
-      machine === null || needsAddress ? [address.trim()] : machine.urls;
-    if (inFlight.current || !ready || url === undefined) return;
+    if (inFlight.current || !ready) return;
     inFlight.current = true;
     setBusy(true);
     const code = await resolvePairingCode();
-    const result =
-      code === null
-        ? null
-        : await link({
-            environmentId,
-            input: {
-              url,
-              ...(alternateUrls.length > 0 ? { alternateUrls } : {}),
-              // A typed address links alone: only this app's own addresses name a machine.
-              ...(machine === null || needsAddress
-                ? {}
-                : { expectedEnvironmentId: machine.environmentId, expectedLabel: machine.label }),
-              pairingCode: code,
-              access,
-            },
-          });
+    const input =
+      code === null ? null : peerLinkCreateInput({ target, address, access, pairingCode: code });
+    const result = input === null ? null : await link({ environmentId, input });
     inFlight.current = false;
     setBusy(false);
     if (result === null) return;
@@ -344,7 +329,7 @@ function LinkEnvironmentAction({ environmentId }: { readonly environmentId: Envi
             {machines.length > 0 ? (
               <LinkMachineSelect
                 machines={machines}
-                value={selected}
+                value={choice}
                 disabled={busy}
                 onChange={setChoice}
               />
@@ -379,7 +364,7 @@ function LinkEnvironmentAction({ environmentId }: { readonly environmentId: Envi
               </label>
             ) : null}
             {needsAddress && address.trim() ? <LinkAddressWarning address={address} /> : null}
-            {selected === null || canMint ? null : (
+            {target.kind === "none" || mintOn !== null ? null : (
               <label className="block space-y-1.5">
                 <span className="block text-xs font-medium text-foreground">Pairing code</span>
                 <Input

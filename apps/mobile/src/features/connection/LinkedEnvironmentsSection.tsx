@@ -1,5 +1,10 @@
 import { useAtomValue } from "@effect/atom-react";
-import { ANOTHER_ADDRESS, offersLinkedEnvironments } from "@supaterm/client-runtime/link-request";
+import {
+  ANOTHER_ADDRESS,
+  offersLinkedEnvironments,
+  peerLinkCreateInput,
+  peerLinkTarget,
+} from "@supaterm/client-runtime/link-request";
 import { peerLinkHealth } from "@supaterm/client-runtime/state/peerLinks";
 import {
   isAtomCommandInterrupted,
@@ -45,13 +50,7 @@ import {
 import { useSettingsWriter } from "../settings/useSettingsWriter";
 import { LinkAccessPicker, linkAccessLabel } from "./LinkAccessPicker";
 import { LinkAddressWarning, LinkMachineSelect } from "./LinkMachineSelect";
-import {
-  linkCapableEnvironments,
-  linkFailureMessage,
-  linkHealthText,
-  linkTarget,
-  peerLinkCreateInput,
-} from "./linkedEnvironments";
+import { linkCapableEnvironments, linkFailureMessage, linkHealthText } from "./linkedEnvironments";
 
 export function LinkedEnvironmentsSection() {
   const { environments } = useEnvironments();
@@ -273,7 +272,7 @@ function LinkEnvironmentSheet(props: {
     reportFailure: false,
     reportDefect: false,
   });
-  const target = linkTarget(machines, choice);
+  const target = peerLinkTarget(machines, choice);
   const machine = target.kind === "none" ? null : target.machine;
   const mintable = target.kind === "machine" ? target.machine.environmentId : null;
   const connected = usePreparedConnection(mintable);
