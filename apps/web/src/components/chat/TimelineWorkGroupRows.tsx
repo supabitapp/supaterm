@@ -42,6 +42,7 @@ import {
   workEntriesViewedImagePaths,
 } from "@supaterm/client-runtime/work-log/presentation";
 import { resolveWorkGroupScrollAnchor } from "@supaterm/client-runtime/work-log/scroll-anchor";
+import { toServerClock } from "@supaterm/client-runtime/clock";
 import { useAssetUrls } from "~/assets/assetUrls";
 import { observeResize } from "~/lib/observeResize";
 import { tickTextContent } from "~/lib/tickTextContent";
@@ -419,6 +420,7 @@ function BackgroundWorktreeSetupChip({ snapshot }: { snapshot: WorktreeSetupSnap
 }
 
 function CompactingLabel({ startedAt }: { startedAt: string | null }) {
+  const { activeThreadEnvironmentId } = use(TimelineRowCtx);
   const startedAtMs = startedAt === null ? Number.NaN : Date.parse(startedAt);
   return (
     <span className="inline-flex items-center gap-1.5">
@@ -428,7 +430,10 @@ function CompactingLabel({ startedAt }: { startedAt: string | null }) {
           Compacting for{" "}
           <span
             ref={tickTextContent(
-              (nowMs) => formatElapsedSeconds((nowMs - startedAtMs) / 1000),
+              (nowMs) =>
+                formatElapsedSeconds(
+                  (toServerClock(activeThreadEnvironmentId, nowMs) - startedAtMs) / 1000,
+                ),
               true,
             )}
             className="tabular-nums"

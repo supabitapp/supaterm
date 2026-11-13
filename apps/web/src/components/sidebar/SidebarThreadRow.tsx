@@ -24,8 +24,10 @@ import {
 } from "@supaterm/client-runtime/state/thread-sort";
 import { resolveThreadProviderStack } from "@supaterm/client-runtime/state/models";
 import { scopeThreadRef, scopedThreadKey } from "@supaterm/client-runtime/environment";
+import { toServerClock } from "@supaterm/client-runtime/clock";
 import {
   AuthOrchestrationOperateScope,
+  type EnvironmentId,
   type EnvironmentMachineKind,
   type ScopedThreadRef,
 } from "@supaterm/contracts";
@@ -186,22 +188,27 @@ function SidebarRelativeTime({
 }
 
 // The elapsed label ticks independently so the row and its queries stay idle.
-function WorkingDuration(props: { startedAt: string | null }) {
+function WorkingDuration(props: { environmentId: EnvironmentId; startedAt: string | null }) {
   const startedMs = props.startedAt !== null ? Date.parse(props.startedAt) : Number.NaN;
   if (Number.isNaN(startedMs)) return null;
-  return <WorkingDurationLabel startedMs={startedMs} />;
+  return <WorkingDurationLabel environmentId={props.environmentId} startedMs={startedMs} />;
 }
 
-function WorkingDurationLabel(props: { startedMs: number }) {
+function WorkingDurationLabel(props: { environmentId: EnvironmentId; startedMs: number }) {
   const nowMs = useNowSecond();
   return (
-    <span className="tabular-nums">{formatWorkingDurationLabel(nowMs - props.startedMs)}</span>
+    <span className="tabular-nums">
+      {formatWorkingDurationLabel(toServerClock(props.environmentId, nowMs) - props.startedMs)}
+    </span>
   );
 }
 
 function SidebarThreadWorkTime(props: { thread: SidebarThreadSummary }) {
   const nowMs = useNowSecond();
-  const totalMs = resolveThreadTotalWorkMs(props.thread, nowMs);
+  const totalMs = resolveThreadTotalWorkMs(
+    props.thread,
+    toServerClock(props.thread.environmentId, nowMs),
+  );
   if (totalMs === null || totalMs < 1000) return null;
   return (
     <div className="flex min-w-0 items-center gap-2">
@@ -1465,7 +1472,10 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
                       {showDuration ? (
                         <span aria-hidden>
                           {" "}
-                          <WorkingDuration startedAt={resolveSidebarV2DurationStartedAt(thread)} />
+                          <WorkingDuration
+                            environmentId={thread.environmentId}
+                            startedAt={resolveSidebarV2DurationStartedAt(thread)}
+                          />
                         </span>
                       ) : null}
                     </span>
