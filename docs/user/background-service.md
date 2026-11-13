@@ -81,6 +81,13 @@ service is still installed and will start at the next login.
 
 Windows background services are not supported.
 
+## Keep the computer awake while agents work
+
+While an agent is working, the machine running Supaterm does not go to sleep
+when idle, and may sleep again a minute after the work ends. Closing a laptop
+lid or choosing sleep still puts it to sleep. Turn this off with **Keep awake
+while agents work** in Settings > Maintenance.
+
 ## Keep the server responsive when agents use all memory
 
 On Linux, agents already run with lower priority than the server. When they
