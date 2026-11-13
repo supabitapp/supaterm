@@ -39,7 +39,7 @@ const run = (shim: string, args: ReadonlyArray<string>, env: NodeJS.ProcessEnv =
   });
 
 const REPORTER =
-  '#!/bin/sh\necho "node=$ELECTRON_RUN_AS_NODE cli=$SUPATERM_CLI_SHIM_PATH home=$SUPATERM_HOME"\nprintf "%s\\n" "$@"\nexit 3\n';
+  '#!/bin/sh\necho "node=$ELECTRON_RUN_AS_NODE cli=$SUPATERM_CLI_SHIM_PATH home=$SUPATERM_HOME appimage=$APPIMAGE"\nprintf "%s\\n" "$@"\nexit 3\n';
 
 const fakeAppImage = (canMount = true, app = REPORTER) => {
   const root = tempRoot();
@@ -149,6 +149,14 @@ describe("renderCliShim", () => {
     expect(result.stdout).toMatch(
       /squashfs-root\/resources\/app\.asar\/apps\/server\/dist\/bin\.mjs/,
     );
+  });
+
+  // The server skips its compile cache only under APPIMAGE; each mount path is new.
+  it("tells the CLI it runs from the mounted AppImage", () => {
+    const { appImage, shim } = fakeAppImage();
+    const result = run(shim, ["--version"]);
+    expect(result.status).toBe(3);
+    expect(result.stdout).toContain(`appimage=${appImage}`);
   });
 
   it("keeps the install's Supaterm home under sudo, unless one is set", () => {
