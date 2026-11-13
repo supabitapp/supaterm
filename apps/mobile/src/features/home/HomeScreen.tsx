@@ -21,6 +21,7 @@ import { useAtomValue } from "@effect/atom-react";
 import {
   use,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -103,10 +104,13 @@ import {
 import { createSwipeRowActivation } from "./swipe-row-activation";
 import { SwipeableScrollGateProvider, useSwipeableScrollGate } from "./thread-swipe-actions";
 import { useFabScroll } from "./FabScrollContext";
+import { holdLaunchSplashForHomeRows, settleLaunchSplashHomeRows } from "./home-launch-splash";
 import { useWorkspaceTabs } from "../layout/workspace/WorkspaceTabsContext";
 import { resolveHomeEmptyState } from "./workspace-empty-state";
 
 interface HomeScreenProps {
+  /** Whether this list is the one on screen; see `useHomeRouteVisible`. */
+  readonly visible: boolean;
   readonly projects: ReadonlyArray<EnvironmentProject>;
   readonly threads: ReadonlyArray<EnvironmentThreadShell>;
   readonly pendingTasks: ReadonlyArray<PendingNewTask>;
@@ -706,6 +710,12 @@ export function HomeScreen(props: HomeScreenProps) {
     props.threads.some((thread) => thread.archivedAt === null) ||
     props.pendingTasks.length > 0 ||
     (threadListV2Layout.kind === "shelves" && threadListV2Layout.doneCount > 0);
+  // A hidden list gets no layout, so it never reports its rows as laid out.
+  const hasRowsToLayOut = props.visible && hasAnyThreads && threadListV2Items.length > 0;
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- holds the native launch splash, which is outside React, until the rows are gone or this list unmounts; a layout effect runs before the splash hides in this commit
+  useLayoutEffect(() => {
+    return hasRowsToLayOut ? holdLaunchSplashForHomeRows() : undefined;
+  }, [hasRowsToLayOut]);
   const selectedEnvironmentLabel =
     props.selectedEnvironmentId === null
       ? null
@@ -819,7 +829,10 @@ export function HomeScreen(props: HomeScreenProps) {
             <GestureDetector gesture={homeScrollGesture}>
               <AnimatedLegendList
                 ref={listRef}
-                onLoad={() => activateVisibleRows(threadListV2Items)}
+                onLoad={() => {
+                  settleLaunchSplashHomeRows();
+                  activateVisibleRows(threadListV2Items);
+                }}
                 onTouchStart={(event) => trackListTouches(event, true)}
                 onTouchEnd={(event) => trackListTouches(event, false)}
                 onTouchCancel={(event) => trackListTouches(event, false)}

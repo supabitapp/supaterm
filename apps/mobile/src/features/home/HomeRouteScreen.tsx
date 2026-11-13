@@ -250,6 +250,7 @@ export function HomeRouteScreen() {
               <ThreadListFilters {...threadListFilters} />
             ) : undefined
           }
+          visible={visible}
         />
         <ThreadUndoNotice visible={visible} />
       </>
