@@ -1,4 +1,5 @@
 import type { ComposerModelItem } from "@supaterm/client-runtime/composerModelMentions";
+import type { ComposerEnvironmentItem } from "@supaterm/client-runtime/composerThreadItems";
 import {
   resolveProviderSkillSourceKind,
   type ProviderSkillSourceKind,
@@ -15,6 +16,7 @@ import { Pressable, ScrollView, StyleSheet, View, type ViewStyle } from "react-n
 
 import { SymbolView, type AppSymbolName } from "../../components/ui/AppSymbol";
 import { AppText as Text } from "../../components/ui/AppText";
+import { ENVIRONMENT_MACHINE_SYMBOLS } from "../../components/EnvironmentMachineSymbol";
 import { GlassSurface } from "../../components/ui/GlassSurface";
 import { PierreEntryIcon } from "../../components/PierreEntryIcon";
 import { pullRequestStatus } from "../pull-requests/pullRequestStatus";
@@ -62,7 +64,8 @@ export type ComposerCommandItem =
       readonly label: string;
       readonly description: string;
     }
-  | ComposerModelItem;
+  | ComposerModelItem
+  | ComposerEnvironmentItem;
 
 interface ComposerCommandPopoverProps {
   readonly items: ReadonlyArray<ComposerCommandItem>;
@@ -114,6 +117,8 @@ function itemIcon(item: ComposerCommandItem): AppSymbolName | null {
       return "text.bubble";
     case "model":
       return "cpu";
+    case "environment":
+      return ENVIRONMENT_MACHINE_SYMBOLS[item.machine];
   }
 }
 

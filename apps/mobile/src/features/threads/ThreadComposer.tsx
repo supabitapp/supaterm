@@ -65,6 +65,8 @@ import {
 import { appAtomRegistry } from "../../state/atom-registry";
 import type { ComposerDocumentAttachment } from "../../lib/composerContext";
 import { useProject, useThreadShells } from "../../state/entities";
+import { useMentionableEnvironments } from "../../state/environments";
+import { useLinkedEnvironments } from "../../state/peerLinks";
 import { scopeProjectRef } from "@supaterm/client-runtime/environment";
 
 import { AppText as Text } from "../../components/ui/AppText";
@@ -100,6 +102,8 @@ import { ComposerCommandPopover } from "./ComposerCommandPopover";
 import { ComposerPopoverAnchor } from "./ComposerPopoverAnchor";
 import { ComposerQueuedEditAttachments } from "./ComposerQueuedEdit";
 import { useComposerCommandMenu } from "./use-composer-command-menu";
+import type { ComposerEnvironmentCandidate } from "@supaterm/client-runtime/composerThreadItems";
+import { offersLinkedEnvironments } from "@supaterm/client-runtime/link-request";
 import {
   ComposerDictationConfirmAction,
   ComposerDictationLeadingAction,
@@ -119,6 +123,7 @@ import {
 
 export const COMPOSER_COLLAPSED_CHROME = 60;
 
+const NO_MACHINES: ReadonlyArray<ComposerEnvironmentCandidate> = [];
 const INLINE_EDITOR_HEIGHT = 36;
 const COLLAPSED_EDITOR_DEFAULT_INSET = 6;
 // iOS puts line-height slack above glyphs. DM Sans's lowercase midline is
@@ -494,11 +499,16 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
   };
 
   const sideChat = useSideChat(props.environmentId, props.isDraft ? null : props.selectedThread);
+  const mentionableEnvironments = useMentionableEnvironments();
   const composerMenu = useComposerCommandMenu({
     draftMessage: draftMessage,
     ownerKey: composerDraftKey,
     environmentId: props.environmentId,
     threadShells: useThreadShells(),
+    environments: offersLinkedEnvironments(props.serverConfig)
+      ? mentionableEnvironments
+      : NO_MACHINES,
+    linkedEnvironments: useLinkedEnvironments(props.environmentId),
     currentThreadId: props.selectedThread.id,
     projectCwd: props.projectCwd,
     pullRequestProjectId: props.serverConfig != null ? (project?.id ?? null) : null,

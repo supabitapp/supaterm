@@ -1,5 +1,6 @@
 import { formatProviderSkillDisplayName } from "@supaterm/shared/inlineSkills";
 import type { ComposerModelItem } from "@supaterm/client-runtime/composerModelMentions";
+import type { ComposerEnvironmentItem } from "@supaterm/client-runtime/composerThreadItems";
 import type { ComposerPathSearchTarget } from "@supaterm/client-runtime/state/threads";
 import {
   resolveProviderSkillSourceKind,
@@ -28,6 +29,7 @@ import type { ComposerSlashCommand, ComposerTriggerKind } from "@supaterm/shared
 import { cn } from "~/lib/utils";
 import { Badge } from "../ui/badge";
 import { Command, CommandGroup, CommandItem, CommandList } from "../ui/command";
+import { EnvironmentMachineIcon } from "../EnvironmentMachineIcon";
 import { PierreEntryIcon } from "./PierreEntryIcon";
 import { ProviderInstanceIcon } from "./ProviderInstanceIcon";
 import { ComposerBanner } from "./ComposerBanner";
@@ -80,7 +82,8 @@ export type ComposerCommandItem =
       label: string;
       description: string;
     }
-  | ComposerModelItem;
+  | ComposerModelItem
+  | ComposerEnvironmentItem;
 
 export const ComposerCommandMenu = memo(function ComposerCommandMenu(props: {
   listId: string;
@@ -213,6 +216,13 @@ const ComposerCommandMenuItem = memo(function ComposerCommandMenuItem(props: {
           driverKind={props.item.record.driver}
           displayName={props.item.record.providerName}
           iconClassName="size-4"
+        />
+      ) : null}
+      {props.item.type === "environment" ? (
+        <EnvironmentMachineIcon
+          kind={props.item.machine}
+          aria-hidden="true"
+          className="size-4 shrink-0 text-secondary-label"
         />
       ) : null}
       {pullRequestPresentation ? (

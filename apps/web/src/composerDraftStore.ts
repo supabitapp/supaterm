@@ -17,7 +17,6 @@ import {
   PastedTextAttachmentSource,
   type PreviewAnnotationPayload,
   RuntimeMode,
-  ModelContextRecord,
   ThreadContextRecord,
   type ServerProvider,
   type ScopedProjectRef,
@@ -74,7 +73,7 @@ import {
   reviewCommentContextReference,
   terminalContextReference,
   referenceContextReference,
-  type ReferenceContextRecord,
+  ReferenceContextRecord,
 } from "./lib/composerContextRecords";
 import { create } from "zustand";
 import { persist, type PersistStorage, type StorageValue } from "zustand/middleware";
@@ -92,8 +91,7 @@ import { DraftId } from "./draftId";
 const isRuntimeMode = Schema.is(RuntimeMode);
 const isProviderDriverKind = Schema.is(ProviderDriverKind);
 const isReviewCommentContext = Schema.is(ReviewCommentContextSchema);
-const ReferenceContextRecordSchema = Schema.Union([ThreadContextRecord, ModelContextRecord]);
-const isReferenceContextRecord = Schema.is(ReferenceContextRecordSchema);
+const isReferenceContextRecord = Schema.is(ReferenceContextRecord);
 const isSnapShotSource = Schema.is(SnapShotSource);
 const isPreviewAnnotationPayload = Schema.is(PreviewAnnotationPayloadSchema);
 
@@ -234,7 +232,7 @@ const PersistedComposerThreadDraftState = Schema.Struct({
   terminalContexts: Schema.optionalKey(Schema.Array(PersistedTerminalContextDraft)),
   previewAnnotations: Schema.optionalKey(Schema.Array(PreviewAnnotationPayloadSchema)),
   reviewComments: Schema.optionalKey(Schema.Array(ReviewCommentContextSchema)),
-  referenceContexts: Schema.optionalKey(Schema.Array(ReferenceContextRecordSchema)),
+  referenceContexts: Schema.optionalKey(Schema.Array(ReferenceContextRecord)),
   /** Drafts saved before model chips kept thread records here. */
   threadContexts: Schema.optionalKey(Schema.Array(ThreadContextRecord)),
   // Keyed by `ProviderInstanceId` so custom provider instances round-trip. The record's values

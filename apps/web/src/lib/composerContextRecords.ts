@@ -6,6 +6,9 @@ import {
   COMPOSER_CONTEXT_REVIEW_DIFF_MAX_CHARS,
   COMPOSER_CONTEXT_REVIEW_TEXT_MAX_CHARS,
   COMPOSER_CONTEXT_TERMINAL_TEXT_MAX_CHARS,
+  EnvironmentContextRecord,
+  ModelContextRecord,
+  ThreadContextRecord,
 } from "@supaterm/contracts";
 import type {
   ComposerContextId,
@@ -15,15 +18,14 @@ import type {
   ImageContextRecord,
   KnownComposerContextRecord,
   MessageId,
-  ModelContextRecord,
   OrchestrationMessageContext,
   PreviewAnnotationContextRecord,
   PreviewAnnotationPayload,
   ReviewCommentContextRecord,
   TerminalContextRecord,
-  ThreadContextRecord,
   ThreadId,
 } from "@supaterm/contracts";
+import * as Schema from "effect/Schema";
 import { upgradeLegacyContextMessage } from "@supaterm/shared/composerContextLegacy";
 import { encodeComposerContextFragment } from "@supaterm/shared/composerContextClipboard";
 import {
@@ -164,7 +166,12 @@ export function previewAnnotationContextReference(
 }
 
 /** Records a draft keeps as sent, because they only point at something the agent can look up. */
-export type ReferenceContextRecord = ThreadContextRecord | ModelContextRecord;
+export const ReferenceContextRecord = Schema.Union([
+  ThreadContextRecord,
+  ModelContextRecord,
+  EnvironmentContextRecord,
+]);
+export type ReferenceContextRecord = typeof ReferenceContextRecord.Type;
 
 export function referenceContextReference(
   record: ReferenceContextRecord,

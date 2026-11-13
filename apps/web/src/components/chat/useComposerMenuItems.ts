@@ -3,7 +3,11 @@ import {
   matchComposerModelItems,
   type ComposerModelCandidate,
 } from "@supaterm/client-runtime/composerModelMentions";
-import { matchComposerThreadItems } from "@supaterm/client-runtime/composerThreadItems";
+import {
+  matchComposerEnvironmentItems,
+  matchComposerThreadItems,
+} from "@supaterm/client-runtime/composerThreadItems";
+import { useAtomValue } from "@effect/atom-react";
 import { useState } from "react";
 import type {
   EnvironmentId,
@@ -23,6 +27,7 @@ import {
 import type { ComposerTrigger } from "@supaterm/shared/composerTrigger";
 import { formatProviderSkillDisplayName } from "@supaterm/shared/inlineSkills";
 
+import type { DraftId } from "../../composerDraftStore";
 import { basenameOfPath } from "../../pierre-icons";
 import {
   getProviderSkillsForSlashMenu,
@@ -30,6 +35,8 @@ import {
 } from "@supaterm/client-runtime/providerSkills";
 import { searchProviderSkills } from "../../providerSkillSearch";
 import { useThreadShells } from "~/state/entities";
+import { useEnvironmentIdentities, useEnvironmentMachines } from "~/state/environments";
+import { offersLinkedEnvironmentsAtom } from "~/state/peerLinks";
 import {
   pullRequestEnvironment,
   usePullRequestList,
@@ -77,6 +84,7 @@ function composerModelCandidates(
 export function useComposerMenuItems({
   composerTrigger,
   environmentId,
+  linkedEnvironments,
   gitCwd,
   activeThreadId,
   pullRequestProjectId,
@@ -92,9 +100,11 @@ export function useComposerMenuItems({
   selectedProviderSlashCommands,
   showSkillsInSlashMenu,
   workspaceSkillsScanning,
+  questionAttachmentTarget,
 }: {
   readonly composerTrigger: ComposerTrigger | null;
   readonly environmentId: EnvironmentId;
+  readonly linkedEnvironments: ReadonlyMap<EnvironmentId, string>;
   readonly gitCwd: string | null;
   readonly activeThreadId: ThreadId | null;
   readonly pullRequestProjectId: ProjectId | null;
@@ -110,6 +120,7 @@ export function useComposerMenuItems({
   readonly selectedProviderSlashCommands: ServerProvider["slashCommands"];
   readonly showSkillsInSlashMenu: boolean;
   readonly workspaceSkillsScanning: boolean;
+  readonly questionAttachmentTarget: DraftId | null;
 }) {
   // Thread mentions rank by recency as of when the composer mounted.
   const [now] = useState(() => Date.now());
@@ -130,6 +141,14 @@ export function useComposerMenuItems({
   const environmentThreadShells = useThreadShells(isPathTrigger);
   // Mounts older done threads matching the mention, which shells may leave out.
   useThreadSearch(isPathTrigger ? [environmentId] : [], pathTriggerQuery, { titlesOnly: true });
+  // The user's machines feed `@` machine matches; the catalog summary is cheap and stable.
+  const environmentIdentities = useEnvironmentIdentities();
+  const environmentMachines = useEnvironmentMachines();
+  const offersMachines = useAtomValue(offersLinkedEnvironmentsAtom(environmentId));
+  const mentionableEnvironments = environmentIdentities.map((identity) => ({
+    ...identity,
+    machine: environmentMachines.get(identity.environmentId) ?? ("server" as const),
+  }));
   const workspaceEntries = useComposerPathSearch({
     environmentId,
     cwd: isPathTrigger ? gitCwd : null,
@@ -201,10 +220,19 @@ export function useComposerMenuItems({
         ...matchComposerThreadItems({
           shells: environmentThreadShells,
           environmentId,
+          linkedEnvironments,
           excludeThreadId: activeThreadId,
           query: composerTrigger.query,
           now,
         }),
+        // An answer to an agent's question carries no machines.
+        ...(questionAttachmentTarget === null && offersMachines
+          ? matchComposerEnvironmentItems({
+              environments: mentionableEnvironments,
+              environmentId,
+              query: composerTrigger.query,
+            })
+          : []),
         ...matchComposerModelItems(
           composerModelCandidates(providerInstanceEntries, modelOptionsByInstance),
           composerTrigger.query,

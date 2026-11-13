@@ -78,8 +78,9 @@ import {
 } from "./composerDraftStore";
 import { waitForDraftHeroTransition } from "./components/chat/draftHeroTransition";
 import { insertInlineContextReference } from "./lib/composerContextReferences";
-import { terminalContextReference } from "./lib/composerContextRecords";
+import { buildMessageContext, terminalContextReference } from "./lib/composerContextRecords";
 import {
+  environmentContextRecord,
   modelContextRecord,
   threadContextRecord,
 } from "@supaterm/shared/composerContextReferences";
@@ -710,6 +711,10 @@ describe("composerDraftStore reference contexts", () => {
     name: "Claude Opus 4.5",
     providerName: "Claude",
   });
+  const vps = environmentContextRecord(EnvironmentId.make("environment-vps"), "Hetzner [vps]");
+  const threadChip = `[${attached.label}](supaterm-context://v1/thread/${attached.contextId})`;
+  const modelChip = `[${model.label}](supaterm-context://v1/model/${model.contextId})`;
+  const machineChip = `[${vps.label}](supaterm-context://v1/environment/${vps.contextId})`;
 
   beforeEach(resetComposerDraftStore);
 
@@ -718,13 +723,13 @@ describe("composerDraftStore reference contexts", () => {
     store.setPrompt(threadRef, "Compare with");
     store.addReferenceContexts(threadRef, [attached]);
     store.addReferenceContexts(threadRef, [attached, { ...attached, title: "renamed" }, model]);
+    store.addReferenceContexts(threadRef, [vps, { ...vps, label: "renamed" }]);
 
     const draft = draftFor(threadId, TEST_ENVIRONMENT_ID);
-    expect(draft?.referenceContexts).toEqual([attached, model]);
+    expect(draft?.referenceContexts).toEqual([attached, model, vps]);
     expect(attached.label).toBe("Fix login flow");
-    expect(draft?.prompt).toBe(
-      `Compare with [${attached.label}](supaterm-context://v1/thread/${attached.contextId}) [${model.label}](supaterm-context://v1/model/${model.contextId}) `,
-    );
+    expect(vps.label).toBe("Hetzner vps");
+    expect(draft?.prompt).toBe(`Compare with ${threadChip} ${modelChip} ${machineChip} `);
 
     const merge = useComposerDraftStore.persist.getOptions().merge!;
     const persisted = JSON.parse(
@@ -734,13 +739,49 @@ describe("composerDraftStore reference contexts", () => {
       merge(persisted, useComposerDraftStore.getInitialState()).draftsByThreadKey[
         scopedThreadKey(threadRef)
       ];
-    expect(hydrate()?.referenceContexts).toEqual([attached, model]);
+    expect(hydrate()?.referenceContexts).toEqual([attached, model, vps]);
     expect(hydrate()?.prompt).toBe(draft?.prompt);
+    // A machine is sent as its identity alone: the same array feeds a send and a queued edit.
+    expect(
+      buildMessageContext({
+        terminalContexts: [],
+        reviewComments: [],
+        previewAnnotations: [],
+        referenceContexts: hydrate()?.referenceContexts ?? [],
+      })?.records,
+    ).toEqual([
+      attached,
+      model,
+      {
+        version: 1,
+        kind: "environment",
+        contextId: vps.contextId,
+        label: "Hetzner vps",
+        environmentId: "environment-vps",
+      },
+    ]);
 
     const savedDraft = persisted.draftsByThreadKey[scopedThreadKey(threadRef)];
     savedDraft.threadContexts = [attached];
     delete savedDraft.referenceContexts;
     expect(hydrate()?.referenceContexts).toEqual([attached]);
+  });
+
+  it("drops a removed mention's chip, restores it on undo, and removes an emptied draft", () => {
+    const store = useComposerDraftStore.getState();
+    store.addReferenceContexts(threadRef, [attached, model, vps]);
+
+    store.setReferenceContexts(threadRef, [attached]);
+    expect(draftFor(threadId, TEST_ENVIRONMENT_ID)?.prompt.trim()).toBe(threadChip);
+
+    store.setReferenceContexts(threadRef, [attached, model, vps]);
+    const restored = draftFor(threadId, TEST_ENVIRONMENT_ID);
+    expect(restored?.referenceContexts).toEqual([attached, model, vps]);
+    expect(restored?.prompt.trim()).toBe(`${threadChip} ${modelChip} ${machineChip}`);
+
+    store.setReferenceContexts(threadRef, [vps]);
+    store.setReferenceContexts(threadRef, []);
+    expect(draftFor(threadId, TEST_ENVIRONMENT_ID)).toBeUndefined();
   });
 });
 

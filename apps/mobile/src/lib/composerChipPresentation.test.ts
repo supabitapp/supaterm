@@ -60,6 +60,10 @@ describe("contextChipIcon", () => {
       kind: "chip",
       name: "terminal",
     });
+    expect(contextChipIcon(contextChipPresentation("environment"), "")).toEqual({
+      kind: "chip",
+      name: "server",
+    });
     const record = { kind: "file", path: "src/index.ts" };
     expect(
       contextChipIcon(contextChipPresentation("file", record), contextRecordFileName(record)),
@@ -83,6 +87,7 @@ const CHIP_ACCENTS = [
         "pull-request",
         "skill",
         "thread",
+        "environment",
       ].map((kind) => contextChipPresentation(kind)),
       ...[
         { state: "open", isDraft: false },

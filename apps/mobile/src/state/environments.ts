@@ -3,7 +3,8 @@ import {
   connectionCatalogDisplayUrl,
   type EnvironmentPresentation as BaseEnvironmentPresentation,
 } from "@supaterm/client-runtime/connection";
-import type { EnvironmentId } from "@supaterm/contracts";
+import type { ComposerEnvironmentCandidate } from "@supaterm/client-runtime/composerThreadItems";
+import { type EnvironmentId, resolveEnvironmentMachineKind } from "@supaterm/contracts";
 
 import { environmentCatalog } from "../connection/catalog";
 import { environmentPresentations } from "./presentation";
@@ -41,4 +42,14 @@ export function useEnvironments() {
     environments,
     presentationById,
   };
+}
+
+/** The user's machines as `@` mention candidates, drawn with their machine kind. */
+export function useMentionableEnvironments(): ReadonlyArray<ComposerEnvironmentCandidate> {
+  const { environments } = useEnvironments();
+  return environments.map((environment) => ({
+    environmentId: environment.environmentId,
+    label: environment.label,
+    machine: resolveEnvironmentMachineKind(environment.serverConfig),
+  }));
 }
