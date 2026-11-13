@@ -9,10 +9,7 @@ import { useMemo, useState } from "react";
 import { Platform } from "react-native";
 
 import type { EnvironmentThreadShell } from "@supaterm/client-runtime/state/shell";
-import {
-  pickableProjectGroups,
-  resolveScratchProjectScopeKey,
-} from "@supaterm/client-runtime/state/project-grouping";
+import { pickableProjectGroups } from "@supaterm/client-runtime/state/project-grouping";
 
 import { useProjects } from "../../state/entities";
 import { steadyNavigationThreadShellsAtom } from "../../state/threads";
@@ -32,7 +29,7 @@ import {
   useAtomValueWhileVisible,
   useHomeRouteVisible,
 } from "./home-route-visibility";
-import { buildHomeProjectScopes } from "./homeThreadList";
+import { buildHomeProjectScopes, resolveHomeProjectFilterScope } from "./homeThreadList";
 import { usePendingTaskListActions } from "./usePendingTaskListActions";
 import { useThreadListActions } from "./useThreadListActions";
 import { useWorkspaceTabs } from "../layout/workspace/WorkspaceTabsContext";
@@ -132,35 +129,25 @@ export function HomeRouteScreen() {
     setHideOfflineEnvironments,
   } = useHomeListOptions(availableEnvironmentIds);
   const selectedEnvironmentId = listOptions.selectedEnvironmentId;
-  // A legacy per-environment scratch key resolves here on every render; the stored
-  // value is only rewritten when the user picks a filter.
-  const resolvedProjectKey = resolveScratchProjectScopeKey(
-    listOptions.selectedProjectKey,
-    projects,
-    {
-      sidebarProjectGroupingMode: listOptions.projectGroupingMode,
-      sidebarProjectGroupingOverrides: {},
-    },
+  const projectScopes = useMemo(
+    () =>
+      buildHomeProjectScopes({
+        projects,
+        environmentId: selectedEnvironmentId,
+        projectGroupingMode: listOptions.projectGroupingMode,
+      }),
+    [listOptions.projectGroupingMode, projects, selectedEnvironmentId],
   );
   const projectFilterOptions = useMemo(
     () =>
-      pickableProjectGroups(
-        buildHomeProjectScopes({
-          projects,
-          environmentId: selectedEnvironmentId,
-          projectGroupingMode: listOptions.projectGroupingMode,
-        }),
-      ).map((scope) => ({
+      pickableProjectGroups(projectScopes).map((scope) => ({
         key: scope.key,
         label: scope.title,
       })),
-    [listOptions.projectGroupingMode, projects, selectedEnvironmentId],
+    [projectScopes],
   );
-  const selectedProjectKey = projectFilterOptions.some(
-    (project) => project.key === resolvedProjectKey,
-  )
-    ? resolvedProjectKey
-    : null;
+  const selectedProjectKey =
+    resolveHomeProjectFilterScope(projectScopes, projects, listOptions)?.key ?? null;
   const threadListFilters = {
     grouping: listOptions.threadGrouping,
     onGroupingChange: setThreadGrouping,
