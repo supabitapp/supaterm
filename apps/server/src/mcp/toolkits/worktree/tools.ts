@@ -1,5 +1,6 @@
 import {
   WorktreeMcpFailure,
+  OrchestratorMcpEnvironmentTarget,
   OrchestratorMcpFailure,
   VcsListRefsInput,
   VcsListRefsResult,
@@ -61,6 +62,7 @@ const WorktreeListTool = Tool.make("supaterm_worktree_list", {
   description:
     "List branch refs and checkout paths for a thread's workspace. Omit `threadId` for this thread. Detached worktrees with no branch are left out.",
   parameters: Schema.Struct({
+    environmentId: OrchestratorMcpEnvironmentTarget,
     threadId: Schema.optional(ThreadId),
     query: VcsListRefsInput.fields.query,
     cursor: VcsListRefsInput.fields.cursor,

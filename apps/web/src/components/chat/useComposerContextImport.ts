@@ -71,6 +71,7 @@ async function downloadAttachmentBlob(url: string): Promise<Blob | null> {
  */
 export function useComposerContextImport(input: {
   readonly environmentId: EnvironmentId;
+  readonly linkedEnvironments: ReadonlyMap<EnvironmentId, string>;
   readonly activeThread: ChatComposerProps["activeThread"];
   readonly activeThreadId: ChatComposerProps["activeThreadId"];
   readonly composerDraftTarget: ChatComposerProps["composerDraftTarget"];
@@ -88,6 +89,7 @@ export function useComposerContextImport(input: {
 }) {
   const {
     environmentId,
+    linkedEnvironments,
     activeThread,
     activeThreadId,
     composerDraftTarget,
@@ -328,7 +330,9 @@ export function useComposerContextImport(input: {
                     ? existing.record.id
                     : undefined,
                 })
-              : existing?.kind === "thread" || existing?.kind === "model"
+              : existing?.kind === "thread" ||
+                  existing?.kind === "model" ||
+                  existing?.kind === "environment"
                 ? existing.record
                 : existing
                   ? (uploadedContextRecordFromDraft(existing) ?? undefined)
@@ -336,7 +340,7 @@ export function useComposerContextImport(input: {
       if (
         existingRecord &&
         isSameComposerContextPayload(existingRecord, record) &&
-        ((record.kind !== "thread" && record.kind !== "model") ||
+        ((record.kind !== "thread" && record.kind !== "model" && record.kind !== "environment") ||
           referenceDraftTarget === attachmentDraftTarget)
       ) {
         if (record.kind === "preview-annotation" && record.screenshotContextId) {
@@ -383,9 +387,20 @@ export function useComposerContextImport(input: {
           break;
         }
         case "thread":
-        case "model": {
-          // The agent can only read threads on its own server; a pasted foreign one is dropped.
-          if (record.kind === "thread" && record.environmentId !== environmentId) break;
+        case "model":
+        case "environment": {
+          // The agent reads threads on its own server and the machines it links to; a pasted
+          // thread from any other machine is dropped.
+          if (
+            record.kind === "thread" &&
+            record.environmentId !== environmentId &&
+            !linkedEnvironments.has(record.environmentId)
+          )
+            break;
+          // A machine means the same machine from any thread, so a pasted one is kept,
+          // but not in an answer to an agent's question, which carries no machines.
+          if (record.kind === "environment" && referenceDraftTarget === questionAttachmentTarget)
+            break;
           addComposerDraftReferenceContexts(referenceDraftTarget, [record], {
             appendReference: false,
           });

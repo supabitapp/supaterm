@@ -156,6 +156,7 @@ import {
 import {
   readThreadShell,
   useAllEnvironmentProjectSnapshotsReady,
+  useDelegatedUnderParent,
   useProjects,
   useServerConfigs,
   useQuietSidebarThreadShells,
@@ -341,6 +342,8 @@ type SidebarOptimisticDrop = {
 interface SidebarThreadPartitionInput {
   readonly threads: readonly EnvironmentThreadShell[];
   readonly scopedProjectKeys: ReadonlySet<string> | null;
+  /** Tasks linked environments run for a listed thread; they show under it. */
+  readonly delegatedUnderParent: ReadonlySet<string>;
   readonly serverThreadKeys: ReadonlySet<string>;
   readonly serverConfigs: ReadonlyMap<EnvironmentId, EnvironmentServerConfig>;
   readonly connectedEnvironmentIds: readonly EnvironmentId[];
@@ -400,6 +403,7 @@ function useSidebarThreads(input: {
   readonly hiddenEnvironmentIds: ReadonlySet<EnvironmentId>;
   readonly keptThreadKey: string | null;
   readonly threads: readonly EnvironmentThreadShell[];
+  readonly delegatedUnderParent: ReadonlySet<string>;
   readonly routeRowThreadKey: string | null;
   readonly dragging: boolean;
   readonly grouping: SidebarThreadGrouping;
@@ -414,6 +418,7 @@ function useSidebarThreads(input: {
     hiddenEnvironmentIds,
     keptThreadKey,
     threads,
+    delegatedUnderParent,
     routeRowThreadKey,
   } = input;
   const serverThreadRefs = useThreadRefs();
@@ -472,6 +477,7 @@ function useSidebarThreads(input: {
   const partition = partitionSidebarThreads({
     threads,
     scopedProjectKeys,
+    delegatedUnderParent,
     serverThreadKeys,
     serverConfigs,
     connectedEnvironmentIds,
@@ -620,14 +626,21 @@ function olderDoneScopes(
 }
 
 function partitionSidebarThreads(input: SidebarThreadPartitionInput) {
-  const { threads, scopedProjectKeys, serverThreadKeys, serverConfigs, optimisticDrop } = input;
+  const {
+    threads,
+    scopedProjectKeys,
+    delegatedUnderParent,
+    serverThreadKeys,
+    serverConfigs,
+    optimisticDrop,
+  } = input;
   // Snooze classification uses a real clock, not the quantized minute: wake
   // times are second-precise and a woken thread must not linger on the
   // shelf for the rest of the minute.
   const preciseNow = new Date(
     Math.max(Date.now(), Date.parse(`${input.nowMinute}:00.000Z`), input.snoozeWakeTickAt),
   ).toISOString();
-  const listed = filterSidebarV2VisibleThreads(threads, scopedProjectKeys);
+  const listed = filterSidebarV2VisibleThreads(threads, scopedProjectKeys, delegatedUnderParent);
   const visible = withoutOfflineEnvironmentThreads(
     listed,
     input.hiddenEnvironmentIds,
@@ -881,6 +894,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
     projectGroupByScopeKey,
     projectScopeItems: lookupProjectScopeItems,
   } = useSidebarLookups();
+  const delegatedUnderParent = useDelegatedUnderParent();
   const router = useRouter();
   const { isMobile, setOpenMobile } = useSidebar();
   const keybindings = useAtomValue(primaryServerKeybindingsAtom);
@@ -1116,6 +1130,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
     reveal: routeReveal,
     routeKey: routeRowThreadKey,
     scopedProjectKeys: chosenProjectScope.memberKeys,
+    delegatedUnderParent,
     findThread: (key) => threads.find((candidate) => threadShellKey(candidate) === key),
   });
   const {
@@ -1277,6 +1292,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
     hiddenEnvironmentIds,
     keptThreadKey,
     threads,
+    delegatedUnderParent,
     routeRowThreadKey,
     // A Working row only drags out as chat context, so it never reveals the pin order.
     dragging: dragState !== null && dragState.activeSection !== "working",

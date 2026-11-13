@@ -20,6 +20,7 @@ const state = vi.hoisted(() => ({
   archivedRefreshes: [] as string[],
   scopes: new Map<string, Set<string>>(),
   shells: [] as EnvironmentThreadShell[],
+  hiddenShells: [] as EnvironmentThreadShell[],
   requests: [] as {
     action: string;
     environmentId: string;
@@ -78,21 +79,23 @@ vi.mock("../../state/atom-registry", () => ({
         : atom === "thread-drop-busy"
           ? state.dropBusy
           : atom === "thread-shells"
-            ? state.shells
-            : atom === "side-chats"
-              ? []
-              : atom === "queued-thread-keys"
-                ? new Set<string>()
-                : new Map(
-                    [...state.scopes.keys()].map((environmentId) => [
-                      environmentId,
-                      {
-                        environment: {
-                          capabilities: {},
+            ? [...state.shells, ...state.hiddenShells]
+            : atom === "navigation-thread-shells"
+              ? state.shells
+              : atom === "side-chats"
+                ? []
+                : atom === "queued-thread-keys"
+                  ? new Set<string>()
+                  : new Map(
+                      [...state.scopes.keys()].map((environmentId) => [
+                        environmentId,
+                        {
+                          environment: {
+                            capabilities: {},
+                          },
                         },
-                      },
-                    ]),
-                  ),
+                      ]),
+                    ),
   },
 }));
 vi.mock("../../state/use-atom-command", () => ({
@@ -116,7 +119,11 @@ vi.mock("../../state/thread-order", () => ({
   },
 }));
 vi.mock("../../state/threads", () => ({
-  environmentThreadShells: { threadShellsAtom: "thread-shells", sideChatsAtom: () => "side-chats" },
+  environmentThreadShells: {
+    threadShellsAtom: "thread-shells",
+    navigationThreadShellsAtom: "navigation-thread-shells",
+    sideChatsAtom: () => "side-chats",
+  },
   threadEnvironment: Object.fromEntries(
     [
       "archive",
@@ -190,6 +197,7 @@ beforeEach(() => {
   ]);
   state.requests = [];
   state.shells = [];
+  state.hiddenShells = [];
   state.dialogs = [];
   state.alerts = [];
   state.afterRequest = undefined;
@@ -276,6 +284,22 @@ describe("pinned thread operation permissions", () => {
 
     expect(await useThreadListActions().moveThread(moved, "up")).toBe(false);
     expect(state.requests).toEqual([]);
+  });
+
+  it("leaves a task shown under its parent out of a pinned move", async () => {
+    const moved = makeThread({ pinnedAt: "2026-09-02T00:00:00.000Z" });
+    const pinned = { createdAt: "2026-09-02T00:00:00.000Z", pinnedAt: moved.pinnedAt };
+    state.shells = [moved, makeThread({ id: ThreadId.make("neighbor"), ...pinned })];
+    // Counted, its read-only environment would refuse the whole move.
+    state.hiddenShells = [
+      makeThread({ id: ThreadId.make("task"), environmentId: otherEnvironmentId, ...pinned }),
+    ];
+
+    expect(await useThreadListActions().moveThread(moved, "up")).toBe(true);
+    expect(state.requests.map(({ input }) => input.threadId).toSorted()).toEqual([
+      "neighbor",
+      "thread",
+    ]);
   });
 
   it("moves a keyed thread past a read-only neighbor without writing that neighbor", async () => {

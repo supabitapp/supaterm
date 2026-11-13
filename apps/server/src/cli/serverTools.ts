@@ -168,6 +168,7 @@ export const withServerTools = Effect.fn("cli.serverTools.withServerTools")(func
         // The CLI runs as the machine's owner. A server from this build starts
         // new threads at the project's default mode, never at this ceiling.
         access: "full-access",
+        peerLink: false,
         client: { deviceType: "bot" },
       }),
       (session) =>

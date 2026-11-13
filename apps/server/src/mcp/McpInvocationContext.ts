@@ -5,6 +5,7 @@ import {
   OrchestratorMcpFailure,
   PreviewAutomationUnavailableError,
   type ProviderInstanceId,
+  type ProviderInteractionMode,
   type RuntimeMode,
   type ThreadId,
 } from "@supaterm/contracts";
@@ -12,6 +13,8 @@ import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Fiber from "effect/Fiber";
 import { formatThreadLink } from "@supaterm/shared/threadLinks";
+
+import { interactionModeRank, runtimeModeRank } from "../orchestration-v2/DispatchModeLimit.ts";
 
 const ALL_MCP_CAPABILITIES = [
   "preview",
@@ -34,13 +37,58 @@ export interface McpClientCaller {
   readonly sessionId: string;
   readonly label: string;
   readonly access: AuthMcpClientAccess;
+  /**
+   * Another Supaterm environment's peer link. What it starts here carries its
+   * session as `linkOrigin`, and it changes only that work (`linkOrigin.ts`).
+   */
+  readonly linked?: boolean | undefined;
+  /**
+   * Narrower modes the client asked for on this request (`Supaterm-Mode-Limit`):
+   * another environment passing on the limits of the agent it calls for.
+   */
+  readonly narrowedTo?: ClientModes | undefined;
   /** The origin an outside client reached; its thread links open the web app there. */
   readonly webOrigin?: string | undefined;
 }
 
-/** Read-only clients map to the lowest mode because McpToolAccess blocks writes first. */
-export const clientRuntimeModeCeiling = (client: McpClientCaller | undefined): RuntimeMode =>
-  client === undefined || client.access === "read-only" ? "approval-required" : client.access;
+/**
+ * `Supaterm-Mode-Limit: <runtimeMode>/<interactionMode>` lets an OAuth client cap
+ * a request below what it was approved with: another environment passes on
+ * the limits of the agent it calls for. It can only narrow (see
+ * `clientModeCeiling`), so a client gains nothing by sending a broad one.
+ */
+export const MODE_LIMIT_HEADER = "supaterm-mode-limit";
+
+export interface ClientModes {
+  readonly runtimeMode: RuntimeMode;
+  readonly interactionMode: ProviderInteractionMode;
+}
+
+/**
+ * The modes a client caller's writes are capped at: what it was approved
+ * with, narrowed by what it asked for on this request. A read-only client
+ * never reaches a write (`McpToolAccess` refuses it first), so it maps to the
+ * lowest runtime mode rather than to nothing.
+ */
+export const clientModeCeiling = (client: McpClientCaller | undefined): ClientModes => {
+  const approved: ClientModes = {
+    runtimeMode:
+      client === undefined || client.access === "read-only" ? "approval-required" : client.access,
+    interactionMode: "default",
+  };
+  const asked = client?.narrowedTo;
+  if (asked === undefined) return approved;
+  return {
+    runtimeMode:
+      runtimeModeRank[asked.runtimeMode] < runtimeModeRank[approved.runtimeMode]
+        ? asked.runtimeMode
+        : approved.runtimeMode,
+    interactionMode:
+      interactionModeRank[asked.interactionMode] < interactionModeRank[approved.interactionMode]
+        ? asked.interactionMode
+        : approved.interactionMode,
+  };
+};
 
 /** Thread callers default to their own thread; client callers need thread for tools that act as the caller. */
 export interface McpInvocationScope {
@@ -50,6 +98,8 @@ export interface McpInvocationScope {
   readonly requestNamespace: string;
   readonly thread: McpThreadCaller | undefined;
   readonly client: McpClientCaller | undefined;
+  /** False while the Linked environments beta is off here; `/mcp` reads it per request. */
+  readonly linkedEnvironments?: boolean;
 }
 
 /**
@@ -81,6 +131,13 @@ export const hiddenFromSubagents = (): boolean => {
   const fiber = Fiber.getCurrent();
   const scope = fiber && Context.getOrUndefined(fiber.context, McpInvocationContext);
   return scope?.thread?.subagent !== true;
+};
+
+/** `McpSchema.EnabledWhen` for tools that only serve links, hidden while the beta is off. */
+export const hiddenWhileLinksOff = (): boolean => {
+  const fiber = Fiber.getCurrent();
+  const scope = fiber && Context.getOrUndefined(fiber.context, McpInvocationContext);
+  return scope?.linkedEnvironments !== false;
 };
 
 export type McpCapabilityError<C extends McpCapability> = C extends "preview"

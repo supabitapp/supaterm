@@ -121,6 +121,12 @@ const knownRecords: Record<(typeof COMPOSER_CONTEXT_KINDS)[number], Record<strin
     model: "anthropic/claude-opus-4.5",
     providerName: "OpenCode Work",
   },
+  environment: {
+    ...base,
+    kind: "environment",
+    label: "vps",
+    environmentId: "environment-vps",
+  },
 };
 
 describe("ComposerContextRecord", () => {
@@ -142,6 +148,15 @@ describe("ComposerContextRecord", () => {
 
   it("does not let a malformed known kind slide through as unknown", () => {
     expect(Option.isNone(decodeRecord({ ...base, kind: "image", label: "x" }))).toBe(true);
+    expect(Option.isNone(decodeRecord({ ...base, kind: "environment", label: "vps" }))).toBe(true);
+  });
+
+  it("carries a mentioned machine as its identity, dropping any address", () => {
+    expect(
+      Option.getOrThrow(
+        decodeRecord({ ...knownRecords.environment, url: "https://vps.example.test" }),
+      ),
+    ).toEqual(knownRecords.environment);
   });
 
   it("bounds the serialized payload of future context kinds", () => {

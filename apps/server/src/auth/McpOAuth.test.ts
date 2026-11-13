@@ -1,9 +1,12 @@
 import * as NodeCrypto from "@effect/platform-node/NodeCrypto";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import {
+  AuthMcpClientAccess,
   AuthStandardClientScopes,
   type AuthCreatePairingCredentialInput,
   EnvironmentHttpApi,
+  MCP_PEER_LINK_SOFTWARE_ID,
+  mcpClientScopes,
 } from "@supaterm/contracts";
 import { expect, it } from "@effect/vitest";
 import * as Context from "effect/Context";
@@ -20,6 +23,7 @@ import * as Schema from "effect/Schema";
 
 import * as ServerConfig from "../config.ts";
 import * as ServerEnvironment from "../environment/ServerEnvironment.ts";
+import * as ServerSettings from "../serverSettings.ts";
 import * as Sqlite from "../persistence/Sqlite.ts";
 import * as EnvironmentAuth from "./EnvironmentAuth.ts";
 import * as McpOAuth from "./McpOAuth.ts";
@@ -45,7 +49,12 @@ const makeLayerRoutes = (capture: (auth: EnvironmentAuth.EnvironmentAuth["Servic
     ),
     HttpApiBuilder.layer(AuthTestApi).pipe(
       Layer.provide(AuthHttp.layer),
-      Layer.provide(McpOAuthHttp.layer.pipe(Layer.provide(McpOAuth.layer))),
+      Layer.provide(
+        McpOAuthHttp.layer.pipe(
+          Layer.provide(McpOAuth.layer),
+          Layer.provide(ServerSettings.layerTest({ linkedEnvironmentsEnabled: true })),
+        ),
+      ),
       Layer.provide(AuthHttp.layerAuthenticatedAuth),
     ),
   ).pipe(
@@ -463,6 +472,23 @@ it.live("denies requests and refuses codes without the scopes it grants", () =>
   ),
 );
 
+it.live("a code minted with an access level's scopes approves that access", () =>
+  withRoutes((handler, auth) =>
+    Effect.gen(function* () {
+      const params = authorizeParams(yield* registeredClientId(handler));
+      for (const access of AuthMcpClientAccess.literals) {
+        const code = yield* auth.issuePairingCredential({ scopes: [...mcpClientScopes(access)] });
+        const approval = yield* decide(handler, params, {
+          _tag: "pairing-code",
+          access,
+          code: code.credential,
+        });
+        expect(approval.status, access).toBe(200);
+      }
+    }),
+  ),
+);
+
 it.live("an app approval code approves only an app sign-in, at its own level", () =>
   withRoutes((handler, auth) =>
     Effect.gen(function* () {
@@ -486,6 +512,23 @@ it.live("an app approval code approves only an app sign-in, at its own level", (
         .exchangeBootstrapCredentialForAccessToken(code, undefined, { deviceType: "bot" })
         .pipe(Effect.flip);
       expect(exchanged._tag).toBe("ServerAuthInvalidCredentialError");
+      const peer = yield* handler(
+        at("/oauth/mcp/register", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: encodeJson({
+            client_name: "Studio",
+            software_id: MCP_PEER_LINK_SOFTWARE_ID,
+            redirect_uris: [REDIRECT],
+          }),
+        }),
+      ).pipe(Effect.flatMap(json<{ client_id: string }>));
+      const linked = yield* decide(handler, authorizeParams(peer.client_id), {
+        _tag: "pairing-code",
+        access: "approval-required",
+        code,
+      });
+      expect(linked.status).toBe(400);
 
       // Supervised and Auto share scopes, so only the code's own level may spend it.
       const otherLevel = yield* decide(handler, params, {

@@ -29,6 +29,7 @@ const chipIcons = [
   "message-circle",
   "messages-square",
   "mouse-pointer-click",
+  "server",
   "terminal",
 ];
 

@@ -71,6 +71,7 @@ vi.mock("../../state/workspace", () => ({
   useWorkspaceEnvironments: () => [],
 }));
 vi.mock("../../state/project-has-threads", () => ({ useProjectHasThreads: () => false }));
+vi.mock("../../state/peerLinks", () => ({ useLinkedEnvironments: () => new Map() }));
 vi.mock("../../state/entities", () => ({
   useProjects: () => useAtomValue(projectsAtom),
   useThreadShells: () => [],

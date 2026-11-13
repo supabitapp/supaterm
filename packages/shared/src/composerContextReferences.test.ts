@@ -359,6 +359,27 @@ describe("provider projection", () => {
     expect(formatModelContextText(record)).toBe(`Claude Opus 4.5 (delegate_task target ${target})`);
   });
 
+  it("projects a mentioned machine as its identity and how to use it, never an address", () => {
+    const projected = projectComposerContextForProvider({
+      text: "Run the suite on [vps](supaterm-context://v1/environment/env_vps)",
+      records: [
+        {
+          version: 1,
+          kind: "environment",
+          contextId: ctx("env_vps"),
+          label: "vps",
+          environmentId: "environment-vps" as never,
+        },
+      ],
+    });
+    expect(projected.startsWith("Run the suite on [Environment: vps; ref=env_vps]")).toBe(true);
+    expect(projected).toContain('<context kind="environment" id="env_vps">');
+    expect(projected).toContain("label: vps");
+    expect(projected).toContain("environmentId: environment-vps");
+    expect(projected).toContain("supaterm_environment_link with this environmentId");
+    expect(projected).not.toMatch(/https?:/);
+  });
+
   it("marks duplicate identities unavailable instead of choosing one payload", () => {
     const projected = projectComposerContextForProvider({
       text: "[log](supaterm-context://v1/terminal/ctx_t)",
@@ -400,6 +421,7 @@ describe("threadContextsOutsideEnvironment", () => {
         text: `${localReference} [Foreign](supaterm-context://v1/thread/thread_foreign)`,
         records,
         environmentId: local.environmentId,
+        linkedEnvironments: new Map(),
       }),
     ).toEqual([foreign]);
     expect(
@@ -407,8 +429,38 @@ describe("threadContextsOutsideEnvironment", () => {
         text: localReference,
         records,
         environmentId: local.environmentId,
+        linkedEnvironments: new Map(),
       }),
     ).toEqual([]);
+  });
+
+  it("lets a thread on a linked machine through, since the agent reads it there", () => {
+    const thread = {
+      version: 1 as const,
+      kind: "thread" as const,
+      label: "Thread",
+      threadId: ThreadId.make("thread"),
+      title: "Thread",
+    };
+    const linked = {
+      ...thread,
+      contextId: ctx("thread_linked"),
+      environmentId: EnvironmentId.make("env-linked"),
+    };
+    const unlinked = {
+      ...thread,
+      contextId: ctx("thread_unlinked"),
+      environmentId: EnvironmentId.make("env-unlinked"),
+    };
+
+    expect(
+      threadContextsOutsideEnvironment({
+        text: "[A](supaterm-context://v1/thread/thread_linked) [B](supaterm-context://v1/thread/thread_unlinked)",
+        records: [linked, unlinked],
+        environmentId: EnvironmentId.make("env-local"),
+        linkedEnvironments: new Map([[linked.environmentId, "VPS"]]),
+      }),
+    ).toEqual([unlinked]);
   });
 });
 

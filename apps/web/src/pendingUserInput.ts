@@ -24,9 +24,8 @@ export function projectPendingUserInputAnswer(
   return replaceComposerContextReferences(answer, (reference) => {
     const record = recordsById.get(reference.contextId);
     if (record?.kind !== reference.kind) return reference.source;
-    return record.kind === "thread"
-      ? formatThreadLink(record, reference.label)
-      : formatModelContextText(record);
+    if (record.kind === "thread") return formatThreadLink(record, reference.label);
+    return record.kind === "model" ? formatModelContextText(record) : reference.source;
   });
 }
 

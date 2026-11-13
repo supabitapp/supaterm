@@ -54,15 +54,16 @@ export function resolveSidebarRouteReveal<T extends RevealableThread>(input: {
   readonly reveal: SidebarRouteReveal;
   readonly routeKey: string | null;
   readonly scopedProjectKeys: ReadonlySet<string> | null;
+  readonly delegatedUnderParent: ReadonlySet<string>;
   readonly findThread: (key: string) => T | undefined;
 }): { readonly pendingKey: string | null; readonly widensScope: boolean } {
-  const { reveal, routeKey, scopedProjectKeys, findThread } = input;
+  const { reveal, routeKey, scopedProjectKeys, delegatedUnderParent, findThread } = input;
   const pendingKey = pendingSidebarRouteReveal(reveal, routeKey);
   const thread = pendingKey === null ? undefined : findThread(pendingKey);
   const widensScope =
     thread !== undefined &&
     scopedProjectKeys !== null &&
-    filterSidebarV2VisibleThreads([thread], scopedProjectKeys).length === 0 &&
-    filterSidebarV2VisibleThreads([thread], null).length === 1;
+    filterSidebarV2VisibleThreads([thread], scopedProjectKeys, delegatedUnderParent).length === 0 &&
+    filterSidebarV2VisibleThreads([thread], null, delegatedUnderParent).length === 1;
   return { pendingKey, widensScope };
 }

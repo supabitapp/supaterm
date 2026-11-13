@@ -418,7 +418,7 @@ it.effect("cancels a stale waiting run when no checkpoint capture can finish it"
   }).pipe(Effect.provide(layer));
 });
 
-it.effect("recovery closes a waiting secret card's form", () => {
+it.effect("recovery closes a secret card's form but leaves a link card open", () => {
   const threadId = ThreadId.make("thread_secret_recovery");
   const runId = RunId.make("run_secret_recovery");
   let committedInput: Parameters<EventSink.EventSinkV2["Service"]["commitCommand"]>[0] | null =
@@ -445,6 +445,17 @@ it.effect("recovery closes a waiting secret card's form", () => {
         secretStatus: "pending",
         label: "GitHub token",
         reason: "Used as GH_TOKEN.",
+      },
+      {
+        id: "turn-item:link-request:recovery",
+        threadId,
+        runId,
+        nodeId: null,
+        type: "link_request",
+        status: "waiting",
+        linkStatus: "pending",
+        url: "https://box.example.ts.net",
+        reason: "Run the suite there.",
       },
     ],
   } as unknown as OrchestrationV2ThreadProjection;
@@ -482,6 +493,11 @@ it.effect("recovery closes a waiting secret card's form", () => {
     const secret = cards.find((card) => card.type === "secret_request");
     assert.equal(secret?.status, "cancelled");
     assert.equal(secret?.type === "secret_request" ? secret.secretStatus : null, "cancelled");
+    // Nothing in memory waits on a link card; the user can still answer it.
+    assert.equal(
+      cards.some((card) => card.type === "link_request"),
+      false,
+    );
   }).pipe(Effect.provide(layer));
 });
 
@@ -1383,6 +1399,12 @@ it.effect("leaves delegated tasks to their own child threads after process loss"
   const settledTaskId = NodeId.make("node_recovery_delegation_settled");
   const runningTaskId = NodeId.make("node_recovery_delegation_running");
   const nativeSubagentId = NodeId.make("node_recovery_native_subagent");
+  const remoteTaskId = NodeId.make("node_recovery_delegation_remote");
+  const remoteChild = {
+    environmentId: "environment:linked",
+    threadId: ThreadId.make("thread:linked-task"),
+    label: "Linked",
+  };
   const delegatedTask = (id: NodeId, runId: RunId) => ({
     id,
     runId,
@@ -1444,10 +1466,12 @@ it.effect("leaves delegated tasks to their own child threads after process loss"
       { id: settledTaskId, runId: settledRunId, status: "running", kind: "subagent" },
       { id: runningTaskId, runId: runningRunId, status: "running", kind: "subagent" },
       { id: nativeSubagentId, runId: settledRunId, status: "running", kind: "subagent" },
+      { id: remoteTaskId, runId: settledRunId, status: "running", kind: "subagent" },
     ],
     subagents: [
       delegatedTask(settledTaskId, settledRunId),
       delegatedTask(runningTaskId, runningRunId),
+      { ...delegatedTask(remoteTaskId, settledRunId), childThreadId: null, remoteChild },
       {
         ...delegatedTask(nativeSubagentId, settledRunId),
         origin: "provider_native",
@@ -1459,6 +1483,11 @@ it.effect("leaves delegated tasks to their own child threads after process loss"
       subagentItem(settledTaskId, settledRunId, "app_owned"),
       subagentItem(runningTaskId, runningRunId, "app_owned"),
       subagentItem(nativeSubagentId, settledRunId, "provider_native"),
+      {
+        ...subagentItem(remoteTaskId, settledRunId, "app_owned"),
+        childThreadId: null,
+        remoteChild,
+      },
     ],
   } as unknown as OrchestrationV2ThreadProjection;
   const layer = ProviderRuntimeRecovery.layer.pipe(
@@ -1510,6 +1539,7 @@ it.effect("leaves delegated tasks to their own child threads after process loss"
     );
     assert.notInclude(touched, settledTaskId);
     assert.notInclude(touched, runningTaskId);
+    assert.notInclude(touched, remoteTaskId);
     assert.include(touched, nativeSubagentId);
 
     const noted = events.flatMap((event) =>

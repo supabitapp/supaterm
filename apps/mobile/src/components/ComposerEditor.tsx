@@ -28,6 +28,7 @@ import { startComposerDraftOperation } from "../state/composerDraftOperations";
 import { appAtomRegistry } from "../state/atom-registry";
 import { mobilePreferencesAtom } from "../state/preferences";
 import { useOpenLinkedThread } from "../features/threads/useOpenLinkedThread";
+import { useLinkedEnvironments } from "../state/peerLinks";
 import { ComposerContextSheet } from "./ComposerContextSheet";
 import { AppText as Text } from "./ui/AppText";
 import {
@@ -89,6 +90,7 @@ export function ComposerEditor({
   const [selected, setSelected] = useState<{ source: string; start: number; end: number } | null>(
     null,
   );
+  const linkedEnvironments = useLinkedEnvironments(environmentId ?? null);
   const contextImports = useAtomValue(composerContextImportsAtom);
   const importing = draftKey ? contextImports[draftKey] === true : false;
   const pasteContext = async (
@@ -113,6 +115,7 @@ export function ComposerEditor({
         signal,
         retained.context?.records.length ?? 0,
         environmentId,
+        linkedEnvironments,
       );
       if (signal.aborted) return;
       if (!result) {

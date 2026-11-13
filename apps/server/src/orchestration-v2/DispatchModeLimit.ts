@@ -22,13 +22,17 @@ export const DispatchModeLimit = Context.Reference<DispatchModeLimitValue | unde
   { defaultValue: () => undefined },
 );
 
-const runtimeModeRank: Record<RuntimeMode, number> = {
+/** The one ordering of modes by how much they allow. Every mode limit compares through it. */
+export const runtimeModeRank: Record<RuntimeMode, number> = {
   "approval-required": 0,
   "auto-accept-edits": 1,
   auto: 2,
   "full-access": 3,
 };
-const interactionModeRank: Record<ProviderInteractionMode, number> = { plan: 0, default: 1 };
+export const interactionModeRank: Record<ProviderInteractionMode, number> = {
+  plan: 0,
+  default: 1,
+};
 
 export const exceededDispatchModeLimit = (
   limit: DispatchModes,

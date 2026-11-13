@@ -9,7 +9,12 @@ import {
   type SubagentWorkflowGroup,
 } from "@supaterm/client-runtime/state/subagentRuntime";
 import { REASONING_EFFORT_OPTION_IDS } from "@supaterm/client-runtime/state/thread-execution";
-import type { OrchestrationV2Subagent, ServerProvider } from "@supaterm/contracts";
+import type {
+  EnvironmentId,
+  OrchestrationV2Subagent,
+  ServerProvider,
+  ThreadId,
+} from "@supaterm/contracts";
 import { resolveSelectableModel } from "@supaterm/shared/model";
 
 import { subagentCardDetail } from "./subagent-card-presentation";
@@ -25,6 +30,38 @@ export interface SubagentRowPresentation {
   readonly tone: SubagentRowTone;
   readonly live: boolean;
   readonly canOpenThread: boolean;
+  /** The linked environment the task runs in, when it runs in one. */
+  readonly runsOn: string | null;
+}
+
+/**
+ * Where an agent's thread opens: here, or in the linked environment that runs
+ * it. Null when there is no thread, or this app is not connected to that
+ * environment.
+ */
+export function subagentThreadTarget(
+  subagent: Pick<OrchestrationV2Subagent, "childThreadId" | "remoteChild">,
+  environmentId: EnvironmentId,
+  isKnownEnvironment: (environmentId: EnvironmentId) => boolean,
+): { readonly environmentId: EnvironmentId; readonly threadId: ThreadId } | null {
+  if (subagent.childThreadId !== null) {
+    return { environmentId, threadId: subagent.childThreadId };
+  }
+  const remote = subagent.remoteChild;
+  return remote !== undefined && isKnownEnvironment(remote.environmentId)
+    ? { environmentId: remote.environmentId, threadId: remote.threadId }
+    : null;
+}
+
+/**
+ * The driver whose icon stands for an agent. A remote task's own driver is only a
+ * "remote" label, so it has none until the app knows the provider that runs it there.
+ */
+export function subagentIconDriver(
+  subagent: Pick<OrchestrationV2Subagent, "driver" | "remoteChild">,
+  provider: Pick<ServerProvider, "driver"> | undefined,
+) {
+  return provider?.driver ?? (subagent.remoteChild === undefined ? subagent.driver : undefined);
 }
 
 function rowTitle(subagent: Pick<OrchestrationV2Subagent, "title" | "prompt">): string {
@@ -67,8 +104,9 @@ function rowStatusLabel(status: OrchestrationV2Subagent["status"]): string {
 export function resolveSubagentRowPresentation(
   subagent: Pick<
     OrchestrationV2Subagent,
-    "title" | "prompt" | "status" | "progress" | "result" | "childThreadId"
+    "title" | "prompt" | "status" | "progress" | "result" | "childThreadId" | "remoteChild"
   >,
+  canOpenRemote = false,
 ): SubagentRowPresentation {
   const live = isActiveSubagentStatus(subagent.status);
   return {
@@ -77,7 +115,9 @@ export function resolveSubagentRowPresentation(
     statusLabel: rowStatusLabel(subagent.status),
     tone: rowTone(subagent.status),
     live,
-    canOpenThread: subagent.childThreadId !== null,
+    canOpenThread:
+      subagent.childThreadId !== null || (subagent.remoteChild !== undefined && canOpenRemote),
+    runsOn: subagent.remoteChild?.label ?? null,
   };
 }
 

@@ -4,6 +4,7 @@ import {
   projectedSubagentsToRuntime,
 } from "@supaterm/client-runtime/state/subagentRuntime";
 import {
+  EnvironmentId,
   NodeId,
   ProviderDriverKind,
   RunId,
@@ -16,6 +17,8 @@ import {
   nextWorkflowSelection,
   resolveSubagentRowPresentation,
   resolveSubagentStopTarget,
+  subagentIconDriver,
+  subagentThreadTarget,
   workflowMemberDetail,
   workflowMemberMetadata,
   workflowRail,
@@ -27,6 +30,13 @@ const base = {
   status: "running" as const,
   result: null,
   childThreadId: "thread-child" as never,
+};
+
+const here = EnvironmentId.make("here");
+const remoteChild = {
+  environmentId: EnvironmentId.make("linked"),
+  threadId: ThreadId.make("thread-there"),
+  label: "Studio",
 };
 
 describe("resolveSubagentRowPresentation", () => {
@@ -76,6 +86,14 @@ describe("resolveSubagentRowPresentation", () => {
     expect(resolveSubagentRowPresentation({ ...base, childThreadId: null }).canOpenThread).toBe(
       false,
     );
+    // A task on a linked environment opens only when the app is connected to it.
+    const remote = { ...base, childThreadId: null, remoteChild };
+    expect(resolveSubagentRowPresentation(remote, true)).toMatchObject({
+      canOpenThread: true,
+      runsOn: "Studio",
+    });
+    expect(resolveSubagentRowPresentation(remote).canOpenThread).toBe(false);
+    expect(resolveSubagentRowPresentation(base).runsOn).toBeNull();
   });
 
   it("uses the status label when there is nothing to report yet", () => {
@@ -93,6 +111,51 @@ describe("resolveSubagentRowPresentation", () => {
     });
     expect(row.detail).toBe(`${"x".repeat(280)}…`);
     expect(row.statusLabel).toBe("Failed");
+  });
+});
+
+describe("subagentThreadTarget", () => {
+  it.each([
+    {
+      opens: "a child thread in the parent's environment",
+      subagent: { childThreadId: ThreadId.make("thread-child") },
+      connected: false,
+      expected: { environmentId: here, threadId: "thread-child" },
+    },
+    {
+      opens: "a remote task in the linked environment the app is connected to",
+      subagent: { childThreadId: null, remoteChild },
+      connected: true,
+      expected: { environmentId: remoteChild.environmentId, threadId: remoteChild.threadId },
+    },
+    {
+      opens: "nothing for a remote task whose environment the app lacks",
+      subagent: { childThreadId: null, remoteChild },
+      connected: false,
+      expected: null,
+    },
+    {
+      opens: "nothing for a provider-managed agent",
+      subagent: { childThreadId: null },
+      connected: true,
+      expected: null,
+    },
+  ])("opens $opens", ({ subagent, connected, expected }) => {
+    expect(subagentThreadTarget(subagent, here, () => connected)).toEqual(expected);
+  });
+});
+
+describe("subagentIconDriver", () => {
+  const codex = ProviderDriverKind.make("codex");
+  const remote = { driver: ProviderDriverKind.make("remote"), remoteChild };
+
+  it("draws a remote task with the provider that runs it, never its remote label", () => {
+    expect(subagentIconDriver(remote, { driver: codex })).toBe(codex);
+    expect(subagentIconDriver(remote, undefined)).toBeUndefined();
+  });
+
+  it("keeps a local agent's own driver while its provider is unknown", () => {
+    expect(subagentIconDriver({ driver: codex }, undefined)).toBe(codex);
   });
 });
 

@@ -35,23 +35,29 @@ export const layer = McpToolAccess.toLayer(
     const assetSigner = yield* AssetSigner.AssetSigner;
     const pendingUploads = yield* McpPendingUploads.McpPendingUploads;
     return {
-      supaterm_attachment_prepare_upload: McpToolAccess.writes((input) =>
-        Effect.gen(function* () {
-          const result = yield* Upload.issueAttachmentUploadUrl(input.upload).pipe(
-            Effect.provideService(AssetSigner.AssetSigner, assetSigner),
-            Effect.mapError(unavailable),
-          );
-          yield* pendingUploads.record(result.attachmentId);
-          return result;
-        }),
+      // A pending upload belongs to its caller until a send claims it, so
+      // linked callers may stage the uploads their own sends need.
+      supaterm_attachment_prepare_upload: McpToolAccess.writes(
+        (input) =>
+          Effect.gen(function* () {
+            const result = yield* Upload.issueAttachmentUploadUrl(input.upload).pipe(
+              Effect.provideService(AssetSigner.AssetSigner, assetSigner),
+              Effect.mapError(unavailable),
+            );
+            yield* pendingUploads.record(result.attachmentId);
+            return result;
+          }),
+        { linkedCallers: "allowed" },
       ),
-      supaterm_attachment_discard: McpToolAccess.writes((input) =>
-        Effect.gen(function* () {
-          yield* pendingUploads.requireOwner(input.attachmentId);
-          yield* Upload.deletePendingAttachment(input.attachmentId);
-          yield* pendingUploads.forget(input.attachmentId);
-          return {};
-        }),
+      supaterm_attachment_discard: McpToolAccess.writes(
+        (input) =>
+          Effect.gen(function* () {
+            yield* pendingUploads.requireOwner(input.attachmentId);
+            yield* Upload.deletePendingAttachment(input.attachmentId);
+            yield* pendingUploads.forget(input.attachmentId);
+            return {};
+          }),
+        { linkedCallers: "allowed" },
       ),
       supaterm_thread_send_attachments: McpToolAccess.writesThreads(
         (input) => [input.threadId],

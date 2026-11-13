@@ -1,5 +1,14 @@
 import { useEffect } from "react";
-import { type ComposerContextRecord, ComposerContextId, EnvironmentId } from "@supaterm/contracts";
+import {
+  type ComposerContextRecord,
+  ComposerContextId,
+  EnvironmentId,
+  ThreadId,
+} from "@supaterm/contracts";
+import {
+  environmentContextRecord,
+  threadContextRecord,
+} from "@supaterm/shared/composerContextReferences";
 import { expect, it, vi } from "vite-plus/test";
 
 import { act, render, stubGlobal } from "../../../test/render";
@@ -70,6 +79,7 @@ it.each([
   const settled = deferred<void>();
   const input = {
     environmentId: EnvironmentId.make("clipboard-target"),
+    linkedEnvironments: new Map(),
     activeThread: undefined,
     activeThreadId: null,
     composerDraftTarget: target,
@@ -184,4 +194,66 @@ it.each([
       ? ["notes.txt"]
       : [],
   );
+});
+
+it("pastes the references the agent can use, and no machine into a question's answer", async () => {
+  const message = DraftId.make("clipboard-references-message");
+  const answer = DraftId.make("clipboard-references-answer");
+  const store = useComposerDraftStore.getState();
+  using _drafts = {
+    [Symbol.dispose]: () => {
+      store.clearComposerContent(message);
+      store.clearComposerContent(answer);
+    },
+  };
+  const linked = EnvironmentId.make("clipboard-linked");
+  const linkedThread = threadContextRecord(
+    { environmentId: linked, threadId: ThreadId.make("linked-thread") },
+    "On the linked machine",
+  );
+  const strandedThread = threadContextRecord(
+    {
+      environmentId: EnvironmentId.make("clipboard-unlinked"),
+      threadId: ThreadId.make("stranded-thread"),
+    },
+    "On another machine",
+  );
+  const machine = environmentContextRecord(linked, "VPS");
+  const input = {
+    environmentId: EnvironmentId.make("clipboard-target"),
+    linkedEnvironments: new Map([[linked, "VPS"]]),
+    activeThread: undefined,
+    activeThreadId: null,
+    composerDraftTarget: message,
+    attachmentDraftTarget: answer,
+    attachmentTargetKey: answer,
+    attachmentTargetKeyRef: { current: answer },
+    questionAttachmentTarget: answer,
+    pendingUserInputs: [],
+    composerContextRecords: new Map(),
+    composerImages: [],
+    composerFilesRef: { current: [] },
+    pendingThreadImportsRef: { current: new Map() },
+    promptRef: { current: "" },
+    addComposerFilesToDraft: () => [],
+  } satisfies ImportInput;
+  let importer!: Importer;
+  await using _screen = await render(
+    <Harness
+      input={input}
+      ready={(value) => {
+        importer = value;
+      }}
+    />,
+  );
+  const pasted = [linkedThread, strandedThread, machine];
+
+  await act(() => {
+    importer.importContextRecords(pasted, linked);
+    // A stashed prompt restores into the message even while a question is open.
+    importer.importContextRecords(pasted, null, message);
+  });
+
+  expect(store.getComposerDraft(answer)?.referenceContexts).toEqual([linkedThread]);
+  expect(store.getComposerDraft(message)?.referenceContexts).toEqual([linkedThread, machine]);
 });

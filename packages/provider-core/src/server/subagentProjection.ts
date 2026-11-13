@@ -181,7 +181,7 @@ export function makeSubagentConversationArtifacts(input: {
 }
 
 /** A delegated result, led by a note when the provider reported running another model than requested. */
-function withExecutedModelNote(
+export function withExecutedModelNote(
   result: string,
   requestedModel: string,
   executedModel: string | null | undefined,

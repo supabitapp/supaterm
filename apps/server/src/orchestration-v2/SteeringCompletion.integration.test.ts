@@ -2,6 +2,7 @@ import { assert, it } from "@effect/vitest";
 import {
   ChatAttachmentId,
   CommandId,
+  EnvironmentId,
   MessageId,
   EventId,
   NodeId,
@@ -10,7 +11,6 @@ import {
   ProviderInstanceId,
   ProviderThreadId,
   ProviderTurnId,
-  RunId,
   ThreadId,
   TurnItemId,
   type OrchestrationV2DomainEvent,
@@ -1304,116 +1304,55 @@ const restartCompletionWake = Effect.fn("restartCompletionWake")(function* (
   const firstTaskId = NodeId.make("task:steered-wake-first");
   const siblingTaskId = NodeId.make("task:steered-wake-sibling");
   const now = yield* DateTime.now;
-  const parent = yield* orchestrator.getThreadProjection(threadId);
-  const childThreadOf = (taskId: NodeId) => ThreadId.make(`thread:child:${taskId}`);
   yield* sink.write({
-    events: [firstTaskId, siblingTaskId].flatMap((taskId) => [
-      {
-        id: EventId.make(`event:seed-child:${taskId}`),
-        type: "thread.created" as const,
-        threadId: childThreadOf(taskId),
-        occurredAt: now,
-        payload: {
-          ...parent.thread,
-          createdBy: "agent" as const,
-          creationSource: "server" as const,
-          id: childThreadOf(taskId),
-          title: String(taskId),
-          activeProviderThreadId: null,
-          lineage: {
-            parentThreadId: threadId,
-            relationshipToParent: "subagent" as const,
-            rootThreadId: threadId,
-          },
-          forkedFrom: { type: "node" as const, nodeId: taskId },
-          createdAt: now,
-          updatedAt: now,
-        },
-      },
-      {
-        id: EventId.make(`event:seed:${taskId}`),
-        type: "subagent.updated" as const,
+    events: [firstTaskId, siblingTaskId].map((taskId) => ({
+      id: EventId.make(`event:seed:${taskId}`),
+      type: "subagent.updated" as const,
+      threadId,
+      runId: origin.runId,
+      nodeId: taskId,
+      occurredAt: now,
+      payload: {
+        id: taskId,
         threadId,
         runId: origin.runId,
-        nodeId: taskId,
-        occurredAt: now,
-        payload: {
-          id: taskId,
-          threadId,
-          runId: origin.runId,
-          parentNodeId: origin.rootNodeId,
-          origin: "app_owned" as const,
-          createdBy: "agent" as const,
-          driver,
-          providerInstanceId: instanceId,
-          providerThreadId: null,
-          childThreadId: childThreadOf(taskId),
-          nativeTaskRef: null,
-          prompt: "Do background work",
-          title: null,
-          model: null,
-          completionWake: "always" as const,
-          completionDelivery: { state: "pending" as const, observedByRunId: null },
-          status: "running" as const,
-          result: null,
-          startedAt: now,
-          completedAt: null,
-          updatedAt: now,
+        parentNodeId: origin.rootNodeId,
+        origin: "app_owned" as const,
+        createdBy: "agent" as const,
+        driver,
+        providerInstanceId: instanceId,
+        providerThreadId: null,
+        childThreadId: null,
+        remoteChild: {
+          environmentId: EnvironmentId.make("environment:box"),
+          threadId: ThreadId.make(`thread:remote:${taskId}`),
+          label: "box",
         },
+        nativeTaskRef: null,
+        prompt: "Do background work",
+        title: null,
+        model: null,
+        completionWake: "always" as const,
+        completionDelivery: { state: "pending" as const, observedByRunId: null },
+        status: "running" as const,
+        result: null,
+        startedAt: now,
+        completedAt: null,
+        updatedAt: now,
       },
-    ]),
+    })),
   });
   yield* finishTurn(origin);
 
-  // The child's finished run is what finalizes its task in the parent.
   const completeTask = (taskId: NodeId) =>
-    Effect.gen(function* () {
-      const finalized = yield* orchestrator.streamDomainEvents.pipe(
-        Stream.filter(
-          (event) =>
-            event.type === "subagent.updated" &&
-            event.payload.id === taskId &&
-            event.payload.status === "completed",
-        ),
-        Stream.take(1),
-        Stream.runDrain,
-        Effect.forkScoped,
-      );
-      const childThreadId = childThreadOf(taskId);
-      const childRunId = RunId.make(`run:child:${taskId}`);
-      const at = yield* DateTime.now;
-      yield* sink.write({
-        commandId: CommandId.make(`command:child-complete:${taskId}`),
-        events: [
-          {
-            id: EventId.make(`event:child-complete:${taskId}`),
-            type: "run.updated",
-            threadId: childThreadId,
-            runId: childRunId,
-            providerInstanceId: instanceId,
-            occurredAt: at,
-            payload: {
-              id: childRunId,
-              threadId: childThreadId,
-              ordinal: 1,
-              providerInstanceId: instanceId,
-              modelSelection: runSelection,
-              providerThreadId: null,
-              userMessageId: MessageId.make(`message:child:${taskId}`),
-              rootNodeId: null,
-              activeAttemptId: null,
-              status: "completed",
-              requestedAt: at,
-              startedAt: at,
-              completedAt: at,
-              checkpointId: null,
-              contextHandoffId: null,
-            },
-          },
-        ],
-      });
-      yield* Fiber.join(finalized);
-      yield* worker.drain();
+    orchestrator.dispatch({
+      type: "delegated_task.remote.complete",
+      commandId: CommandId.make(`command:remote-complete:${taskId}`),
+      parentThreadId: threadId,
+      taskId,
+      status: "completed",
+      result: `${taskId} finished`,
+      stoppedThere: "ran-out",
     });
   yield* completeTask(firstTaskId);
   const firstDelivery = (yield* orchestrator.getThreadProjection(threadId)).runs.find(

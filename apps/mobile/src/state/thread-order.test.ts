@@ -19,7 +19,12 @@ vi.mock("./atom-registry", async () => {
 });
 vi.mock("./threads", async () => {
   const { Atom } = await import("effect/reactivity");
-  return { environmentThreadShells: { threadShellsAtom: Atom.make([]).pipe(Atom.keepAlive) } };
+  return {
+    environmentThreadShells: {
+      threadShellsAtom: Atom.make([]).pipe(Atom.keepAlive),
+      navigationThreadShellsAtom: Atom.make([]).pipe(Atom.keepAlive),
+    },
+  };
 });
 vi.mock("./server", async () => {
   const { Atom } = await import("effect/reactivity");
@@ -30,10 +35,12 @@ vi.mock("./use-thread-outbox", async () => {
   return { queuedThreadKeysAtom: Atom.make(new Set<string>()).pipe(Atom.keepAlive) };
 });
 
-const shellsAtom = environmentThreadShells.threadShellsAtom as Atom.Writable<
+type ShellsAtom = Atom.Writable<
   readonly EnvironmentThreadShell[],
   readonly EnvironmentThreadShell[]
 >;
+const shellsAtom = environmentThreadShells.navigationThreadShellsAtom as ShellsAtom;
+const allShellsAtom = environmentThreadShells.threadShellsAtom as ShellsAtom;
 
 function fixture() {
   const rows = ["a", "b"].map((id, index) =>
@@ -44,6 +51,11 @@ function fixture() {
     }),
   );
   appAtomRegistry.set(shellsAtom, rows);
+  // A task shown under its parent has no row, so a move never counts it.
+  appAtomRegistry.set(allShellsAtom, [
+    ...rows,
+    makeThreadShellFixture({ id: ThreadId.make("task"), environmentId: EnvironmentId.make("env") }),
+  ]);
   const pending = createPendingThreadOrder({
     section: "active",
     ordered: rows,
