@@ -48,6 +48,7 @@ import { LinkAddressWarning, LinkMachineSelect } from "./LinkMachineSelect";
 import {
   linkCapableEnvironments,
   linkFailureMessage,
+  linkHealthText,
   linkTarget,
   peerLinkCreateInput,
 } from "./linkedEnvironments";
@@ -120,31 +121,14 @@ function MachineLinks(props: { readonly environment: SettingsTarget }) {
             ).finally(() => setSaving(false));
           }}
         />
-        {!listed ? null : links.error ? (
-          <View className="border-t border-border-subtle">
-            <ListRowLayout label="Could not load linked environments" description={links.error} />
-          </View>
-        ) : !links.data ? (
-          <View className="border-t border-border-subtle">
-            <ListRowLayout label="Loading linked environments…" />
-          </View>
-        ) : links.data.links.length === 0 ? (
-          <View className="border-t border-border-subtle">
-            <ListRowLayout
-              label="No linked environments"
-              description="Link another machine running Supaterm, such as a VPS, so agents here can launch and drive threads there."
-            />
-          </View>
-        ) : (
-          links.data.links.map((link) => (
-            <LinkedEnvironmentRow
-              key={link.environmentId}
-              environmentId={environmentId}
-              link={link}
-              now={now}
-            />
-          ))
-        )}
+        {listed ? (
+          <LinkedEnvironmentRows
+            environmentId={environmentId}
+            links={links.data?.links}
+            error={links.error}
+            now={now}
+          />
+        ) : null}
         {offered && canLink ? (
           <View className="border-t border-border-subtle">
             <ListActionRow icon="plus" label="Link" onPress={() => setLinking(true)} />
@@ -156,6 +140,46 @@ function MachineLinks(props: { readonly environment: SettingsTarget }) {
       ) : null}
     </View>
   );
+}
+
+function LinkedEnvironmentRows(props: {
+  readonly environmentId: EnvironmentId;
+  readonly links: ReadonlyArray<PeerLinkSummary> | undefined;
+  readonly error: string | null;
+  readonly now: DateTime.Utc;
+}) {
+  if (props.error) {
+    return (
+      <View className="border-t border-border-subtle">
+        <ListRowLayout label="Could not load linked environments" description={props.error} />
+      </View>
+    );
+  }
+  if (props.links === undefined) {
+    return (
+      <View className="border-t border-border-subtle">
+        <ListRowLayout label="Loading linked environments…" />
+      </View>
+    );
+  }
+  if (props.links.length === 0) {
+    return (
+      <View className="border-t border-border-subtle">
+        <ListRowLayout
+          label="No linked environments"
+          description="Link another machine running Supaterm, such as a VPS, so agents here can launch and drive threads there."
+        />
+      </View>
+    );
+  }
+  return props.links.map((link) => (
+    <LinkedEnvironmentRow
+      key={link.environmentId}
+      environmentId={props.environmentId}
+      link={link}
+      now={props.now}
+    />
+  ));
 }
 
 function LinkedEnvironmentRow(props: {
@@ -170,16 +194,7 @@ function LinkedEnvironmentRow(props: {
   const [busy, setBusy] = useState(false);
   // Matches ListRowLayout: large text moves the action below the status instead of squeezing the name.
   const stacked = useWindowDimensions().fontScale >= 1.5;
-  const status =
-    health.kind === "expired"
-      ? "Expired. Link it again with a new pairing code."
-      : health.kind === "unreachable"
-        ? (health.detail ?? "Not answering right now.")
-        : health.kind === "failing"
-          ? health.detail
-          : health.expiresInDays !== null
-            ? `Expires in ${health.expiresInDays} ${health.expiresInDays === 1 ? "day" : "days"}`
-            : "Reachable";
+  const status = linkHealthText(health);
   const forget = () =>
     Dialog.confirm({
       title: `Forget ${link.label}?`,

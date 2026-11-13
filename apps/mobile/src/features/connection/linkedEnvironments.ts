@@ -1,4 +1,5 @@
 import { ANOTHER_ADDRESS, type LinkableMachine } from "@supaterm/client-runtime/link-request";
+import type { PeerLinkHealth } from "@supaterm/client-runtime/state/peerLinks";
 import type { AuthMcpClientAccess, PeerLinkCreateInput } from "@supaterm/contracts";
 
 import type { EnvironmentPresentation } from "../../state/environments";
@@ -13,6 +14,15 @@ export function linkCapableEnvironments(
       environment.connection.phase === "connected" &&
       environment.serverConfig?.environment.capabilities.peerLinks === true,
   );
+}
+
+export function linkHealthText(health: PeerLinkHealth): string {
+  if (health.kind === "expired") return "Expired. Link it again with a new pairing code.";
+  if (health.kind === "unreachable") return health.detail ?? "Not answering right now.";
+  if (health.kind === "failing") return health.detail;
+  if (health.expiresInDays === null) return "Reachable";
+  const unit = health.expiresInDays === 1 ? "day" : "days";
+  return `Expires in ${health.expiresInDays} ${unit}`;
 }
 
 /**
