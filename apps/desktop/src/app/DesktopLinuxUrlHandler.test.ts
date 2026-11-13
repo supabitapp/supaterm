@@ -205,6 +205,39 @@ describe("DesktopLinuxUrlHandler", () => {
     assert.include(entry, "Icon=/home/al ice/icons/Supaterm\\\\x.png");
   });
 
+  it.each([
+    { from: "supaterm-0.1.8-x86_64.AppImage", to: "supaterm-x86_64.AppImage", restored: true },
+    {
+      from: "supaterm-0.1.9-nightly.20261110.4449-arm64.AppImage",
+      to: "supaterm-nightly-arm64.AppImage",
+      restored: true,
+    },
+    {
+      from: "supaterm-0.1.8-x86_64.AppImage",
+      to: "supaterm-0.1.9-x86_64.AppImage",
+      restored: false,
+    },
+    { from: "supaterm.AppImage", to: "supaterm-x86_64.AppImage", restored: false },
+    { from: "supaterm-x86_64.AppImage", to: "supaterm-x86_64.AppImage", restored: false },
+    { from: "../supaterm-0.1.8-x86_64.AppImage", to: "supaterm-x86_64.AppImage", restored: false },
+  ])("finds the launch path an update from $from to $to removed", ({ from, to, restored }) => {
+    for (const dir of ["/home/alice/Applications", '/home/al ice/My "100%" $Apps\\x']) {
+      const previous = dir + "/" + from;
+      const previousEntry = DesktopLinuxUrlHandler.renderUrlHandlerDesktopEntry({
+        displayName: "Supaterm (Beta)",
+        execTarget: previous,
+        scheme: "supaterm",
+      });
+      assert.equal(
+        DesktopLinuxUrlHandler.replacedVersionedAppImagePath({
+          previousEntry,
+          appImagePath: dir + "/" + to,
+        }),
+        restored ? previous : null,
+      );
+    }
+  });
+
   it.effect(
     "writes the handler entry, refreshes the MIME cache, and claims the scheme default",
     () => {
