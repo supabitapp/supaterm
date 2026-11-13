@@ -110,6 +110,7 @@ import type {
 } from "../orchestration-v2/ProjectionStore.ts";
 import {
   delegatedTaskResultRun,
+  delegatedTaskRuns,
   neverStarted,
   runOutcome,
 } from "../orchestration-v2/RestartBackgroundNote.ts";
@@ -1745,25 +1746,25 @@ const make = Effect.gen(function* () {
     const childRun = delegatedTaskRun(childControls, task);
     const terminalRun = latestTerminalResultRun(childControls, childRun);
     const progress = delegatedTaskProgress(childControls);
+    const followupRuns =
+      childRun?.delegatedTaskId === task.id ? delegatedTaskRuns(childControls, task.id) : undefined;
     const taskResultRun =
-      childRun?.delegatedTaskId === task.id
-        ? delegatedTaskResultRun(childControls.runs, task.id)
-        : progress.resultRun;
-    const taskRuns = childControls.runs.filter((run) => run.delegatedTaskId === task.id);
+      followupRuns === undefined ? progress.resultRun : delegatedTaskResultRun(followupRuns);
     const taskWorkState =
-      childRun?.delegatedTaskId === task.id
-        ? taskResultRun !== undefined &&
-          isTerminalTaskStatus(taskStatusForRun(taskResultRun)) &&
-          (taskRuns.every(neverStarted) || taskRuns.every((run) => run.status === "rolled_back"))
+      followupRuns === undefined
+        ? progress.state
+        : taskResultRun !== undefined &&
+            isTerminalTaskStatus(taskStatusForRun(taskResultRun)) &&
+            (followupRuns.every(neverStarted) ||
+              followupRuns.every((run) => run.status === "rolled_back"))
           ? "result_available"
           : delegatedTaskProgress({
               ...childControls,
-              runs: taskRuns,
+              runs: followupRuns,
               subagents: childControls.subagents.filter((subagent) =>
-                taskRuns.some((run) => run.id === subagent.runId),
+                followupRuns.some((run) => run.id === subagent.runId),
               ),
-            }).state
-        : progress.state;
+            }).state;
     const resultRunIds = [
       ...new Set(
         [taskResultRun?.id, terminalRun?.id].filter((id): id is RunId => id !== undefined),
