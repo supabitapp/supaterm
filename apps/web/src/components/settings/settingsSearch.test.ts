@@ -127,8 +127,34 @@ describe("searchSettings", () => {
       "auto-mark-done-keep-pull-requests",
       "days-before-auto-mark-done",
       "worktree-fast-checkout",
+      "linked-environments",
     ]);
     expect(available.map((item) => item.id).filter((id) => gatedIds.has(id))).toEqual([]);
+  });
+
+  it("finds linked environments on a remote host without local maintenance access", () => {
+    const availability = {
+      hasEnvironment: true,
+      hasProviderSettingsEnvironment: true,
+      canManageLocalBackend: false,
+      isWslSettingsRowVisible: false,
+      hasThreadAutoMarkDone: false,
+    };
+    const results = (query: string, hasPeerLinkHost: boolean) =>
+      searchSettings(
+        query,
+        filterAvailableSettingsSearchItems({ ...availability, hasPeerLinkHost }),
+      );
+    for (const query of ["linked environments", "link machine"]) {
+      expect(results(query, false).map((item) => item.id)).not.toContain("linked-environments");
+      expect(results(query, true)).toContainEqual(
+        expect.objectContaining({
+          id: "linked-environments",
+          to: "/settings/connections",
+          targetId: "linked-environments",
+        }),
+      );
+    }
   });
 
   it("finds keybinding commands by label, command id, and default key", () => {
