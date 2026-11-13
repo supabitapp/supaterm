@@ -9,22 +9,7 @@ import {
 } from "@supaterm/contracts";
 import * as Effect from "effect/Effect";
 
-function runtimeModeRank(mode: RuntimeMode): number {
-  switch (mode) {
-    case "approval-required":
-      return 0;
-    case "auto-accept-edits":
-      return 1;
-    case "auto":
-      return 2;
-    case "full-access":
-      return 3;
-  }
-}
-
-function interactionModeRank(mode: ProviderInteractionMode): number {
-  return mode === "plan" ? 0 : 1;
-}
+import { interactionModeRank, runtimeModeRank } from "../orchestration-v2/DispatchModeLimit.ts";
 
 /**
  * The mode a child runs at: the one asked for, never broader than its parent's.
@@ -41,7 +26,7 @@ export function resolveRuntimeMode(
 ): Effect.Effect<RuntimeMode, OrchestratorMcpFailure> {
   const inherited = requested === undefined || requested === "inherit";
   const resolved = inherited ? parentMode : requested;
-  if (runtimeModeRank(resolved) > runtimeModeRank(parentMode)) {
+  if (runtimeModeRank[resolved] > runtimeModeRank[parentMode]) {
     return Effect.fail(
       new OrchestratorMcpFailure({
         code: "runtime_mode_escalation_denied",
@@ -63,8 +48,8 @@ export function resolveRuntimeMode(
   }
   return Effect.succeed(
     supported
-      .filter((mode) => runtimeModeRank(mode) <= runtimeModeRank(resolved))
-      .toSorted((left, right) => runtimeModeRank(right) - runtimeModeRank(left))[0] ??
+      .filter((mode) => runtimeModeRank[mode] <= runtimeModeRank[resolved])
+      .toSorted((left, right) => runtimeModeRank[right] - runtimeModeRank[left])[0] ??
       "approval-required",
   );
 }
@@ -74,7 +59,7 @@ export function resolveInteractionMode(
   requested: OrchestratorMcpInteractionMode | undefined,
 ): Effect.Effect<ProviderInteractionMode, OrchestratorMcpFailure> {
   const resolved = requested === undefined || requested === "inherit" ? parentMode : requested;
-  return interactionModeRank(resolved) > interactionModeRank(parentMode)
+  return interactionModeRank[resolved] > interactionModeRank[parentMode]
     ? Effect.fail(
         new OrchestratorMcpFailure({
           code: "interaction_mode_escalation_denied",
