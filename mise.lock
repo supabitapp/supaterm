@@ -178,6 +178,12 @@ url = "https://nodejs.org/dist/v24.22.1/node-v24.22.1-win-arm64.zip"
 checksum = "sha256:d2046d28c2c3dcd211ac5145c0bf30e2047ef9dfb306693c8c6e2eccd8b95fa5"
 url = "https://nodejs.org/dist/v24.22.1/node-v24.22.1-win-x64.zip"
 
+[[tools."npm:react-doctor"]]
+version = "0.9.22"
+aube = { path = ".mise/locks/npm-react-doctor/0.9.22", digest = "sha256:08a185c02d4b5e354346fd01f4621f51c19aa1bb23d4e4db694f42554c7fb4ff" }
+backend = "npm:react-doctor"
+specifiers = ["0.9.22"]
+
 [[tools.pnpm]]
 version = "12.14.0"
 backend = "aqua:pnpm/pnpm"

@@ -11,7 +11,7 @@ import type {
 } from "@supaterm/contracts";
 import type { ComposerTriggerKind } from "@supaterm/shared/composerTrigger";
 import { memo } from "react";
-import { Pressable, ScrollView, StyleSheet, View, type ViewStyle } from "react-native";
+import { FlatList, Pressable, StyleSheet, View, type ViewStyle } from "react-native";
 
 import { SymbolView, type AppSymbolName } from "../../components/ui/AppSymbol";
 import { AppText as Text } from "../../components/ui/AppText";
@@ -222,22 +222,23 @@ export const ComposerCommandPopover = memo(function ComposerCommandPopover(
         </View>
       ) : null}
       {props.items.length > 0 ? (
-        <ScrollView
+        <FlatList
+          data={props.items}
+          keyExtractor={(item) => item.id}
           className="max-h-[180px]"
           keyboardShouldPersistTaps="always"
           nestedScrollEnabled
           showsVerticalScrollIndicator={false}
-        >
-          {props.items.map((item, index) => (
+          windowSize={5}
+          renderItem={({ item, index }) => (
             <CommandRow
-              key={item.id}
               item={item}
               onPress={() => props.onSelect(item)}
               isLast={index === props.items.length - 1}
               isCommandMenuSkill={props.triggerKind === "slash-command" && item.type === "skill"}
             />
-          ))}
-        </ScrollView>
+          )}
+        />
       ) : (
         <View className="px-3.5 py-2.5">
           <Text className="text-xs text-foreground-tertiary">

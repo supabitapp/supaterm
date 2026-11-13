@@ -1,5 +1,7 @@
 import { StackActions, useNavigation } from "@react-navigation/native";
-import { useEffect, useEffectEvent, useRef } from "react";
+import { useEffect, useRef } from "react";
+
+import { useStableCallback } from "../../lib/useStableCallback";
 
 /**
  * Leaves a terminal screen whose shell exited: to another live terminal of the
@@ -15,7 +17,7 @@ export function useTerminalExitNavigation(target: {
   const navigation = useNavigation();
   const pendingRef = useRef(false);
 
-  const navigateAway = useEffectEvent(() => {
+  const navigateAway = useStableCallback(() => {
     const fallbackTerminalId = target.readFallbackTerminalId();
     if (fallbackTerminalId !== null) {
       navigation.dispatch(
@@ -47,7 +49,7 @@ export function useTerminalExitNavigation(target: {
         pendingRef.current = false;
         navigateAway();
       }),
-    [navigation],
+    [navigation, navigateAway],
   );
 
   return {
