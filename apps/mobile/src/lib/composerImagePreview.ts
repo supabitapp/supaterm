@@ -32,6 +32,18 @@ async function materializeDataUrlPreview(id: string, dataUrl: string): Promise<s
   return file.uri;
 }
 
+const inFlightPreviews = new Map<string, Promise<string | null>>();
+
+// A render reads the atom before its effect subscribes, so the registry can drop and rebuild it
+// mid-write; a second writer would delete the first one's partial file and fail its own move.
+function materializePreviewOnce(id: string, dataUrl: string): Promise<string | null> {
+  const pending = inFlightPreviews.get(id);
+  if (pending) return pending;
+  const next = materializeDataUrlPreview(id, dataUrl).finally(() => inFlightPreviews.delete(id));
+  inFlightPreviews.set(id, next);
+  return next;
+}
+
 /**
  * Keyed by attachment id only: the cached file is named by id, and an upload
  * reference landing on the same draft must not restart materialization and
@@ -49,7 +61,7 @@ export class MaterializedPreviewKey implements Equal.Equal {
 
 export const materializedPreviewAtom = Atom.family(({ attachment }: MaterializedPreviewKey) =>
   Atom.make(
-    Effect.tryPromise(() => materializeDataUrlPreview(attachment.id, attachment.previewUri)).pipe(
+    Effect.tryPromise(() => materializePreviewOnce(attachment.id, attachment.previewUri)).pipe(
       Effect.catch((error) =>
         Effect.sync(() => {
           console.warn("[composer-attachments] could not cache an image preview", error);
