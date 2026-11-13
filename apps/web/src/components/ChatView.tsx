@@ -39,6 +39,7 @@ import { ThreadVisitWatermark } from "./chat/ThreadVisitWatermark";
 import { ChatTerminalDrawers } from "./chat/ChatTerminalDrawers";
 import { ChatRightPanel } from "./chat/ChatRightPanel";
 import { ChatBannerLane } from "./chat/ChatBannerLane";
+import { useComposerFocus } from "./chat/useComposerFocus";
 import { useProjectCloneBanner } from "./chat/useProjectCloneBanner";
 import { usePullRequestDraftThread } from "./chat/usePullRequestDraftThread";
 import { useTimelineFollow } from "./chat/useTimelineFollow";
@@ -1887,12 +1888,8 @@ export default function ChatView(props: ChatViewProps) {
     sendInFlightRef,
   });
 
-  // Focus moving into a pane makes it the focused pane, so a pane in the background never takes it.
-  const focusComposer = () => {
-    if (!isPaneInputOwner()) return;
-    composerRef.current?.focusAtEnd();
-  };
-  const focusComposerStable = useStableCallback(focusComposer);
+  const { focusComposer: focusComposerStable, scheduleComposerFocus: scheduleComposerFocusStable } =
+    useComposerFocus(composerRef, isPaneInputOwner);
   const canInterruptRunningThread =
     canOperateThread && deriveCanInterruptRunningThread(activeThread !== undefined, activeRuntime);
   const onInterrupt = async () => {
@@ -1916,12 +1913,6 @@ export default function ChatView(props: ChatViewProps) {
   const onInterruptStable = useStableCallback(onInterrupt);
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- window listener for the desktop snapshot event that focuses the composer
   useEffect(() => subscribeSnapShotComposerFocus(focusComposerStable), [focusComposerStable]);
-  const scheduleComposerFocus = () => {
-    window.requestAnimationFrame(() => {
-      focusComposerStable();
-    });
-  };
-  const scheduleComposerFocusStable = useStableCallback(scheduleComposerFocus);
   const insertArtifactTemplate = (template: CodexArtifactTemplate) => {
     const composer = composerRef.current;
     if (!composer) return;
@@ -1936,7 +1927,7 @@ export default function ChatView(props: ChatViewProps) {
       });
       return;
     }
-    scheduleComposerFocus();
+    scheduleComposerFocusStable();
   };
   const insertArtifactTemplateStable = useStableCallback(insertArtifactTemplate);
 
@@ -2036,7 +2027,7 @@ export default function ChatView(props: ChatViewProps) {
     multipleModelSelections,
     runtimeMode,
     isLocalDraftThread,
-    scheduleComposerFocus,
+    scheduleComposerFocus: scheduleComposerFocusStable,
   });
   const canOperatePreview = useEnvironmentScope(
     activeThreadRef?.environmentId ?? null,
