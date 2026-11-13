@@ -18,6 +18,25 @@ function basename(path: string): string {
   return separator >= 0 ? path.slice(separator + 1) : path;
 }
 
+type ComposerEditorToken = ReturnType<typeof composerContextEditorTokens>[number];
+
+function chipLabel(
+  token: ComposerEditorToken,
+  available: boolean,
+  skillLabels: ReadonlyMap<string, string>,
+): string {
+  switch (token.type) {
+    case "skill":
+      return skillLabels.get(token.value) ?? token.value;
+    case "context":
+      return available ? token.label : `${token.label} · unavailable`;
+    case "citation":
+      return assistantCitationLabel(token.citation);
+    case "mention":
+      return basename(token.value);
+  }
+}
+
 export function composerEditorChips(input: {
   readonly text: string;
   readonly tokens: readonly ComposerInlineToken[];
@@ -46,14 +65,7 @@ export function composerEditorChips(input: {
       start: token.start,
       end: token.end,
       accent: contextChipAccent(presentation.accent, input.theme, input.textColor),
-      label:
-        token.type === "skill"
-          ? (input.skillLabels.get(token.value) ?? token.value)
-          : token.type === "context"
-            ? `${token.label}${record ? "" : " · unavailable"}`
-            : token.type === "citation"
-              ? assistantCitationLabel(token.citation)
-              : basename(token.value),
+      label: chipLabel(token, record !== undefined, input.skillLabels),
       detail: token.type === "context" ? composerChipSizeSuffix(record) : "",
       iconUri: contextChipIconUri(icon),
       tintsIcon: icon.kind === "chip",
