@@ -1,6 +1,8 @@
+import { threadKey } from "@supaterm/client-runtime/state/entities";
+import type { PendingSubagentRequest } from "@supaterm/client-runtime/state/models";
 import { WORKING_EXIT_GRACE_MS } from "@supaterm/client-runtime/state/thread-inbox";
 import type { AnyRouter } from "@tanstack/react-router";
-import { EnvironmentId } from "@supaterm/contracts";
+import { EnvironmentId, ThreadId } from "@supaterm/contracts";
 import * as DateTime from "effect/DateTime";
 import * as Option from "effect/Option";
 import { Atom, AtomRegistry } from "effect/reactivity";
@@ -45,6 +47,19 @@ vi.mock(import("../state/presentation"), async (original) => {
     },
   };
 });
+vi.mock(import("../state/threads"), async (original) => {
+  const actual = await original();
+  return {
+    ...actual,
+    environmentThreadShells: {
+      ...actual.environmentThreadShells,
+      pendingSubagentRequestsAtom: ((id: string) => requestsAtom(id)) as never,
+      get delegatedUnderParentAtom() {
+        return delegatedUnderParentAtom as never;
+      },
+    },
+  };
+});
 vi.mock(import("../hooks/useSettings"), async (original) => ({
   ...(await original()),
   subscribeClientSettings: ((listener: () => void) => {
@@ -68,6 +83,10 @@ import { startThreadNotifications } from "./ThreadNotificationCoordinator";
 let registry: AtomRegistry.AtomRegistry;
 const shellAtom = Atom.family((_id: string) => Atom.make<unknown>(null));
 const environmentIdsAtom = Atom.make<ReadonlyArray<string>>([]);
+const requestsAtom = Atom.family((_id: string) =>
+  Atom.make<ReadonlyMap<string, PendingSubagentRequest>>(new Map()),
+);
+const delegatedUnderParentAtom = Atom.make<ReadonlySet<string>>(new Set<string>());
 state.shells = { set: (id, value) => registry.set(shellAtom(id), value) };
 
 class TestNotification extends EventTarget {
@@ -225,6 +244,28 @@ it.each(["hasPendingApprovals", "hasPendingUserInput"] as const)(
     expect(notification.close).toHaveBeenCalled();
   },
 );
+
+it("notifies a parent of its linked task's approval, and the task itself stays quiet", async () => {
+  await using app = setup();
+  app.start();
+  state.shells.set("two", shell({}, { id: "task" }));
+  registry.set(
+    delegatedUnderParentAtom,
+    new Set([
+      threadKey({ environmentId: EnvironmentId.make("two"), threadId: ThreadId.make("task") }),
+    ]),
+  );
+  state.shells.set("two", shell({}, { id: "task", hasPendingApprovals: true }));
+  expect(TestNotification.sent).toEqual([]);
+
+  registry.set(requestsAtom("one"), new Map([["thread", "approval"]]));
+  expect(TestNotification.sent.map(({ title }) => title)).toEqual(["Approval needed"]);
+  TestNotification.sent[0]!.dispatchEvent(new Event("click"));
+  expect(state.navigate).toHaveBeenCalledWith({
+    to: "/$environmentId/$threadId",
+    params: { environmentId: EnvironmentId.make("one"), threadId: "thread" },
+  });
+});
 
 it("holds a completion through a continuation gap and notifies once it completes", async () => {
   await using app = setup();

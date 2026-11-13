@@ -49,8 +49,6 @@ export function useSideChatBlockedReason(input: {
       ? environmentThreadDetails.worktreePendingAtom(scopeThreadRef(environmentId, thread.id))
       : NOT_PENDING_ATOM,
   );
-  // A delegated task is a remote thread's subagent; the server refuses its side chats too.
-  if (thread?.delegatedFrom != null) return "Subagent threads cannot start side chats.";
   return sideChatStartBlockedReason({
     parent:
       thread === null
@@ -58,6 +56,7 @@ export function useSideChatBlockedReason(input: {
         : {
             kind: "thread",
             lineage: thread.lineage,
+            delegatedFrom: thread.delegatedFrom,
             deletedAt: thread.deletedAt,
             worktreePending,
           },

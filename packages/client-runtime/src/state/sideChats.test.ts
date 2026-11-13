@@ -16,6 +16,7 @@ const thread = (
 ): SideChatParent => ({
   kind: "thread",
   lineage: { relationshipToParent: null },
+  delegatedFrom: null,
   deletedAt: null,
   worktreePending: false,
   ...overrides,
@@ -48,6 +49,13 @@ describe("sideChatStartBlockedReason", () => {
     [
       "a subagent",
       thread({ lineage: { relationshipToParent: "subagent" } }),
+      true,
+      true,
+      "Subagent threads cannot start side chats.",
+    ],
+    [
+      "a task a linked environment delegated",
+      thread({ delegatedFrom: { environmentId: "remote", threadId: "parent", title: "Parent" } }),
       true,
       true,
       "Subagent threads cannot start side chats.",

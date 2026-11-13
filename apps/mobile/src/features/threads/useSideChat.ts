@@ -61,6 +61,7 @@ export function useSideChatDisabledReason(
         : {
             kind: "thread",
             lineage: parent.lineage,
+            delegatedFrom: parent.delegatedFrom,
             deletedAt: parent.deletedAt,
             worktreePending,
           },

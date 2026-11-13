@@ -52,7 +52,7 @@ const isChildRunLive = (thread: Pick<OrchestrationV2ThreadShell, "activityRunSta
  * client lists (`delegatedUnderParent`, by thread key). A task whose parent
  * the client cannot list stays in the lists, so its work is never out of reach.
  */
-function isShownUnderParent(
+export function isShownUnderParent(
   ref: ScopedThreadRef,
   lineage: OrchestrationV2ThreadShell["lineage"],
   delegatedUnderParent: ReadonlySet<string>,

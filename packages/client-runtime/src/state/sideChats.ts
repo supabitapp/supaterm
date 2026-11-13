@@ -23,6 +23,8 @@ export type SideChatParent =
   | {
       readonly kind: "thread";
       readonly lineage: Pick<OrchestrationV2AppThreadLineage, "relationshipToParent" | "sideChat">;
+      /** The thread on a linked environment that delegated this one, if any. */
+      readonly delegatedFrom: unknown;
       readonly deletedAt: unknown;
       /** See `orchestrationV2WorktreePending`. */
       readonly worktreePending: boolean;
@@ -42,7 +44,11 @@ export function sideChatStartBlockedReason(input: {
   if (parent.kind === "draft" ? parent.sideChat : parent.lineage.sideChat === true) {
     return "Side chats cannot start side chats.";
   }
-  if (parent.kind === "thread" && parent.lineage.relationshipToParent === "subagent") {
+  // A delegated task is a remote thread's subagent.
+  if (
+    parent.kind === "thread" &&
+    (parent.lineage.relationshipToParent === "subagent" || parent.delegatedFrom != null)
+  ) {
     return "Subagent threads cannot start side chats.";
   }
   if (!input.canOperate) return "This connection cannot start side chats.";

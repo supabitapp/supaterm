@@ -30,7 +30,8 @@ import { describe, expect, it, onTestFinished, vi } from "vite-plus/test";
 
 import "~/index.css";
 
-import { environmentThreadDetails } from "../../state/threads";
+import { environmentPresentations } from "../../state/presentation";
+import { environmentThreadDetails, environmentThreadShells } from "../../state/threads";
 import { act, fakeTimers, render, stubGlobal } from "../../../test/render";
 import { ChangedFilesCard } from "./ChangedFilesTree";
 import { MessagesTimeline } from "./MessagesTimeline";
@@ -663,6 +664,57 @@ describe("MessagesTimeline history and thread links", () => {
     await act(() => vi.advanceTimersToNextFrame());
     expect(onLoadEarlier).toHaveBeenCalledTimes(2);
   });
+
+  it.each([
+    { connected: false, originLabel: "Studio", detail: "Plan the release on Studio" },
+    { connected: false, originLabel: null, detail: "Plan the release" },
+    { connected: true, originLabel: "Studio", detail: "Renamed parent on MacBook" },
+  ])(
+    "names the thread that delegated this one ($detail)",
+    async ({ connected, originLabel, detail }) => {
+      const delegatedFrom = {
+        environmentId: EnvironmentId.make("environment-remote"),
+        threadId: ThreadId.make("thread-parent"),
+        title: "Plan the release",
+      };
+      const presentation = Atom.make({
+        entry: {
+          target: { _tag: "PrimaryConnectionTarget", label: "MacBook", httpBaseUrl: "http://mac" },
+        },
+      });
+      const parentShell = Atom.make({ title: "Renamed parent" });
+      const presentationAtom = environmentPresentations.presentationAtom;
+      using _presentation = vi
+        .spyOn(environmentPresentations, "presentationAtom")
+        .mockImplementation((id) =>
+          connected && id === delegatedFrom.environmentId
+            ? (presentation as never)
+            : presentationAtom(id),
+        );
+      const quietThreadShellAtom = environmentThreadShells.quietThreadShellAtom;
+      using _shell = vi
+        .spyOn(environmentThreadShells, "quietThreadShellAtom")
+        .mockImplementation((ref) =>
+          connected && ref.threadId === delegatedFrom.threadId
+            ? (parentShell as never)
+            : quietThreadShellAtom(ref),
+        );
+      await using screen = await renderTimeline([message("Recent activity")], {
+        parentThreadLink: { delegatedFrom, originLabel },
+      });
+
+      expect(screen.text()).toContain(`Subagent of·\u00a0${detail}You`);
+      // Only an environment this client is connected to can open the parent.
+      if (!connected) {
+        expect(screen.buttons("Open parent thread")).toEqual([]);
+        return;
+      }
+      await click(screen.button("Open parent thread"));
+      await vi.waitFor(() =>
+        expect(screen.router?.state.location.pathname).toBe("/environment-remote/thread-parent"),
+      );
+    },
+  );
 });
 
 function usageLimitEntries(resetAt: string) {

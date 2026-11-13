@@ -30,6 +30,7 @@ import {
   resolveSidebarDropVerb,
 } from "./Sidebar.logic";
 import { scopeThreadRef, scopedThreadKey } from "@supaterm/client-runtime/environment";
+import { threadKey } from "@supaterm/client-runtime/state/entities";
 import { sortPinnedThreadsByOrderKey } from "@supaterm/client-runtime/state/thread-sort";
 
 import { EnvironmentId, ProjectId, ProviderInstanceId, RunId, ThreadId } from "@supaterm/contracts";
@@ -653,10 +654,11 @@ describe("sortScopedProjectsForSidebar", () => {
 });
 
 describe("sortSidebarV2ProjectGroups", () => {
-  it("does not let a hidden subagent thread reorder projects", () => {
+  it("does not let a thread shown under its parent reorder projects", () => {
     const olderProjectId = ProjectId.make("project-older");
     const newerProjectId = ProjectId.make("project-newer");
     const olderRootThreadId = ThreadId.make("thread-older-root");
+    const delegatedTaskId = ThreadId.make("thread-delegated-task");
     const projects = [
       {
         ...makeProject({ id: olderProjectId, title: "A older project" }),
@@ -690,13 +692,27 @@ describe("sortSidebarV2ProjectGroups", () => {
           relationshipToParent: "subagent",
         },
       }),
+      makeThread({
+        id: delegatedTaskId,
+        projectId: olderProjectId,
+        updatedAt: "2026-03-09T10:20:00.000Z",
+      }),
     ];
+    const delegatedUnderParent = new Set([
+      threadKey({ environmentId: localEnvironmentId, threadId: delegatedTaskId }),
+    ]);
 
     expect(
-      sortSidebarV2ProjectGroups(projects, threads, "updated_at").map(
+      sortSidebarV2ProjectGroups(projects, threads, "updated_at", delegatedUnderParent).map(
         (project) => project.projectKey,
       ),
     ).toEqual(["logical-newer", "logical-older"]);
+    // A task whose parent the client cannot list keeps its own row, and its activity counts.
+    expect(
+      sortSidebarV2ProjectGroups(projects, threads, "updated_at", new Set()).map(
+        (project) => project.projectKey,
+      ),
+    ).toEqual(["logical-older", "logical-newer"]);
   });
 });
 
@@ -1301,6 +1317,7 @@ describe("resolveSidebarRouteReveal", () => {
         reveal: { observedKey: "environment-test:other", pendingKey: null },
         routeKey: hiddenKey,
         scopedProjectKeys,
+        delegatedUnderParent: new Set(),
         findThread,
       }),
     ).toEqual({ pendingKey: hiddenKey, widensScope: true });
@@ -1313,6 +1330,7 @@ describe("resolveSidebarRouteReveal", () => {
         reveal: { observedKey: hiddenKey, pendingKey: null },
         routeKey: hiddenKey,
         scopedProjectKeys,
+        delegatedUnderParent: new Set(),
         findThread,
       }),
     ).toEqual({ pendingKey: null, widensScope: false });
@@ -1323,7 +1341,13 @@ describe("resolveSidebarRouteReveal", () => {
     // never mounted, then came back.
     const reveal = { observedKey: hiddenKey, pendingKey: null };
     const resolve = (routeKey: string) =>
-      resolveSidebarRouteReveal({ reveal, routeKey, scopedProjectKeys, findThread });
+      resolveSidebarRouteReveal({
+        reveal,
+        routeKey,
+        scopedProjectKeys,
+        delegatedUnderParent: new Set(),
+        findThread,
+      });
     resolve("environment-test:unlisted");
     expect(resolve(hiddenKey)).toEqual({ pendingKey: hiddenKey, widensScope: true });
   });
