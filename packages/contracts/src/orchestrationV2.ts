@@ -3522,6 +3522,15 @@ const OrchestrationV2InternalCommand = Schema.Union([
     projectId: ProjectId,
   }),
   /**
+   * After a push, the thread's watches forget whether their checks were running, since the push
+   * can start new ones. Applied to the watches as they are then, so no earlier read overwrites them.
+   */
+  Schema.Struct({
+    type: Schema.Literal("thread.pull-request-watch.checks-reopen"),
+    commandId: CommandId,
+    threadId: ThreadId,
+  }),
+  /**
    * Records what a pull request watch saw, and wakes the agent in the same transaction when
    * `wake` is set. Rejected once the watch started at `startedAt` has ended, and a wake is
    * rejected on a done or archived thread, so a read that raced either changes nothing.
@@ -3533,6 +3542,11 @@ const OrchestrationV2InternalCommand = Schema.Union([
     ...ThreadPullRequestKey.fields,
     startedAt: IsoDateTime,
     watch: Schema.NullOr(ThreadPullRequestWatch),
+    /**
+     * The watch's `checksPending` when this read started. A push that clears it during the read
+     * makes the read's answer describe the old head, so the cleared answer stays.
+     */
+    checksPendingBefore: Schema.optional(Schema.Boolean),
     endedWatch: Schema.optional(ThreadPullRequestWatch),
     /** More watches of this thread recorded together, which `wake` also reports on. */
     others: Schema.optional(
@@ -3541,6 +3555,7 @@ const OrchestrationV2InternalCommand = Schema.Union([
           ...ThreadPullRequestKey.fields,
           startedAt: IsoDateTime,
           watch: Schema.NullOr(ThreadPullRequestWatch),
+          checksPendingBefore: Schema.optional(Schema.Boolean),
           endedWatch: Schema.optional(ThreadPullRequestWatch),
           includesRemarks: Schema.optional(Schema.Boolean),
         }),
