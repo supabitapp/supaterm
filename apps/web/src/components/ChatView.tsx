@@ -144,6 +144,7 @@ import { resolveThreadReferenceCopyTarget } from "@supaterm/client-runtime/threa
 import { resolveTerminalSessionLabel } from "@supaterm/shared/terminalLabels";
 import { useAtomValue } from "@effect/atom-react";
 import {
+  type MouseEvent as ReactMouseEvent,
   type SetStateAction,
   use,
   useEffect,
@@ -3458,6 +3459,7 @@ export default function ChatView(props: ChatViewProps) {
             data-chat-column
             data-chat-column-maximized-away={rightPanelMaximized ? "true" : "false"}
             className="flex h-full min-h-0 min-w-0 flex-col overflow-x-clip bg-background"
+            onMouseUp={preventMiddleClickPasteOutsideEditable}
           >
             <header
               ref={threadPanelPopoverAnchorRef}
@@ -4156,6 +4158,12 @@ export default function ChatView(props: ChatViewProps) {
       {content}
     </FileMetadataThreadProvider>
   );
+}
+
+// Chromium on Linux pastes PRIMARY into the focused editable unless the middle mouseup is cancelled.
+function preventMiddleClickPasteOutsideEditable(event: ReactMouseEvent) {
+  if (event.button !== 1 || isEditableFocused(event.target)) return;
+  event.preventDefault();
 }
 
 function PreviewSessionSync(props: { readonly threadRef: ScopedThreadRef }) {
