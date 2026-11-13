@@ -77,7 +77,10 @@ import {
   type ProviderSubagentStatus,
 } from "@supaterm/client-runtime/state/thread-execution";
 import { formatModelSlugName, resolveSelectableModel } from "@supaterm/shared/model";
-import { isProviderNativeSubagentThread } from "@supaterm/contracts";
+import {
+  ASSISTANT_CITATION_MAX_TEXT_LENGTH,
+  isProviderNativeSubagentThread,
+} from "@supaterm/contracts";
 import type { QueuedRunEdit } from "../../state/queued-run-edit";
 import type { FollowUpBehavior } from "../../lib/followUpBehavior";
 import type { ActiveTurnComposerAction } from "@supaterm/client-runtime/state/composer-dispatch";
@@ -128,7 +131,15 @@ import { useAppearancePreferences } from "../settings/appearance/AppearancePrefe
 import { collectProviderUsageLimits } from "@supaterm/shared/usageLimits";
 import type { ComposerEditorHandle } from "../../components/ComposerEditor";
 import type { StatusTone } from "../../components/StatusPill";
-import { getComposerDraftSnapshot, setFreshSessionPending } from "../../state/use-composer-drafts";
+import {
+  getComposerDraftSnapshot,
+  insertComposerDraftContext,
+  setFreshSessionPending,
+} from "../../state/use-composer-drafts";
+import { assistantCitationFromSelection } from "../../lib/assistantAnnotation";
+import type { MarkdownTextSelection } from "../../native/SelectableMarkdownText";
+import { promptAssistantAnnotation } from "../../components/assistantAnnotationPrompt";
+import { serializeAssistantCitation } from "@supaterm/shared/assistantCitations";
 import { RenderErrorBoundary, RenderFailureView } from "../../components/RenderErrorBoundary";
 import {
   ANDROID_READING_MAX_WIDTH,
@@ -1503,6 +1514,30 @@ function ThreadDetailBody(
     });
   };
 
+  const handleAnnotateAssistantText = (messageId: MessageId, selection: MarkdownTextSelection) => {
+    const draftKey = props.composerDraftKey;
+    if (draftKey === null) return;
+    const citation = assistantCitationFromSelection(
+      { environmentId: props.environmentId, threadId: props.selectedThread.id, messageId },
+      selection,
+    );
+    if (citation === "empty") return;
+    if (citation === "too-long") {
+      Dialog.alert(
+        "Selection is too long",
+        `Annotate up to ${ASSISTANT_CITATION_MAX_TEXT_LENGTH.toLocaleString()} characters at a time.`,
+      );
+      return;
+    }
+    promptAssistantAnnotation(citation, "add", (annotated) => {
+      insertComposerDraftContext(draftKey, {
+        text: serializeAssistantCitation(annotated),
+        context: { version: 1, records: [] },
+      });
+      void Haptics.selectionAsync();
+    });
+  };
+
   const handleScrollToEnd = () => {
     void Haptics.selectionAsync();
     void scrollMessageToEnd({ animated: !reduceMotion, closeKeyboard: false }).catch(() => {
@@ -1633,6 +1668,11 @@ function ThreadDetailBody(
                   onIsAtEndChange={setIsAtEnd}
                   skills={selectedProviderSkills}
                   onUseArtifactTemplate={handleUseArtifactTemplate}
+                  onAnnotateAssistantText={
+                    isProviderSubagent || props.composerDraftKey === null
+                      ? undefined
+                      : handleAnnotateAssistantText
+                  }
                 />
               </ColumnWidth>
             </WorkspaceMutationIdProvider>

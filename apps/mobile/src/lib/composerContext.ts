@@ -21,6 +21,7 @@ import {
   replaceComposerContextReferences,
   sanitizeComposerContextLabel,
 } from "@supaterm/shared/composerContextReferences";
+import { collectAssistantCitations } from "@supaterm/shared/assistantCitations";
 import {
   collectComposerInlineTokens,
   type ComposerInlineToken,
@@ -155,18 +156,21 @@ export function composerContextEditorTokens(
   knownSkills: { has(name: string): boolean },
 ) {
   const references = collectComposerContextReferences(text);
+  const citations = collectAssistantCitations(text);
+  const links = [...references, ...citations];
   return [
     ...tokens.filter(
       (token) =>
         // `$HOME` and other `$name` text that is not one of the provider's skills stays prose.
         (token.type !== "skill" || knownSkills.has(token.value)) &&
-        !references.some((ref) => token.start < ref.end && token.end > ref.start),
+        !links.some((link) => token.start < link.end && token.end > link.start),
     ),
     ...references.map((ref) => ({
       type: "context" as const,
       value: ref.label,
       ...ref,
     })),
+    ...citations.map((citation) => ({ type: "citation" as const, ...citation })),
   ].sort((a, b) => a.start - b.start);
 }
 
