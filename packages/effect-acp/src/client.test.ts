@@ -1613,7 +1613,7 @@ it.layer(NodeServices.layer)("effect-acp client", (it) => {
     }),
   );
 
-  it.effect("delivers ACP v1 session notices, which the pinned v1 schema predates", () =>
+  it.effect("normalizes ACP v1 session notices and null tool names to v2 semantics", () =>
     Effect.gen(function* () {
       const { stdio, input, output } = yield* makeInMemoryStdio();
       const scope = yield* Scope.make();
@@ -1641,7 +1641,12 @@ it.layer(NodeServices.layer)("effect-acp client", (it) => {
         description: "Continuing without it.",
       } as const;
       const untitled = { sessionUpdate: "notice", severity: "info" } as const;
-      for (const update of [notice, untitled]) {
+      const toolUpdate = {
+        sessionUpdate: "tool_call_update",
+        toolCallId: "c",
+        status: "completed",
+      };
+      for (const update of [notice, untitled, { ...toolUpdate, name: null }]) {
         yield* Queue.offer(
           input,
           yield* encodeJsonl(SessionUpdateNotification, {
@@ -1651,7 +1656,7 @@ it.layer(NodeServices.layer)("effect-acp client", (it) => {
           }),
         );
       }
-      const received = yield* acp.raw.notifications.pipe(Stream.take(2), Stream.runCollect);
+      const received = yield* acp.raw.notifications.pipe(Stream.take(3), Stream.runCollect);
       assert.deepEqual(
         Array.from(received, (event) =>
           event._tag === "SessionUpdate" ? event.params.update : undefined,
@@ -1659,6 +1664,7 @@ it.layer(NodeServices.layer)("effect-acp client", (it) => {
         [
           notice,
           { sessionUpdate: "_supaterm_unknown", originalSessionUpdate: "notice", raw: untitled },
+          toolUpdate,
         ],
       );
       yield* Scope.close(scope, Exit.void);
