@@ -17,6 +17,7 @@ import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Ref from "effect/Ref";
+import * as SqlClient from "effect/sql/SqlClient";
 
 import { CodexProviderCapabilitiesV2 } from "./Adapters/CodexAdapterV2.ts";
 import * as EventSink from "./EventSink.ts";
@@ -222,6 +223,34 @@ it.layer(layerTest)("a delegated task in a linked environment", (it) => {
       assert.deepEqual(item?.type === "subagent" ? item.remoteChild : undefined, remoteChild);
       // No thread was created here for the child.
       assert.equal(yield* orchestrator.getThreadShell(remoteChild.threadId), null);
+    }),
+  );
+
+  it.effect("is stopped with its parent, which has no child thread here to stop", () =>
+    Effect.gen(function* () {
+      const orchestrator = yield* Orchestrator.OrchestratorV2;
+      const sql = yield* SqlClient.SqlClient;
+      const parent = yield* seedLiveParent("parent-stop");
+      yield* orchestrator.dispatch({
+        type: "delegated_task.remote.request",
+        commandId: CommandId.make("command:remote-delegate:parent-stop"),
+        parentThreadId: parent.threadId,
+        parentRunId: parent.runId,
+        parentNodeId: parent.rootNodeId,
+        task: "Run the suite there.",
+        driver: ProviderDriverKind.make("remote"),
+        modelSelection,
+        remoteChild,
+      });
+      const commandId = CommandId.make("command:stop:parent-stop");
+      yield* orchestrator.dispatch({ type: "thread.stop", commandId, threadId: parent.threadId });
+      const effects = yield* sql<{ readonly effect_type: string }>`
+        SELECT effect_type FROM orchestration_v2_effect_outbox WHERE command_id = ${commandId}
+      `;
+      assert.include(
+        effects.map((row) => row.effect_type),
+        "delegated-tasks.stop",
+      );
     }),
   );
 
