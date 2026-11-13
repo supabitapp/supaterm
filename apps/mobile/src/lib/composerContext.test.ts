@@ -204,7 +204,7 @@ describe("mobile composer context", () => {
         collectComposerInlineTokens(text),
         composerSkillLabels([]),
       ).map((token) => token.type),
-    ).toEqual(["mention", "context", "context", "citation"]);
+    ).toEqual(["mention", "context-reference", "context-reference", "citation"]);
     expect(
       composerContextEditorTokens(
         text,

@@ -28,7 +28,7 @@ function chipLabel(
   switch (token.type) {
     case "skill":
       return skillLabels.get(token.value) ?? token.value;
-    case "context":
+    case "context-reference":
       return available ? token.label : `${token.label} · unavailable`;
     case "citation":
       return assistantCitationLabel(token.citation);
@@ -47,11 +47,11 @@ export function composerEditorChips(input: {
 }) {
   return composerContextEditorTokens(input.text, input.tokens, input.skillLabels).map((token) => {
     const record =
-      token.type === "context"
+      token.type === "context-reference"
         ? input.context?.records.find((record) => record.contextId === token.contextId)
         : undefined;
     const presentation = contextChipPresentation(
-      token.type === "context" ? token.kind : token.type,
+      token.type === "context-reference" ? token.kind : token.type,
       record,
     );
     const icon = contextChipIcon(
@@ -60,13 +60,13 @@ export function composerEditorChips(input: {
     );
     return {
       // The Android editor routes chip taps only for the token types it knows.
-      type: token.type === "citation" ? "context" : token.type,
+      type: token.type === "mention" || token.type === "skill" ? token.type : "context",
       source: token.source,
       start: token.start,
       end: token.end,
       accent: contextChipAccent(presentation.accent, input.theme, input.textColor),
       label: chipLabel(token, record !== undefined, input.skillLabels),
-      detail: token.type === "context" ? composerChipSizeSuffix(record) : "",
+      detail: token.type === "context-reference" ? composerChipSizeSuffix(record) : "",
       iconUri: contextChipIconUri(icon),
       tintsIcon: icon.kind === "chip",
     };
