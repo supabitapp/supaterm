@@ -1,4 +1,5 @@
 import {
+  OrchestratorMcpEnvironmentTarget,
   ScheduledTaskId,
   ScheduledTask,
   OrchestrationSearchThreadsInput,
@@ -33,6 +34,7 @@ const ThreadOrganizeTool = Tool.make("supaterm_thread_organize", {
   description:
     "Pin, snooze, mark done, archive, or mark a thread unread, or pin a message in it. Omit `threadId` for this thread. `snooze` needs `snoozedUntil`. `pin_message` takes an `itemId` from supaterm_thread_read. Marking this thread done applies at turn end. A failed turn or queued message leaves it active.",
   parameters: Schema.Struct({
+    environmentId: OrchestratorMcpEnvironmentTarget,
     threadId: Schema.optional(ThreadId),
     action: Schema.Literals([
       "pin",
@@ -94,6 +96,7 @@ const QueueTool = Tool.make("supaterm_queue", {
       "reorder",
       "promote_to_steer",
     ]),
+    environmentId: OrchestratorMcpEnvironmentTarget,
     threadId: Schema.optional(ThreadId),
     queuedRunId: Schema.optional(RunId),
     text: Schema.optional(Schema.String.check(Schema.isMaxLength(100000))),
@@ -131,6 +134,7 @@ const PendingRequestTool = Tool.make("supaterm_pending_request", {
     "Pending user questions in a thread. Omit `threadId` for this thread. list: their ids; approvals are not listed. read: one by `requestId`. respond: answer one with `answers`; this cannot approve a permission request.",
   parameters: Schema.Struct({
     action: Schema.Literals(["list", "read", "respond"]),
+    environmentId: OrchestratorMcpEnvironmentTarget,
     threadId: Schema.optional(ThreadId),
     requestId: Schema.optional(RuntimeRequestId),
     answers: Schema.optional(ProviderUserInputAnswers),
@@ -155,6 +159,7 @@ const ThreadConfigureTool = Tool.make("supaterm_thread_configure", {
   description:
     "Read a thread's provider, model, and modes, or set its provider, model, and options with `modelSelection`. Omit `threadId` for this thread. Permission modes stay. Values from `orchestrator_capabilities`.",
   parameters: Schema.Struct({
+    environmentId: OrchestratorMcpEnvironmentTarget,
     threadId: Schema.optional(ThreadId),
     modelSelection: Schema.optional(ModelSelection),
   }),
@@ -167,6 +172,7 @@ const ThreadTransferTool = Tool.make("supaterm_thread_transfer", {
     "Move context between threads. Omit `threadId` for this thread. fork: copy it from `sourcePoint` (default latest stable run) into a new thread with the same setup; no turn runs yet. merge_back: merge it from `sourcePoint` into a related `targetThreadId` in the same project. status: its context transfers.",
   parameters: Schema.Struct({
     action: Schema.Literals(["fork", "merge_back", "status"]),
+    environmentId: OrchestratorMcpEnvironmentTarget,
     threadId: Schema.optional(ThreadId),
     sourcePoint: Schema.optional(OrchestrationV2ThreadForkSourcePoint),
     targetThreadId: Schema.optional(ThreadId),
@@ -192,6 +198,7 @@ const ThreadSearchTool = Tool.make("supaterm_thread_search", {
   description:
     "Search active threads by title, branch, PR, project, then message text. Skips subagent threads. `projectId`: one project, else yours, else all outside a thread. Not exhaustive.",
   parameters: Schema.Struct({
+    environmentId: OrchestratorMcpEnvironmentTarget,
     ...OrchestrationSearchThreadsInput.fields,
     projectId: Schema.optional(ProjectId),
   }),
@@ -218,6 +225,7 @@ const ScheduledTaskRunTool = Tool.make("run_scheduled_task_now", {
   description:
     "Run one scheduled task now. Needs a full-access or default caller. Returns its thread, or null if not started. Success means started, not finished.",
   parameters: Schema.Struct({
+    environmentId: OrchestratorMcpEnvironmentTarget,
     taskId: ScheduledTaskId,
   }),
   success: Schema.Struct({

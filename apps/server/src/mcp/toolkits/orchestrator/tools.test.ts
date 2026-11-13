@@ -23,5 +23,7 @@ it("refuses a supaterm_thread_update whose fields do not fit its action", () => 
   );
   expect(Exit.isFailure(decode({ action: "rename" }))).toBe(true);
   expect(Exit.isFailure(decode({ action: "regenerate_title", title: "New" }))).toBe(true);
-  expect(Exit.isSuccess(decode({ action: "rename", title: "New" }))).toBe(true);
+  expect(Exit.isSuccess(decode({ action: "rename", title: "New", environmentId: undefined }))).toBe(
+    true,
+  );
 });

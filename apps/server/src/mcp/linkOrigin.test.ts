@@ -42,6 +42,7 @@ import * as SourceControlRepositoryService from "../sourceControl/SourceControlR
 import * as GitVcsDriver from "../vcs/GitVcsDriver.ts";
 import * as McpHttpServer from "./McpHttpServer.ts";
 import * as McpInvocationContext from "./McpInvocationContext.ts";
+import * as PeerForwarding from "../peer/PeerForwarding.ts";
 import * as ThreadSearch from "../orchestration-v2/ThreadSearch.ts";
 
 // A linked environment's session drives this one's real orchestrator through
@@ -155,6 +156,7 @@ const layerTools = Layer.mergeAll(
   ),
   Layer.provide(Layer.mock(ProjectCloneTracker.ProjectCloneTracker)({})),
   Layer.provide(Layer.mock(SecretRequests.SecretRequests)({})),
+  Layer.provide(Layer.mock(PeerForwarding.PeerForwarding)({})),
   Layer.provide(Layer.mock(ThreadSearch.ThreadSearch)({})),
   Layer.provide(
     Layer.mock(ManagedProjectFolders.ManagedProjectFolders)({ namedProjectsRoot: "/p" }),
@@ -338,11 +340,16 @@ it.layer(Layer.provideMerge(layerTools, layerOrchestration))("work a link starts
       assert.equal((yield* projections.getThreadShell(users))?.title, "The user's own");
       // An ordinary outside agent is not fenced.
       assert.equal((yield* rename(claudeCode, users)).isError, false);
+      // Naming this environment's own id is still this environment's thread.
       for (const [name, args] of [
         ["supaterm_thread_send", { message: "From the laptop." }],
         ["supaterm_thread_interrupt", {}],
       ] as const) {
-        const result = yield* call(laptop, name, { ...args, threadId: users });
+        const result = yield* call(laptop, name, {
+          ...args,
+          environmentId: laptop.environmentId,
+          threadId: users,
+        });
         assert.equal(failureCode(result), "capability_denied", name);
       }
 

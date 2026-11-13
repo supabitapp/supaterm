@@ -1,19 +1,23 @@
 import { expect, it } from "@effect/vitest";
 import {
   EnvironmentId,
+  OrchestratorMcpEnvironmentTarget,
   OrchestratorMcpFailure,
   ProviderInstanceId,
   ProviderInteractionMode,
   RuntimeMode,
   ThreadId,
 } from "@supaterm/contracts";
+import * as Cause from "effect/Cause";
 import * as Effect from "effect/Effect";
+import * as Exit from "effect/Exit";
 import * as Layer from "effect/Layer";
 import * as Schema from "effect/Schema";
 import { McpSchema, McpServer, Tool, Toolkit } from "effect/ai";
 
 import { OrchestratorProjectionError } from "../orchestration-v2/Orchestrator.ts";
 import * as ThreadManagement from "../orchestration-v2/ThreadManagementService.ts";
+import * as PeerForwarding from "../peer/PeerForwarding.ts";
 import * as McpHttpServer from "./McpHttpServer.ts";
 import * as McpInvocationContext from "./McpInvocationContext.ts";
 import * as McpToolAccess from "./McpToolAccess.ts";
@@ -28,6 +32,7 @@ const oldProviderThreadId = ThreadId.make("thread:old-provider-background");
 const archivedThreadId = ThreadId.make("thread:archived-background");
 const unknownOwnerThreadId = ThreadId.make("thread:unknown-background-owner");
 const sideChatThreadId = ThreadId.make("thread:side-chat");
+const fullAccessSideChatThreadId = ThreadId.make("thread:full-access-side-chat");
 
 const backgroundShell = (threadId: ThreadId, providerInstanceId: ProviderInstanceId) => ({
   ...liveThreadShell(threadId, { activeRunId: null }),
@@ -49,6 +54,10 @@ const shells = new Map([
       runtimeMode: "approval-required",
       sideChatOf: supervisedThreadId,
     }),
+  ],
+  [
+    fullAccessSideChatThreadId,
+    liveThreadShell(fullAccessSideChatThreadId, { sideChatOf: fullAccessThreadId }),
   ],
   [endedThreadId, liveThreadShell(endedThreadId, { activeRunId: null })],
   [backgroundThreadId, backgroundShell(backgroundThreadId, ProviderInstanceId.make("codex"))],
@@ -243,6 +252,7 @@ const oldProviderBackground = threadCaller(oldProviderThreadId);
 const archivedBackground = threadCaller(archivedThreadId);
 const unknownOwnerBackground = threadCaller(unknownOwnerThreadId);
 const sideChat = threadCaller(sideChatThreadId);
+const fullAccessSideChat = threadCaller(fullAccessSideChatThreadId);
 const mismatchedProvider = {
   ...background,
   thread: { ...background.thread!, providerInstanceId: ProviderInstanceId.make("claude") },
@@ -399,4 +409,159 @@ it.effect("refuses a change when the calling thread cannot be read", () =>
       ),
     ),
   ),
+);
+
+const box = EnvironmentId.make("environment-box");
+const here = EnvironmentId.make("environment");
+const linkedProbe = {
+  ...probe,
+  parameters: Schema.Struct({
+    environmentId: OrchestratorMcpEnvironmentTarget,
+    threadId: Schema.optional(ThreadId),
+    runtimeMode: Schema.optional(RuntimeMode),
+    interactionMode: Schema.optional(ProviderInteractionMode),
+  }),
+};
+const LinkedProbeToolkit = Toolkit.make(
+  Tool.make("reads", linkedProbe),
+  Tool.make("writes", linkedProbe),
+  Tool.make("writes_with_capability", linkedProbe),
+  Tool.make("writes_threads", linkedProbe),
+  Tool.make("forks_threads", linkedProbe),
+  Tool.make("starts_threads", linkedProbe),
+  Tool.make("writes_environment", linkedProbe),
+);
+/** Runs here, and tells whether `environmentId` reached the handler. */
+const ranHere = <P extends object>(params: P) =>
+  Effect.succeed({ ran: "environmentId" in params ? "saw environmentId" : "here" });
+
+const linkedProbeServer = McpHttpServer.toolkitRegistration(
+  LinkedProbeToolkit,
+  McpToolAccess.toLayer(LinkedProbeToolkit, {
+    reads: McpToolAccess.reads(ranHere),
+    writes: McpToolAccess.writes(ranHere),
+    writes_with_capability: McpToolAccess.writesWithCapability(ranHere),
+    writes_threads: McpToolAccess.writesThreads((input) => [input.threadId], ranHere),
+    forks_threads: McpToolAccess.forksThreads((input) => [input.threadId], ranHere),
+    starts_threads: McpToolAccess.startsThreads((input) => input, ranHere, "stamped"),
+    writes_environment: McpToolAccess.writesEnvironment(ranHere),
+  }),
+).pipe(
+  Layer.provideMerge(McpHttpServer.layerInProcessMcpServer),
+  Layer.provideMerge(
+    Layer.mock(ThreadManagement.ThreadManagementService)({
+      getThreadShell: (threadId) => Effect.succeed(shells.get(threadId) ?? null),
+    }),
+  ),
+  // Stands in for the linked environment, answering with where the call went.
+  Layer.provide(
+    Layer.mock(PeerForwarding.PeerForwarding)({
+      call: (_scope, tool, environmentId) =>
+        Effect.succeed({ ran: `${tool.name} in ${environmentId}` } as never),
+    }),
+  ),
+);
+
+it.effect.each([
+  ["reads", supervised, { environmentId: box }, "reads in environment-box"],
+  ["reads", supervised, { environmentId: here }, "here"],
+  ["reads", supervised, {}, "here"],
+
+  // The caller is checked here before anything goes.
+  ["writes", readOnlyClient, { environmentId: box }, "capability_denied"],
+  ["writes", ended, { environmentId: box }, "parent_not_active"],
+  ["writes", supervised, { environmentId: box }, "writes in environment-box"],
+  ["writes_with_capability", readOnlyClient, { environmentId: box }, "capability_denied"],
+  [
+    "starts_threads",
+    plan,
+    { environmentId: box, interactionMode: "default" },
+    "interaction_mode_escalation_denied",
+  ],
+  ["starts_threads", plan, { environmentId: box }, "starts_threads in environment-box"],
+  ["writes_environment", supervised, { environmentId: box }, "capability_denied"],
+  [
+    "writes_environment",
+    fullAccess,
+    { environmentId: box },
+    "writes_environment in environment-box",
+  ],
+  ["writes_environment", fullAccess, { environmentId: here }, "here"],
+
+  // A thread id names a thread where the call runs, and is checked there.
+  [
+    "writes_threads",
+    supervised,
+    { environmentId: box, threadId: fullAccessThreadId },
+    "writes_threads in environment-box",
+  ],
+  [
+    "writes_threads",
+    supervised,
+    { environmentId: here, threadId: fullAccessThreadId },
+    "runtime_mode_escalation_denied",
+  ],
+  [
+    "forks_threads",
+    supervised,
+    { environmentId: box, threadId: fullAccessThreadId },
+    "forks_threads in environment-box",
+  ],
+  [
+    "forks_threads",
+    supervised,
+    { environmentId: here, threadId: fullAccessThreadId },
+    "runtime_mode_escalation_denied",
+  ],
+
+  // A side chat reads there, but a thread there is never its own, so it writes nothing there.
+  ["reads", sideChat, { environmentId: box }, "reads in environment-box"],
+  ["writes", sideChat, { environmentId: box }, "capability_denied"],
+  ["writes_with_capability", sideChat, { environmentId: box }, "capability_denied"],
+  ["writes_with_capability", sideChat, { environmentId: here }, "here"],
+  ["writes_threads", sideChat, { environmentId: box }, "capability_denied"],
+  [
+    "writes_threads",
+    sideChat,
+    { environmentId: box, threadId: sideChatThreadId },
+    "capability_denied",
+  ],
+  ["writes_threads", sideChat, { environmentId: here }, "here"],
+  ["forks_threads", sideChat, { environmentId: box }, "capability_denied"],
+  ["starts_threads", sideChat, { environmentId: box }, "capability_denied"],
+  ["writes_environment", fullAccessSideChat, { environmentId: box }, "capability_denied"],
+] as const)("a linked %s from %o with %o: %s", ([tool, scope, args, expected]) =>
+  call(tool, scope, args).pipe(
+    Effect.map((outcome) => expect(outcome).toBe(expected)),
+    Effect.provide(linkedProbeServer),
+  ),
+);
+
+it.effect("refuses a linked environment to a tool that acts as its calling thread", () =>
+  Effect.gen(function* () {
+    const CallerToolkit = Toolkit.make(Tool.make("acts_as_caller", linkedProbe));
+    const FullThreadToolkit = Toolkit.make(Tool.make("acts_as_full_thread", linkedProbe));
+    const diesOnBuild = <Tools extends Record<string, Tool.Any>>(
+      handlers: McpToolAccess.HandlersLayer<Tools>,
+    ) =>
+      Layer.build(McpToolAccess.HandlersLayer.layer(handlers)).pipe(
+        Effect.scoped,
+        Effect.exit,
+        Effect.map((built) => Exit.isFailure(built) && Cause.hasDies(built.cause)),
+      );
+    expect(
+      yield* diesOnBuild(
+        McpToolAccess.toLayer(CallerToolkit, {
+          acts_as_caller: McpToolAccess.actsAsCaller(ranHere),
+        }),
+      ),
+    ).toBe(true);
+    expect(
+      yield* diesOnBuild(
+        McpToolAccess.toLayer(FullThreadToolkit, {
+          acts_as_full_thread: McpToolAccess.actsAsFullThread(ranHere),
+        }),
+      ),
+    ).toBe(true);
+  }),
 );
