@@ -91,7 +91,7 @@ function sideChatRequest(thread: OrchestrationV2ThreadShell): PendingSubagentReq
  * environment's threads delegated to linked environments, with what each one, or its
  * own subagents, asks.
  */
-export function pendingSubagentRequestsByThread(
+function pendingSubagentRequestsByThread(
   threads: ReadonlyArray<OrchestrationV2ThreadShell>,
   delegated: ReadonlyArray<{
     readonly parentThreadId: ThreadId;
