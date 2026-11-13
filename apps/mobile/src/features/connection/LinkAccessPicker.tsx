@@ -43,8 +43,8 @@ export function LinkAccessPicker(props: {
         ))}
       </SettingsSection>
       <Text className="font-sans text-xs text-foreground-muted">
-        An agent here never gets more there than its own mode here either. Threads it starts there
-        cannot change that environment's own threads, projects or settings.
+        An agent here never gets more there than its own mode here either. Below full access,
+        threads it starts there cannot change that environment's own threads, projects or settings.
       </Text>
     </>
   );
