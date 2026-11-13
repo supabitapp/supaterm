@@ -114,7 +114,7 @@ the environment’s own machine are skipped, since its devices are already local
 The first device listing installs pinned device tools on the host.
 SSH device hosts currently need macOS or Linux. To use devices on a Windows
 machine, run Supaterm on that machine and connect to its environment.
-Node 22 or newer and npm must be available to non-interactive SSH commands.
+Node 22.12 or newer and npm must be available to non-interactive SSH commands.
 Supaterm checks common Homebrew and Android SDK locations; custom installations need
 the appropriate PATH and ANDROID_HOME on the host. Android emulator video needs
 `ffmpeg` with libx264 on that host; physical Android devices use scrcpy and do
