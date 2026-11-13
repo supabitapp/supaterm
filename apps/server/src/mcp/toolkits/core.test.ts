@@ -44,6 +44,7 @@ import * as ProviderAdapterRegistry from "../../orchestration-v2/ProviderAdapter
 import * as ThreadLaunchService from "../../orchestration-v2/ThreadLaunchService.ts";
 import * as GitVcsDriver from "../../vcs/GitVcsDriver.ts";
 import * as ThreadManagement from "../../orchestration-v2/ThreadManagementService.ts";
+import type * as ProjectionStore from "../../orchestration-v2/ProjectionStore.ts";
 import * as ThreadSearch from "../../orchestration-v2/ThreadSearch.ts";
 import * as PreviewBrowser from "../../preview/PreviewBrowser.ts";
 import * as ProjectService from "../../project/ProjectService.ts";
@@ -408,6 +409,64 @@ it.effect("returns an HTML render reference that Codex and Claude tool rows both
     ),
   ),
 );
+
+// A thread read whose runs or messages are bounded by nothing but the thread.
+const historyReads = (reads: Array<string>) => {
+  const record = (
+    fields: ReadonlyArray<string>,
+    filter: ProjectionStore.ProjectionRecordFilter | undefined,
+  ) => {
+    if (
+      fields.includes("runs") &&
+      filter?.runIds === undefined &&
+      filter?.runStatuses === undefined
+    )
+      reads.push("every run");
+    if (
+      fields.includes("messages") &&
+      filter?.messageIds === undefined &&
+      filter?.messageRunIds === undefined
+    )
+      reads.push("every message");
+  };
+  const projection = McpToolAccessTestkit.idleThreadProjection(
+    McpToolAccessTestkit.liveThreadShell(threadId),
+  );
+  return Layer.mock(ThreadManagement.ThreadManagementService)({
+    getThreadShell: (id) => Effect.succeed(McpToolAccessTestkit.liveThreadShell(id)),
+    getProjectThreadRecords: (_target, fields, filter) =>
+      Effect.sync(() => record(fields, filter)).pipe(Effect.as(projection as never)),
+    getThreadRecords: (_id, fields, filter) =>
+      Effect.sync(() => record(fields, filter)).pipe(Effect.as(projection as never)),
+    getMessagesById: () => Effect.succeed(new Map()),
+    dispatch: () => Effect.succeed({ sequence: 1 } as never),
+  });
+};
+
+it.effect("supaterm_queue list and read load only the queued runs and their messages", () => {
+  const reads: Array<string> = [];
+  return Effect.gen(function* () {
+    const server = yield* McpServer.McpServer;
+    const call = (args: Record<string, unknown>) =>
+      server
+        .callTool({ name: "supaterm_queue", arguments: args })
+        .pipe(
+          Effect.provideService(McpInvocationContext.McpInvocationContext, scope),
+          Effect.provideService(McpSchema.McpServerClient, client),
+        );
+    yield* call({ action: "list" });
+    yield* call({ action: "read", queuedRunId: "run:queued" });
+    expect(reads).toEqual([]);
+  }).pipe(
+    Effect.provide(
+      layerThreadToolkit.pipe(
+        Layer.provideMerge(McpHttpServer.layerInProcessMcpServer),
+        Layer.provide(NodeCrypto.layer),
+        Layer.provide(historyReads(reads)),
+      ),
+    ),
+  );
+});
 
 it.effect("rejects an unknown organize target instead of archiving the calling thread", () => {
   const dispatched: Array<unknown> = [];

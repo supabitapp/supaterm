@@ -338,6 +338,7 @@ export interface ThreadManagementServiceShape {
   readonly getThreadHistoryPage: Orchestrator.OrchestratorV2["Service"]["getThreadHistoryPage"];
   readonly getTimelinePage: Orchestrator.OrchestratorV2["Service"]["getTimelinePage"];
   readonly getMessageCount: Orchestrator.OrchestratorV2["Service"]["getMessageCount"];
+  readonly getMessagesById: Orchestrator.OrchestratorV2["Service"]["getMessagesById"];
   readonly getTurnItem: (input: {
     readonly threadId: ThreadId;
     readonly itemId: TurnItemId;
@@ -1452,6 +1453,7 @@ const make = Effect.gen(function* () {
     getThreadHistoryPage: orchestrator.getThreadHistoryPage,
     getTimelinePage: orchestrator.getTimelinePage,
     getMessageCount: orchestrator.getMessageCount,
+    getMessagesById: orchestrator.getMessagesById,
     getTurnItem: Effect.fn("ThreadManagementService.getTurnItem")(function (input) {
       return orchestrator
         .getTurnItem(input)
