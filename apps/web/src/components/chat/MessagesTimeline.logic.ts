@@ -1,7 +1,10 @@
 import * as DateTime from "effect/DateTime";
 import { worktreeSetupAgentStarted } from "@supaterm/client-runtime/worktree-setup";
 import { resolveUserMessagePresentation } from "@supaterm/client-runtime/user-message";
-import { isLiveSubagentTurnItem } from "@supaterm/client-runtime/state/subagentRuntime";
+import {
+  isLiveSubagentTurnItem,
+  waitingOnSubagentsLabel,
+} from "@supaterm/client-runtime/state/subagentRuntime";
 import * as Equal from "effect/Equal";
 import { shallow } from "zustand/vanilla/shallow";
 import { claudeResumeCompactionAge } from "@supaterm/shared/claudeCompaction";
@@ -568,6 +571,8 @@ type MessagesTimelineRowContent =
       id: string;
       createdAt: string | null;
       active: boolean;
+      /** Replaces "Thinking" while the run has done nothing since launching children that still run. */
+      label?: string;
       groupId?: string;
       expanded?: boolean;
     }
@@ -1438,6 +1443,19 @@ function settleSupersededReasoning(entries: ReadonlyArray<TimelineEntry>) {
   });
 }
 
+/** Reads the unfiltered entries, so any newer parent work still ends the count. */
+function runningSubagentsAtRunTail(entries: ReadonlyArray<TimelineEntry>, runId: RunId): number {
+  let running = 0;
+  for (let index = entries.length - 1; index >= 0; index -= 1) {
+    const entry = entries[index]!;
+    if (entry.kind !== "event") break;
+    const { item } = entry.projectedItem;
+    if (item.type !== "subagent" || item.runId !== runId) break;
+    if (isLiveSubagentTurnItem(item)) running += 1;
+  }
+  return running;
+}
+
 function timelineRowEntries(entries: ReadonlyArray<TimelineEntry>) {
   return withoutSubagentDelegationRows(settleSupersededReasoning(entries));
 }
@@ -2189,11 +2207,16 @@ export function deriveMessagesTimelineRows(input: {
       appendWorkGroupDetails(groupId, failedGroupAnchor.createdAt, groupedEntries);
       nextRows.push(...viewedImagesRows(groupId, failedGroupAnchor.createdAt, groupedEntries));
     } else {
+      const waitingOn =
+        unsettledRunId === null
+          ? 0
+          : runningSubagentsAtRunTail(input.timelineEntries, unsettledRunId);
       nextRows.push({
         kind: "thinking",
         id: LIVE_ACTIVITY_ROW_ID,
         createdAt: input.activeTurnStartedAt ?? null,
         active,
+        ...(waitingOn > 0 ? { label: waitingOnSubagentsLabel(waitingOn) } : {}),
       });
     }
   }
@@ -2585,7 +2608,8 @@ function isRowUnchanged(a: MessagesTimelineRow, b: MessagesTimelineRow): boolean
         a.createdAt === bt.createdAt &&
         a.active === bt.active &&
         a.groupId === bt.groupId &&
-        a.expanded === bt.expanded
+        a.expanded === bt.expanded &&
+        a.label === bt.label
       );
     }
     case "worktree-setup": {

@@ -6017,6 +6017,112 @@ describe("live subagents after their parent turn settles", () => {
   });
 });
 
+describe("parent run waiting on foreground subagents", () => {
+  const runId = RunId.make("parent-run");
+  const threadId = ThreadId.make("parent-thread");
+  const at = (second: number) =>
+    DateTime.makeUnsafe(`2026-10-06T10:00:${String(second).padStart(2, "0")}Z`);
+  const base = (id: string, second: number) => ({
+    id: TurnItemId.make(id),
+    threadId,
+    runId,
+    nodeId: null,
+    providerThreadId: null,
+    providerTurnId: ProviderTurnId.make("parent-provider-turn"),
+    nativeItemRef: null,
+    parentItemId: null,
+    ordinal: second,
+    title: null,
+    startedAt: at(second),
+    completedAt: at(second),
+    updatedAt: at(second),
+  });
+  const child = (id: string, second: number): OrchestrationV2TurnItem => ({
+    ...base(id, second),
+    status: "running",
+    completedAt: null,
+    type: "subagent",
+    subagentId: NodeId.make(id),
+    origin: "provider_native",
+    driver: ProviderDriverKind.make("opencode"),
+    providerInstanceId: ProviderInstanceId.make("opencode"),
+    childThreadId: null,
+    prompt: `Read ${id}`,
+    result: null,
+  });
+
+  const liveRow = (later: ReadonlyArray<OrchestrationV2TurnItem>) =>
+    deriveMessagesTimelineRows({
+      timelineEntries: deriveTimelineEntriesFromVisibleTurnItems({
+        visibleTurnItems: (
+          [
+            {
+              ...base("user", 0),
+              status: "completed",
+              type: "user_message",
+              messageId: MessageId.make("user"),
+              createdBy: "user",
+              creationSource: "web",
+              inputIntent: "turn_start",
+              text: "Research these in parallel",
+              attachments: [],
+            },
+            {
+              ...base("assistant", 1),
+              status: "completed",
+              type: "assistant_message",
+              messageId: MessageId.make("assistant"),
+              text: "Dispatching three subagents.",
+              streaming: false,
+            },
+            child("a", 2),
+            { ...child("b", 3), status: "completed", completedAt: at(3) },
+            child("c", 4),
+            ...later,
+          ] satisfies OrchestrationV2TurnItem[]
+        ).map((item) => ({
+          position: item.ordinal,
+          visibility: "local" as const,
+          sourceThreadId: threadId,
+          sourceItemId: item.id,
+          item,
+        })),
+      }),
+      latestRun: {
+        runId,
+        status: "running",
+        startedAt: DateTime.formatIso(at(0)),
+        completedAt: null,
+      },
+      isWorking: true,
+      activeTurnStartedAt: DateTime.formatIso(at(0)),
+      turnDiffSummaries: [],
+      supportsConversationRollback: false,
+    }).find((row) => row.id === "live-activity-row");
+  const thinking = {
+    kind: "thinking",
+    id: "live-activity-row",
+    createdAt: DateTime.formatIso(at(0)),
+    active: true,
+  };
+
+  it("names the running children while the open run has done nothing since launching them", () => {
+    expect(liveRow([])).toEqual({ ...thinking, label: "Waiting on 2 subagents" });
+  });
+
+  it("keeps Thinking once newer parent work follows the children", () => {
+    const reply: OrchestrationV2TurnItem = {
+      ...base("reply", 5),
+      status: "completed",
+      type: "assistant_message",
+      messageId: MessageId.make("reply"),
+      text: "Two are still reading.",
+      streaming: false,
+    };
+    expect(liveRow([reply])).toEqual(thinking);
+  });
+});
+
 describe("subagent continued by a later turn", () => {
   // Stored shape: resuming a subagent moves its item to the
   // resuming run, but the item keeps the ordinal from the turn that started it.
