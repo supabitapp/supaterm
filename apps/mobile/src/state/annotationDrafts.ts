@@ -13,6 +13,8 @@ import {
 export interface AnnotationRejection {
   readonly title: string;
   readonly message: string;
+  /** False when trying again cannot help. */
+  readonly retryable: boolean;
 }
 
 /**
@@ -25,6 +27,7 @@ function draftLengthRejection(length: number): AnnotationRejection | null {
     : {
         title: "Message is too long",
         message: "Shorten the comment or the quote, or remove text from the draft.",
+        retryable: true,
       };
 }
 
@@ -55,13 +58,24 @@ export function replaceDraftQuote(
 ): AnnotationRejection | null {
   const key = currentComposerDraftKey(draftKey);
   const draft = getComposerDraftSnapshot(key).text;
-  if (draft.slice(token.start, token.end) !== token.source) return null;
+  // A queued edit recovered into the thread's draft can sit behind text that was already there.
+  const start =
+    draft.slice(token.start, token.end) === token.source
+      ? token.start
+      : draft.indexOf(token.source);
+  if (start === -1) {
+    return {
+      title: "Quote is no longer in the draft",
+      message: "The comment was not saved.",
+      retryable: false,
+    };
+  }
   const text = serializeAssistantCitation(citation);
-  const next = draft.slice(0, token.start) + text + draft.slice(token.end);
+  const next = draft.slice(0, start) + text + draft.slice(start + token.source.length);
   const rejection = draftLengthRejection(next.length);
   if (rejection !== null) return rejection;
   setComposerDraftText(key, next);
-  const caret = token.start + text.length;
+  const caret = start + text.length;
   rememberComposerDraftSelection(key, next, { start: caret, end: caret });
   return null;
 }

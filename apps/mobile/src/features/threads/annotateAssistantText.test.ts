@@ -44,6 +44,7 @@ vi.mock("expo-file-system", () => ({
   Paths: { document: { uri: "file:///documents" } },
 }));
 
+import { promptAssistantAnnotation } from "../../components/assistantAnnotationPrompt";
 import { scopedThreadKey } from "../../lib/scopedEntities";
 import { appAtomRegistry } from "../../state/atom-registry";
 import { beginQueuedRunEdit, queuedEditDraftKey } from "../../state/queued-run-edit";
@@ -102,24 +103,8 @@ it("puts the quote in the thread's draft when the queued edit it was opened for 
   expect(comments(threadKey)).toEqual(["Explain it"]);
 });
 
-it("saves a chip's edited comment in the thread's draft after its queued edit moved there", async () => {
-  const { source, threadKey, comments } = await setup("thread-edit-recovered");
-  const runId = RunId.make("run-1");
-  const runs = Atom.make<ReadonlyArray<{ readonly id: RunId; readonly status: string }> | null>([
-    { id: runId, status: "queued" },
-  ]);
-  beginQueuedRunEdit(
-    threadKey,
-    {
-      runId,
-      messageId: MessageId.make("queued"),
-      originalText: "original",
-      existingAttachments: [],
-    },
-    runs,
-  );
-  const editKey = queuedEditDraftKey(threadKey, runId);
-  const citation = {
+it("saves a chip's edited comment wherever its queued edit was recovered to, or says the quote is gone", async () => {
+  const citation = (source: Awaited<ReturnType<typeof setup>>["source"]) => ({
     version: 1 as const,
     ...source,
     text: "replay",
@@ -127,21 +112,63 @@ it("saves a chip's edited comment in the thread's draft after its queued edit mo
     end: 21,
     prefix: "",
     suffix: "",
+  });
+  const editWithChip = (threadKey: string, token: string) => {
+    const runId = RunId.make("run-1");
+    const runs = Atom.make<ReadonlyArray<{ readonly id: RunId; readonly status: string }> | null>([
+      { id: runId, status: "queued" },
+    ]);
+    beginQueuedRunEdit(
+      threadKey,
+      {
+        runId,
+        messageId: MessageId.make("queued"),
+        originalText: "original",
+        existingAttachments: [],
+      },
+      runs,
+    );
+    const editKey = queuedEditDraftKey(threadKey, runId);
+    setComposerDraftText(editKey, `${token} `);
+    return { editKey, start: () => appAtomRegistry.set(runs, [{ id: runId, status: "running" }]) };
   };
-  const token = serializeAssistantCitation(citation);
-  setComposerDraftText(editKey, `${token} `);
 
-  appAtomRegistry.set(runs, [{ id: runId, status: "running" }]);
+  // Recovery treats a whitespace-only thread draft as empty, yet merges behind it.
+  const recovered = await setup("thread-edit-recovered");
+  const kept = citation(recovered.source);
+  const keptToken = serializeAssistantCitation(kept);
+  setComposerDraftText(recovered.threadKey, " ");
+  const keptEdit = editWithChip(recovered.threadKey, keptToken);
+  keptEdit.start();
   await flushComposerDrafts();
-  const rejection = replaceDraftQuote(
-    editKey,
-    { source: token, start: 0, end: token.length },
-    withAssistantCitationComment(citation, "Explain it"),
-  );
+  expect(
+    replaceDraftQuote(
+      keptEdit.editKey,
+      { source: keptToken, start: 0, end: keptToken.length },
+      withAssistantCitationComment(kept, "Explain it"),
+    ),
+  ).toBeNull();
+  expect(getComposerDraftSnapshot(keptEdit.editKey).text).toBe("");
+  expect(recovered.comments(recovered.threadKey)).toEqual(["Explain it"]);
 
-  expect(rejection).toBeNull();
-  expect(getComposerDraftSnapshot(editKey).text).toBe("");
-  expect(comments(threadKey)).toEqual(["Explain it"]);
+  const discarded = await setup("thread-edit-discarded");
+  const dropped = citation(discarded.source);
+  const droppedToken = serializeAssistantCitation(dropped);
+  setComposerDraftText(discarded.threadKey, "other work");
+  const droppedEdit = editWithChip(discarded.threadKey, droppedToken);
+  droppedEdit.start();
+  promptAssistantAnnotation(dropped, "edit", (annotated) =>
+    replaceDraftQuote(
+      droppedEdit.editKey,
+      { source: droppedToken, start: 0, end: droppedToken.length },
+      annotated,
+    ),
+  );
+  dialog.prompts[0]!.onConfirm("Explain it");
+  expect(dialog.alerts.map((alert) => alert.title)).toEqual(["Quote is no longer in the draft"]);
+  dialog.alerts[0]!.buttons[0]!.onPress?.();
+  expect(dialog.prompts).toHaveLength(1);
+  expect(getComposerDraftSnapshot(discarded.threadKey).text).toBe("other work");
 });
 
 it("reopens the prompt with the typed comment when it is too long, then saves the shortened one", async () => {

@@ -26,12 +26,18 @@ export function promptAssistantAnnotation(
           ? {
               title: "Comment is too long",
               message: `Comments can contain up to ${ASSISTANT_CITATION_MAX_COMMENT_LENGTH.toLocaleString()} characters.`,
+              retryable: true,
             }
           : onSave(withAssistantCitationComment(citation, next));
       if (rejection === null) return;
-      // The prompt has already closed, so it reopens holding what was typed.
+      // The prompt has already closed, so a retry reopens it holding what was typed.
       Dialog.alert(rejection.title, rejection.message, [
-        { text: "OK", onPress: () => promptAssistantAnnotation(citation, mode, onSave, next) },
+        {
+          text: "OK",
+          onPress: rejection.retryable
+            ? () => promptAssistantAnnotation(citation, mode, onSave, next)
+            : undefined,
+        },
       ]);
     },
   });
