@@ -182,6 +182,15 @@ export const LoopbackHost = Context.Reference<(host: string) => boolean>(
   { defaultValue: () => isLocalLoopbackHost },
 );
 
+/**
+ * Only the address a link checked may receive what goes to a peer: a pairing code, a token,
+ * or a tool call's arguments. A redirect could forward them anywhere, including plain http.
+ */
+export const neverRedirected = (client: HttpClient.HttpClient) =>
+  HttpClient.transform(client, (response) =>
+    Effect.provideService(response, FetchHttpClient.RequestInit, { redirect: "manual" }),
+  );
+
 /** Whether a peer holds a linked agent to its limits and keeps its work within its link. */
 const linkLimitsHold = (peer: { readonly capabilities: ExecutionEnvironmentCapabilities }) =>
   peer.capabilities.mcpModeLimitHeader === true && peer.capabilities.linkFence === true;
@@ -206,11 +215,7 @@ const make = Effect.gen(function* () {
     Effect.orDie,
   );
 
-  // Only the origin `peerOrigin` checked may receive a pairing code or token:
-  // a redirect could forward them anywhere, including plain http.
-  const peerHttpClient = HttpClient.transform(httpClient, (response) =>
-    Effect.provideService(response, FetchHttpClient.RequestInit, { redirect: "manual" }),
-  );
+  const peerHttpClient = neverRedirected(httpClient);
 
   const clientFor = (origin: string) =>
     HttpApiClient.make(PeerHttpApi, { baseUrl: origin }).pipe(

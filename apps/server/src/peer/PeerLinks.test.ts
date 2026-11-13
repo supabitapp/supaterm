@@ -38,6 +38,7 @@ import {
   layerLinkingEnvironment,
   servePeer,
   type ServedPeer,
+  serveRaw,
 } from "./PeerLinks.testkit.ts";
 import * as PeerMcpClient from "./PeerMcpClient.ts";
 
@@ -310,25 +311,6 @@ it.effect("two links racing to one peer leave the stored access matching the tok
     }),
   ).pipe(Effect.provide(NodeHttpServer.layerTest)),
 );
-
-/** A bare HTTP server on a socket of its own, answering with `handle`. */
-const serveRaw = <E, R>(
-  handle: (
-    request: HttpServerRequest.HttpServerRequest,
-  ) => Effect.Effect<HttpServerResponse.HttpServerResponse, E, R>,
-) =>
-  Layer.build(Layer.fresh(NodeHttpServer.layerTest)).pipe(
-    Effect.flatMap((server) =>
-      Effect.gen(function* () {
-        yield* HttpServer.serve(Effect.flatMap(HttpServerRequest.HttpServerRequest, handle)).pipe(
-          Layer.build,
-        );
-        const address = (yield* HttpServer.HttpServer).address;
-        if (address._tag === "UnixPathAddress") return yield* Effect.die("expected a TCP address");
-        return `http://127.0.0.1:${address.port}`;
-      }).pipe(Effect.provideContext(server)),
-    ),
-  );
 
 it.effect("never follows a peer's redirect with the pairing code", () =>
   Effect.scoped(

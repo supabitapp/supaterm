@@ -10,14 +10,20 @@ import * as Layer from "effect/Layer";
 import * as Ref from "effect/Ref";
 import * as Schema from "effect/Schema";
 import { Tool, Toolkit } from "effect/ai";
-import { HttpClient, HttpClientResponse } from "effect/http";
+import { FetchHttpClient, HttpClient, HttpClientResponse, HttpServerResponse } from "effect/http";
 
 import * as McpHttpServer from "../mcp/McpHttpServer.ts";
 import * as McpInvocationContext from "../mcp/McpInvocationContext.ts";
 import * as McpToolAccess from "../mcp/McpToolAccess.ts";
 import * as PeerLinks from "./PeerLinks.ts";
 import * as PeerMcpClient from "./PeerMcpClient.ts";
-import { descriptorOf, layerLinkingEnvironment, linkTo, servePeer } from "./PeerLinks.testkit.ts";
+import {
+  descriptorOf,
+  layerLinkingEnvironment,
+  linkTo,
+  servePeer,
+  serveRaw,
+} from "./PeerLinks.testkit.ts";
 
 const Result = Schema.Struct({ modes: Schema.String });
 const toolkit = Toolkit.make(
@@ -138,6 +144,71 @@ it.effect("keeps a link healthy when the peer refuses a call", () =>
   ).pipe(Effect.provide(NodeHttpServer.layerTest)),
 );
 
+const box = descriptorOf("environment-box", "Box");
+
+/** A stored link to Box at `url`, with no peer behind it. */
+const layerLinkedAt = (url: string, onOutcome: (error: string | null) => void) =>
+  Layer.mock(PeerLinks.PeerLinks)({
+    resolve: () =>
+      Effect.succeed({
+        link: {
+          environmentId: box.environmentId,
+          label: box.label,
+          urls: [url],
+          access: "auto",
+          linkedAt: DateTime.makeUnsafe(0),
+          expiresAt: DateTime.makeUnsafe(1),
+          lastReachedAt: null,
+          lastError: null,
+        },
+        url,
+        token: "fixture",
+      }),
+    recordOutcome: (_, outcome) => Effect.sync(() => onOutcome(outcome.error)),
+  });
+
+it.effect("never follows a peer's redirect with a tool call", () =>
+  Effect.scoped(
+    Effect.gen(function* () {
+      const received = yield* Ref.make<ReadonlyArray<string>>([]);
+      const elsewhere = yield* serveRaw((request) =>
+        Ref.update(received, (seen) => [...seen, `${request.method} ${request.url}`]).pipe(
+          Effect.as(HttpServerResponse.empty({ status: 200 })),
+        ),
+      );
+      const front = yield* serveRaw((request) =>
+        Effect.succeed(
+          HttpServerResponse.empty({
+            status: 307,
+            headers: { location: `${elsewhere}${request.url}` },
+          }),
+        ),
+      );
+      const context = yield* Layer.build(
+        PeerMcpClient.layer.pipe(
+          Layer.provide(
+            Layer.mergeAll(
+              FetchHttpClient.layer,
+              layerLinkedAt(front, () => {}),
+            ),
+          ),
+        ),
+      );
+      const refused = yield* Context.get(context, PeerMcpClient.PeerMcpClient)
+        .call({
+          environmentId: box.environmentId,
+          tool: "probe",
+          arguments: { message: "private task prompt" },
+          limits: { runtimeMode: "full-access", interactionMode: "default" },
+          success: Result,
+        })
+        .pipe(Effect.flip);
+      expect(yield* Ref.get(received)).toEqual([]);
+      expect(refused.message).toContain("HTTP 307");
+    }),
+  ).pipe(Effect.provide(NodeHttpServer.layerTest)),
+);
+
 it.effect("renews a missing peer session once and reuses its replacement", () =>
   Effect.gen(function* () {
     const sessionHeaders: Array<string | undefined> = [];
@@ -174,30 +245,12 @@ it.effect("renews a missing peer session once and reuses its replacement", () =>
         );
       }),
     );
-    const box = descriptorOf("environment-box", "Box");
     const context = yield* Layer.build(
       PeerMcpClient.layer.pipe(
         Layer.provide(
           Layer.mergeAll(
             Layer.succeed(HttpClient.HttpClient, http),
-            Layer.mock(PeerLinks.PeerLinks)({
-              resolve: () =>
-                Effect.succeed({
-                  link: {
-                    environmentId: box.environmentId,
-                    label: box.label,
-                    urls: ["https://peer.example"],
-                    access: "auto",
-                    linkedAt: DateTime.makeUnsafe(0),
-                    expiresAt: DateTime.makeUnsafe(1),
-                    lastReachedAt: null,
-                    lastError: null,
-                  },
-                  url: "https://peer.example",
-                  token: "fixture",
-                }),
-              recordOutcome: (_, outcome) => Effect.sync(() => outcomes.push(outcome.error)),
-            }),
+            layerLinkedAt("https://peer.example", (error) => outcomes.push(error)),
           ),
         ),
       ),
