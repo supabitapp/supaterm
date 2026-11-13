@@ -222,7 +222,7 @@ jobs:
       - &install_cargo_xwin
         name: Install cargo-xwin
         if: inputs.platform == 'win' && steps.resource_monitor_cache.outputs.cache-hit != 'true'
-        uses: taiki-e/install-action@5488ac5a951645ce95062214902ac4b6bc1a1037 # v2
+        uses: taiki-e/install-action@1919c4a95903d2c33e4a221102edca87309fc14b # v2
         with:
           tool: cargo-xwin@0.23.1
 
