@@ -39,7 +39,7 @@ it.effect("rejects a pending start revoked by stop and closes its listener once"
     expect((yield* Fiber.join(opening))._tag).toBe("Failure");
     yield* Fiber.join(stopping);
     expect(close).toHaveBeenCalledTimes(1);
-  }).pipe(Effect.provide(DesktopRelayGateway.layer), Effect.scoped),
+  }).pipe(Effect.provide(DesktopRelayGateway.layer)),
 );
 
 it.effect("revokes a start waiting behind a close while allowing a later fresh start", () =>
@@ -74,7 +74,7 @@ it.effect("revokes a start waiting behind a close while allowing a later fresh s
     yield* gateway.stop(address);
     expect(oldClose).toHaveBeenCalledTimes(1);
     expect(newClose).toHaveBeenCalledTimes(1);
-  }).pipe(Effect.provide(DesktopRelayGateway.layer), Effect.scoped),
+  }).pipe(Effect.provide(DesktopRelayGateway.layer)),
 );
 
 it.effect.each(["binding", "closing"] as const)(
@@ -121,7 +121,7 @@ it.effect.each(["binding", "closing"] as const)(
       yield* Fiber.join(disposed);
       expect(openLoopbackRelay).toHaveBeenCalledTimes(1);
       expect(close).toHaveBeenCalledTimes(1);
-    }).pipe(Effect.scoped),
+    }),
 );
 
 it.effect("a failed close does not prevent reopening or disposal of other environments", () =>
@@ -163,7 +163,7 @@ it.effect("a repeated start updates direct candidates without reopening the tunn
     expect(close).not.toHaveBeenCalled();
     yield* gateway.stop(address);
     expect(close).toHaveBeenCalledTimes(1);
-  }).pipe(Effect.provide(DesktopRelayGateway.layer), Effect.scoped),
+  }).pipe(Effect.provide(DesktopRelayGateway.layer)),
 );
 
 it.effect("pushes the tunnel's transport as it changes and on each start, until it stops", () =>
@@ -191,5 +191,5 @@ it.effect("pushes the tunnel's transport as it changes and on each start, until 
       { address: identity, via: "relay" },
       { address: identity, via: null },
     ]);
-  }).pipe(Effect.provide(DesktopRelayGateway.layer), Effect.scoped),
+  }).pipe(Effect.provide(DesktopRelayGateway.layer)),
 );
