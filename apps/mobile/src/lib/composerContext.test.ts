@@ -1,11 +1,15 @@
 import { buildProjectThreadStartTurnInput } from "./projectThreadStartTurn";
 import {
+  EnvironmentId,
+  MessageId,
   ProjectId,
   ProviderInstanceId,
   ComposerContextId,
+  ThreadId,
   type OrchestrationMessageContext,
   type ServerProviderSkill,
 } from "@supaterm/contracts";
+import { serializeAssistantCitation } from "@supaterm/shared/assistantCitations";
 import { collectComposerInlineTokens } from "@supaterm/shared/composerInlineTokens";
 import {
   ATTACHMENT_ONLY_BOOTSTRAP_PROMPT,
@@ -160,7 +164,19 @@ describe("mobile composer context", () => {
   });
   it("keeps exact source positions and repeated references alongside existing native tokens", () => {
     const reference = formatComposerContextReference(terminal);
-    const text = `Use $babysit with $disabled $agentOnly $HOME $PATH $anything $notaskill $20 $20k and [app.ts](src/app.ts) with ${reference} then ${reference}`;
+    const quote = serializeAssistantCitation({
+      version: 1,
+      environmentId: EnvironmentId.make("environment"),
+      threadId: ThreadId.make("thread"),
+      messageId: MessageId.make("message"),
+      text: "Run $babysit on @src/app.ts first",
+      comment: "Skip $babysit here",
+      start: 4,
+      end: 37,
+      prefix: "",
+      suffix: "",
+    });
+    const text = `Use $babysit with $disabled $agentOnly $HOME $PATH $anything $notaskill $20 $20k and [app.ts](src/app.ts) with ${reference} then ${reference} about ${quote} `;
     const babysit: ServerProviderSkill = {
       name: "babysit",
       path: "/skills/babysit",
@@ -179,6 +195,7 @@ describe("mobile composer context", () => {
       "[app.ts](src/app.ts)",
       reference,
       reference,
+      quote,
     ]);
     for (const token of tokens) expect(text.slice(token.start, token.end)).toBe(token.source);
     expect(
@@ -187,7 +204,7 @@ describe("mobile composer context", () => {
         collectComposerInlineTokens(text),
         composerSkillLabels([]),
       ).map((token) => token.type),
-    ).toEqual(["mention", "context", "context"]);
+    ).toEqual(["mention", "context-reference", "context-reference", "citation"]);
     expect(
       composerContextEditorTokens(
         text,

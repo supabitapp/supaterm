@@ -21,6 +21,7 @@ import {
   replaceComposerContextReferences,
   sanitizeComposerContextLabel,
 } from "@supaterm/shared/composerContextReferences";
+import { withComposerLinkTokens } from "@supaterm/shared/composerPromptTokens";
 import {
   collectComposerInlineTokens,
   type ComposerInlineToken,
@@ -154,20 +155,10 @@ export function composerContextEditorTokens(
   tokens: readonly ComposerInlineToken[],
   knownSkills: { has(name: string): boolean },
 ) {
-  const references = collectComposerContextReferences(text);
-  return [
-    ...tokens.filter(
-      (token) =>
-        // `$HOME` and other `$name` text that is not one of the provider's skills stays prose.
-        (token.type !== "skill" || knownSkills.has(token.value)) &&
-        !references.some((ref) => token.start < ref.end && token.end > ref.start),
-    ),
-    ...references.map((ref) => ({
-      type: "context" as const,
-      value: ref.label,
-      ...ref,
-    })),
-  ].sort((a, b) => a.start - b.start);
+  // `$HOME` and other `$name` text that is not one of the provider's skills stays prose.
+  return withComposerLinkTokens(text, tokens).filter(
+    (token) => token.type !== "skill" || knownSkills.has(token.value),
+  );
 }
 
 export function referencedComposerContext(text: string, context?: OrchestrationMessageContext) {

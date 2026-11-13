@@ -114,6 +114,7 @@ import {
   useEffect,
   useEffectEvent,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
   useId,
@@ -177,6 +178,8 @@ import {
   type MarkdownImageRenderer,
   type MarkdownImageSourceResolver,
   type MarkdownLinkCustomization,
+  type MarkdownSelectionMenuItem,
+  type MarkdownTextSelection,
   type NativeMarkdownTextStyle,
   type SelectableMarkdownSkill,
 } from "../../native/SelectableMarkdownText";
@@ -374,6 +377,9 @@ export interface ThreadFeedProps {
   readonly onIsAtEndChange?: (isAtEnd: boolean) => void;
   readonly skills?: ReadonlyArray<SelectableMarkdownSkill>;
   readonly onUseArtifactTemplate?: (template: CodexArtifactTemplate) => void;
+  readonly onAnnotateAssistantText?:
+    | ((messageId: MessageId, selection: MarkdownTextSelection) => void)
+    | undefined;
 }
 
 async function waitForThreadShell(
@@ -1225,6 +1231,10 @@ const AssistantMarkdownContent = memo(function AssistantMarkdownContent(props: {
   readonly markdownStyles: MarkdownStyleSet;
   readonly linkHandlers: MarkdownLinkHandlers;
   readonly onUseArtifactTemplate?: ((template: CodexArtifactTemplate) => void) | undefined;
+  readonly messageId?: MessageId;
+  readonly onAnnotate?:
+    | ((messageId: MessageId, selection: MarkdownTextSelection) => void)
+    | undefined;
   readonly renderImage: MarkdownImageRenderer;
   readonly skills?: ReadonlyArray<SelectableMarkdownSkill> | undefined;
 }) {
@@ -1235,6 +1245,20 @@ const AssistantMarkdownContent = memo(function AssistantMarkdownContent(props: {
     linkCustomization: (href) =>
       withChipIcon(props.linkHandlers.linkCustomization?.(href), threadIcons.get(href)),
   };
+  const { messageId, onAnnotate } = props;
+  const selectionMenuItems = useMemo(
+    () =>
+      messageId && onAnnotate
+        ? [
+            {
+              title: "Annotate",
+              icon: "quote.bubble",
+              onPress: (selection: MarkdownTextSelection) => onAnnotate(messageId, selection),
+            },
+          ]
+        : undefined,
+    [messageId, onAnnotate],
+  );
 
   return (
     <AssistantMarkdownBlocks
@@ -1243,6 +1267,7 @@ const AssistantMarkdownContent = memo(function AssistantMarkdownContent(props: {
       markdownStyles={props.markdownStyles}
       linkHandlers={linkHandlers}
       onUseArtifactTemplate={props.onUseArtifactTemplate}
+      selectionMenuItems={selectionMenuItems}
       renderImage={props.renderImage}
       skills={props.skills}
     />
@@ -1256,6 +1281,7 @@ function AssistantMarkdownBlocks(props: {
   readonly markdownStyles: MarkdownStyleSet;
   readonly linkHandlers: MarkdownLinkHandlers;
   readonly onUseArtifactTemplate?: ((template: CodexArtifactTemplate) => void) | undefined;
+  readonly selectionMenuItems?: ReadonlyArray<MarkdownSelectionMenuItem> | undefined;
   readonly renderImage: MarkdownImageRenderer;
   readonly skills?: ReadonlyArray<SelectableMarkdownSkill> | undefined;
 }) {
@@ -1296,6 +1322,7 @@ function AssistantMarkdownBlocks(props: {
           skills={props.skills}
           textStyle={props.markdownStyles.nativeTextStyle}
           {...props.linkHandlers}
+          selectionMenuItems={props.selectionMenuItems}
           renderImage={props.renderImage}
         />
       );
@@ -1694,6 +1721,7 @@ function renderFeedEntry(
     ThreadFeedProps,
     | "environmentId"
     | "onUseArtifactTemplate"
+    | "onAnnotateAssistantText"
     | "skills"
     | "dispatchingMessageId"
     | "onEditPendingMessage"
@@ -2278,6 +2306,8 @@ function renderFeedEntry(
               markdownStyles={styles}
               linkHandlers={props.markdownLinkHandlers}
               onUseArtifactTemplate={props.onUseArtifactTemplate}
+              messageId={message.id}
+              onAnnotate={props.onAnnotateAssistantText}
               renderImage={props.renderMarkdownImage}
               skills={props.skills}
             />
@@ -3589,6 +3619,7 @@ export const ThreadFeed = memo(function ThreadFeed(props: ThreadFeedProps) {
             dispatchingMessageId: props.dispatchingMessageId,
             onEditPendingMessage: props.onEditPendingMessage,
             onUseArtifactTemplate: props.onUseArtifactTemplate,
+            onAnnotateAssistantText: props.onAnnotateAssistantText,
             threadId: props.threadId,
             copiedRowId,
             motionEnabled: !reduceMotion && !isKeyboardMotionSuppressed(),

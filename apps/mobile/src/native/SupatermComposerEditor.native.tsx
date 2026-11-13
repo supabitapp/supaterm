@@ -1,7 +1,8 @@
 import { PASTED_TEXT_ATTACHMENT_THRESHOLD_BYTES } from "@supaterm/client-runtime/text-paste";
 import { PROVIDER_SEND_TURN_MAX_INPUT_CHARS } from "@supaterm/contracts";
 import { collectComposerInlineTokens } from "@supaterm/shared/composerInlineTokens";
-import { composerContextEditorTokens, composerSkillLabels } from "../lib/composerContext";
+import { composerSkillLabels } from "../lib/composerContext";
+import { composerEditorChips } from "../lib/composerEditorChips";
 import { DEFAULT_COMPOSER_ENTER_BEHAVIOR } from "../lib/composerEnterBehavior";
 import { requireNativeView } from "expo";
 import { TextInputWrapper } from "expo-paste-input";
@@ -17,14 +18,6 @@ import {
 import type { NativeSyntheticEvent, ViewProps } from "react-native";
 import { Platform, StyleSheet } from "react-native";
 
-import {
-  composerChipSizeSuffix,
-  contextChipIcon,
-  contextChipAccent,
-  contextChipPresentation,
-  contextRecordFileName,
-} from "../lib/composerChipPresentation";
-import { contextChipIconUri } from "../lib/contextChipIconSource";
 import { MOBILE_TYPOGRAPHY } from "../lib/typography";
 import { useNativePaste } from "../lib/useNativePaste";
 import { SYSTEM_FONT_FAMILY } from "../lib/fonts";
@@ -121,11 +114,6 @@ function settleViewCommand(command: Promise<void> | undefined): void {
   command?.catch(() => undefined);
 }
 
-function basename(path: string): string {
-  const separator = Math.max(path.lastIndexOf("/"), path.lastIndexOf("\\"));
-  return separator >= 0 ? path.slice(separator + 1) : path;
-}
-
 export function ComposerEditor({
   ref,
   skills = EMPTY_SKILLS,
@@ -183,35 +171,13 @@ export function ComposerEditor({
   const chipTextColor = createNativeComposerTheme(theme).text;
   const tokensJson = useMemo(() => {
     return JSON.stringify(
-      composerContextEditorTokens(props.value, inlineTokens, skillLabels).map((token) => {
-        const record =
-          token.type === "context"
-            ? props.context?.records.find((record) => record.contextId === token.contextId)
-            : undefined;
-        const presentation = contextChipPresentation(
-          token.type === "context" ? token.kind : token.type,
-          record,
-        );
-        const icon = contextChipIcon(
-          presentation,
-          token.type === "mention" ? token.value : contextRecordFileName(record),
-        );
-        return {
-          type: token.type,
-          source: token.source,
-          start: token.start,
-          end: token.end,
-          accent: contextChipAccent(presentation.accent, theme, chipTextColor),
-          label:
-            token.type === "skill"
-              ? (skillLabels.get(token.value) ?? token.value)
-              : token.type === "context"
-                ? `${token.label}${props.context?.records.some((record) => record.contextId === token.contextId) ? "" : " · unavailable"}`
-                : basename(token.value),
-          detail: token.type === "context" ? composerChipSizeSuffix(record) : "",
-          iconUri: contextChipIconUri(icon),
-          tintsIcon: icon.kind === "chip",
-        };
+      composerEditorChips({
+        text: props.value,
+        tokens: inlineTokens,
+        skillLabels,
+        context: props.context,
+        theme,
+        textColor: chipTextColor,
       }),
     );
   }, [inlineTokens, props.value, props.context, skillLabels, theme, chipTextColor]);

@@ -63,6 +63,19 @@ export interface MarkdownLinkCustomization {
   readonly chip?: { readonly accent?: string; readonly tintsIcon: boolean };
 }
 
+export interface MarkdownTextSelection {
+  readonly text: string;
+  /** Counted from the start of the text block the selection is in, not of the markdown. */
+  readonly start: number;
+}
+
+export interface MarkdownSelectionMenuItem {
+  readonly title: string;
+  /** SF Symbol name; Android shows the title only. */
+  readonly icon?: string;
+  readonly onPress: (selection: MarkdownTextSelection) => void;
+}
+
 export interface SelectableMarkdownTextProps {
   readonly markdown: string;
   readonly textStyle: NativeMarkdownTextStyle;
@@ -80,6 +93,8 @@ export interface SelectableMarkdownTextProps {
   /** The repository whose change request links read as a bare `#123`. */
   readonly repositoryIdentity?: import("@supaterm/contracts").RepositoryIdentity | null;
   readonly contextClipboardFragment?: string;
+  /** Shown ahead of Copy in the menu for selected text. */
+  readonly selectionMenuItems?: ReadonlyArray<MarkdownSelectionMenuItem>;
   readonly renderImage?: MarkdownImageRenderer;
   readonly fileEmbedLabel?: (href: string, standalone: boolean) => string | null;
   readonly resolveImageSource?: MarkdownImageSourceResolver;

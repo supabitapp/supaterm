@@ -293,6 +293,16 @@ export function MobileEnrichedMarkdownText(props: SelectableMarkdownTextProps) {
       mimeTypes: { "app.supaterm.context-fragment": props.contextClipboardFragment! },
     };
   }, [props.contextClipboardFragment, props.markdown]);
+  const contextMenuItems = useMemo(
+    () =>
+      props.selectionMenuItems?.map((item) => ({
+        text: item.title,
+        icon: item.icon,
+        onPress: (event: { text: string; selection: { start: number } }) =>
+          item.onPress({ text: event.text, start: event.selection.start }),
+      })),
+    [props.selectionMenuItems],
+  );
   const { fontScale } = useWindowDimensions();
   const markdownStyle = useMemo(() => {
     const style = enrichedStyle(props.textStyle, themeAppearance === "dark", fontScale);
@@ -378,6 +388,7 @@ export function MobileEnrichedMarkdownText(props: SelectableMarkdownTextProps) {
           flavor="github"
           selectable
           selectionClipboard={selectionClipboard}
+          contextMenuItems={contextMenuItems}
           selectionColor={props.textStyle.selectionColor}
           selectionHandleColor={props.textStyle.selectionHandleColor}
           md4cFlags={{

@@ -247,6 +247,10 @@
       "types": "./src/composerInlineTokens.ts",
       "import": "./src/composerInlineTokens.ts"
     },
+    "./composerPromptTokens": {
+      "types": "./src/composerPromptTokens.ts",
+      "import": "./src/composerPromptTokens.ts"
+    },
     "./assistantCitations": {
       "types": "./src/assistantCitations.ts",
       "import": "./src/assistantCitations.ts"
