@@ -38,6 +38,7 @@ import { draftFlowRoute, pruneNewTaskFlowStates } from "./new-task-flow-state";
 
 const transport = vi.hoisted(() => ({
   openScratch: vi.fn(),
+  prepareTriage: vi.fn(),
   navigate: vi.fn(),
   dispatch: vi.fn(),
   goBack: vi.fn(),
@@ -83,6 +84,7 @@ vi.mock("../../state/projects", () => ({
 vi.mock("../../state/use-atom-command", () => ({
   useAtomCommand: () => transport.openScratch,
 }));
+vi.mock("../triage/usePrepareTriage", () => ({ usePrepareTriage: () => transport.prepareTriage }));
 vi.mock("../../state/presentation", () => ({
   useEnvironmentPresentation: () => ({
     isReady: true,
@@ -355,6 +357,7 @@ beforeEach(async () => {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   pruneNewTaskFlowStates({ routes: [] });
   transport.openScratch.mockReset();
+  transport.prepareTriage.mockReset();
   transport.navigate.mockReset();
   transport.dispatch.mockReset();
   transport.goBack.mockReset();
@@ -396,6 +399,9 @@ function beginSwitch(environmentId = secondEnvironment!) {
     complete: (destination = secondProject) => completion.resolve(AsyncResult.success(destination)),
   };
 }
+
+const playbookPrompt = (machine: string) =>
+  `Read [triage-playbook.md](/${machine}/triage-playbook.md) and follow it. `;
 
 function deletePendingTask() {
   const task = buildPendingQueuedTasks([pendingTask], NOTHING_SENDING)[0]!;
@@ -677,6 +683,46 @@ describe("new-task environment switching", () => {
     });
     expect(flow.buildPendingTaskMessage(metadata)?.environmentId).toBe(thirdEnvironment);
   });
+
+  it("takes a triage draft's session along when its machine changes", async () => {
+    await act(() => flow.setPrompt(`${playbookPrompt("first")}It is slow.`));
+    transport.prepareTriage.mockResolvedValueOnce(
+      AsyncResult.success({ prompt: playbookPrompt("second") }),
+    );
+    transport.openScratch.mockResolvedValueOnce(AsyncResult.success(secondProject));
+    await act(async () => {
+      expect(await flow.switchEnvironment(secondEnvironment!)).toBe(true);
+    });
+    expect(transport.prepareTriage).toHaveBeenCalledWith(secondEnvironment);
+    expect(flow.selectedProject).toBe(secondProject);
+    expect(readDraft(flow.draftKey!).text).toBe(`${playbookPrompt("second")}It is slow.`);
+  });
+
+  it.each(["project", "submission"] as const)(
+    "leaves a triage draft alone when a %s replaces the switch while its new machine prepares",
+    async (action) => {
+      const prompt = `${playbookPrompt("first")}It is slow.`;
+      await act(() => flow.setPrompt(prompt));
+      const draftKey = flow.draftKey!;
+      const preparing = Promise.withResolvers<AsyncResult.Success<{ prompt: string }>>();
+      transport.prepareTriage.mockReturnValueOnce(preparing.promise);
+      transport.openScratch.mockResolvedValueOnce(AsyncResult.success(secondProject));
+      let switched!: Promise<boolean>;
+      await act(() => {
+        switched = flow.switchEnvironment(secondEnvironment!);
+      });
+      await act(() => {
+        if (action === "project") flow.setProject(repositoryProject);
+        else flow.setSubmitting(true);
+      });
+      await act(async () => {
+        preparing.resolve(AsyncResult.success({ prompt: playbookPrompt("second") }));
+        expect(await switched).toBe(false);
+      });
+      expect(readDraft(draftKey).text).toBe(prompt);
+      expect(flow.selectedProject).toBe(action === "project" ? repositoryProject : firstProject);
+    },
+  );
 
   it("rejects environment switching while submitting", async () => {
     await act(async () => {

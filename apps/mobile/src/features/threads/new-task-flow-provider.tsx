@@ -19,6 +19,7 @@ import {
   ThreadId,
 } from "@supaterm/contracts";
 import { threadContextsOutsideEnvironment } from "@supaterm/shared/composerContextReferences";
+import { isTriagePrompt, replaceTriagePlaybookLink } from "@supaterm/shared/triagePrompt";
 import * as Arr from "effect/Array";
 import { pipe } from "effect/Function";
 
@@ -120,6 +121,7 @@ import {
   stampedEnvironmentProjectsLoading,
   updateNewTaskFlowState,
 } from "./new-task-flow-state";
+import { usePrepareTriage } from "../triage/usePrepareTriage";
 import { useEnvironmentShellReadiness } from "../../state/shell";
 import { useConnectionsReady, useWorkspaceEnvironments } from "../../state/workspace";
 import { resolveEnvironmentProjectMatch } from "./new-task-project-selection";
@@ -701,6 +703,7 @@ function useNewTaskFlowValue(
   };
 
   const openScratch = useAtomCommand(projectEnvironment.openScratch, { reportFailure: false });
+  const prepareTriage = usePrepareTriage();
   const switchEnvironment = async (environmentId: EnvironmentId): Promise<boolean> => {
     if (readFlow().submitting) return false;
     if (!canMoveEditedPendingTask(readEditingPendingTask(), environmentId)) return false;
@@ -718,10 +721,24 @@ function useNewTaskFlowValue(
       projectKey: draftProjectKey,
     };
     updateFlow({ environmentSwitch: request });
-    const result = await openScratch({ environmentId, input: {} });
+    // A triage draft takes its session along: the playbook and context files
+    // exist only on the machine that prepared them.
+    const { draftKey } = request;
+    const triage =
+      draftKey !== null && isTriagePrompt(getComposerDraftSnapshot(draftKey).text)
+        ? await prepareTriage(environmentId)
+        : null;
+    const result =
+      triage?._tag === "Failure" ? triage : await openScratch({ environmentId, input: {} });
     if (readFlow().environmentSwitch !== request) return false;
     cancelEnvironmentSwitch();
     if (result._tag === "Success") {
+      if (triage?._tag === "Success" && draftKey !== null) {
+        // Read now, so text typed while the machine prepared the session is kept.
+        const text = getComposerDraftSnapshot(draftKey).text;
+        const nextText = replaceTriagePlaybookLink(text, triage.value.prompt);
+        if (nextText !== text) setComposerDraftText(draftKey, nextText);
+      }
       setProject(result.value);
       return true;
     }
@@ -731,7 +748,9 @@ function useNewTaskFlowValue(
         "Could not switch machine",
         error instanceof Error
           ? error.message
-          : "The folder for threads without a project could not be created.",
+          : triage?._tag === "Failure"
+            ? "The server could not prepare triage."
+            : "The folder for threads without a project could not be created.",
       );
     }
     return false;
