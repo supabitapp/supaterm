@@ -18,6 +18,7 @@ import {
   EnvironmentScopeRequiredError,
   EnvironmentAuthenticatedAuth,
   EnvironmentAuthenticatedPrincipal,
+  mcpClientScopes,
 } from "@supaterm/contracts";
 import { parseOAuthScope } from "@supaterm/shared/oauthScope";
 import { causeErrorTag } from "@supaterm/shared/observability";
@@ -358,7 +359,7 @@ export const layer = HttpApiBuilder.group(
             yield* annotateEnvironmentRequest(args.endpoint.name);
             const session = yield* requireEnvironmentScope(AuthAccessWriteScope);
             const delegatedScopes = args.payload.access
-              ? EnvironmentAuth.mcpClientScopes(args.payload.access)
+              ? mcpClientScopes(args.payload.access)
               : (args.payload.scopes ?? AuthStandardClientScopes);
             if (
               delegatedScopes.length === 0 ||

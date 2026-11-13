@@ -2,7 +2,11 @@ import {
   OrchestratorMcpCapabilitiesInput,
   OrchestratorMcpCapabilitiesResult,
   OrchestrationV2StopWorkflowInput,
+  OrchestratorMcpEnvironmentLinkInput,
+  OrchestratorMcpEnvironmentLinkResult,
   OrchestratorMcpEnvironmentLinksResult,
+  OrchestratorMcpEnvironmentUnlinkInput,
+  OrchestratorMcpEnvironmentUnlinkResult,
   OrchestratorMcpCreateThreadsInput,
   OrchestratorMcpCreateThreadsResult,
   OrchestratorMcpDelegateTaskInput,
@@ -40,6 +44,8 @@ import * as Struct from "effect/Struct";
 
 import * as ThreadManagementService from "../../../orchestration-v2/ThreadManagementService.ts";
 import * as PeerForwarding from "../../../peer/PeerForwarding.ts";
+import * as PeerLinkRequests from "../../../peer/PeerLinkRequests.ts";
+import * as PeerLinks from "../../../peer/PeerLinks.ts";
 import * as RemoteDelegation from "../../../peer/RemoteDelegation.ts";
 import * as McpInvocationContext from "../../McpInvocationContext.ts";
 import * as OrchestratorMcpService from "../../OrchestratorMcpService.ts";
@@ -52,6 +58,12 @@ const dependencies = [
 ];
 /** Listing this environment's links. */
 const linkDependencies = [...dependencies, PeerForwarding.PeerForwarding];
+/** Making and forgetting links. */
+const linkingDependencies = [
+  ...dependencies,
+  PeerLinkRequests.PeerLinkRequests,
+  PeerLinks.PeerLinks,
+];
 /** A send there may record a follow-up to a remote task. */
 const sendDependencies = [...dependencies, RemoteDelegation.RemoteDelegation];
 const threadMetadataDependencies = [
@@ -312,6 +324,34 @@ const EnvironmentLinksTool = Tool.make("supaterm_environment_links", {
   .annotate(Tool.Idempotent, true)
   .annotate(McpSchema.EnabledWhen, McpInvocationContext.hiddenWhileLinksOff);
 
+const EnvironmentLinkTool = Tool.make("supaterm_environment_link", {
+  description:
+    "Ask the user to link another machine, in a card. For a machine the user names that is not linked. Pass `hint` from their words, `environmentId` when one names it (already linked: returns `linked`), `url` only when the user gave an address. Returns `pending`; the outcome arrives as a message in this thread. Do not wait, poll, or call it again to check. Never ask for a pairing code in chat.",
+  parameters: OrchestratorMcpEnvironmentLinkInput,
+  success: OrchestratorMcpEnvironmentLinkResult,
+  failure: OrchestratorMcpFailure,
+  failureMode: "return",
+  dependencies: linkingDependencies,
+})
+  .annotate(Tool.Title, "Link another environment")
+  .annotate(Tool.Destructive, false)
+  .annotate(Tool.OpenWorld, true)
+  .annotate(McpSchema.EnabledWhen, McpInvocationContext.hiddenWhileLinksOff);
+
+const EnvironmentUnlinkTool = Tool.make("supaterm_environment_unlink", {
+  description:
+    "Forget a linked environment. That machine's Connections list its session until revoked there.",
+  parameters: OrchestratorMcpEnvironmentUnlinkInput,
+  success: OrchestratorMcpEnvironmentUnlinkResult,
+  failure: OrchestratorMcpFailure,
+  failureMode: "return",
+  dependencies: linkingDependencies,
+})
+  .annotate(Tool.Title, "Forget a linked environment")
+  .annotate(Tool.Destructive, true)
+  .annotate(Tool.Idempotent, true)
+  .annotate(McpSchema.EnabledWhen, McpInvocationContext.hiddenWhileLinksOff);
+
 export const OrchestratorToolkit = Toolkit.make(
   OrchestratorCapabilitiesTool,
   DelegateTaskTool,
@@ -331,4 +371,6 @@ export const OrchestratorToolkit = Toolkit.make(
   ThreadWaitTool,
   ThreadInterruptTool,
   EnvironmentLinksTool,
+  EnvironmentLinkTool,
+  EnvironmentUnlinkTool,
 );

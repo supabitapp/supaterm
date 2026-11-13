@@ -1,10 +1,12 @@
 import * as NodeCrypto from "@effect/platform-node/NodeCrypto";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import {
+  AuthMcpClientAccess,
   AuthStandardClientScopes,
   type AuthCreatePairingCredentialInput,
   EnvironmentHttpApi,
   MCP_PEER_LINK_SOFTWARE_ID,
+  mcpClientScopes,
 } from "@supaterm/contracts";
 import { expect, it } from "@effect/vitest";
 import * as Context from "effect/Context";
@@ -466,6 +468,23 @@ it.live("denies requests and refuses codes without the scopes it grants", () =>
         ),
       );
       expect(readOnlyClient.access).toBe("read-only");
+    }),
+  ),
+);
+
+it.live("a code minted with an access level's scopes approves that access", () =>
+  withRoutes((handler, auth) =>
+    Effect.gen(function* () {
+      const params = authorizeParams(yield* registeredClientId(handler));
+      for (const access of AuthMcpClientAccess.literals) {
+        const code = yield* auth.issuePairingCredential({ scopes: [...mcpClientScopes(access)] });
+        const approval = yield* decide(handler, params, {
+          _tag: "pairing-code",
+          access,
+          code: code.credential,
+        });
+        expect(approval.status, access).toBe(200);
+      }
     }),
   ),
 );
