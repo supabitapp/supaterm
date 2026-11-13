@@ -124,7 +124,7 @@ import {
 import { usePrepareTriage } from "../triage/usePrepareTriage";
 import { useEnvironmentShellReadiness } from "../../state/shell";
 import { useConnectionsReady, useWorkspaceEnvironments } from "../../state/workspace";
-import { resolveEnvironmentProjectMatch } from "./new-task-project-selection";
+import { isSameRepository, resolveEnvironmentProjectMatch } from "./new-task-project-selection";
 import { resolveDefaultWorktreeBaseBranch } from "../../lib/worktree-base-branch";
 import { resolveProjectThreadCreationBranch } from "./projectThreadCreationValidation";
 
@@ -662,11 +662,14 @@ function useNewTaskFlowValue(
   };
 
   // An edited pending task keeps its own draft; anything else gets a new-task draft.
-  const carryDraftContentTo = (project: EnvironmentProject): string | null => {
+  const carryDraftContentTo = (
+    project: EnvironmentProject,
+    options?: Parameters<typeof retargetNewTaskDraft>[2],
+  ): string | null => {
     const target = { environmentId: project.environmentId, projectId: project.id };
     const flow = readFlow();
     if (flow.draftKey !== null && isNewTaskDraftKey(flow.draftKey)) {
-      retargetNewTaskDraft(flow.draftKey, target);
+      retargetNewTaskDraft(flow.draftKey, target, options);
       return flow.draftKey;
     }
     return flow.editingPendingTask ? flow.draftKey : createNewTaskDraft(target);
@@ -695,7 +698,12 @@ function useNewTaskFlowValue(
       });
     }
     updateFlow({
-      draftKey: match ? carryDraftContentTo(match) : readFlow().draftKey,
+      // A name or title match may be another repository, which must not receive the PR checkout.
+      draftKey: match
+        ? carryDraftContentTo(match, {
+            keepPullRequestWorkspace: isSameRepository(match, selectedProject),
+          })
+        : readFlow().draftKey,
       environmentId,
       projectKey: match ? scopedProjectKey(match.environmentId, match.id) : null,
       environmentSwitch: null,

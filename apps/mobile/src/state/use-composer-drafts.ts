@@ -1722,6 +1722,7 @@ export function createNewTaskDraft(project: {
 export function retargetNewTaskDraft(
   draftKey: string,
   project: { readonly environmentId: EnvironmentId; readonly projectId: ProjectId },
+  options?: { readonly keepPullRequestWorkspace?: boolean },
 ): void {
   updateComposerDrafts((current) => {
     const existing = current[draftKey];
@@ -1733,7 +1734,12 @@ export function retargetNewTaskDraft(
     ) {
       return current;
     }
-    const { workspaceSelection: _workspaceSelection, ...retained } = normalizeDraft(existing);
+    const { workspaceSelection, ...retained } = normalizeDraft(existing);
+    // The PR checkout is recreated on the target machine, so only the old local path is dropped.
+    const keptWorkspaceSelection =
+      options?.keepPullRequestWorkspace && workspaceSelection?.pullRequestReference !== undefined
+        ? { ...workspaceSelection, worktreePath: null }
+        : undefined;
     // Pending uploads live on one server. Crossing environments keeps the
     // local bytes (the upload worker re-sends them to the new environment)
     // but drops the old stamp, so it cannot pin the source environment's
@@ -1748,6 +1754,7 @@ export function retargetNewTaskDraft(
       ...current,
       [draftKey]: {
         ...retained,
+        ...(keptWorkspaceSelection ? { workspaceSelection: keptWorkspaceSelection } : {}),
         attachments,
         project: {
           environmentId: project.environmentId,
