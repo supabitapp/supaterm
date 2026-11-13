@@ -65,9 +65,14 @@ import type {
   EnvironmentId,
   RunAttemptId,
   ThreadPinnedMessage,
+  OrchestrationV2DelegatedFrom,
 } from "@supaterm/contracts";
 import { deriveTimelineMinimapItems, type TimelineMinimapItem } from "./timelineMinimapItems";
-import { parseScopedThreadKey } from "@supaterm/client-runtime/environment";
+import { parseScopedThreadKey, scopeThreadRef } from "@supaterm/client-runtime/environment";
+import { useNavigate } from "@tanstack/react-router";
+import { useQuietThreadShell } from "../../state/entities";
+import { useEnvironment } from "../../state/environments";
+import { buildThreadRouteParams } from "../../threadRoutes";
 import { resolveWorkGroupScrollAnchor } from "@supaterm/client-runtime/work-log/scroll-anchor";
 import type { WorkflowOpening } from "@supaterm/client-runtime/state/subagentRuntime";
 import { observeResize } from "~/lib/observeResize";
@@ -273,12 +278,21 @@ interface MessagesTimelineProps {
   onOpenTurnDiff: (runId: RunId, filePath?: string) => void;
   onOpenToolDiff?: (target: ToolCallDiffTarget) => void;
   onOpenThread: (threadId: OrchestrationV2TurnItem["threadId"]) => void;
-  /** The thread this one is a subagent or side chat of. */
-  parentThreadLink?: {
-    readonly threadId: ThreadId;
-    readonly title: string;
-    readonly sideChat?: boolean;
-  } | null;
+  /**
+   * The thread this one is a subagent or side chat of. A task a linked environment
+   * delegated here names its parent there, with that environment's name as kept here.
+   */
+  parentThreadLink?:
+    | {
+        readonly threadId: ThreadId;
+        readonly title: string;
+        readonly sideChat?: boolean;
+      }
+    | {
+        readonly delegatedFrom: OrchestrationV2DelegatedFrom;
+        readonly originLabel: string | null;
+      }
+    | null;
   /** Set on a workflow coordinator's thread: its script message renders as this opening. */
   workflowOpening?: WorkflowOpening | null;
   onForkFromRun?: (input: {
@@ -1189,13 +1203,17 @@ const ConversationTimeline = memo(function ConversationTimeline({
     ) : (
       <div className="messages-timeline-row-frame">
         <div className="chat-content-lane pt-1 sm:pt-2">
-          <TimelineSystemDivider
-            label={parentThreadLink.sideChat ? "Context from" : "Subagent of"}
-            detail={parentThreadLink.title}
-            icon={parentThreadLink.sideChat ? MessagesSquareIcon : BotIcon}
-            actionLabel="Open parent thread"
-            onAction={() => onOpenThread(parentThreadLink.threadId)}
-          />
+          {"delegatedFrom" in parentThreadLink ? (
+            <DelegatedParentDivider {...parentThreadLink} />
+          ) : (
+            <TimelineSystemDivider
+              label={parentThreadLink.sideChat ? "Context from" : "Subagent of"}
+              detail={parentThreadLink.title}
+              icon={parentThreadLink.sideChat ? MessagesSquareIcon : BotIcon}
+              actionLabel="Open parent thread"
+              onAction={() => onOpenThread(parentThreadLink.threadId)}
+            />
+          )}
         </div>
       </div>
     );
@@ -1508,6 +1526,40 @@ const ConversationTimeline = memo(function ConversationTimeline({
     </>
   );
 });
+
+/**
+ * The thread on a linked environment whose agent delegated this one. It opens
+ * there when this client is connected to that environment.
+ */
+function DelegatedParentDivider(props: {
+  readonly delegatedFrom: OrchestrationV2DelegatedFrom;
+  readonly originLabel: string | null;
+}) {
+  const navigate = useNavigate();
+  const { delegatedFrom } = props;
+  const environment = useEnvironment(delegatedFrom.environmentId);
+  const parentRef = scopeThreadRef(delegatedFrom.environmentId, delegatedFrom.threadId);
+  // The title it had at delegation, until this client sees the parent itself.
+  const title = useQuietThreadShell(parentRef)?.title ?? delegatedFrom.title;
+  const label = environment?.label ?? props.originLabel;
+  return (
+    <TimelineSystemDivider
+      label="Subagent of"
+      detail={label ? `${title} on ${label}` : title}
+      icon={BotIcon}
+      {...(environment === null
+        ? {}
+        : {
+            actionLabel: "Open parent thread",
+            onAction: () =>
+              void navigate({
+                to: "/$environmentId/$threadId",
+                params: buildThreadRouteParams(parentRef),
+              }),
+          })}
+    />
+  );
+}
 
 function TimelineHistoryControl(props: MessagesTimelineHistoryControls) {
   if (!props.loading && props.error === null) {

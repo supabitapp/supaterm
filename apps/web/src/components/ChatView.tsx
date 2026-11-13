@@ -942,6 +942,14 @@ export default function ChatView(props: ChatViewProps) {
             sideChat: true,
           }
         : null;
+  // A linked environment's agent may have delegated this thread from there; the header's
+  // breadcrumb opens a parent in this environment only, so the timeline names that one.
+  const delegatedFrom = activeThread?.delegatedFrom ?? null;
+  const timelineParentLink =
+    parentThreadLink ??
+    (delegatedFrom === null
+      ? null
+      : { delegatedFrom, originLabel: activeThread?.linkOrigin?.label ?? null });
   const threadError = isServerThread
     ? (localServerError ?? serverRuntime?.lastError ?? null)
     : localDraftError;
@@ -3588,7 +3596,7 @@ export default function ChatView(props: ChatViewProps) {
                       onOpenToolDiff={onOpenToolDiffStable}
                       onOpenTurnDiff={onOpenTurnDiffStable}
                       onOpenThread={onOpenRelatedThreadStable}
-                      parentThreadLink={parentThreadLink}
+                      parentThreadLink={timelineParentLink}
                       workflowOpening={workflowOpening}
                       // Forking a side chat would drop its parent's history on portable providers.
                       {...(isSideChat ? {} : { onForkFromRun: onForkFromRunStable })}

@@ -35,7 +35,10 @@ const NOT_PENDING_ATOM = Atom.make(false).pipe(Atom.withLabel("side-chat:worktre
 export function useSideChatBlockedReason(input: {
   readonly environmentId: EnvironmentId | null;
   /** The server thread, or null while the thread is a draft on this client. */
-  readonly thread: Pick<EnvironmentThreadShell, "id" | "lineage" | "deletedAt"> | null;
+  readonly thread: Pick<
+    EnvironmentThreadShell,
+    "id" | "lineage" | "deletedAt" | "delegatedFrom"
+  > | null;
   readonly sideChatDraft?: boolean;
 }): string | null {
   const { environmentId, thread } = input;
@@ -46,6 +49,8 @@ export function useSideChatBlockedReason(input: {
       ? environmentThreadDetails.worktreePendingAtom(scopeThreadRef(environmentId, thread.id))
       : NOT_PENDING_ATOM,
   );
+  // A delegated task is a remote thread's subagent; the server refuses its side chats too.
+  if (thread?.delegatedFrom != null) return "Subagent threads cannot start side chats.";
   return sideChatStartBlockedReason({
     parent:
       thread === null
