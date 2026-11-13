@@ -214,6 +214,7 @@ const resolveRepositoryIdentityCacheKey = Effect.fn("RepositoryIdentityResolver.
 const readGhBaseRemote = Effect.fn("RepositoryIdentityResolver.readGhBaseRemote")(function* (
   cacheKey: string,
   remotes: ReadonlyMap<string, string>,
+  env: NodeJS.ProcessEnv,
 ) {
   if (remotes.size < 2) return null;
   const processRunner = yield* ProcessRunner.ProcessRunner;
@@ -221,6 +222,7 @@ const readGhBaseRemote = Effect.fn("RepositoryIdentityResolver.readGhBaseRemote"
     .run({
       command: "git",
       args: ["-C", cacheKey, ...GH_RESOLVED_CONFIG_ARGS],
+      env,
       timeoutBehavior: "timedOutResult",
     })
     .pipe(Effect.option);
@@ -239,11 +241,12 @@ const resolveRepositoryIdentityFromCacheKey = Effect.fn(
   cacheKey: RepositoryIdentityCacheKey,
 ): Effect.fn.Return<RepositoryIdentity | null, never, ProcessRunner.ProcessRunner> {
   const processRunner = yield* ProcessRunner.ProcessRunner;
+  const env = gitEnv(yield* HostProcess.Platform);
   const remoteResult = yield* processRunner
     .run({
       command: "git",
       args: ["-C", cacheKey.rootPath, ...(cacheKey.isBare ? ["--git-dir=."] : []), "remote", "-v"],
-      env: gitEnv(yield* HostProcess.Platform),
+      env,
       timeoutBehavior: "timedOutResult",
     })
     .pipe(Effect.option);
@@ -257,7 +260,7 @@ const resolveRepositoryIdentityFromCacheKey = Effect.fn(
     ),
   );
   const remote =
-    (yield* readGhBaseRemote(cacheKey.rootPath, remotes)) ?? pickPrimaryRemote(remotes);
+    (yield* readGhBaseRemote(cacheKey.rootPath, remotes, env)) ?? pickPrimaryRemote(remotes);
   return remote
     ? buildRepositoryIdentity({
         ...remote,

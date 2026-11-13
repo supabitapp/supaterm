@@ -7,6 +7,7 @@ import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
 import * as Path from "effect/Path";
 import * as ChildProcessSpawner from "effect/process/ChildProcessSpawner";
+import { vi } from "vite-plus/test";
 
 import * as ProcessRunner from "../processRunner.ts";
 import * as RepositoryIdentityResolver from "./RepositoryIdentityResolver.ts";
@@ -396,6 +397,35 @@ it.layer(NodeServices.layer)("RepositoryIdentityResolverLive", (it) => {
 
       expect(identity?.canonicalKey).toBe("github.com/supabitapp/supaterm");
       expect(identity?.locator.remoteName).toBe("upstream");
+    }).pipe(Effect.provide(RepositoryIdentityResolver.layer)),
+  );
+
+  it.effect("reads the project's gh default when the server inherited GIT_DIR", () =>
+    Effect.gen(function* () {
+      const fileSystem = yield* FileSystem.FileSystem;
+      const path = yield* Path.Path;
+      const cwd = yield* fileSystem.makeTempDirectoryScoped({
+        prefix: "supaterm-repository-identity-gh-default-git-dir-",
+      });
+      const other = yield* fileSystem.makeTempDirectoryScoped({
+        prefix: "supaterm-repository-identity-inherited-git-dir-",
+      });
+
+      yield* git(cwd, ["init"]);
+      yield* git(cwd, ["remote", "add", "origin", "git@github.com:julius/supaterm-fork.git"]);
+      yield* git(cwd, ["remote", "add", "upstream", "git@github.com:supabitapp/supaterm.git"]);
+      yield* git(cwd, ["config", "remote.origin.gh-resolved", "base"]);
+      yield* git(other, ["init"]);
+      yield* git(other, ["config", "remote.upstream.gh-resolved", "base"]);
+
+      vi.stubEnv("GIT_DIR", path.join(other, ".git"));
+      yield* Effect.addFinalizer(() => Effect.sync(() => vi.unstubAllEnvs()));
+
+      const resolver = yield* RepositoryIdentityResolver.RepositoryIdentityResolver;
+      const identity = yield* resolver.resolve(cwd);
+
+      expect(identity?.canonicalKey).toBe("github.com/julius/supaterm-fork");
+      expect(identity?.locator.remoteName).toBe("origin");
     }).pipe(Effect.provide(RepositoryIdentityResolver.layer)),
   );
 
