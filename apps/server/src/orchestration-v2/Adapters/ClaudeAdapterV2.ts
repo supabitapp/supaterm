@@ -77,6 +77,7 @@ import {
   mcpAppToolResourceUri,
 } from "@supaterm/shared/mcpApp";
 import { AgentScope } from "@supaterm/shared/AgentScope";
+import * as ProviderProcesses from "../../process/providerProcesses.ts";
 import * as HostProcess from "@supaterm/shared/HostProcess";
 import { applyClaudePromptEffortPrefix } from "@supaterm/shared/model";
 import { compareSemverVersions } from "@supaterm/shared/semver";
@@ -342,7 +343,10 @@ const CLAUDE_DESCENDANT_POLL = "1 second";
 const CLAUDE_ROOT_REFUSAL =
   "--dangerously-skip-permissions cannot be used with root/sudo privileges for security reasons";
 
+// fd 4 gates the launch until the server has recorded the process it is about to become.
 const CLAUDE_GROUP_WATCH_SCRIPT = [
+  "read -r _ <&4 || exit 1",
+  "exec 4<&-",
   "{ trap '' TERM; read -r _ <&3; kill -TERM 0; sleep 5; kill -KILL 0; } </dev/null >/dev/null 2>&1 &",
   'exec "$@" 3<&-',
 ].join("\n");
@@ -351,12 +355,14 @@ const CLAUDE_GROUP_WATCH_SCRIPT = [
  * The CLI stops the MCP servers it started on exit, but not their children (a plugin's
  * `bun server.ts` outlives its `bun run start` wrapper), so the rest of its group gets SIGKILL.
  * A watcher in the group reads a pipe only this server holds and stops the group at its EOF,
- * so a crashed server cannot leave the CLI working next to the session it resumes.
+ * so a crashed server cannot leave the CLI working next to the session it resumes. `register`
+ * records the CLI before it may run, so a restarted server can reap it if the watcher did not.
  */
 export function spawnClaudeProcessGroup(
   options: ClaudeSpawnOptions,
   onStderr: (text: string) => void = () => {},
   onStderrClose: () => void = () => {},
+  register?: (pid: number) => () => void,
 ): ClaudeSpawnedProcess & Pick<NodeChildProcess.ChildProcess, "pid"> {
   const child = NodeChildProcess.spawn(
     "/bin/sh",
@@ -365,17 +371,33 @@ export function spawnClaudeProcessGroup(
       cwd: options.cwd,
       env: options.env,
       signal: options.signal,
-      stdio: ["pipe", "pipe", "pipe", "pipe"],
+      stdio: ["pipe", "pipe", "pipe", "pipe", "pipe"],
       detached: true,
     },
   );
+  let forget: (() => void) | undefined;
   // Always drained, so a chatty CLI never blocks on a full stderr pipe.
   child.stderr?.setEncoding("utf8").on("data", onStderr).once("close", onStderrClose);
   child.once("exit", () => {
     try {
       signalProcessGroup(child.pid ?? 0, "SIGKILL");
     } catch {}
+    try {
+      forget?.();
+    } catch {}
   });
+  const gate = child.stdio[4];
+  if (child.pid !== undefined && gate !== null && gate !== undefined && "end" in gate) {
+    try {
+      forget = register?.(child.pid);
+      gate.on("error", () => child.kill("SIGKILL"));
+      gate.end("ready\n");
+    } catch (cause) {
+      child.kill("SIGKILL");
+      gate.destroy();
+      throw cause;
+    }
+  }
   // Node's typings make stdin and stdout nullable once stdio has a fourth entry; both are pipes.
   return child as ClaudeSpawnedProcess & Pick<NodeChildProcess.ChildProcess, "pid">;
 }
@@ -1237,6 +1259,7 @@ export const layerQueryRunner: Layer.Layer<
     const path = yield* Path.Path;
     const { native: nativeEventLogger } = yield* ProviderEventLoggers.ProviderEventLoggers;
     const agentScope = yield* AgentScope;
+    const providerProcesses = yield* ProviderProcesses.ProviderProcesses;
     const platform = yield* HostProcess.Platform;
     const runFork = Effect.runForkWith(yield* Effect.context<never>());
     const hostEnvironment = yield* HostProcess.Environment;
@@ -1351,7 +1374,12 @@ export const layerQueryRunner: Layer.Layer<
                 // Node can report "exit" before it has read the stderr the CLI wrote.
                 let stderrDone = () => {};
                 stderrClosed = new Promise((resolve) => (stderrDone = resolve));
-                const child = spawnClaudeProcessGroup(spawnOptions, appendStderr, stderrDone);
+                const child = spawnClaudeProcessGroup(
+                  spawnOptions,
+                  appendStderr,
+                  stderrDone,
+                  providerProcesses.register,
+                );
                 if (child.pid !== undefined) {
                   const tracker = trackDescendants(child.pid);
                   const polling = runFork(

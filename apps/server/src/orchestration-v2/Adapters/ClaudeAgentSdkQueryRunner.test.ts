@@ -10,6 +10,7 @@ import * as NodeCrypto from "@effect/platform-node/NodeCrypto";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { assert, describe, it } from "@effect/vitest";
 import { ProviderSessionId, ThreadId } from "@supaterm/contracts";
+import * as Deferred from "effect/Deferred";
 import * as Effect from "effect/Effect";
 import * as Exit from "effect/Exit";
 import * as Fiber from "effect/Fiber";
@@ -799,6 +800,46 @@ describe.skipIf(HostProcess.Platform.defaultValue() === "win32")("Claude CLI pro
       // A dying server's descriptors close; the kernel would do this for it.
       for (const pipe of child.stdio) pipe?.destroy();
       yield* Effect.promise(() => turnStopped);
+    }),
+  );
+
+  // A restarted server reaps recorded CLIs, so a CLI must never run before its record exists.
+  it.effect("records the CLI before it runs and forgets it once it exits", () =>
+    Effect.gen(function* () {
+      const cli = fakeClaudeCli(
+        ['dir=$(dirname "$0")', 'printf \'%s %s\' "$$" "$(cat "$dir/record")" > "$dir/seen"'].join(
+          "\n",
+        ),
+      );
+      const dir = NodePath.dirname(cli);
+      NodeChildProcess.execFileSync("mkfifo", [NodePath.join(dir, "seen")]);
+      yield* Effect.addFinalizer(() =>
+        Effect.sync(() => NodeFS.rmSync(dir, { recursive: true, force: true })),
+      );
+      const forgotten = yield* Deferred.make<void>();
+      let registered = 0;
+      spawnClaudeProcessGroup(
+        {
+          command: cli,
+          args: [],
+          cwd: dir,
+          env: process.env,
+          // @effect-diagnostics-next-line abortControllerInEffect:off - The CLI exits on its own.
+          signal: new AbortController().signal,
+        },
+        undefined,
+        undefined,
+        (pid) => {
+          registered = pid;
+          NodeFS.writeFileSync(NodePath.join(dir, "record"), String(pid));
+          return () => Deferred.doneUnsafe(forgotten, Effect.void);
+        },
+      );
+      const seen = yield* Effect.promise(() =>
+        NodeFS.promises.readFile(NodePath.join(dir, "seen"), "utf8"),
+      );
+      assert.equal(seen, `${registered} ${registered}`);
+      yield* Deferred.await(forgotten);
     }),
   );
 
