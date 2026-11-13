@@ -244,6 +244,8 @@ it("highlights a code block's own source when an earlier block of the same lengt
   // These two lines share a 32-bit FNV-1a hash and a length.
   const first = 'const commitSha = "f36a6d8fe0aa";';
   const second = 'const commitSha = "cb06f8d135b3";';
+  // The block suspends until the shared highlighter loads, which can outlast vi.waitFor on a busy runner.
+  await getSyntaxHighlighterPromise("ts");
   {
     await using screen = await renderText(`\`\`\`ts\n${first}\n\`\`\``);
     await vi.waitFor(() => expect(highlightedText(screen.container)).toBe(first));
