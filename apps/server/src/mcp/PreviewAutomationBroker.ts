@@ -672,8 +672,12 @@ export const make = Effect.gen(function* PreviewAutomationBrokerMake() {
           // Do not replay actions: the client may have applied them before
           // becoming unreachable. A background metadata read has a short budget
           // and changes nothing, so a slow one must not cut the host off from the
-          // agent's next call.
-          if (input.updateCurrentTab !== false) {
+          // agent's next call. The in-process server browser is shared by every
+          // thread and cannot hang its stream.
+          if (
+            input.updateCurrentTab !== false &&
+            connection.clientId !== SERVER_BROWSER_AUTOMATION_CLIENT_ID
+          ) {
             yield* disconnect(connection.clientId, connection.queue, true);
           }
           return yield* new PreviewAutomationTimeoutError(requestContext);
