@@ -24,6 +24,7 @@ import {
   DesktopTelemetryControlMessage,
   type DesktopTelemetryControlMessage as DesktopTelemetryControlMessageValue,
 } from "@supaterm/contracts";
+import { isRunningDatabaseMigrations } from "@supaterm/shared/databaseMigrationLog";
 import { waitForHttpReady as waitForHttpReadyShared } from "@supaterm/shared/httpReadiness";
 
 import * as DesktopObservability from "../app/DesktopObservability.ts";
@@ -966,6 +967,12 @@ export const makeBackendInstance = Effect.fn("makeBackendInstance")(function* (
           }),
           onReadinessFailure: Effect.fn("desktop.backendInstance.onReadinessFailure")(
             function* (error) {
+              if (isRunningDatabaseMigrations(yield* Ref.get(outputTail))) {
+                yield* logInstanceWarning("backend is still migrating its database; waiting", {
+                  error: error.message,
+                });
+                return;
+              }
               yield* logInstanceWarning("backend readiness check failed during bootstrap", {
                 error: error.message,
               });
