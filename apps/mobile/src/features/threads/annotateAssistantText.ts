@@ -4,22 +4,13 @@ import {
   type MessageId,
   type ThreadId,
 } from "@supaterm/contracts";
-import { serializeAssistantCitation } from "@supaterm/shared/assistantCitations";
 import * as Haptics from "expo-haptics";
 
-import {
-  annotatedDraftRejection,
-  promptAssistantAnnotation,
-} from "../../components/assistantAnnotationPrompt";
+import { promptAssistantAnnotation } from "../../components/assistantAnnotationPrompt";
 import * as Dialog from "../../components/ui/Dialog";
 import { assistantCitationFromSelection } from "../../lib/assistantAnnotation";
-import { scopedThreadKey } from "../../lib/scopedEntities";
 import type { MarkdownTextSelection } from "../../native/SelectableMarkdownText.types";
-import { activeComposerDraftKey, getQueuedRunEdit } from "../../state/queued-run-edit";
-import {
-  captureComposerDraftInsertion,
-  insertComposerDraftContext,
-} from "../../state/use-composer-drafts";
+import { addDraftQuote } from "../../state/annotationDrafts";
 
 export function annotateAssistantText(input: {
   readonly source: {
@@ -39,19 +30,9 @@ export function annotateAssistantText(input: {
     );
     return;
   }
-  const threadKey = scopedThreadKey(input.source.environmentId, input.source.threadId);
   promptAssistantAnnotation(citation, "add", (annotated) => {
-    // A queued edit can end while the prompt is open; the quote follows the composer.
-    const draftKey = activeComposerDraftKey(threadKey, input.draftKey, getQueuedRunEdit(threadKey));
-    const text = serializeAssistantCitation(annotated);
-    const target = captureComposerDraftInsertion(draftKey);
-    // The quote replaces the composer's selection and can gain a space on each side.
-    const rejection = annotatedDraftRejection(
-      target.text.length - (target.end - target.start) + text.length + 2,
-    );
-    if (rejection !== null) return rejection;
-    insertComposerDraftContext(draftKey, { text, context: { version: 1, records: [] } }, target);
-    void Haptics.selectionAsync();
-    return null;
+    const rejection = addDraftQuote(input.draftKey, annotated);
+    if (rejection === null) void Haptics.selectionAsync();
+    return rejection;
   });
 }

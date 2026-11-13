@@ -7,7 +7,11 @@ import {
   RunId,
   ThreadId,
 } from "@supaterm/contracts";
-import { collectAssistantCitations } from "@supaterm/shared/assistantCitations";
+import {
+  collectAssistantCitations,
+  serializeAssistantCitation,
+  withAssistantCitationComment,
+} from "@supaterm/shared/assistantCitations";
 import { Atom } from "effect/reactivity";
 import { expect, it, vi } from "vite-plus/test";
 
@@ -43,7 +47,9 @@ vi.mock("expo-file-system", () => ({
 import { scopedThreadKey } from "../../lib/scopedEntities";
 import { appAtomRegistry } from "../../state/atom-registry";
 import { beginQueuedRunEdit, queuedEditDraftKey } from "../../state/queued-run-edit";
+import { replaceDraftQuote } from "../../state/annotationDrafts";
 import {
+  flushComposerDrafts,
   getComposerDraftSnapshot,
   rememberComposerDraftSelection,
   setComposerDraftText,
@@ -92,6 +98,48 @@ it("puts the quote in the thread's draft when the queued edit it was opened for 
   appAtomRegistry.set(runs, [{ id: runId, status: "running" }]);
   dialog.prompts[0]!.onConfirm("Explain it");
 
+  expect(getComposerDraftSnapshot(editKey).text).toBe("");
+  expect(comments(threadKey)).toEqual(["Explain it"]);
+});
+
+it("saves a chip's edited comment in the thread's draft after its queued edit moved there", async () => {
+  const { source, threadKey, comments } = await setup("thread-edit-recovered");
+  const runId = RunId.make("run-1");
+  const runs = Atom.make<ReadonlyArray<{ readonly id: RunId; readonly status: string }> | null>([
+    { id: runId, status: "queued" },
+  ]);
+  beginQueuedRunEdit(
+    threadKey,
+    {
+      runId,
+      messageId: MessageId.make("queued"),
+      originalText: "original",
+      existingAttachments: [],
+    },
+    runs,
+  );
+  const editKey = queuedEditDraftKey(threadKey, runId);
+  const citation = {
+    version: 1 as const,
+    ...source,
+    text: "replay",
+    start: 15,
+    end: 21,
+    prefix: "",
+    suffix: "",
+  };
+  const token = serializeAssistantCitation(citation);
+  setComposerDraftText(editKey, `${token} `);
+
+  appAtomRegistry.set(runs, [{ id: runId, status: "running" }]);
+  await flushComposerDrafts();
+  const rejection = replaceDraftQuote(
+    editKey,
+    { source: token, start: 0, end: token.length },
+    withAssistantCitationComment(citation, "Explain it"),
+  );
+
+  expect(rejection).toBeNull();
   expect(getComposerDraftSnapshot(editKey).text).toBe("");
   expect(comments(threadKey)).toEqual(["Explain it"]);
 });

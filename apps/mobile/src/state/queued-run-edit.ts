@@ -16,7 +16,7 @@ import {
 import { uploadedComposerContext } from "../lib/composerContext";
 import { appAtomRegistry } from "./atom-registry";
 import { abortComposerDraftOperations } from "./composerDraftOperations";
-import { queuedEditDraftKey } from "./queued-edit-draft-key";
+import { queuedEditDraftKey, queuedEditThreadKey } from "./queued-edit-draft-key";
 import { setThreadComposerError } from "./thread-composer-error";
 import {
   clearComposerDraft,
@@ -58,6 +58,14 @@ export function activeComposerDraftKey(
   return edit !== null && queuedEditDraftKey(threadKey, edit.runId) === requestedKey
     ? requestedKey
     : threadKey;
+}
+
+/** The draft the composer is on now, for a key it held before a prompt opened. */
+export function currentComposerDraftKey(draftKey: string): string {
+  const threadKey = queuedEditThreadKey(draftKey);
+  return threadKey === null
+    ? draftKey
+    : activeComposerDraftKey(threadKey, draftKey, getQueuedRunEdit(threadKey));
 }
 
 export function useQueuedRunEdit(threadKey: string | null): QueuedRunEdit | null {

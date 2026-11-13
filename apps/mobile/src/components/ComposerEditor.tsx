@@ -6,7 +6,6 @@ import { settlePromise, squashAtomCommandFailure } from "@supaterm/client-runtim
 import { useEffect, useState } from "react";
 import type { EnvironmentId } from "@supaterm/contracts";
 import { encodeComposerContextFragment } from "@supaterm/shared/composerContextClipboard";
-import { serializeAssistantCitation } from "@supaterm/shared/assistantCitations";
 import { collectComposerContextReferences } from "@supaterm/shared/composerContextReferences";
 import { ComposerEditor as NativeComposerEditor } from "../native/SupatermComposerEditor";
 import type { ComposerEditorProps as NativeComposerEditorProps } from "../native/SupatermComposerEditor";
@@ -25,12 +24,13 @@ import {
   useComposerDraftResetGeneration,
 } from "../state/use-composer-drafts";
 import { importComposerContextClipboard } from "../lib/composerContextClipboard";
+import { replaceDraftQuote } from "../state/annotationDrafts";
 import { startComposerDraftOperation } from "../state/composerDraftOperations";
 import { appAtomRegistry } from "../state/atom-registry";
 import { mobilePreferencesAtom } from "../state/preferences";
 import { useOpenLinkedThread } from "../features/threads/useOpenLinkedThread";
 import { ComposerContextSheet } from "./ComposerContextSheet";
-import { annotatedDraftRejection, promptAssistantAnnotation } from "./assistantAnnotationPrompt";
+import { promptAssistantAnnotation } from "./assistantAnnotationPrompt";
 import { assistantCitationFromToken } from "../lib/assistantAnnotation";
 import { AppText as Text } from "./ui/AppText";
 import {
@@ -214,19 +214,10 @@ export function ComposerEditor({
           }
           const citation = assistantCitationFromToken(selection.source);
           if (citation) {
-            if (props.readOnly || props.editable === false) return;
-            promptAssistantAnnotation(citation, "edit", (annotated) => {
-              const text = draftKey ? getComposerDraftSnapshot(draftKey).text : props.value;
-              if (text.slice(selection.start, selection.end) !== selection.source) return null;
-              const token = serializeAssistantCitation(annotated);
-              const next = text.slice(0, selection.start) + token + text.slice(selection.end);
-              const rejection = annotatedDraftRejection(next.length);
-              if (rejection !== null) return rejection;
-              changeText(next);
-              const caret = selection.start + token.length;
-              props.onSelectionChange?.({ start: caret, end: caret });
-              return null;
-            });
+            if (!draftKey || props.readOnly || props.editable === false) return;
+            promptAssistantAnnotation(citation, "edit", (annotated) =>
+              replaceDraftQuote(draftKey, selection, annotated),
+            );
             return;
           }
           setSelected(selection);

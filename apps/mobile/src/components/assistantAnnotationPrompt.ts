@@ -1,32 +1,11 @@
-import {
-  ASSISTANT_CITATION_MAX_COMMENT_LENGTH,
-  PROVIDER_SEND_TURN_MAX_INPUT_CHARS,
-  type AssistantCitation,
-} from "@supaterm/contracts";
+import { ASSISTANT_CITATION_MAX_COMMENT_LENGTH, type AssistantCitation } from "@supaterm/contracts";
 import {
   assistantCitationExcerpt,
   withAssistantCitationComment,
 } from "@supaterm/shared/assistantCitations";
 
+import type { AnnotationRejection } from "../state/annotationDrafts";
 import * as Dialog from "./ui/Dialog";
-
-export interface AnnotationRejection {
-  readonly title: string;
-  readonly message: string;
-}
-
-/**
- * A quote's link percent-encodes its text, up to nine characters for one, so a draft can outgrow
- * the limit the editor holds typing to.
- */
-export function annotatedDraftRejection(length: number): AnnotationRejection | null {
-  return length <= PROVIDER_SEND_TURN_MAX_INPUT_CHARS
-    ? null
-    : {
-        title: "Message is too long",
-        message: "Shorten the comment or the quote, or remove text from the draft.",
-      };
-}
 
 /** `onSave` returns why the annotated quote cannot be kept, or null once it is. */
 export function promptAssistantAnnotation(
