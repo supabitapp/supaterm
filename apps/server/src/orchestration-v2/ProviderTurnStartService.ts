@@ -1641,12 +1641,11 @@ export const layer: Layer.Layer<
             .filter((part) => part !== "")
             .join("\n\n");
           const { restartContinuationOfRunId: _resumedRunId, ...promptedInput } = turnInput;
+          const text = goalCommand ? userText : withInlineContext(context, userText);
           yield* start({
             ...(noteContinuation ? promptedInput : turnInput),
-            message: {
-              ...turnInput.message,
-              text: goalCommand ? userText : withInlineContext(context, userText),
-            },
+            message: { ...turnInput.message, text },
+            ...(text === userText ? {} : { inlineContextLength: text.length - userText.length }),
           }).pipe(
             Effect.tapError((error) =>
               refusedBeforePrompt(error)
