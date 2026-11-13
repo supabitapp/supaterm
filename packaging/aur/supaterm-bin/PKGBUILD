@@ -44,8 +44,9 @@ conflicts=('supaterm')
 options=('!debug' '!strip')
 
 _appimage="supaterm-${pkgver}-x86_64.AppImage"
+_asset="$_appimage"
 source=(
-  "$_appimage::https://github.com/supabitapp/supaterm/releases/download/v${pkgver}/$_appimage"
+  "$_appimage::https://github.com/supabitapp/supaterm/releases/download/v${pkgver}/$_asset"
   "${pkgname}-${pkgver}-LICENSE::https://raw.githubusercontent.com/supabitapp/supaterm/v${pkgver}/LICENSE"
 )
 sha256sums=(
