@@ -64,9 +64,9 @@ so subtract it before you blame a slow span on the query. Statements inside a tr
 connection and do not carry these attributes.
 
 An MCP request over HTTP has a `McpHttpServer.authenticateRequest` span that covers only admitting
-it: the credential check. The request runs after it, under the `McpServer.…/<method>` span, and each
-tool call has its own `mcp.tool.<name>` span that times it. That span's attributes name the tool,
-never its arguments.
+it: the credential check, the mode limit, and the Linked environments gate. The request runs after
+it, under the `McpServer.…/<method>` span, and each tool call has its own `mcp.tool.<name>` span
+that times it. That span's attributes name the tool, never its arguments.
 
 #### Summarize the trace file
 
