@@ -199,6 +199,9 @@ const make = Effect.gen(function* () {
           threadId: input.threadId,
           ...(runId === undefined ? {} : { runId }),
           timeoutMs: chunk,
+          ...(input.untilDelegatedWorkSettled === undefined
+            ? {}
+            : { untilDelegatedWorkSettled: input.untilDelegatedWorkSettled }),
         },
       );
       remaining -= chunk;

@@ -38,6 +38,7 @@ import * as ScheduledTaskService from "../scheduledTasks/ScheduledTaskService.ts
 import * as ServerSettings from "../serverSettings.ts";
 import * as CommandReceiptStore from "../orchestration-v2/CommandReceiptStore.ts";
 import * as SecretRequests from "../secrets/SecretRequests.ts";
+import * as RemoteDelegation from "../peer/RemoteDelegation.ts";
 import * as SourceControlRepositoryService from "../sourceControl/SourceControlRepositoryService.ts";
 import * as GitVcsDriver from "../vcs/GitVcsDriver.ts";
 import * as McpHttpServer from "./McpHttpServer.ts";
@@ -93,6 +94,7 @@ const layerLaunches = Layer.effect(
             branch: null,
             worktreePath: null,
             ...(input.linkOrigin === undefined ? {} : { linkOrigin: input.linkOrigin }),
+            ...(input.delegatedFrom === undefined ? {} : { delegatedFrom: input.delegatedFrom }),
             createdBy: input.createdBy,
             creationSource: input.creationSource,
           })
@@ -158,6 +160,7 @@ const layerTools = Layer.mergeAll(
   Layer.provide(Layer.mock(SecretRequests.SecretRequests)({})),
   Layer.provide(Layer.mock(PeerForwarding.PeerForwarding)({})),
   Layer.provide(Layer.mock(ThreadSearch.ThreadSearch)({})),
+  Layer.provide(Layer.mock(RemoteDelegation.RemoteDelegation)({})),
   Layer.provide(
     Layer.mock(ManagedProjectFolders.ManagedProjectFolders)({ namedProjectsRoot: "/p" }),
   ),
@@ -316,6 +319,17 @@ it.layer(Layer.provideMerge(layerTools, layerOrchestration))("work a link starts
       // An ordinary outside agent's launch is not a link's.
       const plain = yield* launch(claudeCode, "Started by Claude Code");
       assert.equal((yield* projections.getThreadShell(plain))?.linkOrigin, undefined);
+
+      // A link's delegated task names its parent there; only a link's launch may.
+      const delegatedFrom = {
+        environmentId: "environment-laptop",
+        threadId: "thread:laptop-parent",
+        title: "Laptop parent",
+      };
+      const task = yield* launch(laptop, "Delegated from the laptop", { delegatedFrom });
+      assert.deepEqual((yield* projections.getThreadShell(task))?.delegatedFrom, delegatedFrom);
+      const claimed = yield* launch(claudeCode, "Claims a parent", { delegatedFrom });
+      assert.equal((yield* projections.getThreadShell(claimed))?.delegatedFrom, undefined);
     }),
   );
 

@@ -12,6 +12,7 @@ import {
   ThreadId,
   isOrchestrationV2RunInProgress,
 } from "@supaterm/contracts";
+import { latestExecutedRun } from "@supaterm/shared/orchestrationV2ThreadError";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
@@ -120,6 +121,16 @@ export function resolveMessageDispatchIntent(
 /** A run that still owns the thread's provider turn. */
 export function isRunInProgress(run: OrchestrationV2Run): boolean {
   return isOrchestrationV2RunInProgress(run.status);
+}
+
+/** The run a follow-up to a finished child binds to: the latest active one, else the last that ran. */
+export function followUpOwnerRun(
+  runs: ReadonlyArray<OrchestrationV2Run>,
+): OrchestrationV2Run | null {
+  return (
+    runs.filter(isRunInProgress).toSorted((a, b) => b.ordinal - a.ordinal)[0] ??
+    latestExecutedRun(runs)
+  );
 }
 
 function providerTurnCapabilities(

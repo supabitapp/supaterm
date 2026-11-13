@@ -41,6 +41,7 @@ import * as ScheduledTaskService from "../scheduledTasks/ScheduledTaskService.ts
 import type { McpInvocationScope } from "./McpInvocationContext.ts";
 import * as OrchestratorMcpService from "./OrchestratorMcpService.ts";
 import * as SecretRequests from "../secrets/SecretRequests.ts";
+import * as RemoteDelegation from "../peer/RemoteDelegation.ts";
 
 const layerOrchestratorService = OrchestratorMcpService.layer.pipe(
   Layer.provide(Layer.mock(ThreadLaunchService.ThreadLaunchService)({})),
@@ -157,6 +158,7 @@ it.effect("task_cancel ends a delegated child's background native subagent", () 
             Layer.mock(ProjectService.ProjectService)({}),
             ServerSettings.layerTest(),
             Layer.mock(SecretRequests.SecretRequests)({}),
+            Layer.mock(RemoteDelegation.RemoteDelegation)({}),
             Layer.mock(ScheduledTaskService.ScheduledTaskService)({}),
             NodeServices.layer,
             NodeCrypto.layer,

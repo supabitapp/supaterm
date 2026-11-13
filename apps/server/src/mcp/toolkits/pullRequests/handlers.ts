@@ -28,7 +28,7 @@ import {
 } from "../../../sourceControl/threadPullRequests.ts";
 import * as McpInvocationContext from "../../McpInvocationContext.ts";
 import * as McpToolAccess from "../../McpToolAccess.ts";
-import { threadNotFound } from "../../OrchestratorMcpService.ts";
+import { threadNotFound } from "../../threadAccess.ts";
 import {
   CHILD_PULL_REQUEST_REPORT_NEXT,
   type ListThreadPullRequestsResult,
