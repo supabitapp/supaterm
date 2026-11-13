@@ -13,8 +13,6 @@ import {
 } from "@supaterm/contracts";
 import {
   DEFAULT_UNIFIED_SETTINGS,
-  MAX_SIDEBAR_AUTO_MARK_DONE_AFTER_DAYS,
-  MIN_SIDEBAR_AUTO_MARK_DONE_AFTER_DAYS,
   type ResponseStreamingMode,
   SidebarProjectSortOrder,
   ScreenReaderAnnouncements,
@@ -1538,10 +1536,10 @@ export function ThreadsSettingsPanel() {
                 {settings.sidebarAutoMarkDoneAfterDays !== null ? (
                   <DaysField
                     label="Automatically mark inactive threads as Done"
-                    min={MIN_SIDEBAR_AUTO_MARK_DONE_AFTER_DAYS}
-                    max={MAX_SIDEBAR_AUTO_MARK_DONE_AFTER_DAYS}
                     value={settings.sidebarAutoMarkDoneAfterDays}
-                    onCommit={(days) => updateSettings({ sidebarAutoMarkDoneAfterDays: days })}
+                    onCommit={(days, options) =>
+                      updateSettings({ sidebarAutoMarkDoneAfterDays: days }, options)
+                    }
                   />
                 ) : null}
                 <ScopedSwitch
