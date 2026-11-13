@@ -27,7 +27,11 @@ import {
 import type { HtmlRenderReference } from "@supaterm/shared/htmlRender";
 import { turnItemDetailRevision } from "@supaterm/client-runtime/work-log/item-detail";
 import type { McpAppReference } from "@supaterm/shared/mcpApp";
-import { htmlRenderFromToolItem, mcpAppFromToolItem } from "@supaterm/shared/toolOutput";
+import {
+  htmlRenderFromToolItem,
+  mcpAppFromToolItem,
+  sentMessageFromToolItem,
+} from "@supaterm/shared/toolOutput";
 import {
   contextCompactionLabel,
   workEntryIndicatesToolFailure,
@@ -135,6 +139,13 @@ export type TimelineEntry = (
       readonly createdAt: string;
       readonly runId: RunId | null;
       readonly htmlRender: HtmlRenderReference;
+    }
+  | {
+      readonly id: string;
+      readonly kind: "sent-message";
+      readonly createdAt: string;
+      readonly runId: RunId | null;
+      readonly text: string;
     }
   | {
       readonly id: string;
@@ -695,6 +706,22 @@ export function deriveTimelineEntriesFromVisibleTurnItems(
         createdAt,
         runId: item.runId,
         htmlRender,
+        ...attemptMetadata,
+      });
+      continue;
+    }
+
+    const sentMessage =
+      item.type === "dynamic_tool" && item.status === "completed"
+        ? sentMessageFromToolItem(item)
+        : undefined;
+    if (sentMessage !== undefined) {
+      entries.push({
+        id: item.id,
+        kind: "sent-message",
+        createdAt,
+        runId: item.runId,
+        text: sentMessage,
         ...attemptMetadata,
       });
       continue;

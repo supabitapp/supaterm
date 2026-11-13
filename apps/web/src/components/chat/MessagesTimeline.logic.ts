@@ -77,7 +77,9 @@ export function timelineEntryRunId(entry: TimelineEntry): RunId | null {
   if (entry.kind === "proposed-plan") {
     return entry.proposedPlan.runId;
   }
-  if (entry.kind === "html-render" || entry.kind === "mcp-app") return entry.runId;
+  if (entry.kind === "html-render" || entry.kind === "mcp-app" || entry.kind === "sent-message") {
+    return entry.runId;
+  }
   return entry.kind === "work" ? (entry.entry.runId ?? null) : null;
 }
 
@@ -669,6 +671,12 @@ type MessagesTimelineRowContent =
       htmlRender: HtmlRenderReference;
     }
   | {
+      kind: "sent-message";
+      id: string;
+      createdAt: string;
+      text: string;
+    }
+  | {
       kind: "mcp-app";
       id: string;
       createdAt: string;
@@ -841,6 +849,7 @@ function deriveSupersededAttemptFolds(
       (entry.kind === "event" && entry.projectedItem.item.type === "handoff") ||
       entry.kind === "html-render" ||
       entry.kind === "mcp-app" ||
+      entry.kind === "sent-message" ||
       timelineEntryIsPersistentResourceCard(entry) ||
       liveSubagentEntryIds.has(entry.id) ||
       (entry.kind === "work" && entry.entry.itemType === "system_notice")
@@ -2007,6 +2016,16 @@ export function deriveMessagesTimelineRows(input: {
       continue;
     }
 
+    if (timelineEntry.kind === "sent-message") {
+      nextRows.push({
+        kind: "sent-message",
+        id: timelineEntry.id,
+        createdAt: timelineEntry.createdAt,
+        text: timelineEntry.text,
+      });
+      continue;
+    }
+
     if (timelineEntry.kind === "mcp-app") {
       nextRows.push({
         kind: "mcp-app",
@@ -2627,6 +2646,11 @@ function isRowUnchanged(a: MessagesTimelineRow, b: MessagesTimelineRow): boolean
       // Entries rebuild on any tool update; an equal page must keep its mounted frame.
       const bh = b as typeof a;
       return a.createdAt === bh.createdAt && htmlRenderReferencesEqual(a.htmlRender, bh.htmlRender);
+    }
+
+    case "sent-message": {
+      const bs = b as typeof a;
+      return a.createdAt === bs.createdAt && a.text === bs.text;
     }
 
     case "mcp-app": {
