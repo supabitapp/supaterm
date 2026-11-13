@@ -1164,7 +1164,7 @@ export default function GitActionsControl({
         !isLocalDraftThread &&
         !readEnvironmentScope(activeEnvironmentId, AuthOrchestrationOperateScope))
     )
-      return;
+      return false;
     const actionStatus = statusOverride ?? gitStatusForActions;
     const actionBranch = actionStatus?.refName ?? null;
     const actionIsDefaultBranch = featureBranch ? false : isDefaultRef;
@@ -1184,7 +1184,7 @@ export default function GitActionsControl({
         action !== "commit_push" &&
         action !== "commit_push_pr"
       ) {
-        return;
+        return false;
       }
       setPendingDefaultBranchAction({
         action,
@@ -1194,7 +1194,7 @@ export default function GitActionsControl({
         ...(onConfirmed ? { onConfirmed } : {}),
         ...(filePaths ? { filePaths } : {}),
       });
-      return;
+      return false;
     }
     onConfirmed?.();
     setInlineSuccess(null);
@@ -1214,7 +1214,7 @@ export default function GitActionsControl({
 
     if (result._tag === "Failure") {
       if (isAtomCommandInterrupted(result)) {
-        return;
+        return false;
       }
 
       const error = squashAtomCommandFailure(result);
@@ -1228,7 +1228,7 @@ export default function GitActionsControl({
           ...(scopedToastData !== undefined ? { data: scopedToastData } : {}),
         }),
       );
-      return;
+      return false;
     }
 
     const actionResult = result.value;
@@ -1242,6 +1242,7 @@ export default function GitActionsControl({
       scopeKey: successScopeKey,
       expiresAtMs: inlineSuccessExpiresAt(),
     });
+    return true;
   }
 
   const continuePendingDefaultBranchAction = (featureBranch: boolean) => {
@@ -1260,6 +1261,12 @@ export default function GitActionsControl({
     });
   };
 
+  // Keep a typed message for the retry unless the user already started a new one.
+  const restoreDialogCommitMessageOnFailure = (commitMessage: string) => (committed: boolean) => {
+    if (committed || !commitMessage) return;
+    setDialogCommitMessage((current) => current || commitMessage);
+  };
+
   const runDialogActionOnNewBranch = () => {
     if (!isCommitDialogOpen) return;
     const commitMessage = dialogCommitMessage.trim();
@@ -1275,7 +1282,7 @@ export default function GitActionsControl({
       ...(!allSelected ? { filePaths: selectedFiles.map((f) => f.path) } : {}),
       featureBranch: true,
       skipDefaultBranchPrompt: true,
-    });
+    }).then(restoreDialogCommitMessageOnFailure(commitMessage));
   };
 
   const runQuickAction = () => {
@@ -1360,7 +1367,7 @@ export default function GitActionsControl({
       action: "commit",
       ...(commitMessage ? { commitMessage } : {}),
       ...(!allSelected ? { filePaths: selectedFiles.map((f) => f.path) } : {}),
-    });
+    }).then(restoreDialogCommitMessageOnFailure(commitMessage));
   };
 
   const openChangedFileInEditor = (filePath: string) => {
