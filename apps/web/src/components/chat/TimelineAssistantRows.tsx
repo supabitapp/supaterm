@@ -4,6 +4,7 @@ import { resolveAssistantMessageCopyState } from "./MessagesTimeline.logic";
 import { shouldPreserveAssistantLineBreaks } from "@supaterm/shared/markdownPipeline";
 import { MessageId, type RunId } from "@supaterm/contracts";
 import { canForkProjectedAssistantItem } from "@supaterm/client-runtime/state/thread-workflows";
+import { agentWorkingDirectories } from "@supaterm/client-runtime/workspace-basename-lookup";
 import { use, useState, memo } from "react";
 import type { ChatMessage, TurnDiffSummary } from "../../types";
 import ChatMarkdown from "../ChatMarkdown";
@@ -15,7 +16,12 @@ import { McpAppFrame } from "./McpAppFrame";
 import { checkpointFileTotals } from "@supaterm/client-runtime/state/thread-checkpoints";
 import { ChangedFilesCard } from "./ChangedFilesTree";
 import { useFileContextMenuHandler } from "../../fileContextMenu";
-import { useAssistantMessageText, useThreadShell, useProject } from "../../state/entities";
+import {
+  readThreadTurnItems,
+  useAssistantMessageText,
+  useThreadShell,
+  useProject,
+} from "../../state/entities";
 import { MessageCopyButton } from "./MessageCopyButton";
 import { AssistantCitationSource } from "./AssistantCitationSource";
 import { Tooltip, TooltipTrigger, TooltipPopup } from "../ui/tooltip";
@@ -52,6 +58,11 @@ export function AssistantTimelineRow({ row }: { row: Extract<TimelineRow, { kind
               text={messageText}
               renderInsights
               cwd={ctx.markdownCwd}
+              agentDirectories={() =>
+                ctx.threadRef && row.projectedItem
+                  ? agentWorkingDirectories(readThreadTurnItems(ctx.threadRef), row.projectedItem)
+                  : []
+              }
               threadRef={ctx.threadRef ?? undefined}
               isStreaming={Boolean(row.message.streaming)}
               lineBreaks={shouldPreserveAssistantLineBreaks(messageText)}
