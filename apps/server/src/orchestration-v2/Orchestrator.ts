@@ -753,7 +753,10 @@ function mayStartSubagentFollowup(
 ): boolean {
   if (command.scheduledTaskId !== undefined || command.restartContinuationOfRunId !== undefined)
     return false;
-  if (command.notification !== undefined) return command.notification.source.kind !== "monitor";
+  if (command.notification !== undefined)
+    return (
+      command.notification.source.kind !== "monitor" || command.notification.outcome !== "updated"
+    );
   if (command.delegatedCompletion !== undefined) return true;
   return (
     command.createdBy === "user" ||
