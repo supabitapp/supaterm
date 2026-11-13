@@ -33,6 +33,7 @@ const ANDROID_ICON_BY_SF_SYMBOL = {
   archivebox: IconNodes.Archive,
   "archivebox.fill": IconNodes.Archive,
   "bell.badge": IconNodes.BellRing,
+  "bolt.circle": IconNodes.Zap,
   "bolt.horizontal.circle": IconNodes.Zap,
   brain: IconNodes.Brain,
   "cable.connector": IconNodes.Plug,
