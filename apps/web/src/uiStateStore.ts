@@ -1,5 +1,6 @@
 import { Debouncer } from "@tanstack/react-pacer";
-import type { PullRequestMergeMethod } from "@supaterm/contracts";
+import { PullRequestMergeMethod } from "@supaterm/contracts";
+import * as Schema from "effect/Schema";
 import { create } from "zustand";
 
 export const PERSISTED_STATE_KEY = "supaterm:ui-state:v1";
@@ -56,9 +57,7 @@ function sanitizeOptionalKey(value: unknown): string | null {
   return typeof value === "string" && value.length > 0 ? value : null;
 }
 
-function isPullRequestMergeMethod(value: unknown): value is PullRequestMergeMethod {
-  return value === "merge" || value === "squash" || value === "rebase";
-}
+const isPullRequestMergeMethod = Schema.is(PullRequestMergeMethod);
 
 export function parsePersistedState(parsed: PersistedUiState): UiState {
   return {

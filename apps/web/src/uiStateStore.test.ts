@@ -60,6 +60,12 @@ describe("parsePersistedState", () => {
       },
     });
   });
+
+  it("keeps a persisted fast-forward merge method", () => {
+    expect(
+      parsePersistedState({ pullRequestMergeMethod: "fast-forward" }).pullRequestMergeMethod,
+    ).toBe("fast-forward");
+  });
 });
 
 function createLocalStorageStub(): Storage {
