@@ -70,6 +70,12 @@ on:
         required: false
         default: false
         type: boolean
+      # Whether the JS bundle came from a pull request. This job holds the
+      # signing secrets, so packaging then skips every step that runs the bundle.
+      untrusted_bundle:
+        required: false
+        default: false
+        type: boolean
       # A runner of the target's own platform and architecture, for a `runner`
       # that cannot execute the target. The build job skips everything that
       # runs the packaged binaries, and a second job runs it there.
@@ -115,6 +121,14 @@ jobs:
       INPUTS_RELEASE_CHANNEL: ${{ inputs.release_channel }}
       INPUTS_VERIFY_RUNNER: ${{ inputs.verify_runner }}
     steps:
+      # The launch check and the CLI archive smoke test both run the bundle.
+      - name: Reject running an untrusted bundle
+        if: inputs.untrusted_bundle && (inputs.launch_check || inputs.cli_archive)
+        shell: bash
+        run: |
+          echo "::error::untrusted_bundle cannot be combined with launch_check or cli_archive, which run the bundle."
+          exit 1
+
       # This repository is public, so Git needs no credentials. checkout's
       # credential cleanup runs submodule foreach even with submodules disabled,
       # which fails on the orphaned gitlinks in our vendored .repos tree.
@@ -371,6 +385,7 @@ jobs:
           pnpm_config_cache_dir: ${{ runner.temp }}/pnpm-metadata
           SUPATERM_DESKTOP_REUSE_RESOURCE_MONITOR: true
           SUPATERM_DESKTOP_REUSE_LINUX_CAPTURE_HELPERS: ${{ steps.capture_helper_cache.outputs.cache-hit == 'true' }}
+          SUPATERM_DESKTOP_UNTRUSTED_BUNDLE: ${{ inputs.untrusted_bundle }}
           AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
           AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
           AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
