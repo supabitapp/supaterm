@@ -2336,6 +2336,7 @@ describe("UsageService", () => {
                 },
                 [ProviderInstanceId.make("codex-work")]: {
                   driver: ProviderDriverKind.make("codex"),
+                  config: { shadowHomePath: NodePath.join(home, "work-shadow") },
                   environment: [{ name: "CODEX_HOME", value: codexHome, sensitive: false }],
                 },
                 [ProviderInstanceId.make("codex-alias")]: {
