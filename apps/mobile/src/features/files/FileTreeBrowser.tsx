@@ -5,7 +5,8 @@ import type { ProjectEntry } from "@supaterm/contracts";
 import { AppActivityIndicator } from "../../components/ui/AppActivityIndicator";
 import { DisclosureChevron } from "../../components/ui/DisclosureChevron";
 import { useEffect, useRef, useState } from "react";
-import { Pressable, RefreshControl, View } from "react-native";
+import { Pressable, View } from "react-native";
+import { RefreshControl } from "../../components/ui/RefreshControl";
 
 import { AppText as Text } from "../../components/ui/AppText";
 import { PierreEntryIcon } from "../../components/PierreEntryIcon";

@@ -25,7 +25,8 @@ import {
   usageSourceMessages,
 } from "@supaterm/shared/usageFormat";
 import { useRef, useState, type ReactNode } from "react";
-import { RefreshControl, View } from "react-native";
+import { View } from "react-native";
+import { RefreshControl } from "../../components/ui/RefreshControl";
 import Animated, { FadeIn, ReduceMotion } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 

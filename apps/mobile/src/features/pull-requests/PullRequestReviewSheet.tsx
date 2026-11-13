@@ -6,7 +6,7 @@ import { settlePromise, squashAtomCommandFailure } from "@supaterm/client-runtim
 import type { PullRequestReviewVerdict } from "@supaterm/contracts";
 import { useRef, useState } from "react";
 import { useFocusEffect } from "@react-navigation/native";
-import { Platform, Pressable, View } from "react-native";
+import { Pressable, View } from "react-native";
 import { clearSubmittedReview } from "./pullRequestReviewDrafts";
 import { usePullRequestReviewDraft } from "./usePullRequestReviewDraft";
 import { reviewPositionLabel } from "./pullRequestDiffComments";
@@ -192,7 +192,7 @@ export function PullRequestReviewSheet({
                 : "Post comment"
           }
           fullWidth
-          tone={Platform.OS === "android" ? "primary" : "contrast"}
+          tone="contrast"
           loading={submission.busy}
           disabled={!canSubmit || result.isPending || result.error !== null}
           onPress={() => void perform()}
