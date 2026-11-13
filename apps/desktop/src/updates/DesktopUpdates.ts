@@ -1,4 +1,6 @@
 import {
+  DESKTOP_UPDATE_IN_PROGRESS_MARKER_FILE,
+  DESKTOP_UPDATE_IN_PROGRESS_TTL_MS,
   DesktopUpdateChannelSchema,
   type DesktopRuntimeInfo,
   type DesktopUpdateActionResult,
@@ -622,6 +624,36 @@ export const make = Effect.gen(function* () {
   }).pipe(Effect.withSpan("desktop.updates.downloadAvailableUpdate"));
 
   const installRecordDir = environment.path.join(environment.baseDir, "runtime");
+  const updateInProgressMarkerPath = environment.path.join(
+    installRecordDir,
+    DESKTOP_UPDATE_IN_PROGRESS_MARKER_FILE,
+  );
+  const encodeUpdateMarker = Schema.encodeEffect(
+    Schema.fromJsonString(Schema.Struct({ startedAt: Schema.Number, expiresAt: Schema.Number })),
+  );
+  const updateInProgressTempPath = `${updateInProgressMarkerPath}.tmp`;
+  const writeUpdateInProgressMarker = Effect.gen(function* () {
+    const startedAt = DateTime.toEpochMillis(yield* DateTime.now);
+    const contents = yield* encodeUpdateMarker({
+      startedAt,
+      expiresAt: startedAt + DESKTOP_UPDATE_IN_PROGRESS_TTL_MS,
+    });
+    yield* fileSystem.makeDirectory(installRecordDir, { recursive: true });
+    yield* fileSystem.writeFileString(updateInProgressTempPath, contents);
+    yield* fileSystem.rename(updateInProgressTempPath, updateInProgressMarkerPath);
+  }).pipe(
+    Effect.ensuring(
+      fileSystem.remove(updateInProgressTempPath, { force: true }).pipe(Effect.ignore),
+    ),
+    Effect.catch((error) =>
+      logUpdaterWarning("Could not write the update-in-progress marker.", { errorTag: error._tag }),
+    ),
+  );
+  // Failed or interrupted installs leave no replacement backend to clear it.
+  const removeUpdateInProgressMarker = fileSystem
+    .remove(updateInProgressMarkerPath, { force: true })
+    .pipe(Effect.ignore);
+
   const installRecordPath = environment.path.join(
     installRecordDir,
     DESKTOP_UPDATE_INSTALL_RECORD_FILE,
@@ -670,6 +702,7 @@ export const make = Effect.gen(function* () {
       finishUpdateAction("install"),
       Ref.set(desktopState.quitting, false),
       Ref.set(installRunningBackendsRef, []),
+      removeUpdateInProgressMarker,
       removeInstallRecord,
     ],
     { discard: true },
@@ -686,6 +719,7 @@ export const make = Effect.gen(function* () {
     if (!ownsRecovery) return;
 
     yield* Ref.set(desktopState.quitting, false);
+    yield* removeUpdateInProgressMarker;
     yield* removeInstallRecord;
     yield* Effect.gen(function* () {
       const runningInstances = yield* Ref.getAndSet(installRunningBackendsRef, []);
@@ -761,6 +795,7 @@ export const make = Effect.gen(function* () {
         yield* Ref.set(installRunningBackendsRef, []);
 
         return yield* Effect.gen(function* () {
+          yield* writeUpdateInProgressMarker;
           const { downloadedVersion } = yield* Ref.get(updateStateRef);
           if (downloadedVersion !== null) yield* writeInstallRecord(downloadedVersion);
           // Stop every pool backend, not just the primary, and every SSH tunnel: quitAndInstall's
