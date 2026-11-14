@@ -625,10 +625,10 @@ const runRepoScript = Effect.fn("dev-runner.runRepoScript")(function* (
 });
 
 /**
- * The first start in a worktree seeds its empty database from a small live database
- * and warms the web dependency cache. Each step checks for its own output, so
- * later starts skip it. The live database is only ever read, through
- * migrate-dev-db's read-only attach, and only the worktree's own home is written.
+ * The first start in a worktree seeds its empty database from a small live database,
+ * builds the native resource monitor, and warms the web dependency cache. Each step
+ * checks for its own output, so later starts skip it. The live database is only ever
+ * read, through migrate-dev-db's read-only attach, and only the worktree's own home is written.
  */
 const prepareFirstStart = Effect.fn("dev-runner.prepareFirstStart")(function* (input: {
   readonly mode: DevMode;
@@ -684,6 +684,43 @@ const prepareFirstStart = Effect.fn("dev-runner.prepareFirstStart")(function* (i
   }
 
   const repoRoot = path.dirname(import.meta.dirname);
+  // Dev backends load the monitor from its Cargo output, which a fresh
+  // checkout or worktree does not have yet.
+  if (input.mode !== "dev:web") {
+    const crate = path.join(repoRoot, "native/resource-monitor");
+    const binary =
+      (yield* HostProcess.Platform) === "win32"
+        ? "supaterm-resource-monitor.exe"
+        : "supaterm-resource-monitor";
+    if (
+      !(yield* exists(path.join(crate, "target/release", binary))) &&
+      !(yield* exists(path.join(crate, "target/debug", binary)))
+    ) {
+      yield* Effect.logInfo("[dev-runner] building the resource monitor (first start only).");
+      const exitCode = yield* ChildProcess.make(
+        "cargo",
+        ["build", "--locked", "--release", "--manifest-path", path.join(crate, "Cargo.toml")],
+        {
+          cwd: repoRoot,
+          stdin: "ignore",
+          stdout: "inherit",
+          stderr: "inherit",
+          env: input.env,
+          extendEnv: false,
+        },
+      ).pipe(
+        Effect.flatMap((child) => child.exitCode),
+        Effect.scoped,
+        Effect.orElseSucceed(() => -1),
+      );
+      if (exitCode !== 0) {
+        yield* Effect.logWarning(
+          "[dev-runner] could not build the resource monitor; starting without process telemetry. Install Rust and run `vp run build:resource-monitor`.",
+        );
+      }
+    }
+  }
+
   if (
     input.mode !== "dev:server" &&
     !(yield* exists(path.join(repoRoot, "apps/web/node_modules/.vite/deps/_metadata.json")))
