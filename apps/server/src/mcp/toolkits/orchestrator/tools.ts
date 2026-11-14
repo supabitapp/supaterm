@@ -141,7 +141,7 @@ const BackgroundWaitTool = Tool.make("supaterm_background_wait", {
 
 const ScheduleTaskTool = Tool.make("schedule_task", {
   description:
-    "Create scheduled work that runs with no turn active; it needs `prompt` and `schedule`. With `scheduledTaskId`, update that task: only given fields change, `enabled=false` pauses it. `schedule` is an object, not text. Report the returned next run time.",
+    "Create scheduled work that runs with no turn active, from `prompt` and object `schedule`. `scheduledTaskId` updates only given fields; `enabled=false` pauses. Report next run time.",
   parameters: OrchestratorMcpSaveScheduledTaskInput,
   success: OrchestratorMcpScheduleTaskResult,
   failure: OrchestratorMcpFailure,
