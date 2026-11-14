@@ -6,6 +6,7 @@ import {
 } from "@supaterm/contracts";
 import { describe, expect, it } from "@effect/vitest";
 import { relayHttpBaseUrl, relayPublicKey } from "@supaterm/shared/relay/protocol";
+import * as Cause from "effect/Cause";
 import * as Clock from "effect/Clock";
 import * as Context from "effect/Context";
 import * as Deferred from "effect/Deferred";
@@ -16,7 +17,7 @@ import * as Queue from "effect/Queue";
 import * as Stream from "effect/Stream";
 import * as SubscriptionRef from "effect/SubscriptionRef";
 import { HttpClient, HttpClientError, HttpClientResponse } from "effect/http";
-import { Atom, AtomRegistry } from "effect/reactivity";
+import { AsyncResult, Atom, AtomRegistry } from "effect/reactivity";
 import * as TestClock from "effect/testing/TestClock";
 
 import { BearerConnectionProfile, type ConnectionRoute } from "../connection/catalog.ts";
@@ -30,8 +31,12 @@ import * as EnvironmentRegistry from "../connection/registry.ts";
 import * as EnvironmentSupervisor from "../connection/supervisor.ts";
 import { layer as layerRelayGateway, RelayGateway, type RelayTransport } from "../relay/gateway.ts";
 import type { WsRpcProtocolClient } from "../rpc/protocol.ts";
+import {
+  RemoteEnvironmentAuthFetchError,
+  RemoteEnvironmentAuthUndeclaredStatusError,
+} from "../rpc/http.ts";
 import type { RpcSession } from "../rpc/session.ts";
-import { createEnvironmentSessionAtoms } from "./session.ts";
+import { createEnvironmentSessionAtoms, sessionDeniesScope } from "./session.ts";
 
 const environmentId = EnvironmentId.make("latency-state-test");
 const descriptor = {
@@ -485,4 +490,42 @@ describe("relay transport", () => {
       expect(subscriptions).toBe(0);
     }),
   );
+});
+
+describe("sessionDeniesScope", () => {
+  // "Cannot control" must reflect the host's answer, not a lookup still pending or lost on the network.
+  it("denies a scope only once the host has answered without it", () => {
+    const failed = (error: unknown) =>
+      AsyncResult.failure<AuthSessionState, unknown>(Cause.fail(error));
+    const readOnly = {
+      ...grantedSession,
+      scopes: ["orchestration:read"],
+    } satisfies AuthSessionState;
+
+    expect(sessionDeniesScope(AsyncResult.initial(), "orchestration:read")).toBe(false);
+    expect(sessionDeniesScope(AsyncResult.success(readOnly), "orchestration:read")).toBe(false);
+    expect(sessionDeniesScope(AsyncResult.success(readOnly), "orchestration:operate")).toBe(true);
+    expect(
+      sessionDeniesScope(
+        failed(new RemoteEnvironmentAuthFetchError({ message: "offline", cause: "reset" })),
+        "orchestration:operate",
+      ),
+    ).toBe(false);
+    expect(
+      sessionDeniesScope(
+        failed(
+          new RemoteEnvironmentAuthUndeclaredStatusError("https://host/api/auth/session", 401),
+        ),
+        "orchestration:read",
+      ),
+    ).toBe(true);
+    expect(
+      sessionDeniesScope(
+        failed(
+          new RemoteEnvironmentAuthUndeclaredStatusError("https://host/api/auth/session", 502),
+        ),
+        "orchestration:read",
+      ),
+    ).toBe(false);
+  });
 });
