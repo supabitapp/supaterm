@@ -151,7 +151,7 @@ export function PullRequestCommentFooter(props: {
   >;
   readonly permissions: Pick<
     ReturnType<typeof usePullRequestPermissions>,
-    "canEditComment" | "canReact"
+    "canEditComment" | "canReactComment"
   >;
   readonly onChanged: () => void;
   readonly onEdit?: () => void;
@@ -161,7 +161,7 @@ export function PullRequestCommentFooter(props: {
   const reactions = comment.reactions ?? [];
   const editableKind = comment.kind === "review" ? null : comment.kind;
   const canEdit = editableKind !== null && props.permissions.canEditComment(comment);
-  const { canReact } = props.permissions;
+  const canReact = props.permissions.canReactComment(comment);
   if (reactions.length === 0 && !canReact && !canEdit) return null;
   return (
     <View className="flex-row flex-wrap items-center gap-1.5">
