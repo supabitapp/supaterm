@@ -157,7 +157,7 @@ export function useThreadFindHighlights(input: {
           matches = collectThreadFindRanges(row as HTMLElement, query);
           cache.set(row, matches);
         }
-        ranges.push(...matches);
+        for (const match of matches) ranges.push(match);
       }
       for (const row of cache.keys()) if (!rows.has(row)) cache.delete(row);
       rangesRef.current = ranges;
