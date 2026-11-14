@@ -142,7 +142,11 @@ vi.mock(import("../WorktreeBaseBranchPicker"), async (original) => ({
 }));
 vi.mock(import("../chat/ProviderModelPicker"), async (original) => ({
   ...(await original()),
-  ProviderModelPicker: (() => null) as never,
+  ProviderModelPicker: (({ model, disabled }: { model: string; disabled: boolean }) => (
+    <button type="button" disabled={disabled}>
+      {model}
+    </button>
+  )) as never,
 }));
 vi.mock(import("../settings/ScopeSentence"), async (original) => ({
   ...(await original()),
@@ -170,7 +174,13 @@ const boundThreadId = ThreadId.make("older-thread");
 // Stands in for the thread family read the editor makes when the shell lacks the bound thread.
 const threadFamilyRead = {
   snapshotSequence: 1,
-  threads: [{ id: boundThreadId, title: "Fix login bug" }],
+  threads: [
+    {
+      id: boundThreadId,
+      title: "Fix login bug",
+      modelSelection: { instanceId: ProviderInstanceId.make("codex"), model: "gpt-5.5" },
+    },
+  ],
 };
 
 const environment = (environmentId: EnvironmentId, label: string) => ({
@@ -326,6 +336,17 @@ describe("automation permissions", () => {
     state.environments[0] = connected;
     await renderPage();
     await expect.element(name).toHaveValue("Review stale changes");
+  });
+
+  it("offers no model choice for an automation bound to a thread, whose runs use the thread's model", async () => {
+    await using _test = await setupTest();
+    state.tasks.set(primaryId, [{ ...task(primaryProjectId), threadId: boundThreadId }]);
+    state.search = { environmentId: primaryId, taskId };
+    await renderPage();
+    await expect.element(page.getByRole("dialog").getByText("Fix login bug")).toBeVisible();
+    await expect
+      .element(page.getByRole("dialog").getByRole("button", { name: "gpt-5.5", exact: true }))
+      .toBeDisabled();
   });
 
   it("keeps an editor the user opened when the linked automation loads later", async () => {
