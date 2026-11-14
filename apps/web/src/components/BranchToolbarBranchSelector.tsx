@@ -780,6 +780,8 @@ export function BranchToolbarBranchSelector({
                   panel={displayMode === "panel"}
                   className="min-w-0 max-w-full active:scale-100"
                   disabled={isInitialBranchesLoadPending || isBranchActionPending}
+                  // NVDA browse mode re-reads a combobox when its attributes change, not when its text does.
+                  aria-label={`Branch: ${triggerLabel}`}
                 />
               }
             >
@@ -794,6 +796,7 @@ export function BranchToolbarBranchSelector({
                   value={triggerLabel}
                   showTitle={displayMode === "panel"}
                   className="w-full"
+                  aria-hidden
                 />
               </ComposerContextLabel>
             </TooltipTrigger>
