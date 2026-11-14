@@ -105,15 +105,7 @@ export const BranchToolbarEnvModeSelector = memo(function BranchToolbarEnvModeSe
       .then((action) => {
         if (action !== "copy-path") return;
         void writeTextToClipboard(formatFilePathForClipboard(workspacePath), "workspace path").then(
-          (didCopy) => {
-            if (didCopy) {
-              toastManager.add({
-                type: "success",
-                title: "Path copied",
-                description: workspacePath,
-              });
-            }
-          },
+          undefined,
           (error: unknown) => {
             toastManager.add(
               stackedThreadToast({

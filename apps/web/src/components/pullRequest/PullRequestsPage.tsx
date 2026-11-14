@@ -1450,23 +1450,13 @@ export function PullRequestsPage() {
     const { shortLabel, singular } = (
       sourceControlClients.findByChangeRequestUrl(url) ?? sourceControlClients.get(undefined)
     ).changeRequest;
-    void writeTextToClipboard(url, `${singular} link`).then(
-      (didCopy) => {
-        if (didCopy)
-          toastManager.add({
-            type: "success",
-            title: `${shortLabel} link copied`,
-            description: url,
-          });
-      },
-      (error) => {
-        toastManager.add({
-          type: "error",
-          title: `Failed to copy ${shortLabel} link`,
-          description: error instanceof Error ? error.message : "An error occurred.",
-        });
-      },
-    );
+    void writeTextToClipboard(url, `${singular} link`).then(undefined, (error) => {
+      toastManager.add({
+        type: "error",
+        title: `Failed to copy ${shortLabel} link`,
+        description: error instanceof Error ? error.message : "An error occurred.",
+      });
+    });
   });
   const closeActiveSurfaceFromShortcut = useEffectEvent((repeat: boolean) => {
     if (activePullRequestSurface === null) return false;
