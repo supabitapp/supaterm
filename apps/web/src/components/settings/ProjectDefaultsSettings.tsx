@@ -3,7 +3,7 @@ import {
   type ModelSelection,
   type WorktreeSubmodules,
 } from "@supaterm/contracts";
-import { createModelSelection } from "@supaterm/shared/model";
+import { createModelSelection, pickModelSelection } from "@supaterm/shared/model";
 import { resolveProjectSettings } from "@supaterm/shared/projectSettings";
 import { useNavigate } from "@tanstack/react-router";
 
@@ -166,7 +166,7 @@ export function ProjectDefaultsSettings({ category }: { category: ProjectSetting
                   });
               }}
               onInstanceModelChange={(instanceId, model) =>
-                setModel(createModelSelection(instanceId, model))
+                setModel(pickModelSelection(mixedModel ? null : selection, instanceId, model))
               }
             />
             {!mixedModel && !presentation.providerNote && !effortDisabledReason && activeEntry ? (
@@ -277,7 +277,13 @@ export function ProjectDefaultsSettings({ category }: { category: ProjectSetting
                   });
                   return;
                 }
-                updateSettings({ fallbackModelSelection: createModelSelection(instanceId, model) });
+                updateSettings({
+                  fallbackModelSelection: pickModelSelection(
+                    mixedFallback ? null : settings.fallbackModelSelection,
+                    instanceId,
+                    model,
+                  ),
+                });
               }}
             />
             {settings.fallbackModelSelection !== null && fallbackEntry && !mixedFallback ? (

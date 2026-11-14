@@ -7,7 +7,7 @@ import type {
 } from "@supaterm/contracts";
 import { DEFAULT_UNIFIED_SETTINGS } from "@supaterm/contracts/settings";
 import { isProviderReviewGuideCapable } from "@supaterm/contracts";
-import { createModelSelection } from "@supaterm/shared/model";
+import { createModelSelection, pickModelSelection } from "@supaterm/shared/model";
 import {
   resolveReviewGuideModelSelection,
   resolveSourceControlWriterModelSelection,
@@ -393,7 +393,11 @@ export function SourceControlWritingSettingsSection() {
                       return;
                     }
                     updateSettings({
-                      sourceControlWriterModelSelection: createModelSelection(instanceId, model),
+                      sourceControlWriterModelSelection: pickModelSelection(
+                        mixedWriterModel ? null : activeSelection,
+                        instanceId,
+                        model,
+                      ),
                     });
                   }}
                 />
@@ -513,7 +517,11 @@ export function SourceControlWritingSettingsSection() {
                           return;
                         }
                         updateSettings({
-                          reviewGuideModelSelection: createModelSelection(instanceId, model),
+                          reviewGuideModelSelection: pickModelSelection(
+                            mixedReviewGuideModel ? null : reviewGuideSelection,
+                            instanceId,
+                            model,
+                          ),
                         });
                       }}
                     />
