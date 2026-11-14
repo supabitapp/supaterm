@@ -444,9 +444,13 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
       serverConfig: props.serverConfig,
       states: uploadStates,
     });
+  const sideChat = useSideChat(props.environmentId, props.isDraft ? null : props.selectedThread);
   const sendPresentation = resolveComposerSendPresentation({
     editingQueuedMessage: queuedEdit !== null,
-    running: props.activeThreadBusy,
+    // A side-chat command starts a side chat; it never queues or steers the running turn.
+    running:
+      props.activeThreadBusy &&
+      resolveSideChatCommand(draftMessage, sideChat.disabledReason).kind !== "start",
     canSteer: props.canSteerActiveTurn,
     followUpBehavior: props.followUpBehavior,
     deliveryDeferred:
@@ -501,7 +505,6 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
     return report !== null;
   };
 
-  const sideChat = useSideChat(props.environmentId, props.isDraft ? null : props.selectedThread);
   const composerMenu = useComposerCommandMenu({
     draftMessage: draftMessage,
     ownerKey: composerDraftKey,
