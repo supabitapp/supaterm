@@ -187,7 +187,8 @@ const makeMcpAuthMiddleware = Effect.gen(function* () {
         offerOAuth: Option.isSome(clients) && !looksLikeProviderToken(token),
       });
     }
-    return invocation;
+    const origin = Option.getOrUndefined(Option.map(requestUrl(request), (url) => url.origin));
+    return { ...invocation, origin };
   });
   // Untraced: a span here would wrap the tool call; the HTTP server span already covers it.
   return Effect.fnUntraced(function* (httpEffect) {
