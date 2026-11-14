@@ -355,7 +355,7 @@ export async function recoverEditedCreationAfterDelivery(
   const draftKey = scopedThreadKey(kept.environmentId, kept.threadId);
   try {
     // Merge before removing: the draft's reference keeps the removal sweep
-    // from deleting the attachment files. allowOverflow mirrors the
+    // from deleting the attachment files. restore: true mirrors the
     // send-failure restore; the send path refuses over-cap drafts, so the
     // state stays recoverable.
     await mergeComposerDraftContent(draftKey, {
@@ -375,7 +375,7 @@ export async function recoverEditedCreationAfterDelivery(
     appendComposerDraftAttachments(
       draftKey,
       kept.attachments.filter((attachment) => !existingAttachmentIds.has(attachment.id)),
-      { allowOverflow: true },
+      { restore: true },
     );
     updateComposerDraftSettings(draftKey, {
       ...(kept.modelSelection !== undefined ? { modelSelection: kept.modelSelection } : {}),
@@ -579,7 +579,7 @@ async function mergeFollowUpIntoDraft(draftKey: string, followUp: QueuedThreadMe
     context: followUp.context,
     attachments: [],
   });
-  appendComposerDraftAttachments(draftKey, followUp.attachments, { allowOverflow: true });
+  appendComposerDraftAttachments(draftKey, followUp.attachments, { restore: true });
 }
 
 /**

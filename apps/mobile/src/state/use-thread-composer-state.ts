@@ -652,7 +652,7 @@ export function useThreadComposerState() {
       clearComposerDraftContent(threadKey);
       return null;
     }
-    // A send-failure restore appends with allowOverflow so it never drops the
+    // A send-failure restore appends with restore: true so it never drops the
     // user's files, which can leave the draft over the cap. Sending it anyway
     // would enqueue a message that outbox recovery rejects forever, so block
     // here until the user removes attachments.
@@ -793,7 +793,7 @@ export function useThreadComposerState() {
           context: draft.context,
           attachments: [],
         });
-        appendComposerDraftAttachments(threadKey, attachments, { allowOverflow: true });
+        appendComposerDraftAttachments(threadKey, attachments, { restore: true });
         if (freshContext) setFreshSessionPending(threadKey, true);
         setThreadComposerError(
           threadKey,
