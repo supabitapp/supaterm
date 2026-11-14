@@ -4,6 +4,7 @@ import * as NodeOS from "node:os";
 import * as NodePath from "node:path";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { describe, expect, it } from "@effect/vitest";
+import { vi } from "vite-plus/test";
 import * as Deferred from "effect/Deferred";
 import * as Effect from "effect/Effect";
 import * as Fiber from "effect/Fiber";
@@ -16,6 +17,12 @@ import * as HostProcess from "@supaterm/shared/HostProcess";
 
 import * as SpawnWorker from "./SpawnWorker.ts";
 
+const envChdir = vi.hoisted(() => ({ supported: true }));
+vi.mock("@supaterm/shared/envTrampoline", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@supaterm/shared/envTrampoline")>()),
+  supportsEnvChdir: () => Promise.resolve(envChdir.supported),
+}));
+
 const layer = SpawnWorker.layer.pipe(Layer.provide(NodeServices.layer));
 const text = <E>(stream: Stream.Stream<Uint8Array, E>) =>
   stream.pipe(Stream.decodeText(), Stream.mkString);
@@ -23,12 +30,14 @@ const node = (script: string, args: ReadonlyArray<string> = [], options = {}) =>
   ChildProcess.make(process.execPath, ["-e", script, ...args], options);
 
 describe("SpawnWorker", () => {
-  it.live("runs the server's Windows children on a launcher thread, not the server thread", () =>
+  it.live("runs children on a launcher thread where the server thread would wait on them", () =>
     Effect.gen(function* () {
-      for (const [platform, onServerThread] of [
-        ["win32", false],
-        ["linux", true],
+      for (const [platform, hasEnvChdir, onServerThread] of [
+        ["win32", true, false],
+        ["linux", true, true],
+        ["linux", false, false],
       ] as const) {
+        envChdir.supported = hasEnvChdir;
         const launched = Effect.gen(function* () {
           const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
           const child = yield* spawner.spawn(
