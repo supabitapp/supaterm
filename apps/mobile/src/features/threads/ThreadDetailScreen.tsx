@@ -40,7 +40,11 @@ import { useKeyboardScrollToEnd } from "@legendapp/list/keyboard";
 import { resolveProviderSkillsForCwd } from "@supaterm/client-runtime/providerSkills";
 import type { LegendListRef } from "@legendapp/list/react-native";
 import { NativeLayoutObserver } from "../../native/NativeLayoutObserver";
-import { deriveBottomControlInsets, type NativeLayoutMetrics } from "../../lib/reserved-regions";
+import {
+  deriveBottomControlInsets,
+  deriveContentSideInsets,
+  type NativeLayoutMetrics,
+} from "../../lib/reserved-regions";
 import type {
   EnvironmentId,
   MessageId,
@@ -1652,7 +1656,7 @@ function ThreadDetailBody(
                   {...(props.onMessageJumpFailed
                     ? { onMessageJumpFailed: props.onMessageJumpFailed }
                     : {})}
-                  contentSideInsets={nativeMetrics?.safeArea}
+                  contentSideInsets={deriveContentSideInsets(nativeMetrics)}
                   layoutVariant={layoutVariant}
                   usesAutomaticContentInsets={props.usesAutomaticContentInsets}
                   onHeaderMaterialVisibilityChange={props.onHeaderMaterialVisibilityChange}
