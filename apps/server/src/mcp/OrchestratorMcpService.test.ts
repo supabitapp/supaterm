@@ -2372,7 +2372,7 @@ describe("OrchestratorMcpService provider resolution", () => {
                       cause: new Error("refused by the orchestrator"),
                     }) as never,
                   )
-                : Effect.succeed({} as never),
+                : Effect.succeed({ storedEvents: [] } as never),
           }),
           ServerSettings.layerTest(),
           providerRegistryLayer([
@@ -2747,6 +2747,17 @@ describe("OrchestratorMcpService provider resolution", () => {
           });
           const titled = yield* orchestrator.getThreadProjection(emojiAtLimit.threads[0]!.threadId);
           assert.equal(titled.thread.title, `${"a".repeat(76)}...`);
+          // One commit holds a prompted thread and its run, so no client sees it idle between.
+          const promptedCommits = yield* orchestrator
+            .streamStoredEventsFrom({ threadId: titled.thread.id })
+            .pipe(
+              Stream.filter(
+                ({ event }) => event.type === "thread.created" || event.type === "run.created",
+              ),
+              Stream.take(2),
+              Stream.runCollect,
+            );
+          assert.equal(promptedCommits[0]?.commandId, promptedCommits[1]?.commandId);
 
           yield* settings.updateSettings({
             projectSettingsOverrides: {

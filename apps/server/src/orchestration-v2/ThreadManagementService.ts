@@ -86,7 +86,11 @@ export function withCreationProvenance(
   provenance: ThreadManagementProvenance,
 ): OrchestrationV2Command {
   switch (command.type) {
-    case "thread.create":
+    case "thread.create": {
+      // Only the server folds in a first message, so a client cannot.
+      const { initialMessage: _initialMessage, ...rest } = command;
+      return { ...rest, ...provenance };
+    }
     case "message.dispatch":
     case "thread.fork":
     case "thread.merge_back":
