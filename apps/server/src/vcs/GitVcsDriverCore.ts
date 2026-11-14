@@ -3,6 +3,7 @@ import * as Cause from "effect/Cause";
 import * as Clock from "effect/Clock";
 import * as Data from "effect/Data";
 import * as Digest from "effect/crypto/Digest";
+import * as SecureRandom from "effect/crypto/SecureRandom";
 import * as DateTime from "effect/DateTime";
 import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
@@ -1013,6 +1014,7 @@ export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(function* 
   const { worktreesDir, worktreeCheckoutCacheDir } = yield* ServerConfig.ServerConfig;
   const isServerInternalPath = yield* makeIsServerInternalPath;
   const digest = yield* Digest.Digest;
+  const random = yield* SecureRandom.SecureRandom;
   const hostPlatform = yield* HostProcess.Platform;
   const serviceScope = yield* Effect.scope;
   const statusFetches = new Map<string, Fiber.Fiber<void, GitCommandError>>();
@@ -4750,6 +4752,40 @@ export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(function* 
     yield* refresh;
   });
 
+  // Git writes the lock reason during registration, before checkout or user hooks can run.
+  const releaseWorktreeRegistration = Effect.fn("releaseWorktreeRegistration")(function* (
+    cwd: string,
+    reason: string,
+    remove: boolean,
+  ) {
+    const commonDir = yield* readGitCommonDir(cwd);
+    if (commonDir === null) return;
+    const registrations = path.join(commonDir, "worktrees");
+    const entries = yield* fileSystem.readDirectory(registrations).pipe(
+      Effect.catchIf(
+        (error) => error.reason._tag === "NotFound",
+        () => Effect.succeed([]),
+      ),
+    );
+    for (const entry of entries) {
+      const adminDir = path.join(registrations, entry);
+      const locked = yield* fileSystem
+        .readFileString(path.join(adminDir, "locked"))
+        .pipe(Effect.orElseSucceed(() => ""));
+      if (locked.replace(/\r?\n$/, "") !== reason) continue;
+      // gitdir can be relative to the registration with worktree.useRelativePaths enabled.
+      const gitdir = yield* fileSystem.readFileString(path.join(adminDir, "gitdir"));
+      const registered = path.dirname(path.resolve(adminDir, gitdir.replace(/\r?\n$/, "")));
+      yield* runGit("GitVcsDriver.createWorktree.unlock", cwd, [
+        "worktree",
+        "unlock",
+        "--",
+        registered,
+      ]);
+      if (remove) yield* removeWorktree({ cwd, path: registered, force: true });
+    }
+  });
+
   const createWorktree: GitVcsDriver.GitVcsDriver["Service"]["createWorktree"] = Effect.fn(
     "createWorktree",
   )(function* (input, options) {
@@ -4794,6 +4830,20 @@ export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(function* 
       }
     }
     const newRefName = input.newRefName;
+    // Older Git still creates worktrees normally, but cannot prove ownership for cancellation.
+    const addHelp = newRefName
+      ? yield* executeGit(
+          "GitVcsDriver.createWorktree.capabilities",
+          input.cwd,
+          ["worktree", "add", "-h"],
+          { allowNonZeroExit: true },
+        )
+      : null;
+    const lockReason =
+      addHelp && `${addHelp.stdout}\n${addHelp.stderr}`.includes("--reason")
+        ? `supaterm-create-${yield* random.uuidV4()}`
+        : undefined;
+
     if (newRefName) {
       // Kept apart from the checkout so the shared-config lock only covers the tracking write.
       yield* createBranchAt(
@@ -4827,6 +4877,7 @@ export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(function* 
         `checkout.workers=${checkoutWorkers}`,
         "worktree",
         "add",
+        ...(lockReason ? ["--lock", "--reason", lockReason] : []),
         "--",
         worktreePath,
         checkoutRef,
@@ -4854,30 +4905,66 @@ export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(function* 
           : {}),
       },
     );
+    // Set inside the claim's uninterruptible region: a pending cancel still surfaces as it ends.
+    let claimed = false;
+    const onWorktreeClaimed = progress?.onWorktreeClaimed;
     yield* (
       fastCheckout
         ? checkoutCache
-            .create({ cwd: input.cwd, worktreePath, refName: checkoutRef, checkoutWorkers })
+            .create({
+              cwd: input.cwd,
+              worktreePath,
+              refName: checkoutRef,
+              checkoutWorkers,
+              lockReason,
+            })
             .pipe(Effect.flatMap((cloned) => (cloned ? Effect.void : stockCheckout)))
         : stockCheckout
     ).pipe(
-      Effect.onError(() =>
-        newRefName
-          ? deleteLocalBranch({ cwd: input.cwd, refName: newRefName, force: true }).pipe(
+      Effect.andThen(
+        fastCheckout ? checkoutCache.schedule(worktreePath, cacheGeneration) : Effect.void,
+      ),
+      Effect.andThen(
+        onWorktreeClaimed
+          ? Effect.uninterruptible(
+              onWorktreeClaimed(worktreePath).pipe(
+                Effect.andThen(
+                  Effect.sync(() => {
+                    claimed = true;
+                  }),
+                ),
+              ),
+            )
+          : Effect.void,
+      ),
+      Effect.onError((cause) =>
+        newRefName && !claimed
+          ? // A failed hook keeps its worktree, as Git does; only a cancel abandons it.
+            (Cause.hasInterrupts(cause)
+              ? lockReason
+                ? releaseWorktreeRegistration(input.cwd, lockReason, true)
+                : Effect.void
+              : Effect.void
+            ).pipe(
+              Effect.andThen(
+                deleteLocalBranch({ cwd: input.cwd, refName: newRefName, force: true }),
+              ),
               Effect.catch((cause) =>
-                Effect.logWarning("could not remove the branch of a failed worktree", { cause }),
+                Effect.logWarning("could not clean up a failed worktree or its branch", { cause }),
+              ),
+            )
+          : Effect.void,
+      ),
+      Effect.onExit(() =>
+        lockReason
+          ? releaseWorktreeRegistration(input.cwd, lockReason, false).pipe(
+              Effect.catch((cause) =>
+                Effect.logWarning("could not unlock a created worktree", { cause }),
               ),
             )
           : Effect.void,
       ),
     );
-    if (fastCheckout) {
-      yield* checkoutCache.schedule(worktreePath, cacheGeneration);
-    }
-
-    if (progress?.onWorktreeClaimed) {
-      yield* progress.onWorktreeClaimed(worktreePath);
-    }
 
     // `git worktree add` leaves submodules empty, so a repo that keeps agent
     // skills, tooling or source in one gets a worktree that is quietly missing
