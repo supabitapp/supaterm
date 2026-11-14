@@ -6,6 +6,7 @@ import {
 import {
   type PullRequestListLine,
   pullRequestListLines,
+  canStartThreadPullRequestWatch,
   resolveThreadPullRequestChains,
   visibleThreadPullRequests,
 } from "@supaterm/client-runtime/thread-pull-requests";
@@ -92,6 +93,7 @@ function LinkRowImpl({
   speedMode,
   onUnlink,
   onSetWatching,
+  canStartWatch,
 }: {
   line: PullRequestListLine;
   threadRef: ScopedThreadRef;
@@ -99,6 +101,7 @@ function LinkRowImpl({
   speedMode: boolean;
   onUnlink: (link: ThreadPullRequestLink) => void;
   onSetWatching: ((link: ThreadPullRequestLink, watching: boolean) => void) | null;
+  canStartWatch: boolean;
 }) {
   const openPrLink = useOpenPrLink(threadRef);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -332,7 +335,7 @@ function LinkRowImpl({
               <ArrowUpRightIcon className="size-3.5" />
               Open
             </MenuItem>
-            {onSetWatching !== null && open ? (
+            {onSetWatching !== null && open && (watching || canStartWatch) ? (
               <MenuItem onClick={() => onSetWatching(link, !watching)}>
                 {watching ? <EyeOffIcon className="size-3.5" /> : <EyeIcon className="size-3.5" />}
                 {watching ? "Stop watching" : "Watch for changes"}
@@ -402,6 +405,7 @@ function EnabledThreadPullRequestsPanel({ threadRef }: { threadRef: ScopedThread
   const unlink = useAtomCommand(threadEnvironment.unlinkPullRequest, { reportFailure: true });
   const watch = useAtomCommand(threadEnvironment.watchPullRequest, { reportFailure: true });
   const loaded = useServerConfigs().has(threadRef.environmentId);
+  const canStartWatch = thread !== null && canStartThreadPullRequestWatch(thread);
   const handleUnlink = (link: ThreadPullRequestLink) => {
     void unlink({
       environmentId: threadRef.environmentId,
@@ -470,6 +474,7 @@ function EnabledThreadPullRequestsPanel({ threadRef }: { threadRef: ScopedThread
               speedMode={speedMode}
               onUnlink={handleUnlink}
               onSetWatching={loaded ? handleSetWatching : null}
+              canStartWatch={canStartWatch}
             />
           )}
           estimatedItemSize={44}
