@@ -1354,12 +1354,13 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
     void router.navigate({ to: "/draft/$draftId", params: { draftId } });
   };
 
-  const startThreadRename = (threadRef: ScopedThreadRef, title: string) => {
+  // The ref write stops the compiler memoizing this, and every row receives it.
+  const startThreadRename = useStableCallback((threadRef: ScopedThreadRef, title: string) => {
     if (!readEnvironmentScope(threadRef.environmentId, AuthOrchestrationOperateScope)) return;
     setRenamingThreadRef(threadRef);
     setRenamingTitle(title);
     renamingOriginalTitleRef.current = title;
-  };
+  });
   const cancelThreadRename = () => setRenamingThreadRef(null);
   const commitThreadRename = (threadRef: ScopedThreadRef, title: string) => {
     const originalTitle = renamingOriginalTitleRef.current;
@@ -1389,6 +1390,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
     })();
   };
 
+  const readOpensPullRequestsInRightPanel = useStableCallback(() => routeThreadRef !== null);
   const handleThreadClick = useStableCallback(
     (event: ReactMouseEvent, threadRef: ScopedThreadRef) => {
       if (isSidebarNestedLinkClick(event.target)) return;
@@ -2975,7 +2977,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                           isRouteThread={routeThreadKey === threadKey}
                           pinShortcut={routeThreadKey === threadKey ? pinShortcut : null}
                           doneShortcut={routeThreadKey === threadKey ? doneShortcut : null}
-                          openPullRequestsInRightPanel={routeThreadRef !== null}
+                          readOpensPullRequestsInRightPanel={readOpensPullRequestsInRightPanel}
                           jumpLabel={showJumpHints ? (jumpLabelByKey.get(threadKey) ?? null) : null}
                           currentEnvironmentId={primaryEnvironmentId}
                           environmentLabel={environmentLabelById.get(thread.environmentId) ?? null}
