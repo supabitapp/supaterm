@@ -42,6 +42,16 @@ describe("normalizeGitRemoteUrl", () => {
     );
   });
 
+  it.each([
+    "git@[2001:db8::1]:team/repo.git",
+    "[2001:db8::1]:team/repo.git",
+    "git@[2001:DB8:0::1]:team/repo.git",
+  ])("canonicalizes an IPv6 SCP remote like its SSH URL: %s", (remote) => {
+    expect(normalizeGitRemoteUrl(remote)).toBe(
+      normalizeGitRemoteUrl("ssh://git@[2001:db8::1]/team/repo.git"),
+    );
+  });
+
   it("preserves nested group paths for providers like GitLab", () => {
     expect(normalizeGitRemoteUrl("git@gitlab.com:Supaterm/platform/Supaterm.git")).toBe(
       "gitlab.com/supaterm/platform/supaterm",
