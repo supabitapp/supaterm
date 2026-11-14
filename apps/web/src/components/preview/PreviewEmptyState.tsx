@@ -1,5 +1,6 @@
 import type { EnvironmentId, ScopedThreadRef } from "@supaterm/contracts";
 import { GlobeIcon, HistoryIcon, RadioTowerIcon } from "@supaterm/icons";
+import { parseUrl } from "@supaterm/shared/url";
 
 import type { BrowserHistoryEntry } from "~/browserHistoryStore";
 import { Empty, EmptyDescription, EmptyMedia, EmptyTitle } from "~/components/ui/empty";
@@ -30,7 +31,7 @@ export function PreviewEmptyState({
     environmentId,
     configuredUrls,
   });
-  const recents = recentEntries.filter((entry) => URL.canParse(entry.url)).slice(0, 8);
+  const recents = recentEntries.filter((entry) => parseUrl(entry.url) !== null).slice(0, 8);
 
   if (servers.length === 0 && recents.length === 0) {
     return (
