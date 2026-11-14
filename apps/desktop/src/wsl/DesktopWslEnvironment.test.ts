@@ -1,10 +1,13 @@
 // @effect-diagnostics nodeBuiltinImport:off - the executed suite runs the generated install script through a real POSIX shell.
 import * as NodeServices from "@effect/platform-node/NodeServices";
-import { describe, it } from "@effect/vitest";
+import { assert, describe, it } from "@effect/vitest";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
+import * as Option from "effect/Option";
 import * as Path from "effect/Path";
 import * as Redacted from "effect/Redacted";
+import * as Sink from "effect/Sink";
+import * as Stream from "effect/Stream";
 import { ChildProcess, ChildProcessSpawner } from "effect/process";
 import { afterAll, expect } from "vite-plus/test";
 import * as NodeChildProcess from "node:child_process";
@@ -19,6 +22,7 @@ import {
   buildWslRuntimeProbeScript,
   parseResolvedPath,
   parseWslRuntimeRoot,
+  windowsToWslPathImpl,
 } from "./DesktopWslEnvironment.ts";
 
 // The install script only fails the way this file cares about when a real shell
@@ -537,4 +541,49 @@ describe("parseResolvedPath", () => {
       "/usr/local/bin:/usr/bin",
     );
   });
+});
+
+describe("windowsToWslPathImpl", () => {
+  it.effect("runs wslpath without a shell so folder names stay one literal argument", () =>
+    Effect.gen(function* () {
+      const spawned: Array<ChildProcess.Command> = [];
+      const stdout = Stream.make(new TextEncoder().encode("/mnt/c/a$b & c;(d)\n"));
+      const spawner = ChildProcessSpawner.make((command) => {
+        spawned.push(command);
+        return Effect.succeed(
+          ChildProcessSpawner.makeHandle({
+            pid: ChildProcessSpawner.ProcessId(1),
+            stdout,
+            stderr: Stream.empty,
+            all: stdout,
+            exitCode: Effect.succeed(ChildProcessSpawner.ExitCode(0)),
+            isRunning: Effect.succeed(false),
+            kill: () => Effect.void,
+            stdin: Sink.drain,
+            getInputFd: () => Sink.drain,
+            getOutputFd: () => Stream.empty,
+            unref: Effect.succeed(Effect.void),
+          }),
+        );
+      });
+
+      const converted = yield* windowsToWslPathImpl("Ubuntu", "C:\\a$b & c;(d)").pipe(
+        Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, spawner),
+      );
+
+      assert.deepStrictEqual(converted, Option.some("/mnt/c/a$b & c;(d)"));
+      assert.lengthOf(spawned, 1);
+      const [command] = spawned;
+      assert(command?._tag === "StandardCommand");
+      assert.strictEqual(command.command, "wsl.exe");
+      assert.deepStrictEqual(command.args, [
+        "-d",
+        "Ubuntu",
+        "--exec",
+        "wslpath",
+        "-u",
+        "C:/a$b & c;(d)",
+      ]);
+    }),
+  );
 });
