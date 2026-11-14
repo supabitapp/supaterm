@@ -1,6 +1,7 @@
 import { shouldShowOpenInPicker } from "./chat/OpenInPicker.logic";
 import {
   buildExpiredTerminalContextToastCopy,
+  deriveTimelineWorking,
   deriveAvailableRevertTurnCounts,
   planComposerTurn,
   sendTitleFallbackLabels,
@@ -41,6 +42,7 @@ import { appAtomRegistry } from "../rpc/atomRegistry";
 import { environmentThreadDetails } from "../state/threads";
 
 import type { Thread } from "../types";
+import { derivePhase } from "../session-logic";
 import { makeThreadFixture, makeThreadProjectionFixture } from "../test-fixtures";
 import {
   getAntigravitySendBlockReason,
@@ -1040,6 +1042,27 @@ describe("mergeDirectPreviewAnnotation", () => {
     expect(result.images).toEqual([]);
     expect(result.previewAnnotations[0]?.screenshot).toBeNull();
   });
+});
+
+describe("deriveTimelineWorking", () => {
+  it.each(["preparing", "starting", "queued"] as const)(
+    "restores activity from a persisted %s session without a local send",
+    (status) => {
+      const state = {
+        phase: derivePhase({ ...readySession, status }),
+        isCompacting: false,
+        runlessWorkStartedAt: null,
+      };
+      expect(deriveTimelineWorking(state)).toBe(true);
+      expect(deriveTimelineWorking({ ...state, phase: "ready" })).toBe(false);
+      expect(
+        deriveTimelineWorking({
+          ...state,
+          phase: derivePhase({ ...readySession, status: "failed" }),
+        }),
+      ).toBe(false);
+    },
+  );
 });
 
 describe("deriveAvailableRevertTurnCounts", () => {

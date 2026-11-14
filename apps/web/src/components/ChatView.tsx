@@ -378,6 +378,7 @@ import { WorkspaceDropOverlay } from "./WorkspaceDropOverlay";
 import {
   buildLocalDraftThread,
   deriveCommittedServerUserMessageIds,
+  deriveTimelineWorking,
   dismissBranchMismatchForSession,
   shouldRenderPreviewMiniPlayer,
   deriveLockedProvider,
@@ -1547,7 +1548,11 @@ export default function ChatView(props: ChatViewProps) {
     run: serverProjection?.runs.find((run) => run.id === activeRuntime?.activeRunId),
     messages: serverProjection?.messages,
   });
-  const isWorking = phase === "running" || isCompacting || runlessWorkStartedAt !== null;
+  const isWorking = deriveTimelineWorking({
+    phase,
+    isCompacting,
+    runlessWorkStartedAt,
+  });
   const activeContextWindow = deriveLatestContextWindowSnapshot(
     serverVisibleTurnItems ?? [],
     activeThreadLiveTokenUsage,

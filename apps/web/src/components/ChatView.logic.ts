@@ -1104,6 +1104,20 @@ export function makeModelDisabledReason(
   };
 }
 
+/** Derived from the persisted run phase, so a starting run still reads as work after a reload. */
+export function deriveTimelineWorking(input: {
+  readonly phase: SessionPhase;
+  readonly isCompacting: boolean;
+  readonly runlessWorkStartedAt: string | null;
+}): boolean {
+  return (
+    input.phase === "connecting" ||
+    input.phase === "running" ||
+    input.isCompacting ||
+    input.runlessWorkStartedAt !== null
+  );
+}
+
 /**
  * A thread shell built from its loaded detail, for direct links that hydrate the detail first.
  * `updatedAt` and `lastVisitedAt` are passed live: the thread structure leaves them out.
