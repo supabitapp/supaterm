@@ -606,6 +606,19 @@ describe("thread action undo", () => {
     await undo();
     expect(state.requests.map(({ action }) => action)).toEqual(["unpin"]);
   });
+
+  it("keeps the earlier Undo until archiving succeeds", async () => {
+    const actions = useThreadListActions();
+    const thread = makeThread();
+    await actions.markThreadDone(thread);
+    state.failedAction = "archive";
+    expect(await actions.archiveThread(thread)).toBe(false);
+    expect(readThreadUndoNotice()?.action).toBe("Done");
+
+    state.failedAction = null;
+    expect(await actions.archiveThread(thread)).toBe(true);
+    expect(readThreadUndoNotice()).toBeNull();
+  });
 });
 
 describe("thread archive guard", () => {

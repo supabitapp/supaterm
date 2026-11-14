@@ -143,9 +143,6 @@ function useThreadActionExecutor(
         return false;
       }
       if (action === "reopen") ThreadUndo.invalidate("mark-done", key);
-      if (action === "archive" || action === "delete") {
-        for (const kind of ["mark-done", "snooze", "pin"]) ThreadUndo.invalidate(kind, key);
-      }
       onStarted?.();
       const result = await withThreadDismissal(
         key,
@@ -174,6 +171,9 @@ function useThreadActionExecutor(
       if (result._tag === "Failure") {
         Dialog.alert(actionFailureTitle(action), actionFailureMessage(action, result.cause));
         return false;
+      }
+      if (action === "archive" || action === "delete") {
+        for (const kind of ["mark-done", "snooze", "pin"]) ThreadUndo.invalidate(kind, key);
       }
       // Done threads stay in the live shell stream; only the archive
       // lifecycle still feeds the archived-snapshot surface.
