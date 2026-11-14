@@ -1095,6 +1095,8 @@ describe("subagent worktree ownership", () => {
   it.effect.each([
     "idle",
     "grandchild",
+    "branchless",
+    "branchless-running",
     "null-branch",
     "stale-branch",
     "isolated-owner",
@@ -1126,7 +1128,7 @@ describe("subagent worktree ownership", () => {
         },
       });
       const root = shell({
-        branch: "feature",
+        branch: ["branchless", "branchless-running"].includes(scenario) ? null : "feature",
         worktreePath: fixture.worktree,
         doneAt: scenario === "child-done-only" ? null : at(-20 * DAY_MS),
         ...(scenario === "isolated-owner" || scenario === "fork-owner"
@@ -1168,7 +1170,7 @@ describe("subagent worktree ownership", () => {
                 : "subagent",
           ...(scenario === "side-chat" ? { sideChat: true } : {}),
         },
-        status: scenario === "running" ? "running" : "completed",
+        status: ["running", "branchless-running"].includes(scenario) ? "running" : "completed",
         pendingBackgroundTasks: scenario === "pending" ? [{ taskId: "task", kind: "command" }] : [],
         latestRunCompletedAt:
           scenario === "recent-activity" || scenario === "recent-inactive"
@@ -1217,7 +1219,7 @@ describe("subagent worktree ownership", () => {
         outcome: removed ? "removed" : "kept",
         reason: removed
           ? "Done for 20 days"
-          : scenario === "running" || scenario === "pending"
+          : ["running", "pending", "branchless-running"].includes(scenario)
             ? "Thread is running or has pending work"
             : shared
               ? "Shared by 2 threads"
@@ -1229,7 +1231,9 @@ describe("subagent worktree ownership", () => {
                     ? "Inactive for 2 of 8 days"
                     : ["recent-grace", "recent-done", "child-done-now"].includes(scenario)
                       ? "Marked done moments ago"
-                      : "Not done",
+                      : scenario === "branchless"
+                        ? "Thread has no branch"
+                        : "Not done",
       });
     }).pipe(Effect.provide(cleanupTestLayer)),
   );
