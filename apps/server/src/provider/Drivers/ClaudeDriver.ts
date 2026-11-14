@@ -38,6 +38,10 @@ import * as ModelCatalog from "@supaterm/provider-core/server/ModelCatalog";
 import { resolveClaudeModelCatalog } from "../ClaudeModelCatalog.ts";
 import { filterClaudeFastModeModels, makeClaudeFastModeAvailability } from "../ClaudeFastMode.ts";
 import {
+  makeClaudeCodeModelRoutes,
+  resolveClaudeModelSettingsKey,
+} from "../ClaudeCodeModelRoutes.ts";
+import {
   defaultProviderContinuationIdentity,
   type ProviderDriver,
   type ProviderInstance,
@@ -155,6 +159,23 @@ export const ClaudeDriver: ProviderDriver<ClaudeSettings, ClaudeDriverEnv, Path.
         })),
       );
     const serverSettings = yield* Effect.serviceOption(ServerSettings.ServerSettingsService);
+    // The SDK's user source is the host's home, not a custom one; same rule as the adapter.
+    const customHome =
+      effectiveConfig.homePath.trim().length > 0 ||
+      processEnv.CLAUDE_CONFIG_DIR !== (yield* HostProcess.Environment).CLAUDE_CONFIG_DIR;
+    // Only a successful probe records routes, so a failed one never sends turns back to slugs
+    // the backend rejects.
+    const modelRoutes = yield* makeClaudeCodeModelRoutes(
+      (cwd) =>
+        resolveClaudeModelSettingsKey(
+          customHome ? ["project", "local"] : ["user", "project", "local"],
+          cwd,
+        ).pipe(
+          Effect.provideService(FileSystem.FileSystem, fileSystem),
+          Effect.provideService(Path.Path, path),
+        ),
+      stateDir,
+    );
     const orchestrationAdapter = yield* createClaudeAdapterV2(
       {
         instanceId,
@@ -177,6 +198,7 @@ export const ClaudeDriver: ProviderDriver<ClaudeSettings, ClaudeDriverEnv, Path.
             ),
         }),
         modelCatalog,
+        routeModelCatalog: modelRoutes.route,
       },
     ).pipe(
       Effect.mapError(
@@ -194,6 +216,7 @@ export const ClaudeDriver: ProviderDriver<ClaudeSettings, ClaudeDriverEnv, Path.
       processEnv,
       modelCatalog,
       fastMode.isBlocked,
+      modelRoutes.route,
     );
 
     const capabilitiesCacheKey = yield* makeClaudeCapabilitiesCacheKey(
@@ -217,6 +240,8 @@ export const ClaudeDriver: ProviderDriver<ClaudeSettings, ClaudeDriverEnv, Path.
           Effect.map(([capabilities, workspaceId]) =>
             capabilities && workspaceId ? { ...capabilities, workspaceId } : capabilities,
           ),
+          Effect.tap((capabilities) => modelRoutes.record(capabilities.models ?? [])),
+          Effect.ensuring(modelRoutes.settle),
           Effect.provideService(FileSystem.FileSystem, fileSystem),
           Effect.provideService(Path.Path, path),
         ),
@@ -253,6 +278,8 @@ export const ClaudeDriver: ProviderDriver<ClaudeSettings, ClaudeDriverEnv, Path.
           Effect.map(stampIdentity),
         ),
       ),
+      // Disabled, failed version checks and interruption never reach the probe.
+      Effect.ensuring(modelRoutes.settle),
       Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, spawner),
       Effect.provideService(FileSystem.FileSystem, fileSystem),
       Effect.provideService(Path.Path, path),
