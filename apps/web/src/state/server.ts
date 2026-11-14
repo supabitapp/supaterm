@@ -143,16 +143,18 @@ export const primaryServerKeybindingsAtom = createShortcutKeybindingsAtom({
   environmentsAtom: environmentConnectionsAtom,
 }).pipe(Atom.withLabel("web-primary-server-keybindings"));
 
-const EMPTY_ENVIRONMENT_THEMES: ReadonlyArray<EnvironmentTheme> = [];
-
 const themeServerConfigAtom = Atom.make((get): ServerConfig | null => {
   const environmentId = get(themeEnvironmentIdAtom);
   return environmentId === null ? null : get(serverEnvironment.configValueAtom(environmentId));
 }).pipe(Atom.withLabel("web-theme-server-config"));
 
+/**
+ * Null until the theme environment's theme event lands: cached configs and
+ * snapshots never carry themes.
+ */
 export const themeServerEnvironmentThemesAtom = Atom.make(
-  (get): ReadonlyArray<EnvironmentTheme> =>
-    get(themeServerConfigAtom)?.environmentThemes ?? EMPTY_ENVIRONMENT_THEMES,
+  (get): ReadonlyArray<EnvironmentTheme> | null =>
+    get(themeServerConfigAtom)?.environmentThemes ?? null,
 ).pipe(Atom.withLabel("web-theme-server-environment-themes"));
 
 export const themeServerSettingsAtom = Atom.make(
