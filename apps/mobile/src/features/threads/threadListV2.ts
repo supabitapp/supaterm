@@ -32,7 +32,7 @@ import {
   sortInboxThreadsByReturn,
   sortWorkingThreadsBySend,
 } from "@supaterm/client-runtime/state/thread-inbox";
-import { resolveThreadRowStatus } from "@supaterm/client-runtime/state/thread-row-status";
+import { resolveThreadRowShownStatus } from "@supaterm/client-runtime/state/thread-row-status";
 import {
   sortActiveThreadsByOrderKey,
   resolveDoneThreadTimestamp,
@@ -517,7 +517,7 @@ function resolveThreadListV2ItemTimeLabel(
   if (showSnoozeWakeLabel) return "";
   if (
     variant === "card" &&
-    (resolveThreadRowStatus(thread) !== "ready" ||
+    (resolveThreadRowShownStatus(thread) !== "ready" ||
       item.wokeAt !== null ||
       threadHasUnseenCompletion(thread))
   )

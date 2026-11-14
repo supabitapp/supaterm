@@ -26,6 +26,7 @@ import type { EnvironmentThreadSearchMatch } from "@supaterm/client-runtime/stat
 import { AuthOrchestrationOperateScope, type EnvironmentMachineKind } from "@supaterm/contracts";
 import { resolveThreadListDurationStartedAt } from "@supaterm/client-runtime/state/thread-timing";
 import {
+  resolveThreadRowShownStatus,
   resolveThreadRowStatus,
   type ThreadRowStatus,
 } from "@supaterm/client-runtime/state/thread-row-status";
@@ -841,7 +842,8 @@ export const ThreadListV2Row = memo(function ThreadListV2Row(props: {
     .filter((part) => part !== null)
     .join(", ");
 
-  const status = resolveThreadRowStatus(thread);
+  const rawStatus = resolveThreadRowStatus(thread);
+  const status = resolveThreadRowShownStatus(thread);
   const isUnread = status === "ready" && threadHasUnseenCompletion(thread);
   const showsWoke = environmentConnected && status === "ready" && props.wokeAt !== null;
   const rowStatusLabel = resolveThreadListV2RowStatusLabel({
@@ -1386,7 +1388,7 @@ export const ThreadListV2Row = memo(function ThreadListV2Row(props: {
         </View>
       ) : null}
       <View className="mt-1 flex-row items-center gap-2" style={{ paddingLeft: titleTextInset }}>
-        {(status === "failed" || status === "limited") && thread.runtime?.lastError ? (
+        {(rawStatus === "failed" || rawStatus === "limited") && thread.runtime?.lastError ? (
           <Text
             className={cn(
               "flex-1 text-xs",
