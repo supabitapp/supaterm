@@ -1,6 +1,6 @@
 import { useAtomValue } from "@effect/atom-react";
 import { type AtomCommandSuccess, runAtomCommand } from "@supaterm/client-runtime/state/runtime";
-import { htmlRenderFromToolItem } from "@supaterm/shared/toolOutput";
+import { htmlRenderFromToolItem, sentMessageFromToolItem } from "@supaterm/shared/toolOutput";
 import { Atom, type AtomRegistry } from "effect/reactivity";
 import type { TimelineEntry } from "../../session-logic";
 import { environmentThreadDetails, threadEnvironment } from "../../state/threads";
@@ -84,10 +84,11 @@ export async function loadCitedHistory(input: {
   }
 }
 
-/** A response is cited by its message id, an HTML render by its item id. */
+/** A response is cited by its message id, an HTML render or sent message by its item id. */
 const isCited = (candidate: TimelineEntry | MessagesTimelineRow, messageId: string) =>
   (candidate.kind === "message" && candidate.message.id === messageId) ||
-  (candidate.kind === "html-render" && candidate.id === messageId);
+  ((candidate.kind === "html-render" || candidate.kind === "sent-message") &&
+    candidate.id === messageId);
 
 /** Where the citation stands for the rows the timeline currently shows. */
 export function resolveCitationPhase(input: {
@@ -128,7 +129,7 @@ export function citedThreadSnapshot(input: {
     return input.error === null ? null : { message: null, hasMoreHistory: false, loadFailed: true };
   }
   // Older pages merge into the visible turn items, not the message list. As in history
-  // paging, a message matches by its message id and an HTML render by its item id.
+  // paging, a message matches by its message id and an HTML render or sent message by its item id.
   const item = input.thread.projection.visibleTurnItems.find(({ item }) =>
     item.type === "assistant_message" || item.type === "user_message"
       ? item.messageId === input.messageId
@@ -138,7 +139,7 @@ export function citedThreadSnapshot(input: {
     item?.type === "assistant_message" ||
     (item?.type === "dynamic_tool" &&
       item.status === "completed" &&
-      htmlRenderFromToolItem(item) !== undefined);
+      (htmlRenderFromToolItem(item) !== undefined || sentMessageFromToolItem(item) !== undefined));
   return {
     message: item === undefined ? null : citable ? "assistant" : "other",
     hasMoreHistory: input.history.hasMoreHistory,
