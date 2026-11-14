@@ -87,7 +87,7 @@ import {
   isModelSelectionUnavailable,
   serverConfigForCwd,
 } from "../../lib/modelOptions";
-import { useScaledTextRole, type ScaledTextRole } from "../settings/appearance/useScaledTextRole";
+import { useComposerTextRole, type ScaledTextRole } from "../settings/appearance/useScaledTextRole";
 import type { RemoteClientConnectionState } from "../../lib/connection";
 import { MOBILE_TYPOGRAPHY } from "../../lib/typography";
 import { resolveProviderOptionDescriptors } from "../../lib/providerOptions";
@@ -364,7 +364,7 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
   const composerPanel = materialTheme["--color-composer-panel"];
   const navigation = useNavigation();
   const foregroundColor = useUniwindTheme()["--color-foreground"];
-  const bodyText = useScaledTextRole("body");
+  const bodyText = useComposerTextRole();
   const fallbackInputRef = useRef<ComposerEditorHandle>(null);
   const inputRef = props.editorRef ?? fallbackInputRef;
   const [isFocused, setIsFocused] = useState(false);
