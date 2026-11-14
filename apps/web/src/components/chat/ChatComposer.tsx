@@ -47,6 +47,7 @@ import { isPasteAsTextShortcut } from "@supaterm/client-runtime/text-paste";
 import {
   detectComposerTrigger,
   extendReplacementRangeForTrailingSpace,
+  parseSideChatCommand,
   replaceTextRange,
   serializeComposerFileLink,
   type ComposerTrigger,
@@ -1343,7 +1344,9 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     canOperateThread,
     canQueueMessage,
     pendingAction: pendingPrimaryAction,
-    isRunning: turnRunning,
+    // A side-chat command starts a side chat; it never queues or steers the turn.
+    isRunning:
+      turnRunning && !(props.sideChatAvailable === true && parseSideChatCommand(prompt) !== null),
     canInterrupt,
     followUpBehavior,
     canSteer,
