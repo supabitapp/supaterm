@@ -283,6 +283,19 @@ it.layer(NodeServices.layer)("server self update", (it) => {
     }),
   );
 
+  it.effect("stages the runtime without asking the launcher to restart", () =>
+    Effect.gen(function* () {
+      const { selfUpdate, order } = yield* makeHarness();
+      expect(yield* selfUpdate.update({ targetVersion: "1.1.0", stageOnly: true })).toEqual({
+        targetVersion: "1.1.0",
+        method: "boot-service",
+      });
+      expect(order).toEqual(["download", "extract", "preflight"]);
+      expect((yield* selfUpdate.update({ targetVersion: "1.1.0" })).updateId).toBe("launcher-id");
+      expect(order).toEqual(["download", "extract", "preflight", "preflight", "accept"]);
+    }),
+  );
+
   it.effect("waits for a staged preflight that takes a minute on a loaded host", () =>
     Effect.gen(function* () {
       const preflightStarted = yield* Deferred.make<void>();
