@@ -1,5 +1,11 @@
+import { threadContextRecord } from "@supaterm/shared/composerContextReferences";
 import { useEffect } from "react";
-import { type ComposerContextRecord, ComposerContextId, EnvironmentId } from "@supaterm/contracts";
+import {
+  type ComposerContextRecord,
+  ComposerContextId,
+  EnvironmentId,
+  ThreadId,
+} from "@supaterm/contracts";
 import { expect, it, vi } from "vite-plus/test";
 
 import { act, render, stubGlobal } from "../../../test/render";
@@ -184,4 +190,51 @@ it.each([
       ? ["notes.txt"]
       : [],
   );
+});
+
+it("preserves thread identity across repeated pastes", async () => {
+  const target = DraftId.make("thread-collision");
+  const store = useComposerDraftStore.getState();
+  using _draft = { [Symbol.dispose]: () => store.clearComposerContent(target) };
+  const environmentId = EnvironmentId.make("thread-source");
+  const first = threadContextRecord({ environmentId, threadId: ThreadId.make("same-id") }, "First");
+  store.addReferenceContexts(target, [first], { appendReference: false });
+  let importer!: Importer;
+  await using _screen = await render(
+    <Harness
+      input={{
+        environmentId,
+        activeThread: undefined,
+        activeThreadId: null,
+        composerDraftTarget: target,
+        attachmentDraftTarget: target,
+        attachmentTargetKey: target,
+        attachmentTargetKeyRef: { current: target },
+        questionAttachmentTarget: null,
+        pendingUserInputs: [],
+        composerContextRecords: new Map([[first.contextId, { kind: "thread", record: first }]]),
+        composerImages: [],
+        composerFilesRef: { current: [] },
+        pendingThreadImportsRef: { current: new Map() },
+        promptRef: { current: "" },
+        addComposerFilesToDraft: () => [],
+      }}
+      ready={(value) => {
+        importer = value;
+      }}
+    />,
+  );
+  let importedId: string | undefined;
+  await act(() => {
+    importedId = importer
+      .importContextRecords([first], first.environmentId, target)
+      .get(first.contextId);
+  });
+  expect(importedId).toBe(first.contextId);
+  expect(store.getComposerDraft(target)!.referenceContexts).toEqual([first]);
+  await act(() => {
+    const repeated = importer.importContextRecords([first], first.environmentId, target);
+    expect(repeated.get(first.contextId)).toBe(importedId);
+  });
+  expect(store.getComposerDraft(target)!.referenceContexts).toEqual([first]);
 });

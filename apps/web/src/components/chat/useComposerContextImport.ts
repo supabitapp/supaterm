@@ -296,7 +296,7 @@ export function useComposerContextImport(input: {
     for (const candidate of orderedRecords) {
       // Producer ids fold into context ids, so two different excerpts can collide. Only skip
       // when the draft already holds the same payload; a colliding but different record is
-      // re-minted under a fresh id so both survive the paste.
+      // re-minted under a fresh id so both survive the paste. Threads resolve below.
       const record = asKnownContextRecord(candidate);
       if (!record) continue;
       const existing = dependentAttachmentLocalIds.has(record.contextId)
@@ -336,8 +336,8 @@ export function useComposerContextImport(input: {
       if (
         existingRecord &&
         isSameComposerContextPayload(existingRecord, record) &&
-        ((record.kind !== "thread" && record.kind !== "model") ||
-          referenceDraftTarget === attachmentDraftTarget)
+        record.kind !== "thread" &&
+        (record.kind !== "model" || referenceDraftTarget === attachmentDraftTarget)
       ) {
         if (record.kind === "preview-annotation" && record.screenshotContextId) {
           skippedDependentAttachmentIds.add(record.screenshotContextId);
@@ -386,10 +386,24 @@ export function useComposerContextImport(input: {
         case "model": {
           // The agent can only read threads on its own server; a pasted foreign one is dropped.
           if (record.kind === "thread" && record.environmentId !== environmentId) break;
-          addComposerDraftReferenceContexts(referenceDraftTarget, [record], {
+          const references = getComposerDraft(referenceDraftTarget)?.referenceContexts ?? [];
+          // Threads reuse their destination record by identity, reminting only on an ID collision.
+          const imported =
+            record.kind === "thread"
+              ? (references.find(
+                  (reference) =>
+                    reference.kind === "thread" &&
+                    reference.environmentId === record.environmentId &&
+                    reference.threadId === record.threadId,
+                ) ??
+                (references.some((reference) => reference.contextId === record.contextId)
+                  ? { ...record, contextId: toKindScopedComposerContextId("thread", randomUUID()) }
+                  : record))
+              : record;
+          addComposerDraftReferenceContexts(referenceDraftTarget, [imported], {
             appendReference: false,
           });
-          rewritten.set(record.contextId, record.contextId);
+          rewritten.set(record.contextId, imported.contextId);
           break;
         }
         case "image":
