@@ -2392,8 +2392,8 @@ export const CLAUDE_READ_ONLY_SUPATERM_MCP_ALLOWED_TOOLS: ReadonlyArray<string> 
 ];
 
 // Claude Code aborts an HTTP MCP call after 60 s unless the server config sets `timeout`.
-// Supaterm's wait tools block for up to MAX_WAIT_TIMEOUT_MS (an hour), so the budget sits
-// just above that and the server's own wait timeout ends a long call.
+// request_secret can wait an hour, so the budget sits just above that and the server's own
+// wait timeout ends a long call.
 export const CLAUDE_SUPATERM_MCP_TOOL_TIMEOUT_MS = 65 * 60 * 1_000;
 
 // `allowedTools` only pre-approves calls, and headless modes like `dontAsk` deny the rest.

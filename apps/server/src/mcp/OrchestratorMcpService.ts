@@ -135,10 +135,10 @@ import {
 import * as Metrics from "../observability/Metrics.ts";
 import * as SecretRequests from "../secrets/SecretRequests.ts";
 
-const DEFAULT_WAIT_TIMEOUT_MS = 10 * 60 * 1_000;
-// Nothing is written while a task wait blocks, and Node fetch drops a silent call at 300 s.
-const DEFAULT_TASK_WAIT_TIMEOUT_MS = 4 * 60 * 1_000;
-const MAX_WAIT_TIMEOUT_MS = 60 * 60 * 1_000;
+// Return recoverable handles before common MCP client timeouts expire.
+const DEFAULT_WAIT_TIMEOUT_MS = 30_000;
+const MAX_WAIT_TIMEOUT_MS = 45_000;
+const SECRET_REQUEST_TIMEOUT_MS = 60 * 60 * 1_000;
 const TASK_WAKE_EVENTS = [
   { thread: "parent", eventType: "subagent.updated" },
   { thread: "child", eventType: "run.updated" },
@@ -2384,7 +2384,7 @@ const make = Effect.gen(function* () {
         );
       }).pipe(
         // The longest a provider lets one tool call run, so the card stays open until then.
-        Effect.timeoutOption(Duration.millis(MAX_WAIT_TIMEOUT_MS)),
+        Effect.timeoutOption(Duration.millis(SECRET_REQUEST_TIMEOUT_MS)),
         Effect.map(Option.flatten),
         Effect.onExit((exit) => (Exit.isSuccess(exit) ? Effect.void : closeCard(false))),
       );
@@ -2628,7 +2628,7 @@ const make = Effect.gen(function* () {
       }
       const timeoutMs = Math.min(
         MAX_WAIT_TIMEOUT_MS,
-        Math.max(1, input.timeoutMs ?? DEFAULT_TASK_WAIT_TIMEOUT_MS),
+        Math.max(1, input.timeoutMs ?? DEFAULT_WAIT_TIMEOUT_MS),
       );
       const upgradeWake = threadManagement
         .dispatch({
