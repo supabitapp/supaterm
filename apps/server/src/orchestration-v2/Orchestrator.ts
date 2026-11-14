@@ -4112,7 +4112,10 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
       const automaticMessageIds = new Set(
         [...queuedMessages.values()].flatMap((message) =>
           message.role === "user" &&
-          (message.notification !== undefined || message.delegatedCompletion !== undefined)
+          (message.createdBy !== "user" ||
+            message.scheduledTaskId !== undefined ||
+            message.notification !== undefined ||
+            message.delegatedCompletion !== undefined)
             ? [message.id]
             : [],
         ),
