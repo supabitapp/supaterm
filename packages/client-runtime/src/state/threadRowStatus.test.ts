@@ -10,7 +10,7 @@ import { describe, expect, it } from "vite-plus/test";
 
 import { presentThreadShell } from "./models.ts";
 import { v2ThreadShell } from "./orchestrationV2TestFixtures.ts";
-import { resolveThreadRowStatus } from "./threadRowStatus.ts";
+import { resolveThreadRowShownStatus, resolveThreadRowStatus } from "./threadRowStatus.ts";
 
 const environmentId = EnvironmentId.make("environment-1");
 const decodeThreadShell = Schema.decodeUnknownSync(OrchestrationV2ThreadShell);
@@ -106,4 +106,22 @@ describe("resolveThreadRowStatus", () => {
       expect(resolveThreadRowStatus(thread)).toBe(status);
     },
   );
+});
+
+describe("resolveThreadRowShownStatus", () => {
+  it("settles a failure the user opened to ready, keeping the raw status", () => {
+    const failed = presentThreadShell(environmentId, {
+      ...v2ThreadShell,
+      status: "failed",
+      latestRunId: RunId.make("run-failed"),
+      latestRunCompletedAt: DateTime.makeUnsafe("2026-06-01T23:59:00.000Z"),
+      lastVisitedAt: DateTime.makeUnsafe("2026-06-02T00:00:00.000Z"),
+    });
+
+    expect(resolveThreadRowStatus(failed)).toBe("failed");
+    expect(resolveThreadRowShownStatus(failed)).toBe("ready");
+    expect(resolveThreadRowShownStatus({ ...failed, lastVisitedAt: null })).toBe("failed");
+    // A runtime failure without a failed run has no date, so a visit cannot settle it.
+    expect(resolveThreadRowShownStatus({ ...failed, latestRun: null })).toBe("failed");
+  });
 });
