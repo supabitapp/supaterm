@@ -463,7 +463,6 @@ export default function ChatView(props: ChatViewProps) {
   const isPaneInputOwner = usePaneInputOwner();
   const paneScope = usePaneScope();
   const conversationArea = workspaceAreaProps("conversation", 1, "Conversation");
-  const composerArea = workspaceAreaProps("composer", 2, "Message input");
   const paneSplit = useChatPaneStore((state) => (state.layout?.cells.length ?? 1) > 1);
   const ownsPaneInput = useIsPaneInputOwner();
   const canQueueMessage = useAtomValue(canQueueComposerMessageAtom(environmentId));
@@ -3708,7 +3707,11 @@ export default function ChatView(props: ChatViewProps) {
                 </div>
 
                 <div
-                  {...composerArea}
+                  {...workspaceAreaProps(
+                    "composer",
+                    2,
+                    showProviderSubagentBar ? "Subagent" : undefined,
+                  )}
                   ref={attachComposerOverlayElement}
                   inert={isRevertingCheckpoint}
                   data-chat-composer-overlay="true"
