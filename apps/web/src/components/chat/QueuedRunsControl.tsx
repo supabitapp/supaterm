@@ -28,6 +28,7 @@ import { useAssetUrls } from "../../assets/assetUrls";
 import { threadEnvironment } from "../../state/threads";
 import { useQuietThreadProjection, useQuietThreadShell } from "../../state/entities";
 import { useAtomCommand } from "../../state/use-atom-command";
+import { isImageAttachment, type ChatImageAttachment } from "../../types";
 
 import { cn } from "~/lib/utils";
 import { ComposerBanner } from "./ComposerBanner";
@@ -37,18 +38,13 @@ import { Collapsible, CollapsiblePanel } from "../ui/collapsible";
 import { Separator } from "../ui/separator";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { useScheduledTaskTitle } from "./TimelineUserMessageRow";
+import { buildExpandedImagePreview, type ExpandedImagePreview } from "./ExpandedImagePreview";
 
 export interface EditQueuedRunRequest {
   readonly runId: RunId;
   readonly messageId: MessageId;
   readonly text: string;
   readonly attachments: ReadonlyArray<ContractChatAttachment>;
-}
-
-interface QueuedRowThumbnail {
-  readonly key: string;
-  readonly name: string;
-  readonly url: string | null;
 }
 
 export interface QueuedRunsControlHandle {
@@ -62,7 +58,7 @@ function queuedImageResources(projection: ThreadQueueProjection | undefined) {
   if (!projection) return [];
   return deriveThreadQueueWorkflowState(projection).queuedRuns.flatMap(({ attachments }) =>
     attachments.flatMap((attachment) =>
-      attachment.type === "image"
+      isImageAttachment(attachment)
         ? [{ _tag: "attachment" as const, attachmentId: attachment.id }]
         : [],
     ),
@@ -86,6 +82,7 @@ export function QueuedRunsControl({
   readonly onEditQueuedRun: (request: EditQueuedRunRequest) => void;
   readonly onCancelEdit: () => void;
   readonly onOpenThread: (threadId: ThreadId) => void;
+  readonly onImageExpand: (preview: ExpandedImagePreview) => void;
 }) {
   const projection = useQuietThreadProjection(
     scopeThreadRef(props.environmentId, props.threadId),
@@ -125,13 +122,14 @@ export function QueuedRunsControl({
     freshContext: run.freshContext === true,
     text,
     attachments,
-    thumbnails: attachments
-      .filter((attachment) => attachment.type === "image")
-      .map<QueuedRowThumbnail>((attachment) => ({
-        key: attachment.id,
-        name: attachment.name,
-        url: queuedImageUrlById.get(attachment.id) ?? null,
-      })),
+    thumbnails: attachments.filter(isImageAttachment).map<ChatImageAttachment>((attachment) => {
+      const previewUrl = queuedImageUrlById.get(attachment.id);
+      return {
+        ...attachment,
+        type: "image",
+        ...(previewUrl ? { previewUrl } : {}),
+      };
+    }),
   }));
 
   const sendQueuedMessage = async (queuedRunId: RunId) => {
@@ -242,13 +240,24 @@ export function QueuedRunsControl({
                         {item.thumbnails.length > 0 ? (
                           <span className="flex shrink-0 items-center gap-0.5">
                             {item.thumbnails.map((thumbnail) => (
-                              <span
-                                key={thumbnail.key}
-                                className="size-4 overflow-hidden rounded border border-border/70 bg-background"
+                              <button
+                                key={thumbnail.id}
+                                type="button"
+                                aria-label={`Preview ${thumbnail.name}`}
+                                disabled={!thumbnail.previewUrl}
+                                className="size-4 overflow-hidden rounded border border-border/70 bg-background enabled:cursor-zoom-in"
+                                onPointerDown={(event) => event.preventDefault()}
+                                onClick={() => {
+                                  const preview = buildExpandedImagePreview(
+                                    item.thumbnails,
+                                    thumbnail.id,
+                                  );
+                                  if (preview) props.onImageExpand(preview);
+                                }}
                               >
-                                {thumbnail.url ? (
+                                {thumbnail.previewUrl ? (
                                   <img
-                                    src={thumbnail.url}
+                                    src={thumbnail.previewUrl}
                                     alt={thumbnail.name}
                                     className="size-full object-cover"
                                   />
@@ -258,7 +267,7 @@ export function QueuedRunsControl({
                                     className="block size-full bg-muted/60"
                                   />
                                 )}
-                              </span>
+                              </button>
                             ))}
                           </span>
                         ) : null}

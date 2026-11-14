@@ -8,7 +8,7 @@ import {
 } from "@supaterm/shared/composerContextReferences";
 import * as Option from "effect/Option";
 import { AsyncResult, type Atom, AtomRegistry } from "effect/reactivity";
-import { createRef, Profiler, type ComponentProps } from "react";
+import { createRef, Profiler, useState, type ComponentProps } from "react";
 import { describe, expect, it, vi } from "vite-plus/test";
 import { page } from "vite-plus/test/browser";
 
@@ -68,11 +68,14 @@ vi.mock(import("../../assets/assetUrls"), async (importOriginal) => ({
     resources.map((resource) => `https://assets.test/${resource.attachmentId}`)) as never,
 }));
 
+import "~/index.css";
 import { EMPTY_ENVIRONMENT_THREAD_STATE } from "@supaterm/client-runtime/state/threads";
 
 import { act, render as renderUi } from "../../../test/render";
 import { threadEnvironment } from "../../state/threads";
 import { makeStreamingTimelineFixture, makeThreadProjectionFixture } from "../../test-fixtures";
+import { ExpandedImageDialog } from "./ExpandedImageDialog";
+import type { ExpandedImagePreview } from "./ExpandedImagePreview";
 import { QueuedRunsControl, type QueuedRunsControlHandle } from "./QueuedRunsControl";
 
 function setup() {
@@ -89,11 +92,54 @@ const baseProps = {
   onEditQueuedRun: () => undefined,
   onCancelEdit: () => undefined,
   onOpenThread: () => undefined,
+  onImageExpand: () => undefined,
 } satisfies ComponentProps<typeof QueuedRunsControl>;
 
 async function renderQueue(props: Partial<ComponentProps<typeof QueuedRunsControl>> = {}) {
   return renderUi(<QueuedRunsControl {...baseProps} {...props} />);
 }
+
+it("opens queued images in the existing gallery", async () => {
+  setup();
+  const attachments = ["first.png", "second.png"].map((name) => ({
+    type: "image" as const,
+    id: name,
+    name,
+    mimeType: "image/png",
+    sizeBytes: 128,
+  }));
+  state.workflow = {
+    activeRun: null,
+    queuedRuns: [
+      {
+        run: { id: "run:queued", userMessageId: "message:queued" },
+        text: "Later",
+        attachments,
+      },
+    ],
+  };
+  function QueueWithGallery() {
+    const [preview, setPreview] = useState<ExpandedImagePreview | null>(null);
+    return (
+      <>
+        <QueuedRunsControl {...baseProps} onImageExpand={setPreview} />
+        {preview ? (
+          <ExpandedImageDialog preview={preview} onClose={() => setPreview(null)} />
+        ) : null}
+      </>
+    );
+  }
+  await using _screen = await renderUi(<QueueWithGallery />);
+
+  await page.getByRole("button", { name: "Preview second.png", exact: true }).click();
+  await expect.element(page.getByRole("dialog")).toBeVisible();
+  await expect.element(page.getByText("second.png (2/2)", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Previous media", exact: true }).click();
+  await expect.element(page.getByText("first.png (1/2)", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Close image preview", exact: true }).click();
+  await expect.element(page.getByRole("dialog")).not.toBeInTheDocument();
+  await expect.element(page.getByText("Later", { exact: true })).toBeVisible();
+});
 
 const labels = (container: HTMLElement) =>
   [...container.querySelectorAll("[aria-label]")].map((element) =>
