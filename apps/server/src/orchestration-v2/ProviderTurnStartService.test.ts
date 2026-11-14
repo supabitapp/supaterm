@@ -386,6 +386,7 @@ function makeLocalCommandHarness(input: {
   readonly unsentResume?: boolean;
   readonly repeatedResume?: boolean;
   readonly acceptedResume?: boolean;
+  readonly restartedResume?: boolean;
   readonly nativeGoals?: boolean;
   readonly goalDriver?: "opencode" | "antigravity";
   readonly worktreePath?: string;
@@ -890,6 +891,18 @@ function makeLocalCommandHarness(input: {
           providerThreadId: oldProviderThreadId,
           status: "interrupted",
         },
+        ...(input.restartedResume
+          ? [
+              {
+                ...projection.attempts[0]!,
+                id: RunAttemptId.make("unaccepted-replacement"),
+                runId: RunId.make("stopped-run"),
+                attemptOrdinal: 2,
+                reason: "steering_restart" as const,
+                status: "interrupted" as const,
+              },
+            ]
+          : []),
       ],
       providerTurns: [
         ...projection.providerTurns,
@@ -1674,6 +1687,14 @@ effectIt.effect.each([
     acceptedResume: true,
     expected: "",
     resume: true,
+  },
+  {
+    name: "accepted original with an unaccepted steering restart",
+    unsentResume: true,
+    acceptedResume: true,
+    restartedResume: true,
+    expected: "Original request",
+    resume: false,
   },
   {
     name: "provider without native resume",
