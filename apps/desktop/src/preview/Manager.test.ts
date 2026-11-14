@@ -1338,7 +1338,7 @@ describe("PreviewManager", () => {
 
         yield* manager.navigate("tab_pinned_debugger", "https://example.com/");
 
-        expect(debuggerOff).toHaveBeenCalledWith("message", expect.any(Function));
+        expect(debuggerOff).toHaveBeenCalledWith("detach", expect.any(Function));
         expect(debuggerDetach).toHaveBeenCalledOnce();
       }),
     ),

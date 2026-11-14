@@ -428,11 +428,6 @@ interface BrowserControlSession {
   readonly debugger: Electron.Debugger;
   readonly semaphore: Semaphore.Semaphore;
   readonly scope: Scope.Closeable;
-  readonly onMessage: (
-    event: Electron.Event,
-    method: string,
-    params: Record<string, unknown>,
-  ) => void;
 }
 
 const isRecordingInput = Schema.is(DesktopPreviewRecordingInputSchema);
@@ -1099,32 +1094,11 @@ const makeNativeOperations = Effect.fn("PreviewManager.makeOperations")(function
           const semaphore = yield* Semaphore.make(1);
           const scope = yield* Scope.fork(parentScope, "sequential");
           const wcDebugger = wc.debugger;
-          const handleDebuggerMessage = Effect.fnUntraced(function* (
-            method: string,
-            params: Record<string, unknown>,
-          ) {
-            if (method === "Page.screencastFrame") {
-              const sessionId = params["sessionId"];
-              if (typeof sessionId === "number") {
-                yield* attemptPromise(
-                  {
-                    operation: "ackScreencastFrame",
-                    webContentsId: wc.id,
-                  },
-                  () => wcDebugger.sendCommand("Page.screencastFrameAck", { sessionId }),
-                ).pipe(Effect.ignore);
-              }
-            }
-          });
-          const onMessage: BrowserControlSession["onMessage"] = (_event, method, params) => {
-            runFork(handleDebuggerMessage(method, params));
-          };
           const control: BrowserControlSession = {
             webContentsId: wc.id,
             debugger: wcDebugger,
             semaphore,
             scope,
-            onMessage,
           };
 
           let dropped = false;
@@ -1136,14 +1110,12 @@ const makeNativeOperations = Effect.fn("PreviewManager.makeOperations")(function
           yield* Scope.addFinalizer(
             scope,
             attempt({ operation: "detachControlSession", webContentsId: wc.id }, () => {
-              wcDebugger.off("message", onMessage);
               wcDebugger.off("detach", onDetach);
               if (!dropped && wcDebugger.isAttached()) wcDebugger.detach();
             }).pipe(Effect.ignore),
           );
           const initialize = Effect.fn("PreviewManager.initializeControlSession")(function* () {
             yield* attempt({ operation: "attachDebuggerListeners", webContentsId: wc.id }, () => {
-              wcDebugger.on("message", onMessage);
               wcDebugger.on("detach", onDetach);
               wcDebugger.attach("1.3");
             });
