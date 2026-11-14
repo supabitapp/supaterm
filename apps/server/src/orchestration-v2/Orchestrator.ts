@@ -4330,6 +4330,21 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
         });
       }
     }
+    let restoredReopenedAt: DateTime.Utc | null | undefined;
+    if (command.type === "thread.reopen" && command.restoreReopenedAt !== undefined) {
+      const parsed =
+        command.restoreReopenedAt === null
+          ? Option.some(null)
+          : DateTime.make(command.restoreReopenedAt);
+      if (Option.isNone(parsed)) {
+        return yield* new OrchestratorDispatchError({
+          commandId: command.commandId,
+          commandType: command.type,
+          cause: `Thread ${command.threadId} reopen anchor ${command.restoreReopenedAt} is not a valid time.`,
+        });
+      }
+      restoredReopenedAt = parsed.value;
+    }
     let snoozedUntil: DateTime.Utc | null = null;
     if (command.type === "thread.snooze") {
       const projection = yield* loadProjectionForCommand(command, ["runs", "runtimeRequests"], {
@@ -4484,7 +4499,11 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
             ...thread,
             doneOverride: "active",
             doneAt: null,
-            reopenedAt: alreadyPinnedActive ? (thread.reopenedAt ?? null) : now,
+            reopenedAt: alreadyPinnedActive
+              ? (thread.reopenedAt ?? null)
+              : restoredReopenedAt === undefined
+                ? now
+                : restoredReopenedAt,
             updatedAt: alreadyPinnedActive ? thread.updatedAt : now,
           };
         }
