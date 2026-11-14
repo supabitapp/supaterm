@@ -182,6 +182,7 @@ function DiffFileCollapseToggle({
 
 function DiffFileHeaderSuffix({
   filePath,
+  workspaceRoot,
   canOpenFile,
   hasStat,
   error,
@@ -190,6 +191,7 @@ function DiffFileHeaderSuffix({
   onRetry,
 }: {
   filePath: string;
+  workspaceRoot: string | undefined;
   canOpenFile: boolean;
   hasStat: boolean;
   error: boolean;
@@ -199,7 +201,7 @@ function DiffFileHeaderSuffix({
 }) {
   return (
     <>
-      <DiffFilePathCopyButton filePath={filePath} />
+      <DiffFilePathCopyButton filePath={filePath} workspaceRoot={workspaceRoot} />
       <Tooltip>
         <TooltipTrigger
           render={
@@ -1482,6 +1484,7 @@ export default function DiffPanel({
                         return (
                           <DiffFileHeaderSuffix
                             filePath={path}
+                            workspaceRoot={activeCwd}
                             canOpenFile={
                               resolveDiffPathForWorkspace({
                                 filePath: path,
