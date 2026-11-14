@@ -379,7 +379,7 @@ describe("DesktopBackendConfiguration", () => {
       );
 
       assert.equal(config.runningDistro, "Ubuntu");
-      assert.deepEqual(config.args.slice(0, 2), ["-d", "Ubuntu"]);
+      assert.deepEqual(config.args.slice(0, 5), ["-d", "Ubuntu", "--cd", "~", "--exec"]);
       assert.deepEqual(observedDistros, ["Ubuntu", "Ubuntu", "Ubuntu"]);
       assert.isTrue(Option.isNone(config.preflightFailure));
     }).pipe(Effect.scoped, Effect.provide(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer))),
@@ -442,6 +442,8 @@ describe("DesktopBackendConfiguration", () => {
           assert.deepEqual(config.args, [
             "-d",
             "Ubuntu",
+            "--cd",
+            "~",
             "--exec",
             "env",
             `PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:${resolvedPath}`,
@@ -657,6 +659,8 @@ describe("DesktopBackendConfiguration", () => {
         assert.deepEqual(config.args, [
           "-d",
           "Ubuntu",
+          "--cd",
+          "~",
           "--exec",
           "env",
           "PATH=/home/test user's/.nvm/versions/node/v22.0.0/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/home/test user/bin:/opt/test's tools/bin:/usr/bin:/bin",
