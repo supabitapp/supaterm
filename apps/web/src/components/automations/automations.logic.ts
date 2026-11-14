@@ -212,6 +212,8 @@ export function toDateTimeLocalValue(date: Date): string {
 }
 
 export function scheduleDraftErrors(draft: DraftState) {
+  if (draft.scheduleMode === "fixed" && !draft.timeOfDay)
+    return [{ title: "Invalid run time", description: "Pick a time." }];
   if (draft.scheduleMode !== "once") return [];
   const runAt = new Date(draft.runAt);
   if (Number.isNaN(runAt.getTime()))
@@ -251,7 +253,7 @@ export function scheduleFromDraft(draft: DraftState): ScheduledTaskSchedule | nu
   const selectedEveryDay = draft.weekdays.size === 0 || draft.weekdays.size === 7;
   return {
     type: "fixed_time",
-    timeOfDay: draft.timeOfDay || "09:00",
+    timeOfDay: draft.timeOfDay,
     ...(selectedEveryDay ? {} : { weekdays: [...draft.weekdays].toSorted() }),
   };
 }
