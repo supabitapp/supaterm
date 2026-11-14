@@ -1200,7 +1200,10 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     imageCount:
       composerImages.length + composerFiles.length + (editingQueuedAttachments?.length ?? 0),
     terminalContexts: composerTerminalContexts,
-    elementContextCount: composerPreviewAnnotations.length + composerReviewComments.length,
+    elementContextCount:
+      composerPreviewAnnotations.length +
+      composerReviewComments.length +
+      composerReferenceContexts.length,
   });
   const composerTriggerKind = composerTrigger?.kind ?? null;
   const compactSlashCommandAvailable =
