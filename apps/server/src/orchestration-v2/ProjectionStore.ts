@@ -1506,7 +1506,7 @@ function isRolledBackBeforeFork(
   return rolledBackAt !== null && DateTime.isLessThan(rolledBackAt, forkCreatedAt);
 }
 
-function forkInheritedRunOrdinals(
+export function forkInheritedRunOrdinals(
   runs: ReadonlyArray<OrchestrationV2Run>,
   forkCreatedAt: DateTime.Utc,
 ): Map<RunId, number> {
