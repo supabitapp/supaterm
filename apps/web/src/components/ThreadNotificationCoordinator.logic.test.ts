@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test"
 
 import {
   createThreadNotificationGate,
+  isSnoozedForNotification,
   type ThreadNotificationObservation,
 } from "./ThreadNotificationCoordinator.logic";
 
@@ -18,7 +19,8 @@ const completed = (at: number): ThreadNotificationObservation => ({
   settled: true,
   completedAt: at,
 });
-const visible = { archived: false, quiet: false };
+const visible = { archived: false, quiet: false, snoozed: false };
+const snoozed = { ...visible, snoozed: true };
 
 function harness() {
   const notify = vi.fn();
@@ -37,6 +39,17 @@ describe("createThreadNotificationGate", () => {
   });
   afterEach(() => {
     vi.useRealTimers();
+  });
+
+  it("skips a completion seen while snoozed, but still notifies attention", () => {
+    const { notify, observe } = harness();
+    observe(working);
+    observe(completed(1), snoozed);
+    observe({ ...completed(1) });
+    vi.advanceTimersByTime(WORKING_EXIT_GRACE_MS * 2);
+    expect(notify).not.toHaveBeenCalled();
+    observe({ ...working, attention: "run-2:approval" }, snoozed);
+    expect(notify.mock.calls).toEqual([["thread", "input"]]);
   });
 
   it("drops a completion when the thread resumes within the grace", () => {
@@ -192,11 +205,12 @@ describe("createThreadNotificationGate", () => {
     expect(notify).toHaveBeenCalledTimes(1);
   });
 
-  it("drops a pending completion on archive, stop request, removal or clear", () => {
+  it("drops a pending completion on archive, stop request, snooze, removal or clear", () => {
     for (const end of [
       (h: ReturnType<typeof harness>) => h.observe(completed(1), { ...visible, archived: true }),
       (h: ReturnType<typeof harness>) =>
         h.observe({ ...completed(1) }, { ...visible, quiet: true }),
+      (h: ReturnType<typeof harness>) => h.observe({ ...completed(1) }, snoozed),
       (h: ReturnType<typeof harness>) => h.gate.retain(new Set()),
       (h: ReturnType<typeof harness>) => h.gate.clear(),
     ]) {
@@ -216,5 +230,32 @@ describe("createThreadNotificationGate", () => {
     observe(completed(2), { ...visible, quiet: true });
     vi.advanceTimersByTime(WORKING_EXIT_GRACE_MS * 2);
     expect(notify).not.toHaveBeenCalled();
+  });
+});
+
+describe("isSnoozedForNotification", () => {
+  const snoozedAt = Date.parse("2026-01-01T11:00:00.000Z");
+  const wakeAt = Date.parse("2026-01-01T12:00:00.000Z");
+  const thread = {
+    snoozedAt: new Date(snoozedAt).toISOString(),
+    snoozedUntil: new Date(wakeAt).toISOString(),
+    hasPendingApprovals: false,
+    hasPendingUserInput: false,
+  };
+  const later = wakeAt + 60_000;
+
+  it.each([
+    ["during the snooze, processed after the wake", thread, wakeAt - 1, later, true],
+    ["before the snooze, processed after the wake", thread, snoozedAt - 1, later, false],
+    ["after the wake", thread, wakeAt + 1, later, false],
+    [
+      "after an early wake for attention",
+      { ...thread, hasPendingApprovals: true },
+      wakeAt - 1,
+      wakeAt - 1,
+      false,
+    ],
+  ])("a completion %s is suppressed: %s", (_name, shell, completedAt, now, expected) => {
+    expect(isSnoozedForNotification(shell, completedAt, now)).toBe(expected);
   });
 });
