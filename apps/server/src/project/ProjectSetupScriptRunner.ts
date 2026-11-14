@@ -178,12 +178,60 @@ function resolveCompletionShell(shell: string): CompletionShell | null {
   return "posix";
 }
 
-/**
- * The command runs inside a block and the block closes on its own line, so a trailing `# comment`
- * or a heredoc terminator in the command cannot swallow the sentinel. The shell reads the whole
- * block before running any of it, so a script that reads stdin cannot consume the sentinel line
- * either.
- */
+const utf8 = new TextEncoder();
+// Canonical TTY input (before a line editor starts reading) caps a line below 1 KiB on Linux.
+const POSIX_MAX_LINE_BYTES = 1_023;
+const POSIX_APPEND = '__supaterm_command="$__supaterm_command"';
+
+function encodePosixScript(text: string): string {
+  let encoded = "";
+  for (const character of text) {
+    const code = character.charCodeAt(0);
+    if (character === "'") {
+      encoded += "'\\''";
+    } else if (character === "\\" || code <= 0x1f || code === 0x7f) {
+      encoded += `\\0${code.toString(8).padStart(3, "0")}`;
+    } else {
+      encoded += character;
+    }
+  }
+  return encoded;
+}
+
+// Line editors run each submitted line on its own, so every line must be a complete command.
+function wrapPosixCommand(command: string, sentinel: string): string {
+  const normalized = command.replace(/\r\n/g, "\n");
+  // The `_` suffix keeps trailing newlines; the subshell contains exits and syntax errors.
+  const evaluate = (payload: string) =>
+    `( __supaterm_command=$(printf '%b_' ${payload}); eval "\${__supaterm_command%_}" ); printf '\\n${sentinel}%s\\n' "$?"`;
+  const inline = evaluate(`'${encodePosixScript(normalized)}'`);
+  if (utf8.encode(` ${inline}\r`).byteLength <= POSIX_MAX_LINE_BYTES) return inline;
+
+  const maxChunkBytes = POSIX_MAX_LINE_BYTES - utf8.encode(` ${POSIX_APPEND}''\r`).byteLength;
+  const lines: string[] = [];
+  let prefix = "__supaterm_command=";
+  let chunk = "";
+  let chunkBytes = 0;
+  for (const character of normalized) {
+    const encoded = encodePosixScript(character);
+    const bytes = utf8.encode(encoded).byteLength;
+    if (chunkBytes + bytes > maxChunkBytes) {
+      lines.push(`${prefix}'${chunk}'`);
+      prefix = POSIX_APPEND;
+      chunk = "";
+      chunkBytes = 0;
+    }
+    chunk += encoded;
+    chunkBytes += bytes;
+  }
+  lines.push(
+    `${prefix}'${chunk}'`,
+    `${evaluate('"$__supaterm_command"')}; unset __supaterm_command`,
+  );
+  // The leading space gives every line the history suppression a short command gets.
+  return lines.join("\r ");
+}
+
 function wrapCommandForCompletion(
   command: string,
   shell: CompletionShell,
@@ -210,7 +258,7 @@ function wrapCommandForCompletion(
       ].join("; ");
     }
     case "posix":
-      return `( ${body}\r); printf '\\n${sentinel}%s\\n' "$?"`;
+      return wrapPosixCommand(command, sentinel);
   }
 }
 
