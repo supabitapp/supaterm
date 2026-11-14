@@ -705,6 +705,7 @@ const makeHarness = Effect.fn("makeThreadDoneHarness")(function* (options: Harne
   const settingsReadCount = yield* Ref.make(0);
   const settingsChanges = yield* PubSub.unbounded<ContractServerSettings>();
   const mergedPullRequests = yield* PubSub.unbounded<PullRequestService.PullRequestMergeEvent>();
+  const pullRequestRefreshes = yield* PubSub.unbounded<number>();
   const commands = yield* Ref.make<ReadonlyArray<AutoMarkDoneCommand>>([]);
   const branchCalls = yield* Ref.make<
     ReadonlyArray<{ readonly cwd: string; readonly branch: string }>
@@ -857,6 +858,7 @@ const makeHarness = Effect.fn("makeThreadDoneHarness")(function* (options: Harne
       subscribeMerges: PubSub.subscribe(mergedPullRequests).pipe(
         Effect.map((subscription) => Stream.fromSubscription(subscription)),
       ),
+      subscribeRefreshes: Stream.fromPubSub(pullRequestRefreshes),
     }),
     Layer.succeed(ServerSettings.ServerSettingsService, serverSettings),
     Layer.succeed(ServerActivation.ServerActivation, Deferred.await(activation)),
@@ -897,6 +899,7 @@ const makeHarness = Effect.fn("makeThreadDoneHarness")(function* (options: Harne
     observedEvents,
     publishEvent: (event: OrchestrationV2DomainEvent) => PubSub.publish(domainEvents, event),
     updateSettings,
+    publishRefresh: PubSub.publish(pullRequestRefreshes, 1),
     publishMerge: PubSub.publish(mergedPullRequests, {
       projectId: PROJECT_ID,
       repository: "owner/repository",
@@ -1809,74 +1812,93 @@ describe("ThreadDoneServiceV2 worker", () => {
     }),
   );
 
-  it.effect(
-    "marks done an unlinked branch thread its agent merged from a shell, past the cache",
-    () =>
-      Effect.gen(function* () {
-        yield* TestClock.setTime(Date.parse(NOW));
-        const markedDone = yield* Deferred.make<void>();
-        const thread = makeThread("shell-merged", {
-          branch: "saved-feature",
-          latestUserMessageAt: DateTime.makeUnsafe("2026-08-27T00:00:00.000Z"),
-        });
-        const fixture = yield* makeHarness({
-          settings: { ...DEFAULT_SERVER_SETTINGS, sidebarAutoMarkDoneOnMerge: true },
-          snapshot: makeSnapshot([thread]),
-          // The host already merged it; only a fresh read sees that past the cached open lookup.
-          branchPullRequest: (_input, lookupOptions) =>
-            Effect.succeed(makeBranchPullRequest(lookupOptions?.refresh ? "merged" : "open")),
-          onDispatch: () => Deferred.succeed(markedDone, undefined),
-        });
-        const at = DateTime.makeUnsafe(NOW);
-        const runId = RunId.make("run:shell-merged");
-        const runEnded: OrchestrationV2DomainEvent = {
-          type: "run.background-work-cancelled",
-          id: EventId.make("event:shell-merged:run-ended"),
+  it.effect.each([
+    { kind: "an unlinked", linked: false },
+    { kind: "a quiet linked", linked: true },
+  ])("marks done $kind branch thread its agent merged from a shell, past the cache", ({ linked }) =>
+    Effect.gen(function* () {
+      yield* TestClock.setTime(Date.parse(NOW));
+      const thread = makeThread("shell-merged", {
+        branch: "saved-feature",
+        latestUserMessageAt: DateTime.makeUnsafe("2026-08-27T00:00:00.000Z"),
+        ...(linked
+          ? {
+              branchPullRequest: {
+                projectId: PROJECT_ID,
+                repository: "owner/repository",
+                number: 42,
+                url: "https://example.test/owner/repository/pull/42",
+              },
+            }
+          : {}),
+      });
+      const fixture = yield* makeHarness({
+        settings: { ...DEFAULT_SERVER_SETTINGS, sidebarAutoMarkDoneOnMerge: true },
+        snapshot: makeSnapshot([thread]),
+        // The host already merged it; only a fresh read sees that past the cached open lookup.
+        branchPullRequest: (_input, lookupOptions) =>
+          Effect.succeed(makeBranchPullRequest(lookupOptions?.refresh ? "merged" : "open")),
+        pullRequestSummary: (input, readOptions) =>
+          Effect.succeed({
+            ...makePullRequestSummary({
+              ...input,
+              state: readOptions?.bypassCache ? "merged" : "open",
+              updatedAt: DateTime.formatIso(DateTime.makeUnsafe(Date.parse(NOW) - 2 * DAY_MS)),
+            }),
+            ...(readOptions?.bypassCache ? { mergedAt: NOW } : {}),
+          }),
+      });
+      const at = DateTime.makeUnsafe(NOW);
+      const runId = RunId.make("run:shell-merged");
+      const runEnded: OrchestrationV2DomainEvent = {
+        type: "run.background-work-cancelled",
+        id: EventId.make("event:shell-merged:run-ended"),
+        threadId: thread.id,
+        occurredAt: at,
+        payload: { runId, restartCancelledBackgroundWork: [] },
+      };
+
+      yield* Effect.gen(function* () {
+        const reactor = yield* ThreadDoneService.ThreadDoneServiceV2;
+        yield* startHarness(reactor, fixture.activation, fixture.snapshotReads);
+        yield* fixture.publishEvent(runEnded);
+        yield* Queue.take(fixture.snapshotReads);
+        yield* reactor.drain;
+        assert.deepStrictEqual(yield* Ref.get(fixture.commands), []);
+
+        yield* fixture.publishEvent({
+          type: "turn-item.updated",
+          id: EventId.make("event:shell-merged:command"),
           threadId: thread.id,
+          runId,
           occurredAt: at,
-          payload: { runId, restartCancelledBackgroundWork: [] },
-        };
-
-        yield* Effect.gen(function* () {
-          const reactor = yield* ThreadDoneService.ThreadDoneServiceV2;
-          yield* startHarness(reactor, fixture.activation, fixture.snapshotReads);
-          yield* fixture.publishEvent(runEnded);
-          yield* Queue.take(fixture.snapshotReads);
-          yield* reactor.drain;
-          assert.deepStrictEqual(yield* Ref.get(fixture.commands), []);
-
-          yield* fixture.publishEvent({
-            type: "turn-item.updated",
-            id: EventId.make("event:shell-merged:command"),
+          payload: {
+            id: TurnItemId.make("item:shell-merged:command"),
             threadId: thread.id,
             runId,
-            occurredAt: at,
-            payload: {
-              id: TurnItemId.make("item:shell-merged:command"),
-              threadId: thread.id,
-              runId,
-              nodeId: null,
-              providerThreadId: null,
-              providerTurnId: null,
-              nativeItemRef: null,
-              parentItemId: null,
-              ordinal: 1,
-              status: "completed",
-              title: null,
-              startedAt: at,
-              completedAt: at,
-              updatedAt: at,
-              type: "command_execution",
-              input: "gh pr merge 42 --squash",
-            },
-          });
-          yield* Deferred.await(markedDone);
-          assert.deepStrictEqual(
-            (yield* Ref.get(fixture.commands)).map((command) => command.threadId),
-            [thread.id],
-          );
-        }).pipe(Effect.provide(fixture.layer));
-      }),
+            nodeId: null,
+            providerThreadId: null,
+            providerTurnId: null,
+            nativeItemRef: null,
+            parentItemId: null,
+            ordinal: 1,
+            status: "completed",
+            title: null,
+            startedAt: at,
+            completedAt: at,
+            updatedAt: at,
+            type: "command_execution",
+            input: "gh pr merge 42 --squash",
+          },
+        });
+        yield* Queue.take(fixture.snapshotReads);
+        yield* reactor.drain;
+        assert.deepStrictEqual(
+          (yield* Ref.get(fixture.commands)).map((command) => command.threadId),
+          [thread.id],
+        );
+      }).pipe(Effect.provide(fixture.layer));
+    }),
   );
 
   it.effect(
@@ -1914,6 +1936,122 @@ describe("ThreadDoneServiceV2 worker", () => {
           );
           assert.deepStrictEqual(yield* Ref.get(fixture.invalidatedCwds), ["/workspace/project"]);
           yield* reactor.drain;
+        }).pipe(Effect.provide(fixture.layer));
+      }),
+  );
+
+  it.effect("reads a quiet open branch pull request every 5 minutes", () =>
+    Effect.gen(function* () {
+      yield* TestClock.setTime(Date.parse(NOW));
+      const fixture = yield* makeHarness({
+        snapshot: makeSnapshot([
+          makeThread("active-branch", {
+            branch: "feature",
+            latestUserMessageAt: DateTime.makeUnsafe("2026-08-27T00:00:00.000Z"),
+            branchPullRequest: {
+              projectId: PROJECT_ID,
+              repository: "owner/repository",
+              number: 42,
+              url: "https://example.test/owner/repository/pull/42",
+            },
+          }),
+        ]),
+        pullRequestSummary: (input) =>
+          Effect.succeed(
+            makePullRequestSummary({
+              ...input,
+              state: "open",
+              updatedAt: DateTime.formatIso(DateTime.makeUnsafe(Date.parse(NOW) - 2 * DAY_MS)),
+            }),
+          ),
+      });
+
+      yield* Effect.gen(function* () {
+        const reactor = yield* ThreadDoneService.ThreadDoneServiceV2;
+        yield* startHarness(reactor, fixture.activation, fixture.snapshotReads);
+        assert.strictEqual((yield* Ref.get(fixture.summaryCalls)).length, 1);
+
+        for (let minute = 0; minute < 4; minute++) {
+          yield* TestClock.adjust("1 minute");
+          yield* Queue.take(fixture.snapshotReads);
+          yield* reactor.drain;
+        }
+        assert.strictEqual((yield* Ref.get(fixture.summaryCalls)).length, 1);
+
+        yield* TestClock.adjust("1 minute");
+        yield* Queue.take(fixture.snapshotReads);
+        yield* reactor.drain;
+        assert.strictEqual((yield* Ref.get(fixture.summaryCalls)).length, 2);
+
+        // An app merge the host completes later sends only a refresh; reads stay on the minute
+        // cadence while the pull request still reads open.
+        yield* fixture.publishRefresh;
+        for (const expected of [3, 4]) {
+          yield* TestClock.adjust("1 minute");
+          yield* Queue.take(fixture.snapshotReads);
+          yield* reactor.drain;
+          assert.strictEqual((yield* Ref.get(fixture.summaryCalls)).length, expected);
+        }
+      }).pipe(Effect.provide(fixture.layer));
+    }),
+  );
+
+  it.effect.each([
+    { when: "after", mergeDuringRead: false },
+    { when: "during", mergeDuringRead: true },
+  ])(
+    "a merge $when a quiet pull request's read, while its thread is not a candidate, rereads it next sweep",
+    ({ mergeDuringRead }) =>
+      Effect.gen(function* () {
+        yield* TestClock.setTime(Date.parse(NOW));
+        const thread = makeThread("busy-branch", {
+          branch: "feature",
+          latestUserMessageAt: DateTime.makeUnsafe("2026-08-27T00:00:00.000Z"),
+          branchPullRequest: {
+            projectId: PROJECT_ID,
+            repository: "owner/repository",
+            number: 42,
+            url: "https://example.test/owner/repository/pull/42",
+          },
+        });
+        const readStarted = yield* Deferred.make<void>();
+        const releaseRead = yield* Deferred.make<void>();
+        if (!mergeDuringRead) yield* Deferred.succeed(releaseRead, undefined);
+        const fixture = yield* makeHarness({
+          snapshot: makeSnapshot([thread]),
+          pullRequestSummary: (input) =>
+            Deferred.succeed(readStarted, undefined).pipe(
+              Effect.andThen(Deferred.await(releaseRead)),
+              Effect.as(
+                makePullRequestSummary({
+                  ...input,
+                  state: "open",
+                  updatedAt: DateTime.formatIso(DateTime.makeUnsafe(Date.parse(NOW) - 2 * DAY_MS)),
+                }),
+              ),
+            ),
+        });
+
+        yield* Effect.gen(function* () {
+          const reactor = yield* ThreadDoneService.ThreadDoneServiceV2;
+          yield* reactor.start();
+          yield* Deferred.succeed(fixture.activation, undefined);
+          yield* Queue.take(fixture.snapshotReads);
+          yield* Deferred.await(readStarted);
+          if (!mergeDuringRead) yield* reactor.drain;
+          assert.strictEqual((yield* Ref.get(fixture.summaryCalls)).length, 1);
+
+          yield* Ref.set(fixture.snapshots, makeSnapshot([]));
+          yield* fixture.publishMerge;
+          yield* Queue.take(fixture.snapshotReads);
+          yield* Deferred.succeed(releaseRead, undefined);
+          yield* reactor.drain;
+
+          yield* Ref.set(fixture.snapshots, makeSnapshot([thread]));
+          yield* TestClock.adjust("1 minute");
+          yield* Queue.take(fixture.snapshotReads);
+          yield* reactor.drain;
+          assert.strictEqual((yield* Ref.get(fixture.summaryCalls)).length, 2);
         }).pipe(Effect.provide(fixture.layer));
       }),
   );
