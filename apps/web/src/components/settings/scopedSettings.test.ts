@@ -14,6 +14,7 @@ import { resolveWorktreeCleanup } from "@supaterm/shared/projectSettings";
 
 import type { SidebarProjectSnapshot } from "../../sidebarProjectGrouping";
 import {
+  applyPendingScopedWrites,
   createScopedSettingsWriter,
   persistScopedSettingsPatch,
   planProjectOverridesClear,
@@ -23,6 +24,8 @@ import {
   scopedSettingsAreMixed,
   scopedSettingsSource,
   selectScopedSettingsEnvironments,
+  settlePendingScopedWrites,
+  type PendingScopedWrite,
 } from "./scopedSettings";
 import { resolveSettingsScope } from "./settingsScope";
 
@@ -702,6 +705,45 @@ describe("scoped settings mixed values", () => {
     const second = environment("Second", { settings: { sourceControlWritingStyle: { ...style } } });
     const targets = resolveScopedSettingsTargets(all, [first, second]);
     expect(scopedSettingsAreMixed(targets, ["sourceControlWritingStyle"])).toBe(false);
+  });
+
+  it("agrees while a save is in flight and follows the environment once it reports back", () => {
+    const patch = { defaultRuntimeMode: "auto" as const };
+    const saved = environment("Laptop", { settings: patch });
+    let waiting = environment("Server");
+    const save = {};
+    let writes: readonly PendingScopedWrite[] = [saved, waiting].map(({ environmentId }) => ({
+      save,
+      environmentId,
+      patch,
+    }));
+    const mixed = () =>
+      scopedSettingsAreMixed(
+        resolveScopedSettingsTargets(all, applyPendingScopedWrites([saved, waiting], writes)),
+        ["defaultRuntimeMode"],
+      );
+    const settle = (environmentId: EnvironmentId, result?: ServerSettings) => {
+      writes = settlePendingScopedWrites(
+        writes,
+        { save, environmentId },
+        (id) => [saved, waiting].find((env) => env.environmentId === id)?.serverConfig?.settings,
+        result,
+      );
+    };
+    expect(mixed()).toBe(false);
+
+    // Laptop already pushed its result; Server answers before its push arrives.
+    settle(saved.environmentId, saved.serverConfig!.settings);
+    settle(waiting.environmentId, applyServerSettingsPatch(waiting.serverConfig!.settings, patch));
+    expect(writes.map(({ environmentId }) => environmentId)).toEqual([waiting.environmentId]);
+    expect(mixed()).toBe(false);
+
+    waiting = environment("Server", { settings: { defaultRuntimeMode: "approval-required" } });
+    expect(mixed()).toBe(true);
+
+    writes = [{ save, environmentId: waiting.environmentId, patch }];
+    settle(waiting.environmentId);
+    expect(writes).toEqual([]);
   });
 });
 
