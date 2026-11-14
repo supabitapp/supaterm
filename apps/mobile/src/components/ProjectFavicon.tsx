@@ -2,7 +2,7 @@ import { SymbolView } from "./ui/AppSymbol";
 import { AppText } from "./ui/AppText";
 import { NodeIcon } from "./ui/NodeIcon";
 import { Image } from "expo-image";
-import { memo, useLayoutEffect, useState } from "react";
+import { memo, useLayoutEffect, useMemo, useState } from "react";
 import { View } from "react-native";
 import { useResolveClassNames } from "uniwind";
 import type { EnvironmentId, ProjectIconOverride } from "@supaterm/contracts";
@@ -14,6 +14,7 @@ import {
 import { useAtomValue } from "@effect/atom-react";
 import { Atom } from "effect/reactivity";
 import { projectColorKey } from "@supaterm/shared/projectIdentity";
+import { useAppearancePreferences } from "../features/settings/appearance/AppearancePreferencesProvider";
 import { projectFaviconUrlAtom } from "../state/assets";
 import { projectMonogramColorAtom } from "../state/projectIdentity";
 import {
@@ -23,6 +24,7 @@ import {
   resolveProjectIconGlyph,
   type ProjectIconGlyph,
 } from "../lib/projectIcon";
+import { resolveProjectFaviconColorScheme } from "../lib/projectFaviconColorScheme";
 
 import {
   beginProjectFaviconRequest,
@@ -155,6 +157,16 @@ function ProjectFaviconImage(props: {
       : "loading",
   );
 
+  const { themeAppearance } = useAppearancePreferences();
+  const requestFaviconUrl = faviconRequest?.faviconUrl;
+  const inlineFaviconUrl = useMemo(
+    () =>
+      requestFaviconUrl?.startsWith("data:")
+        ? resolveProjectFaviconColorScheme(requestFaviconUrl, themeAppearance)
+        : null,
+    [requestFaviconUrl, themeAppearance],
+  );
+
   const requestIsActive = faviconRequest !== null;
   const showImage = requestIsActive && status === "loaded";
   const monogramColor = useAtomValue(projectMonogramColorAtom(projectColorKey(props.projectTitle)));
@@ -184,11 +196,11 @@ function ProjectFaviconImage(props: {
         <Image
           key={faviconRequest.faviconUrl}
           source={
-            faviconRequest.faviconUrl.startsWith("data:")
-              ? { uri: faviconRequest.faviconUrl }
+            inlineFaviconUrl !== null
+              ? { uri: inlineFaviconUrl }
               : { uri: faviconRequest.faviconUrl, cacheKey: faviconRequest.cacheKey }
           }
-          cachePolicy={faviconRequest.faviconUrl.startsWith("data:") ? "memory" : "memory-disk"}
+          cachePolicy={inlineFaviconUrl !== null ? "memory" : "memory-disk"}
           recyclingKey={faviconRequest.cacheKey}
           accessibilityLabel={`${props.projectTitle} favicon`}
           style={{

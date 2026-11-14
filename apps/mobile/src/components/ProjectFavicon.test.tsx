@@ -20,6 +20,9 @@ vi.mock("../state/projectIdentity", async () => {
   const color = Atom.make("blue");
   return { projectMonogramColorAtom: () => color };
 });
+vi.mock("../features/settings/appearance/AppearancePreferencesProvider", () => ({
+  useAppearancePreferences: () => ({ themeAppearance: "light" }),
+}));
 vi.mock("../state/assets", async () => {
   const { Atom } = await import("effect/reactivity");
   const url = Atom.make<string | null>("https://example.test/favicon.png");
