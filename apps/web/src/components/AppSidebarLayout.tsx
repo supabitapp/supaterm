@@ -222,7 +222,10 @@ function registerSidebarToggleCommand(router: AnyRouter, toggleSidebar: () => vo
         toggleSidebar();
       },
     },
-    { capture: true, context: () => ({ usagePageOpen: readUsagePageOpen(router) }) },
+    {
+      capture: true,
+      context: () => ({ ...readRoutePanelsOpen(router), usagePageOpen: readUsagePageOpen(router) }),
+    },
   );
 }
 
