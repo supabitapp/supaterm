@@ -114,6 +114,7 @@ function useThreadActionExecutor(
     action: ThreadListAction,
     thread: EnvironmentThreadShell,
     onStarted?: () => void,
+    restoreReopenedAt?: string | null,
   ) => {
     if (!checkThreadOperationPermission(thread, actionFailureTitle(action))) return false;
     const key = scopedThreadKey(thread.environmentId, thread.id);
@@ -153,7 +154,11 @@ function useThreadActionExecutor(
               // suppressed until real activity clears the pin server-side.
               await reopenMutation({
                 environmentId: thread.environmentId,
-                input: { threadId: thread.id, reason: "user" },
+                input: {
+                  threadId: thread.id,
+                  reason: "user",
+                  ...(restoreReopenedAt === undefined ? {} : { restoreReopenedAt }),
+                },
               })
             : await (
                 action === "mark-done"
@@ -245,6 +250,9 @@ export function useThreadListActions(): {
   const unsnoozeMutation = useAtomCommand(threadEnvironment.unsnooze, { reportFailure: false });
   const pinMutation = useAtomCommand(threadEnvironment.pin, { reportFailure: false });
   const unpinMutation = useAtomCommand(threadEnvironment.unpin, { reportFailure: false });
+  const reorderActiveMutation = useAtomCommand(threadEnvironment.reorderActive, {
+    reportFailure: false,
+  });
   const setAutoMarkDoneMutation = useAtomCommand(threadEnvironment.setAutoMarkDone, {
     reportFailure: false,
   });
@@ -274,11 +282,19 @@ export function useThreadListActions(): {
             async (step) => {
               switch (step.action) {
                 case "reopen":
-                  return reopenThread(thread);
+                  return reopenThread(thread, step.restoreReopenedAt);
                 case "unsnooze":
                   return unsnoozeThread(thread);
                 case "pin":
                   return pinThread(thread, step.orderKey);
+                case "reorderActive": {
+                  const result = await reorderActiveMutation({
+                    environmentId: thread.environmentId,
+                    input: { threadId: thread.id, orderKey: step.orderKey },
+                  });
+                  if (result._tag === "Failure") throw Cause.squash(result.cause);
+                  return true;
+                }
                 case "snooze": {
                   const failureTitle =
                     action === "Unpinned"
@@ -433,8 +449,10 @@ export function useThreadListActions(): {
       snoozeInFlightThreadKeys.current.delete(key);
     });
   };
-  const reopenThread = async (thread: EnvironmentThreadShell) =>
-    (await executeAction("reopen", thread)) === true;
+  const reopenThread = async (
+    thread: EnvironmentThreadShell,
+    restoreReopenedAt?: string | null,
+  ) => (await executeAction("reopen", thread, undefined, restoreReopenedAt)) === true;
   const pinThread = async (thread: EnvironmentThreadShell, restoreOrderKey?: string) => {
     if (!checkThreadOperationPermission(thread, "Could not pin thread")) return false;
     if (!environmentConfigLoaded(thread.environmentId)) {
