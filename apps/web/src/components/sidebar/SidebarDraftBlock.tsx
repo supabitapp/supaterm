@@ -131,16 +131,12 @@ const SidebarDraftRow = memo(function SidebarDraftRow(props: {
             handleDiscard(event);
           }}
         >
-          <span className="sr-only">{preview}</span>
           <div className="relative z-10 h-12 px-2.5 pt-1.5">
             <div className="flex h-5 min-w-0 items-center gap-1.5">
               {props.project ? (
                 <ProjectFavicon project={props.project} className="size-4 shrink-0" />
               ) : null}
-              <span
-                aria-hidden
-                className="min-w-0 flex-1 truncate text-sm font-medium text-foreground/90"
-              >
+              <span className="min-w-0 flex-1 truncate text-sm font-medium text-foreground/90">
                 {preview}
               </span>
               <span className="ml-auto flex h-5 min-w-5 shrink-0 items-center justify-end">
