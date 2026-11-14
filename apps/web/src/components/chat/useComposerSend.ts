@@ -946,13 +946,15 @@ export function useComposerSend(input: ComposerSendInput) {
         shouldDockDraftHeroForSubmission({ isDraftHeroState, activeThreadKey, submissionIntent }) &&
         activeThreadKey
       ) {
-        await runMobileComposerTransition(
+        const docking = runMobileComposerTransition(
           () => {
             captureDraftHeroLayout();
             setDockedDraftHeroThreadKey(activeThreadKey);
           },
           { active: panelAnimationsActive, durationMs: panelAnimationDurationMs },
         );
+        // Awaiting only a real transition keeps an inline dock in the same render as the send.
+        if (docking) await docking;
       }
       if (!sendQueuesBehindSetup) {
         beginWorktreeSetup(
