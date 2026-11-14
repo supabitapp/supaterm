@@ -752,6 +752,17 @@ const layerMakeServer = Layer.unwrap(
         yield* startup.markHttpListening;
       }),
     );
+    const layerDesktopReadySignal = Layer.effectDiscard(
+      Effect.gen(function* () {
+        const startup = yield* ServerRuntimeStartup.ServerRuntimeStartup;
+        const receiver = yield* DesktopTelemetryReceiver.DesktopTelemetryReceiver;
+        yield* startup.awaitCommandReady.pipe(
+          Effect.andThen(receiver.announceServerReady),
+          Effect.ignore,
+          Effect.forkScoped,
+        );
+      }),
+    );
     const layerRuntimeState = Layer.effectDiscard(
       Effect.gen(function* () {
         yield* Deferred.succeed(runtimeStateParked, undefined).pipe(Effect.orDie);
@@ -947,6 +958,7 @@ const layerMakeServer = Layer.unwrap(
     const layerServerApplication = Layer.mergeAll(
       layerRoutes,
       layerHttpListening,
+      layerDesktopReadySignal,
       layerRuntimeState.pipe(Layer.provide(layerLauncher)),
       layerTailscaleServe,
       HeapSnapshot.layer,
