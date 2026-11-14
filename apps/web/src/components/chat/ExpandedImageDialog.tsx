@@ -1,6 +1,12 @@
 import { memo, useRef, useState, type ReactNode, type KeyboardEvent } from "react";
 import { flushSync } from "react-dom";
-import { ChevronLeftIcon, ChevronRightIcon, XIcon, ImageIcon, TextIcon } from "@supaterm/icons";
+import {
+  ArrowLeftIcon,
+  ChevronLeftIcon,
+  ChevronRightIcon,
+  ImageIcon,
+  TextIcon,
+} from "@supaterm/icons";
 
 import { Button } from "../ui/button";
 import { Dialog, DialogPopup, DialogTitle } from "../ui/dialog";
@@ -176,6 +182,7 @@ export const ExpandedImageDialog = memo(function ExpandedImageDialog({
       <DialogPopup
         {...composerFloatingLayerProps}
         variant="media"
+        mediaControlsPlacement="inside"
         showCloseButton={false}
         bottomStickOnMobile={false}
         className="row-start-1 h-full max-h-[92vh] w-[92vw] max-w-[92vw] items-center justify-center overflow-visible [--media-width:92vw] [--media-height:min(calc((100vh-var(--native-titlebar-height,0px))*0.86),calc(100vh-var(--native-titlebar-height,0px)-160px))] sm:[--media-width:calc(92vw-96px)]"
@@ -190,13 +197,14 @@ export const ExpandedImageDialog = memo(function ExpandedImageDialog({
         <Button
           type="button"
           ref={closeButtonRef}
-          size="icon-sm"
+          size="sm"
           variant="media-close"
-          className="absolute right-0 top-0 z-20"
+          className="absolute left-0 top-0 z-20 max-[8rem]:left-1/2 max-[8rem]:-translate-x-1/2"
           onClick={close}
-          aria-label={`Close ${mediaLabel} preview`}
+          aria-label={`Back, close ${mediaLabel} preview`}
         >
-          <XIcon />
+          <ArrowLeftIcon aria-hidden="true" />
+          Back
         </Button>
         {preview.images.length > 1 && (
           <Button
