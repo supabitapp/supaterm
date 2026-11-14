@@ -27,6 +27,7 @@ import Reanimated, { FadeOut } from "react-native-reanimated";
 
 import { Button } from "../../components/ui/Button";
 import * as Dialog from "../../components/ui/Dialog";
+import { FilePreviewModal, type FilePreviewSource } from "../../components/ui/FilePreviewModal";
 import { AppText as Text } from "../../components/ui/AppText";
 import { SymbolView } from "../../components/ui/AppSymbol";
 import { scopedThreadKey } from "../../lib/scopedEntities";
@@ -79,6 +80,7 @@ export function ThreadQueueSheet({ route }: StaticScreenProps<QueueTarget>) {
   });
   const [resuming, setResuming] = useState(false);
   const [busyRunId, setBusyRunId] = useState<RunId | null>(null);
+  const [previewFile, setPreviewFile] = useState<FilePreviewSource | null>(null);
   const busyRef = useRef(false);
   const queuedRuns = workflow?.queuedRuns ?? [];
   const canSendNow = workflow?.canSendNow === true;
@@ -254,6 +256,7 @@ export function ThreadQueueSheet({ route }: StaticScreenProps<QueueTarget>) {
                     canPromoteToSteer={workflow?.canPromoteToSteer ?? false}
                     canSendNow={canSendNow}
                     onAction={(action) => void act(run.id, action)}
+                    onPressPreview={setPreviewFile}
                   />
                 </View>
                 {canSendQueuedMessages ? (
@@ -318,6 +321,7 @@ export function ThreadQueueSheet({ route }: StaticScreenProps<QueueTarget>) {
           </View>
         ) : null}
       </View>
+      <FilePreviewModal source={previewFile} onRequestClose={() => setPreviewFile(null)} />
     </GestureHandlerRootView>
   );
 }
