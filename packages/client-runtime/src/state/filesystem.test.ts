@@ -105,6 +105,7 @@ describe("filesystem browse model", () => {
       exactEntry: null,
     });
     expect(filterFilesystemBrowseEntries([entry], "De").visibleEntries).toEqual([entry]);
+    expect(filterFilesystemBrowseEntries([entry], "dévpt").visibleEntries).toEqual([entry]);
     expect(filterFilesystemBrowseEntries([entry], "D\u00e9veloppement").exactEntry).toBe(entry);
     // Linux keeps both spellings as separate folders; the one typed exactly wins.
     const composed = { name: "D\u00e9veloppement", fullPath: "/home/me/D\u00e9veloppement" };
@@ -142,5 +143,44 @@ describe("browse navigation", () => {
 
     await expect(invalidatedRun).resolves.toBe(false);
     expect(commits).toEqual(["second"]);
+  });
+});
+
+describe("browse entry filtering", () => {
+  const entries = ["my-supaterm", "supaterm", "cotton", "Supaterm-old", ".supaterm", "docs"].map((name) => ({
+    name,
+    fullPath: `~/code/${name}`,
+  }));
+  const names = (query: string) =>
+    filterFilesystemBrowseEntries(entries, query).visibleEntries.map((entry) => entry.name);
+
+  it("keeps every visible entry in order for an empty query", () => {
+    expect(names("")).toEqual(["my-supaterm", "supaterm", "cotton", "Supaterm-old", "docs"]);
+  });
+
+  it("matches substrings and subsequences, best match first", () => {
+    expect(names("code")).toEqual(["supaterm", "Supaterm-old", "my-supaterm"]);
+    expect(names("t3c")).toEqual(["supaterm", "Supaterm-old", "my-supaterm"]);
+    expect(names("tcd")).toEqual(["supaterm", "Supaterm-old", "my-supaterm"]);
+    expect(names("xyz")).toEqual([]);
+  });
+
+  it("ranks a word-start match in a long name above any substring match", () => {
+    const longName = `${"a".repeat(240)}-foo`;
+    const folders = [
+      { name: "xfoo", fullPath: "~/xfoo" },
+      { name: longName, fullPath: "~/long" },
+    ];
+    expect(
+      filterFilesystemBrowseEntries(folders, "foo").visibleEntries.map((entry) => entry.name),
+    ).toEqual([longName, "xfoo"]);
+  });
+
+  it("shows dot folders only when the query starts with a dot", () => {
+    expect(names("supaterm")).not.toContain(".supaterm");
+    expect(filterFilesystemBrowseEntries(entries, ".supaterm")).toEqual({
+      visibleEntries: [entries[4]],
+      exactEntry: entries[4],
+    });
   });
 });
