@@ -31,7 +31,7 @@ On Windows, in PowerShell, install the packaged command line with:
 irm https://supaterm.com/install.ps1 | iex
 ```
 
-This installs the `supaterm` binary to `~/.local/bin`. If that folder is not on your
+This installs the `supaterm` command to `~/.local/bin`. If that folder is not on your
 `PATH` yet, the installer says so and, for zsh, bash on Linux, and fish, prints
 a command to add it. On Windows, `supaterm` works in the same PowerShell window right
 away; add the folder to your `PATH` for new windows. If a `supaterm` that the

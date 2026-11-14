@@ -10,7 +10,11 @@ import { resolveCommandPath } from "@supaterm/shared/shell";
 import { resolveSelfInvocation } from "@supaterm/shared/nodeRuntime";
 
 import packageJson from "../../package.json" with { type: "json" };
-import { resolveLauncherPath } from "../service/pinnedRuntime.ts";
+import {
+  findPosixLauncher,
+  readPosixLauncherTarget,
+  resolveLauncherPath,
+} from "../service/pinnedRuntime.ts";
 
 const PINNED_RUNTIME_ENTRY = /^(.*)\/runtime\/versions\/[^/]+\/supaterm$/;
 
@@ -74,12 +78,23 @@ export const resolveServerInstallation = Effect.gen(function* () {
   const entry = yield* fs.realPath(yield* resolveEntryPath);
   const runtime = PINNED_RUNTIME_ENTRY.exec(entry);
   if (runtime) {
-    const launcher = yield* resolveLauncherPath;
+    const launchedAs = yield* resolveLauncherPath;
+    if (launchedAs === undefined) return null;
+    const link = yield* fs.readLink(launchedAs).pipe(Effect.option);
+    // A launcher script execs the runtime itself, so look for the script that runs it.
+    const launcher = Option.isSome(link)
+      ? launchedAs
+      : yield* findPosixLauncher({
+          launchedAs,
+          versionsDir: path.join(runtime[1] || "/", "runtime/versions"),
+        });
+    // None for a runtime started directly, as SSH launches do, or through a copy.
     if (launcher === undefined) return null;
-    // Fails for a runtime started directly, as SSH launches do, or through a copy.
-    const link = yield* fs.readLink(launcher);
-    // Keep the home as the link spells it; `supaterm update` only repoints links into that spelling.
-    const linked = PINNED_RUNTIME_ENTRY.exec(path.resolve(path.dirname(launcher), link));
+    const target = Option.isSome(link)
+      ? path.resolve(path.dirname(launcher), link.value)
+      : yield* readPosixLauncherTarget(launcher);
+    // Keep the home as the launcher spells it; `supaterm update` only repoints launchers into that spelling.
+    const linked = target === undefined ? null : PINNED_RUNTIME_ENTRY.exec(target);
     if (!linked || (yield* fs.realPath(linked[1] || "/")) !== (runtime[1] || "/")) return null;
     return {
       kind: "supaterm-launcher",
