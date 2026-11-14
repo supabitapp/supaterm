@@ -9,14 +9,13 @@ import {
   threadRuntimeIsUnsettled,
   type EnvironmentThreadShell,
 } from "@supaterm/client-runtime/state/models";
-import { effectiveSnoozed } from "@supaterm/client-runtime/state/thread-snooze";
+import {
+  effectiveSnoozed,
+  hasUnseenRunFailure,
+} from "@supaterm/client-runtime/state/thread-snooze";
 import { backgroundWorkHoldsCompletion } from "@supaterm/shared/orchestrationV2PendingBackgroundWork";
 
-import {
-  hasUnseenCompletion,
-  hasUnseenFailure,
-  resolveSidebarThreadStatus,
-} from "../Sidebar.logic";
+import { hasUnseenCompletion, resolveSidebarThreadStatus } from "../Sidebar.logic";
 
 function threadLedState(thread: EnvironmentThreadShell, seen: boolean): SidePulseLedState {
   const status = resolveSidebarThreadStatus(thread);
@@ -29,7 +28,7 @@ function threadLedState(thread: EnvironmentThreadShell, seen: boolean): SidePuls
   }
   if (seen) return "idle";
   if (status === "failed" || status === "limited") {
-    return hasUnseenFailure(thread) ? "attention" : "idle";
+    return hasUnseenRunFailure(thread) ? "attention" : "idle";
   }
   return hasUnseenCompletion(thread) ? "done" : "idle";
 }

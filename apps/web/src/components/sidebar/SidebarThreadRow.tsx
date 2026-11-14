@@ -85,7 +85,7 @@ import {
   resolveSidebarRowAccessibility,
   type SidebarDropVerb,
   type SidebarSweepAction,
-  resolveSidebarThreadStatus,
+  resolveSidebarRowStatus,
   resolveSidebarV2DurationStartedAt,
   resolveSidebarV2TopStatus,
   resolveThreadTotalWorkMs,
@@ -758,7 +758,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
   // Never-visited threads count as read so historical threads do not light up
   // as unread on first load.
   const isUnread = hasUnseenCompletion({ ...thread, lastVisitedAt });
-  const status = resolveSidebarThreadStatus(thread);
+  const status = resolveSidebarRowStatus({ ...thread, lastVisitedAt });
   const showDuration = environmentConnected && shouldShowSidebarV2Duration(status);
   // A woken thread keeps its static sort position, so the pill carries the signal and clears only
   // when the user re-engages; timer wakes survive a mere visit. An unparseable visit timestamp

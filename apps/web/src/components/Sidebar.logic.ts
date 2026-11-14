@@ -13,11 +13,13 @@ import {
 } from "@supaterm/contracts";
 import type { SidebarProjectSortOrder, SidebarThreadSortOrder } from "@supaterm/contracts/settings";
 import {
+  resolveThreadRowShownStatus,
   resolveThreadRowStatus,
   type ThreadRowStatus,
 } from "@supaterm/client-runtime/state/thread-row-status";
 import {
   effectiveSnoozed,
+  hasUnseenRunFailure,
   type ThreadSnoozeShell,
 } from "@supaterm/client-runtime/state/thread-snooze";
 import {
@@ -728,15 +730,6 @@ export function hasUnseenCompletion(thread: ThreadStatusInput): boolean {
   return completedAt > lastVisitedAt;
 }
 
-export function hasUnseenFailure(thread: ThreadStatusInput): boolean {
-  if (thread.latestRun?.status !== "failed") return false;
-  if (!thread.lastVisitedAt) return true;
-  const completedAt = Date.parse(thread.latestRun.completedAt ?? "");
-  const lastVisitedAt = Date.parse(thread.lastVisitedAt);
-  if (Number.isNaN(completedAt) || Number.isNaN(lastVisitedAt)) return true;
-  return completedAt > lastVisitedAt;
-}
-
 // A double-click dispatches a second `click` with `detail === 2` before `dblclick`; it must not
 // navigate, or double-click-to-rename would too. Keyboard activations have `detail === 0`.
 export function isTrailingDoubleClick(detail: number): boolean {
@@ -845,6 +838,14 @@ export function resolveSidebarThreadStatus(
   thread: Parameters<typeof resolveThreadRowStatus>[0],
 ): SidebarThreadStatus {
   const status = resolveThreadRowStatus(thread);
+  return status === "working" && thread.runtime?.status === "preparing" ? "preparing" : status;
+}
+
+/** Sidebar row status: a failure the user has already opened settles to ready, like Done. */
+export function resolveSidebarRowStatus(
+  thread: Parameters<typeof resolveThreadRowShownStatus>[0],
+): SidebarThreadStatus {
+  const status = resolveThreadRowShownStatus(thread);
   return status === "working" && thread.runtime?.status === "preparing" ? "preparing" : status;
 }
 
@@ -1007,7 +1008,7 @@ export function resolveThreadStatusPill(input: {
     };
   }
 
-  if (hasUnseenFailure(thread)) {
+  if (hasUnseenRunFailure(thread)) {
     return {
       label: "Failed",
       colorClass: "text-red-600 dark:text-red-300/90",
