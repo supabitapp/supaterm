@@ -243,6 +243,9 @@ export function useThreadActions() {
   const reorderPinnedThreadMutation = useOrchestrationCommand(threadEnvironment.reorderPin, {
     reportFailure: false,
   });
+  const reorderActiveThreadMutation = useOrchestrationCommand(threadEnvironment.reorderActive, {
+    reportFailure: false,
+  });
   const snoozeThreadMutation = useOrchestrationCommand(threadEnvironment.snooze, {
     reportFailure: false,
   });
@@ -663,13 +666,17 @@ export function useThreadActions() {
     return deleteResult;
   };
 
-  const reopenThread = async (target: ScopedThreadRef) => {
+  const reopenThread = async (target: ScopedThreadRef, restoreReopenedAt?: string | null) => {
     ThreadUndo.invalidate("mark-done", scopedThreadKey(target));
     // reason "user" pins the thread active: auto-mark-done (PR merged /
     // inactivity) stays suppressed until real activity clears the pin.
     return reopenThreadMutation({
       environmentId: target.environmentId,
-      input: { threadId: target.threadId, reason: "user" },
+      input: {
+        threadId: target.threadId,
+        reason: "user",
+        ...(restoreReopenedAt === undefined ? {} : { restoreReopenedAt }),
+      },
     });
   };
 
@@ -717,11 +724,16 @@ export function useThreadActions() {
       async (step) => {
         switch (step.action) {
           case "reopen":
-            return reopenThread(target);
+            return reopenThread(target, step.restoreReopenedAt);
           case "unsnooze":
             return unsnoozeThread(target);
           case "pin":
             return sendPin(target, step.orderKey === undefined ? {} : { orderKey: step.orderKey });
+          case "reorderActive":
+            return reorderActiveThreadMutation({
+              environmentId: target.environmentId,
+              input: { threadId: target.threadId, orderKey: step.orderKey },
+            });
           case "snooze":
             return snoozeThreadMutation({
               environmentId: target.environmentId,
