@@ -22,6 +22,7 @@ import {
   readServiceEnvironment,
   type BackupSpaceProbe,
   readServiceState,
+  serviceLauncherIsServing,
   stateDirOwned,
   writeServiceState,
 } from "./serviceLauncher.ts";
@@ -889,8 +890,11 @@ process.exit(0);
         });
         yield* Effect.promise(() => refused.promise);
         assert.isFalse(completed);
+        // An idle launcher must not make an SSH launch wait for a server it is not starting.
+        assert.isFalse(yield* Effect.promise(() => serviceLauncherIsServing(root)));
         otherOwner.close();
         yield* Effect.promise(() => owned.promise);
+        assert.isTrue(yield* Effect.promise(() => serviceLauncherIsServing(root)));
         yield* Effect.promise(() => launcher.stop("SIGTERM"));
         yield* Effect.promise(() => running);
         assert.strictEqual(spawnedChildren.length - spawnsBefore, 2);

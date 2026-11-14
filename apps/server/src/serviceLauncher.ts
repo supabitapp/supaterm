@@ -30,6 +30,7 @@ import {
   serviceUnitBaseDirOf,
   serviceUnitLogPathOf,
   SERVICE_ENV_FILE,
+  SERVICE_SERVING_LOCK_FILE,
   SERVICE_LAUNCHER_CONTEXT_ENV,
   SERVICE_LAUNCHER_PROTOCOL,
   SERVICE_STATE_FILE,
@@ -725,11 +726,12 @@ async function terminateChild(
 // An exclusive SQLite transaction, like the server's owner lock: the OS drops it when the holder dies.
 async function tryAcquireSqliteLock(
   lockPath: string,
+  busyTimeoutMs = 0,
 ): Promise<{ readonly close: () => void } | undefined> {
   const { DatabaseSync } = await import("node:sqlite");
   const db = new DatabaseSync(lockPath);
   try {
-    db.exec("PRAGMA busy_timeout = 0; BEGIN EXCLUSIVE;");
+    db.exec(`PRAGMA busy_timeout = ${busyTimeoutMs}; BEGIN EXCLUSIVE;`);
     return db;
   } catch (cause) {
     db.close();
@@ -737,6 +739,26 @@ async function tryAcquireSqliteLock(
     throw cause;
   }
 }
+
+async function sqliteLockHeld(lockPath: string): Promise<boolean> {
+  if (
+    !(await NodeFSP.access(lockPath).then(
+      () => true,
+      () => false,
+    ))
+  )
+    return false;
+  const lock = await tryAcquireSqliteLock(lockPath);
+  lock?.close();
+  return lock === undefined;
+}
+
+const servingLockPath = (baseDir: string) =>
+  NodePath.join(baseDir, "runtime", SERVICE_SERVING_LOCK_FILE);
+
+/** Whether a launcher has, or is about to start, a server for this home. An idle one does not. */
+export const serviceLauncherIsServing = (baseDir: string): Promise<boolean> =>
+  sqliteLockHeld(servingLockPath(baseDir)).catch(() => false);
 
 // Mirror acquireServerOwnership: the lock, then a live pre-lock server-runtime.json owner;
 // leave other failures for server startup to report.
@@ -802,6 +824,7 @@ export class Launcher {
   readonly #environment: Readonly<NodeJS.ProcessEnv>;
   readonly #stateDirOwnerPollMs: number;
   #stateDirFreeProbes = 0;
+  #servingLock: { readonly close: () => void } | undefined;
 
   constructor(
     baseDir: string,
@@ -831,9 +854,23 @@ export class Launcher {
       this.#enqueue(() => this.#recover());
       await this.#completion.promise;
     } finally {
+      this.#releaseServing();
       process.off("SIGTERM", onSigterm);
       process.off("SIGINT", onSigint);
     }
+  }
+
+  // Advisory: without it an SSH launch may start its own server, as it does beside no service.
+  async #claimServing(): Promise<void> {
+    // An SSH launch probes this lock for a moment; wait out that probe.
+    this.#servingLock ??= await tryAcquireSqliteLock(servingLockPath(this.#baseDir), 250).catch(
+      () => undefined,
+    );
+  }
+
+  #releaseServing(): void {
+    this.#servingLock?.close();
+    this.#servingLock = undefined;
   }
 
   #enqueue(transition: () => Promise<void>): void {
@@ -916,6 +953,7 @@ export class Launcher {
     // A stop during the probe must not arm a retry that outlives it.
     if (this.#stopRequested) return true;
     this.#clearTimer();
+    this.#releaseServing();
     try {
       process.stderr.write(
         `[service-launcher] ${reason} Waiting for free space before retrying.\n`,
@@ -927,6 +965,7 @@ export class Launcher {
           if (this.#child !== null || this.#stopping) return;
           if ((await this.#serviceStartDiskSpaceBlocker()) !== undefined) return;
           this.#clearTimer();
+          await this.#claimServing();
           await retry();
         }),
       DISK_SPACE_RETRY_MS,
@@ -955,6 +994,7 @@ export class Launcher {
   }
 
   async #recover(): Promise<void> {
+    await this.#claimServing();
     // A deferred `supaterm update` restart is done once this launcher runs the awaited version,
     // whoever restarted it. A launcher that came up between the CLI writing the marker and the
     // new state still runs the old version, so the marker must outlive it.
@@ -1323,6 +1363,7 @@ export class Launcher {
         await this.#repointServiceUnit(next.activeVersion);
       }
     }
+    this.#releaseServing();
     process.stderr.write(
       "[service-launcher] Another Supaterm server owns this Supaterm home. This service starts again once it stops.\n",
     );
@@ -1347,6 +1388,7 @@ export class Launcher {
     this.#stateDirFreeProbes = owned ? 0 : this.#stateDirFreeProbes + 1;
     if (this.#stateDirFreeProbes < 2) return;
     this.#clearTimer();
+    await this.#claimServing();
     process.stderr.write(
       "[service-launcher] The Supaterm home is free again. Starting the server.\n",
     );
