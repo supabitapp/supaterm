@@ -2066,6 +2066,10 @@ const make = Effect.gen(function* () {
     return `${target.protocol ?? "http"}://localhost:${target.port}${path.startsWith("/") || path === "" ? path : `/${path}`}`;
   };
 
+  /** A pending dialog also leaves the probe unanswered, but its script is waiting, not stuck. */
+  const leaveBusyPage = (tab: ServerTab, cdp: CDPSession, budgetMs?: number) =>
+    tab.dialog ? Promise.resolve() : ServerBrowserPage.stopUnresponsiveScript(cdp, budgetMs);
+
   const navigate = async (
     tab: ServerTab,
     url: string,
@@ -2074,7 +2078,9 @@ const make = Effect.gen(function* () {
   ) => {
     tab.pendingInitialRequestUrl = null;
     const startedAt = performance.now();
-    const navigation = tab.page.goto(url, { timeout, waitUntil: "commit" });
+    const remaining = () => Math.max(1, timeout - (performance.now() - startedAt));
+    await leaveBusyPage(tab, tab.cdp, timeout / 2);
+    const navigation = tab.page.goto(url, { timeout: remaining(), waitUntil: "commit" });
     if (readiness === "none") {
       tab.control.track(navigation);
       return;
@@ -2083,7 +2089,7 @@ const make = Effect.gen(function* () {
     const ready = () =>
       tab.page
         .waitForLoadState(readiness === "domContentLoaded" ? "domcontentloaded" : "load", {
-          timeout: Math.max(1, timeout - (performance.now() - startedAt)),
+          timeout: remaining(),
         })
         .catch((cause: unknown) => {
           if (!(cause instanceof Error && cause.name === "TimeoutError")) throw cause;
@@ -2850,6 +2856,7 @@ const make = Effect.gen(function* () {
             if (request?.clear === "cache") await tab.cdp.send("Network.clearBrowserCache");
             if (request?.hardReload) {
               tab.pendingInitialRequestUrl = null;
+              await leaveBusyPage(tab, tab.cdp);
               await tab.cdp.send("Page.reload", { ignoreCache: true });
             }
           })
@@ -2994,11 +3001,13 @@ const make = Effect.gen(function* () {
         if (typeof message.url === "string") {
           const url = normalizePreviewUrl(message.url);
           tab.pendingInitialRequestUrl = null;
+          await leaveBusyPage(tab, session);
           tab.control.trackUntilHandoff(tab.page.goto(url, VIEWER_NAVIGATION_OPTIONS));
         }
         return;
       case "history":
         tab.pendingInitialRequestUrl = null;
+        await leaveBusyPage(tab, session);
         tab.control.trackUntilHandoff(
           num(message.delta) < 0
             ? tab.page.goBack(VIEWER_NAVIGATION_OPTIONS)
@@ -3021,6 +3030,7 @@ const make = Effect.gen(function* () {
           );
           return;
         }
+        await leaveBusyPage(tab, session);
         if (message.ignoreCache === true) {
           await session.send("Page.reload", { ignoreCache: true });
           return;
