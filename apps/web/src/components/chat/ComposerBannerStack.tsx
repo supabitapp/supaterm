@@ -536,7 +536,7 @@ function ComposerBannerStackAlert({
           >
             {item.icon}
           </ComposerBanner.Icon>
-          <ComposerBanner.Content className="whitespace-nowrap">
+          <ComposerBanner.Content className="items-baseline whitespace-nowrap">
             <NoticeText
               detailsLabel={
                 typeof item.title === "string"

@@ -21,7 +21,7 @@ import type {
 } from "@supaterm/contracts";
 import { useNavigate } from "@tanstack/react-router";
 import * as Option from "effect/Option";
-import { useEffect, useEffectEvent, useRef, useState } from "react";
+import { useEffect, useEffectEvent, useId, useRef, useState } from "react";
 import { useDeadlinePassed } from "../hooks/useDeadline";
 import { useNowSecond } from "../hooks/useNowSecond";
 import { flushSync } from "react-dom";
@@ -352,12 +352,23 @@ function RunningGitActionElapsedTime({
     return null;
   }
 
-  return <p className={className}>{elapsed}</p>;
+  return (
+    <p aria-live="off" className={className}>
+      {elapsed}
+    </p>
+  );
 }
 
-function GitActionProgressButtonContent({ progress }: { progress: GitActionProgressPresentation }) {
+function GitActionProgressButtonContent({
+  progress,
+  id,
+}: {
+  progress: GitActionProgressPresentation;
+  id: string;
+}) {
   return (
     <div
+      id={id}
       aria-atomic="false"
       aria-live="polite"
       className="grid min-w-0 flex-1 grid-cols-[auto_minmax(0,1fr)] grid-rows-[1.25rem] items-center gap-x-2.5"
@@ -365,6 +376,7 @@ function GitActionProgressButtonContent({ progress }: { progress: GitActionProgr
     >
       <Spinner aria-hidden="true" size="md" tone="muted" className="row-start-1 shrink-0" />
       <p className="row-start-1 min-w-0 truncate text-left">{progress.status}</p>
+      {progress.output ? <span className="sr-only">{progress.output}</span> : null}
     </div>
   );
 }
@@ -887,6 +899,7 @@ export default function GitActionsControl({
   onOpenChanges,
   workspaceMutationId = null,
 }: GitActionsControlProps) {
+  const progressLabelId = useId();
   const panelAnchorRef = useRef<HTMLDivElement | null>(null);
   const updateThreadMetadata = useAtomCommand(
     threadEnvironment.updateMetadata,
@@ -1548,18 +1561,17 @@ export default function GitActionsControl({
             <Tooltip>
               <TooltipTrigger render={<span className="flex min-w-0 flex-1" />}>
                 <ThreadDetailsControl
-                  aria-label={
-                    gitActionProgress.output
-                      ? `${gitActionProgress.status} ${gitActionProgress.output}`
-                      : gitActionProgress.status
-                  }
+                  aria-labelledby={progressLabelId}
                   part="primary"
                   panel
                   disabled
                   size="xs"
                   variant="ghost"
                 >
-                  <GitActionProgressButtonContent progress={gitActionProgress} />
+                  <GitActionProgressButtonContent
+                    id={progressLabelId}
+                    progress={gitActionProgress}
+                  />
                 </ThreadDetailsControl>
               </TooltipTrigger>
               <TooltipPopup side="bottom" className="max-w-96 break-words">
