@@ -308,6 +308,7 @@ export function SettingsRow({
   onResetOverride,
   control,
   serverScoped = false,
+  devicePreference = false,
   settingKeys = EMPTY_SETTING_KEYS,
   mixed: mixedOverride,
   children,
@@ -321,6 +322,8 @@ export function SettingsRow({
   onResetOverride?: () => void;
   control?: ReactNode;
   serverScoped?: boolean;
+  /** Saved on this device, so a project cannot override it and the row is read-only there. */
+  devicePreference?: boolean;
   settingKeys?: readonly (keyof ServerSettings)[];
   mixed?: boolean;
   children?: ReactNode;
@@ -345,6 +348,7 @@ export function SettingsRow({
     context !== null && (context.scope.kind === "project" || context.scope.kind === "checkout");
   const scopedKeys = settingKeys.filter(isProjectScopedSettingKey);
   const environmentWide = isProjectScope && serverScoped && scopedKeys.length === 0;
+  const deviceReadOnly = isProjectScope && devicePreference;
   const mixed =
     mixedOverride ?? (context !== null && scopedSettingsAreMixed(context.targets, settingKeys));
   const source =
@@ -367,17 +371,18 @@ export function SettingsRow({
     ),
   );
   const overridingProjects = isProjectScope ? [] : projectOverrides(context, scopedKeys);
-  const renderedReset = unavailable ? null : isProjectScope && scopedKeys.length > 0 ? (
-    source === "project" || source === "mixed" ? (
-      <SettingResetButton
-        label={typeof title === "string" ? title : "override"}
-        tooltip="Reset to inherited value"
-        onClick={() => (onResetOverride ? onResetOverride() : clearOverrides(scopedKeys))}
-      />
-    ) : null
-  ) : (
-    resetAction
-  );
+  const renderedReset =
+    unavailable || deviceReadOnly ? null : isProjectScope && scopedKeys.length > 0 ? (
+      source === "project" || source === "mixed" ? (
+        <SettingResetButton
+          label={typeof title === "string" ? title : "override"}
+          tooltip="Reset to inherited value"
+          onClick={() => (onResetOverride ? onResetOverride() : clearOverrides(scopedKeys))}
+        />
+      ) : null
+    ) : (
+      resetAction
+    );
   const inertControl = (message: string) => (
     <Tooltip>
       <TooltipTrigger
@@ -416,7 +421,9 @@ export function SettingsRow({
         )
       : environmentWide && control
         ? inertControl("Environment-wide setting. Select an environment to change it.")
-        : control;
+        : deviceReadOnly && control
+          ? inertControl("Saved on this device. Select All projects to change it.")
+          : control;
   const customized =
     context !== null &&
     settingKeys.some((key) =>
