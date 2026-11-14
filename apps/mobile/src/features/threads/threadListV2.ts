@@ -243,6 +243,37 @@ export function resolveThreadListV2WokeAt(
     : null;
 }
 
+export function threadListV2RowAccessibilityLabel(input: {
+  readonly title: string;
+  readonly variant: "card" | "slim";
+  readonly woke: boolean;
+  readonly statusLabel: string | undefined;
+  readonly timeLabel: string;
+  readonly snoozeWakeLabel: string | undefined;
+  readonly providerNameLabel: string | null;
+  readonly hasUnsentDraft: boolean;
+  readonly hasQueuedMessages: boolean;
+  readonly regeneratingTitle: boolean;
+}): string {
+  // Mirrors the row's meta line: a card shows Woke, else its status, else the time.
+  const meta =
+    input.variant === "slim"
+      ? (input.snoozeWakeLabel ?? input.timeLabel)
+      : input.woke
+        ? "Woke"
+        : (input.statusLabel ?? input.timeLabel);
+  return [
+    input.title,
+    meta,
+    input.providerNameLabel,
+    input.hasUnsentDraft ? "unsent draft" : null,
+    input.hasQueuedMessages ? "messages queued to send" : null,
+    input.regeneratingTitle ? "regenerating title" : null,
+  ]
+    .filter((part) => part !== null)
+    .join(", ");
+}
+
 function parseTimestampMs(isoDate: string): number {
   const parsed = Date.parse(isoDate);
   return Number.isNaN(parsed) ? 0 : parsed;

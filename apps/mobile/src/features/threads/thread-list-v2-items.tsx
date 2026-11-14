@@ -84,6 +84,7 @@ import {
   resolveThreadListV2ProviderDrivers,
   resolveThreadListV2SwipeActions,
   layoutThreadListV2RowMenuActions,
+  threadListV2RowAccessibilityLabel,
 } from "./threadListV2";
 import { QueuedMessageIcon } from "./queued-message-icon";
 import { UnsentDraftIcon } from "./unsent-draft-icon";
@@ -832,15 +833,6 @@ export const ThreadListV2Row = memo(function ThreadListV2Row(props: {
   // The selected thread shows its own composer in the detail pane.
   const hasUnsentDraft = useThreadHasUnsentDraft(threadKey) && !selected;
   const isRegeneratingTitle = thread.titleRegeneration != null;
-  const rowAccessibilityLabel = [
-    thread.title,
-    providerNameLabel,
-    hasUnsentDraft ? "unsent draft" : null,
-    props.hasQueuedMessages ? "messages queued to send" : null,
-    isRegeneratingTitle ? "regenerating title" : null,
-  ]
-    .filter((part) => part !== null)
-    .join(", ");
 
   const rawStatus = resolveThreadRowStatus(thread);
   const status = resolveThreadRowShownStatus(thread);
@@ -877,6 +869,19 @@ export const ThreadListV2Row = memo(function ThreadListV2Row(props: {
   // The timestamp is precomputed on the list item (same stamps the done
   // tail sorts by) so a minute tick only re-renders rows that draw it.
   const timeLabel = props.timeLabel;
+  const rowAccessibilityLabel = threadListV2RowAccessibilityLabel({
+    title: thread.title,
+    variant,
+    woke: showsWoke,
+    statusLabel: statusLabel?.label,
+    // A row whose environment is not connected shows that state where its time would be.
+    timeLabel: environmentConnected ? timeLabel : (rowStatusLabel?.label ?? timeLabel),
+    snoozeWakeLabel: environmentConnected && snoozedRow ? props.snoozeWakeLabelText : undefined,
+    providerNameLabel,
+    hasUnsentDraft,
+    hasQueuedMessages: props.hasQueuedMessages === true,
+    regeneratingTitle: isRegeneratingTitle,
+  });
 
   const visitThread = useAtomCommand(threadEnvironment.visit, { reportFailure: false });
   const handleAcknowledgeWoke = useCallback(() => {
@@ -1679,7 +1684,12 @@ export const ThreadListV2Row = memo(function ThreadListV2Row(props: {
         threadTitle={thread.title}
       >
         {(close) => (
-          <Menu actions={menuActions} onPressAction={handleMenuAction} shouldOpenOnLongPress>
+          <Menu
+            accessibilityLabel={rowAccessibilityLabel}
+            actions={menuActions}
+            onPressAction={handleMenuAction}
+            shouldOpenOnLongPress
+          >
             {rowContent(close)}
           </Menu>
         )}
