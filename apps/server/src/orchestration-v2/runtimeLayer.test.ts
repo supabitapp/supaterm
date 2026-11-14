@@ -10851,6 +10851,7 @@ it.layer(layerTest)("usage-limit recovery", (it) => {
     "invalid-snooze",
     "snooze-only",
     "snooze-resume",
+    "done",
     "cancel-resume-keep-snooze",
     "wake-preserve-resume",
     "independent-patches",
@@ -11003,6 +11004,38 @@ it.layer(layerTest)("usage-limit recovery", (it) => {
         const current = yield* orchestrator.getThreadProjection(threadId);
         assert.isNull(current.thread.limitRecovery ?? null);
         assert.isNull(current.thread.snoozedUntil);
+        return;
+      }
+      if (scenario === "done") {
+        yield* orchestrator.dispatch({
+          type: "thread.metadata.update",
+          commandId: CommandId.make("recovery:arm-before-settle:done"),
+          threadId,
+          limitRecovery: { runId: run.id, resetAt, autoResume: true, snooze: true },
+        });
+        yield* orchestrator.dispatch({
+          type: "thread.mark-done",
+          commandId: CommandId.make("recovery:settle:done"),
+          threadId,
+        });
+        const error = yield* orchestrator
+          .dispatch({
+            type: "thread.metadata.update",
+            commandId: CommandId.make("recovery:arm:done"),
+            threadId,
+            limitRecovery: { runId: run.id, resetAt, autoResume: true },
+          })
+          .pipe(Effect.flip);
+        assert(error._tag === "OrchestratorDispatchError");
+        assert.equal(error.cause, "The thread is done. Reopen it to resume at the reset.");
+        assert.deepInclude(
+          (yield* orchestrator.getThreadProjection(threadId)).thread.limitRecovery,
+          {
+            runId: run.id,
+            autoResume: false,
+            snooze: false,
+          },
+        );
         return;
       }
       const snooze = [
