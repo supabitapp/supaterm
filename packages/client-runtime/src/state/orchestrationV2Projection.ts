@@ -2,6 +2,7 @@ import { applyThreadPullRequestLinkUpdate } from "../threadPullRequests.ts";
 import {
   applyOrchestrationV2ThreadVisit,
   isOrchestrationV2RunUnsettled,
+  isQueuedProviderThreadPlaceholder,
   type OrchestrationV2DomainEvent,
   type OrchestrationV2Run,
   type OrchestrationV2ThreadProjection,
@@ -377,7 +378,15 @@ export function applyOrchestrationV2ProjectionEvent(
         ),
       };
     case "provider-thread.updated":
-      return { ...base, providerThreads: upsertEntity(base.providerThreads, event.payload) };
+      return {
+        ...base,
+        thread:
+          event.payload.appThreadId === base.thread.id &&
+          !isQueuedProviderThreadPlaceholder(event.payload)
+            ? { ...base.thread, activeProviderThreadId: event.payload.id }
+            : base.thread,
+        providerThreads: upsertEntity(base.providerThreads, event.payload),
+      };
     case "provider-turn.updated":
       return {
         ...base,

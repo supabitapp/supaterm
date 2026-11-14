@@ -47,6 +47,7 @@ import type {
   RunAttemptId,
 } from "@supaterm/contracts";
 import {
+  isQueuedProviderThreadPlaceholder,
   OrchestrationV2AppThreadJson as OrchestrationV2AppThreadJsonSchema,
   OrchestrationV2CheckpointJson as OrchestrationV2CheckpointJsonSchema,
   OrchestrationV2CheckpointScopeJson as OrchestrationV2CheckpointScopeJsonSchema,
@@ -861,15 +862,6 @@ export function emptyProjection(
     visibleTurnItems: [],
     updatedAt: event.occurredAt,
   };
-}
-
-function isQueuedProviderThreadPlaceholder(providerThread: OrchestrationV2ProviderThread): boolean {
-  return (
-    providerThread.status === "not_loaded" &&
-    providerThread.firstRunOrdinal === null &&
-    providerThread.nativeThreadRef === null &&
-    providerThread.providerSessionId === null
-  );
 }
 
 export function applyToProjection(
