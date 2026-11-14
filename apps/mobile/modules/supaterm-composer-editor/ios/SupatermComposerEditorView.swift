@@ -742,6 +742,7 @@ public final class SupatermComposerEditorView: ExpoView, UITextViewDelegate, UIT
 
   func setPlaceholder(_ placeholder: String) {
     placeholderLabel.text = placeholder
+    textView.accessibilityLabel = placeholder
     setNeedsLayout()
   }
 
