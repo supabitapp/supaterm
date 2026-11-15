@@ -73,6 +73,10 @@ export function AndroidAnchoredMenu(props: AndroidAnchoredMenuProps) {
     if (anchor?.keyboardWasVisible) setClosing(true);
     else reset();
   }, [anchor, reset]);
+  // The in-window menu is pinned to the trigger's spot above the keyboard, which is stale once it hides.
+  if (anchor?.keyboardWasVisible === true && !keyboardVisible) {
+    reset();
+  }
 
   const open = useCallback(() => {
     anchorRef.current?.measureInWindow((x, y, width, height) => {
