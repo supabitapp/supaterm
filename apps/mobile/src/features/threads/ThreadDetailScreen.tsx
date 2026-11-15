@@ -977,6 +977,11 @@ function ThreadDetailBody(
     !props.selectedThread.hasPendingApprovals &&
     !props.selectedThread.hasPendingUserInput &&
     deriveFloatingStatus(true) !== null;
+  // A pending message holds the pill's row for its Starting/Working pill. Worktree setup reports
+  // progress in the feed instead, so holding the row there only leaves a gap that later closes.
+  const worktreeSetupInFeed =
+    props.worktreeSetup?.snapshot.phase === "running" ||
+    (props.creationState?.kind === "preparing" && props.creationState.preparingWorktree);
   const showFloatingStatus =
     showWorkingControl ||
     reservesStatusRoom ||
@@ -984,10 +989,11 @@ function ThreadDetailBody(
     agentsSegment !== null ||
     devicePreviews.length > 0 ||
     browserTabs.tabs.length > 0 ||
-    props.queuedMessages.length > 0 ||
-    props.selectedThreadFeed.some(
-      (entry) => "acknowledged" in entry && entry.acknowledged === true,
-    );
+    (!worktreeSetupInFeed &&
+      (props.queuedMessages.length > 0 ||
+        props.selectedThreadFeed.some(
+          (entry) => "acknowledged" in entry && entry.acknowledged === true,
+        )));
   const selectedThreadFeed = props.selectedThreadFeed;
   // A queued-run edit, question or approval owns the composer, and its send carries no fresh session.
   const freshSessionAvailable =
