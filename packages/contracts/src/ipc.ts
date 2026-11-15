@@ -1069,6 +1069,7 @@ export interface DesktopBridge {
   getClientPlatform: () => string;
   /** Native macOS symbol PNGs; missing symbols use the client's SVG fallback. */
   getEnvironmentMachineIcons: () => DesktopEnvironmentMachineIcons;
+  restartAudioService?: () => Promise<boolean>;
   setNotificationBadge: (badge: { count: number; image: string | null }) => Promise<void>;
   onNotificationBadgeClear: (listener: () => void) => () => void;
   onTrackpadScrollBegin: (listener: () => void) => () => void;
