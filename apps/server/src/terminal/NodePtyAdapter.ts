@@ -187,7 +187,7 @@ class NodePtyProcess implements PtyAdapter.PtyProcess {
     return this.process.pid;
   }
 
-  write(data: string): void {
+  write(data: string | Buffer): void {
     this.process.write(data);
   }
 
