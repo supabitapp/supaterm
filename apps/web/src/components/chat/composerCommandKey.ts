@@ -40,6 +40,7 @@ import type { ReferenceContextRecord } from "../../lib/composerContextRecords";
  */
 export function composerCommandKeyHandler(input: {
   readonly keybindings: ChatComposerProps["keybindings"];
+  readonly getShortcutContext: ChatComposerProps["getShortcutContext"];
   readonly sendShortcut: ChatComposerProps["settings"]["sendShortcut"];
   readonly routeKind: ChatComposerProps["routeKind"];
   readonly turnRunning: boolean;
@@ -99,6 +100,7 @@ export function composerCommandKeyHandler(input: {
 }) {
   const {
     keybindings,
+    getShortcutContext,
     sendShortcut,
     routeKind,
     turnRunning,
@@ -229,6 +231,7 @@ export function composerCommandKeyHandler(input: {
     const submissionIntent = composerSubmissionIntentForKey({
       event,
       keybindings,
+      context: getShortcutContext(event.target),
       isSoftwareKeyboardOpen,
       isDraftThread: routeKind === "draft",
       isRunning: turnRunning,
