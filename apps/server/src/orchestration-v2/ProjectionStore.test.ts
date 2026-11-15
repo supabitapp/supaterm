@@ -2333,13 +2333,32 @@ const subagentRecordsSelectById = Effect.gen(function* () {
   const runId = (yield* store.getThreadRecords(threadId, ["runs"])).runs[0]!.id;
   const byId = traceSqlStatements();
   yield* store
-    .getThreadRecords(threadId, ["runs", "subagents"], { runIds: [runId], subagentIds: ids })
+    .getThreadRecords(threadId, ["runs", "subagents", "attempts", "providerTurns"], {
+      runIds: [runId],
+      subagentIds: ids,
+      attemptIds: [RunAttemptId.make("attempt:subagent-by-id")],
+      providerTurnIds: [ProviderTurnId.make("turn:subagent-by-id")],
+    })
     .pipe(Effect.withTracer(byId.tracer));
-  for (const table of ["runs", "subagents"]) {
+  for (const table of ["runs", "subagents", "run_attempts", "provider_turns"]) {
     assert.include(
       yield* planOf(byId.statements, table),
       `USING INDEX sqlite_autoindex_orchestration_v2_projection_${table}_1`,
     );
+  }
+  // A task's turn item and a child thread's tasks are found through their own indexes.
+  const byOwner = traceSqlStatements();
+  yield* store
+    .getThreadRecords(threadId, ["subagents", "turnItems"], {
+      subagentChildThreadIds: [threadId],
+      turnItemNodeIds: [ids[0]!],
+    })
+    .pipe(Effect.withTracer(byOwner.tracer));
+  for (const [table, index] of [
+    ["subagents", "orchestration_v2_projection_subagents_child_thread_idx"],
+    ["turn_items", "orchestration_v2_projection_turn_items_node_ordinal_idx"],
+  ] as const) {
+    assert.include(yield* planOf(byOwner.statements, table), `USING INDEX ${index}`);
   }
 });
 
