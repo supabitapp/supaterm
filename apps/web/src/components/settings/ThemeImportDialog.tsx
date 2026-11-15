@@ -2,6 +2,7 @@ import { DownloadIcon, PlusIcon } from "@supaterm/icons";
 import type { ChangeEvent, DragEvent, UIEvent } from "react";
 import { settlePromise } from "@supaterm/client-runtime/state/runtime";
 import { useEffect, useRef, useState } from "react";
+import { formatBytes } from "../../lib/formatBytes";
 import { cn } from "../../lib/utils";
 import {
   getCustomThemes,
@@ -34,15 +35,9 @@ const MAX_THEME_FILE_BYTES = 256 * 1024;
  *  pastes fall back to plain text instead of freezing the editor. */
 const MAX_HIGHLIGHTED_JSON_LENGTH = 20_000;
 
-function formatByteSize(bytes: number): string {
-  if (bytes >= 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-  if (bytes >= 1024) return `${Math.round(bytes / 1024)} KB`;
-  return `${bytes} bytes`;
-}
-
 function describeOversizedThemeFile(bytes: number): string | null {
   if (bytes <= MAX_THEME_FILE_BYTES) return null;
-  return `That file is ${formatByteSize(bytes)}. Theme files are only a few KB, so this one was not read (limit ${formatByteSize(MAX_THEME_FILE_BYTES)}).`;
+  return `That file is ${formatBytes(bytes)}. Theme files are only a few KB, so this one was not read (limit ${formatBytes(MAX_THEME_FILE_BYTES)}).`;
 }
 
 function escapeJsonHtml(value: string): string {
