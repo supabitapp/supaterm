@@ -11,6 +11,7 @@ import { Badge } from "../ui/badge";
 import { Popover, PopoverPopup, PopoverTrigger } from "../ui/popover";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { cn } from "~/lib/utils";
+import { useMediaQuery } from "../../hooks/useMediaQuery";
 import { ModelPickerContent, resolveModelPickerSelectedModel } from "./ModelPickerContent";
 import { retainedModelWhileProviderLocked } from "./ProviderModelPicker.logic";
 import { ChatGptSharingControl } from "./ChatGptSharingControl";
@@ -121,6 +122,9 @@ export const ProviderModelPicker = memo(function ProviderModelPicker(props: {
     if (isMenuOpen) refreshModelCatalog();
   }, [isMenuOpen]);
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const popupRef = useRef<HTMLDivElement | null>(null);
+  // Touch opens on the popup itself so the on-screen keyboard stays down until the search is tapped.
+  const isCoarsePointer = useMediaQuery({ pointer: "coarse" });
   const size = props.size ?? "sm";
 
   const activeEntry =
@@ -304,8 +308,15 @@ export const ProviderModelPicker = memo(function ProviderModelPicker(props: {
       </Tooltip>
       <PopoverPopup
         {...(props.isComposerOwned ? composerFloatingLayerProps : {})}
-        ref={lockBackgroundScroll}
-        initialFocus={searchInputRef}
+        ref={(popup) => {
+          popupRef.current = popup;
+          const unlock = lockBackgroundScroll(popup);
+          return () => {
+            popupRef.current = null;
+            unlock?.();
+          };
+        }}
+        initialFocus={isCoarsePointer ? popupRef : searchInputRef}
         align="start"
         className="before:hidden"
         padding="none"
