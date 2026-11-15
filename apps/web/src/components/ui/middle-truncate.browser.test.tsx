@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vite-plus/test";
+import { describe, expect, it, vi } from "vite-plus/test";
 
 import { render } from "../../../test/render";
 import { MiddleTruncate } from "./middle-truncate";
@@ -22,6 +22,27 @@ describe("MiddleTruncate", () => {
     expect(label()).toHaveTextContent("main");
     expect(label()).not.toHaveAttribute("data-overflow");
     expect(label()).toHaveStyle({ clipPath: "none" });
+  });
+
+  it("fits every head mounted in the same commit", async () => {
+    const values = [
+      "supaterm/investigate-release-build-times",
+      "supaterm/remove-stale-worktree-branches",
+    ];
+    await using screen = await render(
+      <>
+        {values.map((value) => (
+          <div key={value}>{narrow(value)}</div>
+        ))}
+      </>,
+    );
+    const heads = () => [
+      ...screen.container.querySelectorAll<HTMLElement>("[title] > span:first-child"),
+    ];
+
+    await vi.waitFor(() =>
+      expect(heads().filter((head) => head.hasAttribute("data-overflow"))).toHaveLength(2),
+    );
   });
 
   it.each([
