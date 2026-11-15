@@ -323,6 +323,9 @@ function mergeClaudeStreamUsage(
   };
 }
 export const CLAUDE_DEFAULT_INSTANCE_ID = defaultInstanceIdForDriver(CLAUDE_PROVIDER);
+// The Claude CLI takes the next token as this flag's value even when it starts with `--`.
+const claudeLaunchArgParseOptions = { valueFlags: ["append-system-prompt"] };
+
 // Entry extensions the Claude SDK runs through node instead of executing.
 const CLAUDE_SCRIPT_EXTENSIONS = [".js", ".mjs", ".tsx", ".ts", ".jsx"];
 // The SDK puts no deadline on control requests. The CLI answers
@@ -2145,7 +2148,9 @@ export function makeClaudeQueryOptions(input: {
     // The SDK replaces this flag with options.settings, so it arrives read as sdkSettings.
     settings: _launchArgSettings,
     ...extraArgs
-  } = input.settings === undefined ? {} : parseCliArgs(input.settings.launchArgs).flags;
+  } = input.settings === undefined
+    ? {}
+    : parseCliArgs(input.settings.launchArgs, claudeLaunchArgParseOptions).flags;
   // Claude Code overwrites its CLI append text with the SDK's initialize
   // appendSystemPrompt, so launch-argument text has to travel in that value.
   // The CLI puts file text before inline text and trims one trailing newline.
@@ -2310,7 +2315,7 @@ const readClaudeAppendSystemPromptFile = Effect.fnUntraced(function* (input: {
   readonly path: Path.Path;
 }) {
   if (input.settings === undefined) return undefined;
-  const flags = parseCliArgs(input.settings.launchArgs).flags;
+  const flags = parseCliArgs(input.settings.launchArgs, claudeLaunchArgParseOptions).flags;
   // parseCliArgs gives null for a flag with no following value. An explicit
   // `--append-system-prompt ""` is a value the CLI accepts, so it stays.
   if (flags["append-system-prompt"] === null) {
@@ -2355,7 +2360,8 @@ const readClaudeLaunchArgSettings = Effect.fn("ClaudeAdapterV2.readLaunchArgSett
     readonly path: Path.Path;
   }) {
     if (input.settings === undefined) return undefined;
-    const value = parseCliArgs(input.settings.launchArgs).flags.settings;
+    const value = parseCliArgs(input.settings.launchArgs, claudeLaunchArgParseOptions).flags
+      .settings;
     if (value === undefined) return undefined;
     const trimmed = value?.trim() ?? "";
     if (trimmed.length === 0) return yield* new ClaudeSettingsLaunchArgError({});
