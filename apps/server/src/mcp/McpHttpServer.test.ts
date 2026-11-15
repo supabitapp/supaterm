@@ -39,6 +39,7 @@ import * as McpOAuth from "../auth/McpOAuth.ts";
 import * as ServerSecretStore from "../auth/ServerSecretStore.ts";
 import * as ServerEnvironment from "../environment/ServerEnvironment.ts";
 import * as Sqlite from "../persistence/Sqlite.ts";
+import * as PreviewManager from "../preview/Manager.ts";
 import * as DeviceService from "../device/DeviceService.ts";
 import * as PullRequestReviewGuideService from "../pullRequest/PullRequestReviewGuideService.ts";
 import * as PullRequestService from "../pullRequest/PullRequestService.ts";
@@ -55,7 +56,9 @@ import * as OrchestratorMcpService from "./OrchestratorMcpService.ts";
 import * as PreviewAutomationBroker from "./PreviewAutomationBroker.ts";
 import { OrchestratorToolkit } from "./toolkits/orchestrator/tools.ts";
 import { PreviewToolkit } from "./toolkits/preview/tools.ts";
+import { PreviewControlsToolkit } from "./toolkits/previewControls/tools.ts";
 import { ProjectToolkit } from "./toolkits/project/tools.ts";
+import { ThreadToolkit } from "./toolkits/thread/tools.ts";
 
 const supportedOperations = PREVIEW_AUTOMATION_SERVER_OPERATIONS;
 
@@ -298,7 +301,10 @@ const layerRecordingTools = (calls: Array<unknown>) => {
     OrchestratorToolkit.tools.supaterm_thread_list,
     OrchestratorToolkit.tools.supaterm_thread_read,
     OrchestratorToolkit.tools.supaterm_thread_wait,
+    ProjectToolkit.tools.supaterm_project_list,
     ProjectToolkit.tools.supaterm_project_update,
+    ThreadToolkit.tools.supaterm_queue,
+    PreviewControlsToolkit.tools.supaterm_preview_list,
     ProjectToolkit.tools.supaterm_thread_launch,
   );
   const record = McpToolAccess.reads((params: unknown) =>
@@ -315,7 +321,10 @@ const layerRecordingTools = (calls: Array<unknown>) => {
       supaterm_thread_list: record,
       supaterm_thread_read: record,
       supaterm_thread_wait: record,
+      supaterm_project_list: record,
       supaterm_project_update: record,
+      supaterm_queue: record,
+      supaterm_preview_list: record,
       supaterm_thread_launch: record,
     }),
   ).pipe(
@@ -325,6 +334,8 @@ const layerRecordingTools = (calls: Array<unknown>) => {
         McpToolAccessTestkit.liveThreadsLayer,
         Layer.mock(OrchestratorMcpService.OrchestratorMcpService)({}),
         Layer.mock(ProjectService.ProjectService)({}),
+        Layer.mock(PreviewManager.PreviewManager)({}),
+        Layer.mock(PreviewAutomationBroker.PreviewAutomationBroker)({}),
         Layer.mock(ThreadLaunchService.ThreadLaunchService)({}),
         Layer.mock(ManagedProjectFolders.ManagedProjectFolders)({
           namedProjectsRoot: process.cwd(),
@@ -767,17 +778,24 @@ it.effect.each(["limit", "runLimit", "maxCharsPerItem"])(
   },
 );
 
-it.effect(
-  "clamps a supaterm_thread_list limit above its maximum instead of rejecting the call",
-  () => {
+const clampedListLimits = [
+  { tool: "supaterm_thread_list", input: { allProjects: true }, maximum: 100 },
+  { tool: "supaterm_project_list", input: {}, maximum: 100 },
+  { tool: "supaterm_queue", input: { action: "list" }, maximum: 100 },
+  { tool: "supaterm_preview_list", input: {}, maximum: 50 },
+];
+
+it.effect.each(clampedListLimits)(
+  "clamps a $tool limit above its maximum instead of rejecting the call",
+  ({ tool, input, maximum }) => {
     const calls: Array<unknown> = [];
     return Effect.gen(function* () {
-      yield* callTool("supaterm_thread_list", { allProjects: true, limit: 200 });
-      yield* callTool("supaterm_thread_list", { allProjects: true, limit: 7 });
+      yield* callTool(tool, { ...input, limit: maximum * 2 });
+      yield* callTool(tool, { ...input, limit: 7 });
 
       expect(calls).toEqual([
-        { allProjects: true, limit: 100 },
-        { allProjects: true, limit: 7 },
+        { ...input, limit: maximum },
+        { ...input, limit: 7 },
       ]);
     }).pipe(Effect.provide(layerRecordingTools(calls)));
   },
