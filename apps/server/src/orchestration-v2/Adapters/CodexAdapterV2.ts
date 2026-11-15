@@ -1323,6 +1323,7 @@ interface ActiveCodexTurnContext {
   readonly startedAt: DateTime.Utc;
   readonly generatedImages: CodexGeneratedImages;
   readonly runningCompactionItemIds: Set<string>;
+  readonly runningWebSearchItems: Map<string, CodexWebSearchItem>;
   // Modern approval requests omit paths; keep the kinds without retaining patch bodies.
   readonly fileChangeKindsByItem: Map<string, CodexFileChangeKinds>;
   readonly messagePhases: Map<string, "commentary" | "partial_answer" | "final_answer">;
@@ -2436,6 +2437,7 @@ export const makeCodexAdapterV2 = Effect.fn("makeCodexAdapterV2")(function* (
             fileChangeKindsByItem: new Map(),
             messagePhases: new Map(),
             runningCompactionItemIds: new Set(),
+            runningWebSearchItems: new Map(),
           };
           const nativeThreadId = input.turnInput.providerThread.nativeThreadRef?.nativeId;
           const continuation =
@@ -3065,6 +3067,7 @@ export const makeCodexAdapterV2 = Effect.fn("makeCodexAdapterV2")(function* (
               fileChangeKindsByItem: new Map(),
               messagePhases: new Map(),
               runningCompactionItemIds: new Set(),
+              runningWebSearchItems: new Map(),
             };
             beginTurnTokenUsage(activeContext);
             endSessionApprovalsOnModeChange(activeContext);
@@ -4109,10 +4112,11 @@ export const makeCodexAdapterV2 = Effect.fn("makeCodexAdapterV2")(function* (
           function* (input: {
             readonly context: ActiveCodexTurnContext;
             readonly item: CodexWebSearchItem;
-            readonly completed: boolean;
+            readonly status: "running" | "completed" | "cancelled" | "failed" | "interrupted";
+            readonly updatedAt?: DateTime.Utc;
           }) {
-            const updatedAt = yield* DateTime.now;
-            const completedAt = input.completed ? updatedAt : null;
+            const updatedAt = input.updatedAt ?? (yield* DateTime.now);
+            const completedAt = input.status === "running" ? null : updatedAt;
             const nodeId = idAllocator.derive.nodeFromProviderItem({
               driver: CODEX_PROVIDER,
               nativeItemId: input.item.id,
@@ -4123,7 +4127,7 @@ export const makeCodexAdapterV2 = Effect.fn("makeCodexAdapterV2")(function* (
             });
             const { ordinal, startedAt } = yield* resolveItemPosition(input.context, input.item.id);
             const patterns = webSearchPatterns(input.item);
-            const status = input.completed ? "completed" : "running";
+            const { status } = input;
             const node: OrchestrationV2ExecutionNode = {
               id: nodeId,
               threadId: input.context.projectionThreadId,
@@ -5383,10 +5387,11 @@ export const makeCodexAdapterV2 = Effect.fn("makeCodexAdapterV2")(function* (
               return;
             }
 
+            context.runningWebSearchItems.set(payload.item.id, payload.item);
             const artifacts = yield* buildWebSearchArtifacts({
               context,
               item: payload.item,
-              completed: false,
+              status: "running",
             });
             yield* emitProviderEvent({
               type: "node.updated",
@@ -5578,10 +5583,11 @@ export const makeCodexAdapterV2 = Effect.fn("makeCodexAdapterV2")(function* (
             }
 
             if (payload.item.type === "webSearch") {
+              context.runningWebSearchItems.delete(payload.item.id);
               const artifacts = yield* buildWebSearchArtifacts({
                 context,
                 item: payload.item,
-                completed: true,
+                status: "completed",
               });
               yield* emitProviderEvent({
                 type: "node.updated",
@@ -6887,14 +6893,34 @@ export const makeCodexAdapterV2 = Effect.fn("makeCodexAdapterV2")(function* (
                 );
                 yield* terminalizeMcpAppCaptures(input.context, input.nativeTurnId);
               }
-              const dynamicToolStatus: "cancelled" | "interrupted" | "failed" =
+              const unfinishedToolStatus: "cancelled" | "interrupted" | "failed" =
                 input.status === "interrupted" || input.status === "failed"
                   ? input.status
                   : "cancelled";
+              // A completed turn does not establish whether an unfinished search succeeded.
+              for (const item of input.context.runningWebSearchItems.values()) {
+                const artifacts = yield* buildWebSearchArtifacts({
+                  context: input.context,
+                  item,
+                  status: unfinishedToolStatus,
+                  updatedAt: input.completedAt,
+                });
+                yield* emitProviderEvent({
+                  type: "node.updated",
+                  driver: CODEX_PROVIDER,
+                  node: artifacts.node,
+                });
+                yield* emitProviderEvent({
+                  type: "turn_item.updated",
+                  driver: CODEX_PROVIDER,
+                  turnItem: artifacts.turnItem,
+                });
+              }
+              input.context.runningWebSearchItems.clear();
               yield* terminalizeRunningDynamicTools(
                 input.context,
                 input.nativeTurnId,
-                dynamicToolStatus,
+                unfinishedToolStatus,
                 input.completedAt,
                 input.status === "interrupted" || input.status === "failed",
               );
@@ -7224,6 +7250,7 @@ export const makeCodexAdapterV2 = Effect.fn("makeCodexAdapterV2")(function* (
             fileChangeKindsByItem: new Map(),
             messagePhases: new Map(),
             runningCompactionItemIds: new Set(),
+            runningWebSearchItems: new Map(),
           };
           const providerTurn = {
             id: context.providerTurnId,
