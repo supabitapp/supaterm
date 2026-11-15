@@ -3441,6 +3441,14 @@ it.effect.each(["detach", "stream failure", "provider stop", "early close"] as c
             : undefined,
           release === "detach" ? threadId : undefined,
         );
+        // A run ends the work it tracks only when the adapter reported its runtime failing.
+        assert.equal(
+          Exit.isFailure(consumed)
+            ? (Cause.squash(consumed.cause) as ProviderAdapter.ProviderAdapterEventStreamError)
+                .raisedBySupaterm
+            : undefined,
+          Exit.isFailure(consumed) ? true : undefined,
+        );
         yield* interrupts(2);
 
         assert.isTrue(Option.isNone(yield* manager.get(providerSessionId)));
