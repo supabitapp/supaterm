@@ -14,7 +14,7 @@ export function startPaletteThreadDrag(
   title: string,
 ) {
   if (!event.isPrimary || event.button !== 0 || event.pointerType === "touch") return;
-  const payload = { kind: "threads", threads: [thread] } as const;
+  const payload = { kind: "threads", threads: [{ ...thread, title }] } as const;
   // The document-owned sensor must survive closing and unmounting the palette on activation.
   return new SidebarPointerSensor({
     event,
