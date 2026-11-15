@@ -7,12 +7,14 @@ export function MiddleTruncate({
   value,
   tail,
   showTitle = true,
+  variant = "default",
   className,
   ...props
 }: Omit<ComponentProps<"span">, "children"> & {
   value: string;
   tail?: number;
   showTitle?: boolean;
+  variant?: "default" | "cap-aligned";
 }) {
   const raw = splitForMiddleTruncate(value, tail);
   const split = raw && collapseSegments(raw);
@@ -29,7 +31,13 @@ export function MiddleTruncate({
   return (
     <span
       {...(showTitle ? { title: value } : {})}
-      className={cn("inline-flex min-w-0 max-w-full overflow-hidden whitespace-nowrap", className)}
+      className={cn(
+        "inline-flex min-w-0 max-w-full overflow-hidden whitespace-nowrap",
+        variant === "cap-aligned" &&
+          // Padding keeps descenders inside the box, so the cut does not clip them.
+          "overflow-x-clip overflow-y-visible [&>span]:[text-box:trim-both_cap_alphabetic] [&>span]:-mb-1 [&>span]:pb-1 [&>span]:overflow-x-clip [&>span]:overflow-y-visible",
+        className,
+      )}
       {...props}
     >
       {split ? (
