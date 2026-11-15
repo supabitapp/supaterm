@@ -316,7 +316,10 @@ export function McpAppFrame(props: {
           return;
         }
 
-        void host.teardown().then(() => setClosed(true));
+        // A replacement document may have mounted while this one wound down.
+        void host.teardown().then(() => {
+          if (hostRef.current === host) setClosed(true);
+        });
       },
       onSizeChanged: (size) => {
         if (readLive().displayMode === "fullscreen") return;
