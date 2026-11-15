@@ -114,7 +114,14 @@ const assertShellIndexCoversShells = Effect.fnUntraced(function* () {
   const trimmed = (
     row: Pick<
       ProjectionStore.ActiveShellIndexEntry,
-      "id" | "projectId" | "lineage" | "doneOverride" | "doneAt" | "pinnedAt" | "snoozedUntil"
+      | "id"
+      | "projectId"
+      | "lineage"
+      | "doneOverride"
+      | "doneAt"
+      | "pinnedAt"
+      | "pinOrderKey"
+      | "snoozedUntil"
     >,
   ) => ({
     id: row.id,
@@ -123,6 +130,7 @@ const assertShellIndexCoversShells = Effect.fnUntraced(function* () {
     doneOverride: row.doneOverride,
     doneAt: iso(row.doneAt),
     pinnedAt: iso(row.pinnedAt),
+    pinOrderKey: row.pinOrderKey ?? null,
     snoozedUntil: iso(row.snoozedUntil),
   });
   assert.deepEqual(index.map(trimmed), shells.map(trimmed));
@@ -2190,12 +2198,27 @@ const backgroundThreadUpdatesKeepTimestamp = Effect.gen(function* () {
   assert.deepEqual(reordered.updatedAt, createdAt);
   assert.equal(reordered.thread.activeOrderKey, "a");
 
+  // MCP pins read the stored pin key from the active shell index.
+  yield* store.apply({
+    id: EventId.make("event:background-updates:pinned"),
+    type: "thread.pinned",
+    threadId,
+    occurredAt: DateTime.add(createdAt, { minutes: 52 }),
+    payload: {
+      ...reordered.thread,
+      pinnedAt: DateTime.add(createdAt, { minutes: 52 }),
+      pinOrderKey: "m",
+    },
+  });
+  const pinned = yield* readActivity;
+  yield* assertShellIndexCoversShells();
+
   yield* store.apply({
     id: EventId.make("event:background-updates:already-unpinned"),
     type: "thread.unpinned",
     threadId,
     occurredAt: DateTime.add(createdAt, { minutes: 55 }),
-    payload: { ...reordered.thread, pinnedAt: null, pinOrderKey: null },
+    payload: { ...pinned.thread, pinnedAt: null, pinOrderKey: null },
   });
   yield* readActivity;
 });
