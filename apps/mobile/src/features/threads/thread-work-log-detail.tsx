@@ -131,7 +131,7 @@ export function ThreadWorkLogDetail(props: {
       ? shownItem.exitCode
       : null;
   const fullDetail =
-    !reasoning && !call
+    !reasoning && !call && !row.workEntry.questionAnswer
       ? fetchedItem && !isRead
         ? formatItemFullDetail(row.projectedItem, fetchedItem)
         : row.getFullDetail()
