@@ -636,20 +636,6 @@ function ThreadDetailBody(
     props.creationState?.kind === "preparing" && !props.creationState.serverOwned
       ? props.creationState
       : null;
-  const realThreadSyncLabel = (() => {
-    switch (props.threadSyncStatus) {
-      case "empty":
-      case "cached":
-      case "synchronizing":
-        if (contentPresentationKind === "ready") {
-          return "Syncing messages...";
-        }
-        return null;
-      default:
-        return null;
-    }
-  })();
-  const threadSyncLabel = useDelayedStatus(selectedThreadKey, realThreadSyncLabel);
   const connectionRetrying =
     props.connectionStateLabel === "connecting" || props.connectionStateLabel === "reconnecting";
   const retryError = connectionRetrying ? props.connectionError : null;
@@ -888,9 +874,6 @@ function ThreadDetailBody(
     }
     if (props.creationState?.kind === "failed") {
       return null;
-    }
-    if (threadSyncLabel !== null) {
-      return { kind: "syncing", label: threadSyncLabel };
     }
     if (!ready) return null;
     const childInput = childThreadInputs[0];
