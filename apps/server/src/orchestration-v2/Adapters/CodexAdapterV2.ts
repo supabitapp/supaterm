@@ -1542,7 +1542,7 @@ const CODEX_SUPATERM_MCP_TOOL_TIMEOUT_SEC = 65 * 60;
 // Holds Supaterm tools Codex must call directly, never from Code Mode. Calls arrive as
 // `supaterm-direct.<tool>`; supatermMcpToolPresentation.ts must keep resolving that form.
 const CODEX_SUPATERM_DIRECT_MCP_SERVER = "supaterm-direct";
-const CODEX_DIRECT_ONLY_SUPATERM_TOOL = "supaterm_thread_wait";
+const CODEX_DIRECT_ONLY_SUPATERM_TOOLS = ["supaterm_thread_wait", "delegate_task"];
 
 function codexThreadRuntimeParams(input: {
   readonly threadId: ThreadId | null;
@@ -1578,13 +1578,13 @@ function codexThreadRuntimeParams(input: {
             // Override only Supaterm's servers so launch-argument MCP servers survive.
             "mcp_servers.supaterm": {
               ...supatermServer,
-              disabled_tools: [CODEX_DIRECT_ONLY_SUPATERM_TOOL],
+              disabled_tools: CODEX_DIRECT_ONLY_SUPATERM_TOOLS,
             },
-            // Code Mode runs a blocking wait as a nested call, and the model keeps working
-            // around it. A second, direct-only registration makes it a plain tool call.
+            // Code Mode runs a blocking wait or delegate wait as a nested call, and the model
+            // keeps polling it. A second, direct-only registration makes it a plain tool call.
             [`mcp_servers.${CODEX_SUPATERM_DIRECT_MCP_SERVER}`]: {
               ...supatermServer,
-              enabled_tools: [CODEX_DIRECT_ONLY_SUPATERM_TOOL],
+              enabled_tools: CODEX_DIRECT_ONLY_SUPATERM_TOOLS,
               omit_tools_from: ["code_mode", "deferred"],
             },
           }),
