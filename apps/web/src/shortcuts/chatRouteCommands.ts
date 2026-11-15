@@ -1,9 +1,14 @@
-import { AuthPreviewOperateScope, type KeybindingCommand } from "@supaterm/contracts";
+import {
+  AuthPreviewOperateScope,
+  type EnvironmentId,
+  type KeybindingCommand,
+} from "@supaterm/contracts";
 import type { AnyRouter } from "@tanstack/react-router";
 
 import { stackedThreadToast, toastManager } from "~/components/ui/toast";
 import { isPreviewAvailableFor } from "../browser/previewRuntime";
 import { isCommandPaletteOpen, openCommandPalette } from "../commandPaletteBus";
+import { useComposerDraftStore } from "../composerDraftStore";
 import { dispatchPreviewAction, type PreviewAction } from "../components/preview/previewActionBus";
 import { isAppModalPage } from "../components/sidebar/mainAppLocation";
 import {
@@ -60,9 +65,17 @@ export function installChatRouteCommands(router: AnyRouter): () => void {
     handleNewThread,
   });
 
+  const readRouteTarget = () => resolveThreadRouteTarget(router.state.matches.at(-1)?.params ?? {});
   const readRouteThreadRef = () => {
-    const target = resolveThreadRouteTarget(router.state.matches.at(-1)?.params ?? {});
+    const target = readRouteTarget();
     return target?.kind === "server" ? target.threadRef : null;
+  };
+  const readRouteEnvironmentId = () => {
+    const target = readRouteTarget();
+    if (!target) return null;
+    return target.kind === "server"
+      ? target.threadRef.environmentId
+      : (useComposerDraftStore.getState().getDraftSession(target.draftId)?.environmentId ?? null);
   };
   const readPreviewOpen = () => {
     const threadRef = readRouteThreadRef();
@@ -72,12 +85,8 @@ export function installChatRouteCommands(router: AnyRouter): () => void {
       ? selectActiveRightPanel(useRightPanelStore.getState().byThreadKey, threadRef) === "preview"
       : false;
   };
-  const canOperatePreview = () => {
-    const threadRef = readRouteThreadRef();
-    return (
-      threadRef !== null && readEnvironmentScope(threadRef.environmentId, AuthPreviewOperateScope)
-    );
-  };
+  const canOperatePreview = (environmentId: EnvironmentId) =>
+    readEnvironmentScope(environmentId, AuthPreviewOperateScope);
 
   /** Returns false when the command is not one of these, or cannot run right now. */
   const runChatRouteCommand = (command: KeybindingCommand, repeat: boolean): boolean => {
@@ -113,7 +122,9 @@ export function installChatRouteCommands(router: AnyRouter): () => void {
       }
       case "preview.toggle": {
         const threadRef = readRouteThreadRef();
-        if (!threadRef || (!canOperatePreview() && !readPreviewOpen())) return true;
+        if (!threadRef || (!canOperatePreview(threadRef.environmentId) && !readPreviewOpen())) {
+          return true;
+        }
         if (!isPreviewAvailableFor(threadRef.environmentId)) {
           toastManager.add(
             stackedThreadToast({
@@ -130,7 +141,8 @@ export function installChatRouteCommands(router: AnyRouter): () => void {
       default: {
         const previewAction = PREVIEW_ACTION_BY_COMMAND[command];
         if (previewAction === undefined) return false;
-        if (canOperatePreview()) dispatchPreviewAction(previewAction);
+        const environmentId = readRouteEnvironmentId();
+        if (environmentId && canOperatePreview(environmentId)) dispatchPreviewAction(previewAction);
         return true;
       }
     }
