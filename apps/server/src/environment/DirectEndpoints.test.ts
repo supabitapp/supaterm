@@ -235,6 +235,17 @@ describe("resolveBoundEndpoints", () => {
       }),
     ).toEqual([]);
   });
+
+  it("reports an explicit bind to Tailscale's IPv6 address as the tailnet route", () => {
+    expect(
+      resolveBoundEndpoints({
+        platform: "linux",
+        host: "fd7a:115c:a1e0::1",
+        port: 3773,
+        interfaces: INTERFACES,
+      }),
+    ).toEqual([{ kind: "tailnet", httpBaseUrl: "http://[fd7a:115c:a1e0::1]:3773/" }]);
+  });
 });
 
 const TAILSCALE_STATUS_JSON = JSON.stringify({

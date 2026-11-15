@@ -108,7 +108,10 @@ export function resolveBoundEndpoints(input: {
             !(input.platform === "win32" && WINDOWS_HOST_ADAPTER_MAC.test(entry.mac)),
         )
         .map((entry) => entry.address)
-    : [input.host!].filter(isAdvertisableAddress);
+    : [input.host!].filter(
+        (address) =>
+          isAdvertisableAddress(address) || (NodeNet.isIPv6(address) && isTailnetHost(address)),
+      );
   return [...new Set(addresses)].map((address) => ({
     kind: tailscaleAddresses.has(address) ? "tailnet" : "lan",
     httpBaseUrl: `http://${formatHostForUrl(address)}:${input.port}/`,
