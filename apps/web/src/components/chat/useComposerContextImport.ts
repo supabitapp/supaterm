@@ -46,6 +46,7 @@ import { useAtomQueryRunner } from "~/state/use-atom-query-runner";
 import { orchestrationEnvironment } from "~/state/orchestration";
 import { randomUUID } from "~/lib/utils";
 import { pendingDraftWork } from "./pendingDraftWork";
+import { readComposerImageBytes } from "./composerAttachmentFiles";
 import { toastManager } from "../ui/toast";
 import type { PendingUserInput } from "../../session-logic";
 import { useStableCallback } from "../../hooks/useStableCallback";
@@ -186,6 +187,8 @@ export function useComposerContextImport(input: {
         fail("Downloading it from the source failed.");
         return;
       }
+      file = new File([blob], record.name, { type: record.mimeType || blob.type });
+      if (record.kind === "image") await readComposerImageBytes(file);
       // Question attachments have no inline reference; annotations can own their screenshots.
       const references = new Set(collectInlineContextIds(promptRef.current));
       if (
@@ -200,7 +203,6 @@ export function useComposerContextImport(input: {
         )
       )
         return;
-      file = new File([blob], record.name, { type: record.mimeType || blob.type });
     }
     // The draft these bytes belong to may have been sent or switched away from while they
     // downloaded. Dropping them here keeps them out of whatever draft is open now.

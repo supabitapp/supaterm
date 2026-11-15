@@ -37,6 +37,7 @@ import {
   classifyComposerAttachmentFile,
   composerFileAttachmentMimeType,
   composerImageSourceKey,
+  readComposerImageBytes,
   normalizeComposerImageFileMimeType,
   rememberComposerImageSource,
 } from "./composerAttachmentFiles";
@@ -293,6 +294,7 @@ export function useComposerAttachmentIntake(input: {
         continue;
       }
       await inheritComposerImageThumbnail(file, result.file);
+      await readComposerImageBytes(result.file);
       rememberComposerImageSource(file, result.file);
       compressed.push({ id, file: result.file });
     }
