@@ -112,6 +112,7 @@ function sendInput(
     activeThreadKey: routeThreadKey,
     activeThreadBranch: null,
     activeProject: { id: "project", workspaceRoot: "/repo" } as never,
+    activeProjectIsScratch: false,
     isServerThread: true,
     isLocalDraftThread: false,
     isGitRepo: true,

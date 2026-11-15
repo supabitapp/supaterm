@@ -1342,6 +1342,8 @@ export function planComposerTurn(input: {
   readonly sendEnvMode: DraftThreadEnvMode;
   readonly worktreePath: string | null;
   readonly activeThreadBranch: string | null;
+  /** The server launches a No project worktree request at its root, so it needs no base. */
+  readonly isScratchProject: boolean;
   readonly worktreeBaseRefsSettled: boolean;
   readonly environmentUnavailable: boolean;
   readonly phase: SessionPhase;
@@ -1357,7 +1359,7 @@ export function planComposerTurn(input: {
   return {
     shouldCreateWorktree,
     missingWorktreeBaseBranch: shouldRequireWorktreeBaseBranch({
-      shouldCreateWorktree,
+      shouldCreateWorktree: shouldCreateWorktree && !input.isScratchProject,
       activeThreadBranch: input.activeThreadBranch,
       refsSettled: input.worktreeBaseRefsSettled,
       environmentUnavailable: input.environmentUnavailable,

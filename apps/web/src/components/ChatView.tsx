@@ -3057,6 +3057,7 @@ export default function ChatView(props: ChatViewProps) {
     activeThreadKey,
     activeThreadBranch,
     activeProject,
+    activeProjectIsScratch,
     isServerThread,
     isLocalDraftThread,
     isGitRepo,

@@ -122,6 +122,7 @@ interface ComposerSendInput {
   readonly activeThreadKey: string | null;
   readonly activeThreadBranch: string | null;
   readonly activeProject: EnvironmentProject | null;
+  readonly activeProjectIsScratch: boolean;
   readonly isServerThread: boolean;
   readonly isLocalDraftThread: boolean;
   readonly isGitRepo: boolean;
@@ -196,6 +197,7 @@ export function useComposerSend(input: ComposerSendInput) {
     activeThreadKey,
     activeThreadBranch,
     activeProject,
+    activeProjectIsScratch,
     isServerThread,
     isLocalDraftThread,
     isGitRepo,
@@ -654,6 +656,7 @@ export function useComposerSend(input: ComposerSendInput) {
       sendEnvMode,
       worktreePath: activeThread.worktreePath,
       activeThreadBranch,
+      isScratchProject: activeProjectIsScratch,
       worktreeBaseRefsSettled,
       environmentUnavailable: activeEnvironmentUnavailable,
       phase,
@@ -884,7 +887,8 @@ export function useComposerSend(input: ComposerSendInput) {
                 ...(startFromOrigin ? { startFromOrigin: true } : {}),
               }
             : undefined;
-          const pendingWorktree = worktree && !activeThreadBranch ? worktree : undefined;
+          const pendingWorktree =
+            worktree && !activeThreadBranch && !activeProjectIsScratch ? worktree : undefined;
           const bootstrap =
             isLocalDraftThread && forkSideChatFirst === null
               ? {

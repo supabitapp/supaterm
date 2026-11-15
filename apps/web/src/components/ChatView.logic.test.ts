@@ -1332,6 +1332,7 @@ describe("planComposerTurn", () => {
     sendEnvMode: "worktree" as const,
     worktreePath: null,
     activeThreadBranch: "main",
+    isScratchProject: false,
     worktreeBaseRefsSettled: true,
     environmentUnavailable: false,
     phase: "ready" as const,
@@ -1358,6 +1359,12 @@ describe("planComposerTurn", () => {
       planComposerTurn({ ...base, activeThreadBranch: null, worktreeBaseRefsSettled: false })
         .missingWorktreeBaseBranch,
     ).toBe(false);
+    expect(
+      planComposerTurn({ ...base, activeThreadBranch: null, isScratchProject: true }),
+    ).toMatchObject({
+      missingWorktreeBaseBranch: false,
+      baseBranchForWorktree: null,
+    });
   });
 
   it("never creates a worktree for a thread the server already has", () => {
