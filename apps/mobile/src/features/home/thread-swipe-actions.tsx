@@ -531,7 +531,9 @@ function ThreadSwipeableRow(props: ThreadSwipeableProps) {
           overshootRight
           renderRightActions={renderRightActions}
           rightThreshold={actionsWidth * 0.42}
-          simultaneousWith={props.simultaneousWith}
+          // Only iPad trackpad pans need rows to swipe while the list scrolls; on Android touch it
+          // lets a diagonal swipe scroll the list, which the scroll gate turns into a closed row.
+          simultaneousWith={Platform.OS === "ios" ? props.simultaneousWith : undefined}
         >
           <SwipeableRowChildren render={props.children} close={close} />
         </ReanimatedSwipeable>
