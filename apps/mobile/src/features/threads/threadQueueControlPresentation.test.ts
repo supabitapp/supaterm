@@ -1,4 +1,6 @@
+import { ComposerContextId } from "@supaterm/contracts";
 import { formatAssistantCitationHref } from "@supaterm/shared/assistantCitations";
+import { formatComposerContextReference } from "@supaterm/shared/composerContextReferences";
 import { describe, expect, it } from "vite-plus/test";
 
 import {
@@ -88,6 +90,34 @@ describe("threadQueueControlPresentation", () => {
     expect(busy.canDismiss).toBe(false);
     expect(busy.canOpen).toBe(false);
     expect(busy.canSend).toBe(false);
+  });
+
+  it("shows context chips by their labels", () => {
+    const environment = formatComposerContextReference({
+      kind: "environment",
+      contextId: ComposerContextId.make("environment_mac"),
+      label: "MacBook",
+    });
+    const file = formatComposerContextReference({
+      kind: "file",
+      contextId: ComposerContextId.make("report"),
+      label: "report.pdf",
+    });
+    const image = formatComposerContextReference({
+      kind: "image",
+      contextId: ComposerContextId.make("screenshot"),
+      label: "screenshot.png",
+    });
+
+    expect(
+      resolveThreadQueueRowControls({
+        canOperate: true,
+        busy: false,
+        canPromoteToSteer: true,
+        canSendNow: false,
+        text: `Check ${environment} for ${file} ${image} `,
+      }).displayText,
+    ).toBe("Check MacBook for report.pdf screenshot.png");
   });
 
   it("lets an edited row return to the composer without reloading or steering", () => {
