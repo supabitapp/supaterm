@@ -5378,6 +5378,11 @@ export interface ClaudeAdapterV2Options {
   /** Read when a CLI process starts; the SDK cannot turn suggestions on or off mid-process. */
   readonly promptSuggestionsEnabled?: Effect.Effect<boolean>;
   /**
+   * Called with the requested cwd on a process's first init message, after its synchronous
+   * SessionStart hooks have run, so cwd-keyed workspace scans can be refreshed.
+   */
+  readonly onSessionInit?: (cwd: string) => Effect.Effect<void>;
+  /**
    * Applies Claude Code's reported model ids for a turn's cwd, so turns send ids its backend
    * accepts. Defaults to the catalog unchanged.
    */
@@ -12719,11 +12724,13 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
             Stream.runForEach((message) =>
               sdkMessageLock.withPermits(1)(
                 Effect.suspend(() => {
+                  let firstInit = false;
                   if (
                     message.type === "system" &&
                     message.subtype === "init" &&
                     !context.receivedInit
                   ) {
+                    firstInit = true;
                     context.openedPermissionMode =
                       message.permissionMode ?? context.openedPermissionMode;
                     context.receivedInit = true;
@@ -12754,7 +12761,12 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
                       resultsReportingNewContextWindow.add(message);
                     }
                   }
-                  return handleSdkMessage({ query: querySession, message });
+                  const handled = handleSdkMessage({ query: querySession, message });
+                  const reportedCwd = turnInput.runtimePolicy.cwd;
+                  if (!firstInit || reportedCwd === null || !adapterOptions.onSessionInit) {
+                    return handled;
+                  }
+                  return adapterOptions.onSessionInit(reportedCwd).pipe(Effect.andThen(handled));
                 }),
               ),
             ),
@@ -14287,6 +14299,7 @@ export const createClaudeAdapterV2 = Effect.fn("ClaudeAdapterV2Driver.create")(
       ClaudeAdapterV2Options,
       | "scopedLimitNames"
       | "onUsageLimits"
+      | "onSessionInit"
       | "fastModeBlocked"
       | "promptSuggestionsEnabled"
       | "modelCatalog"
