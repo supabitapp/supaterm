@@ -27,6 +27,7 @@ export type PullRequestWatchChange =
   | { readonly kind: "remarks"; readonly remarks: ReadonlyArray<PullRequestComment> }
   | { readonly kind: "no-checks"; readonly minutes: number }
   | { readonly kind: "conflicting" }
+  | { readonly kind: "needs-rebase" }
   | { readonly kind: "merge-queue-removed"; readonly reason: string | null };
 
 export interface PullRequestWatchReport {
@@ -52,6 +53,7 @@ export function evaluatePullRequestWatch(
     | "mergeability"
     | "viewer"
     | "author"
+    | "rebaseRequired"
     | "mergeQueueRemoval"
   >,
   remarks: ReadonlyArray<PullRequestComment> | null,
@@ -208,11 +210,16 @@ export function evaluatePullRequestWatch(
     ...atLatest.map((remark) => remark.id),
   ];
 
-  // Like a failed check, a conflict a push did not resolve is news for the new head.
+  // Like a failed check, a conflict or rebase a push did not resolve is news for the new head.
   const toldConflict = !headMoved && watch.conflicting;
   if (watch.awaitingBaseline !== "all" && detail.mergeability === "conflicting" && !toldConflict) {
     changes.push({ kind: "conflicting" });
   }
+  const toldRebase = !headMoved && watch.rebaseRequired === true;
+  if (watch.awaitingBaseline !== "all" && detail.rebaseRequired === true && !toldRebase) {
+    changes.push({ kind: "needs-rebase" });
+  }
+  const rebaseRequired = detail.rebaseRequired ?? watch.rebaseRequired;
   // "unknown" is a host still computing after a push; only a clean answer clears a conflict.
   const conflicting =
     detail.mergeability === "unknown" ? toldConflict : detail.mergeability === "conflicting";
@@ -251,6 +258,7 @@ export function evaluatePullRequestWatch(
       remarksThrough,
       remarkIds,
       conflicting,
+      rebaseRequired,
       mergeQueueRemovalId,
       wakes,
       // Only a read that cannot be trusted to show the checks leaves the baseline to the next one.
@@ -326,6 +334,8 @@ function changeLines(
       return [
         `- No checks have reported${context.commit} after ${change.minutes} minutes. None may be configured to run on this change.`,
       ];
+    case "needs-rebase":
+      return [`- The branch requires a rebase onto ${context.baseBranch}.`];
     case "conflicting":
       return [`- The branch now conflicts with ${context.baseBranch}.`];
     case "merge-queue-removed":
@@ -343,6 +353,7 @@ const SUMMARY: Record<PullRequestWatchChange["kind"], string> = {
   remarks: "new comments",
   "no-checks": "no checks reported",
   conflicting: "merge conflict",
+  "needs-rebase": "rebase required",
   "merge-queue-removed": "removed from merge queue",
 };
 
@@ -408,6 +419,7 @@ export function pullRequestWatchMessage(input: {
       change.kind === "checks-failed" ||
       change.kind === "checks-finished" ||
       change.kind === "conflicting" ||
+      change.kind === "needs-rebase" ||
       change.kind === "merge-queue-removed",
   );
   const summary = changes.map((change) => SUMMARY[change.kind]);
