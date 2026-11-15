@@ -109,7 +109,7 @@ export function useWorktreeSetup(input: {
   const worktreeSetup = resolveVisibleWorktreeSetup({
     live: liveSnapshot,
     recorded: null,
-    turnStarted: activityRun?.startedAt != null,
+    runs: serverProjection?.runs ?? [],
     followUpSent,
   });
   // Sends wait for the agent handoff, not the setup script, so a follow-up is never held behind a
