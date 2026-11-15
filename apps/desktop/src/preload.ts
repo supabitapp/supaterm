@@ -114,6 +114,7 @@ contextBridge.exposeInMainWorld("desktopBridge", {
   getClientPlatform: () => clientPlatform,
   getEnvironmentMachineIcons: () =>
     ipcRenderer.sendSync(IpcChannels.GET_ENVIRONMENT_MACHINE_ICONS_CHANNEL),
+  restartAudioService: () => ipcRenderer.invoke(IpcChannels.RESTART_AUDIO_SERVICE_CHANNEL),
   setNotificationBadge: (badge) =>
     ipcRenderer.invoke(IpcChannels.SET_NOTIFICATION_BADGE_CHANNEL, badge),
   onNotificationBadgeClear: (listener) => {
