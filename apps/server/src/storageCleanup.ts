@@ -958,6 +958,8 @@ const make = Effect.gen(function* () {
             "rev-list",
             "--max-count=1",
             "HEAD",
+            // Checkpoint refs hold workspace snapshots, not commits a user could lose.
+            "--exclude=refs/supaterm/*",
             "--all",
             "--reflog",
             "--not",
