@@ -27,6 +27,7 @@ import Migration0017 from "./Migrations/017_TurnItemTypeStatusIndex.ts";
 import Migration0018 from "./Migrations/018_ShellThreadReadIndexes.ts";
 import Migration0019 from "./Migrations/019_ProviderTurnAttemptIndex.ts";
 import Migration0020 from "./Migrations/020_TurnItemMessageOrdinalIndex.ts";
+import Migration0021 from "./Migrations/021_TurnItemInlineWorkOutput.ts";
 
 /**
  * Add a schema change as a new entry with the next id. Never edit, renumber, or
@@ -54,6 +55,7 @@ const migrationEntries = [
   [18, "ShellThreadReadIndexes", Migration0018],
   [19, "ProviderTurnAttemptIndex", Migration0019],
   [20, "TurnItemMessageOrdinalIndex", Migration0020],
+  [21, "TurnItemInlineWorkOutput", Migration0021],
 ] as const;
 
 export const migrationManifest = migrationEntries.map(([id, name]) => [id, name] as const);
@@ -185,7 +187,9 @@ const run = Migrator.make({});
  *
  * Returns array of [id, name] tuples for migrations that were run.
  */
-export const runMigrations = Effect.fn("runMigrations")(function* () {
+export const runMigrations = Effect.fn("runMigrations")(function* ({
+  toMigrationInclusive,
+}: { readonly toMigrationInclusive?: number } = {}) {
   yield* assertKnownMigrationHistory();
   // The desktop waits past its readiness budget until the finished line follows this one.
   if (yield* hasPendingMigrations()) yield* Effect.log(DATABASE_MIGRATIONS_STARTED_MESSAGE);
@@ -200,7 +204,10 @@ export const runMigrations = Effect.fn("runMigrations")(function* () {
           readonly id: number | null;
         }>`SELECT MAX(migration_id) AS id FROM effect_sql_migrations`;
   const latestRecordedId = latest?.id ?? 0;
-  const pending = migrationEntries.filter(([id]) => id > latestRecordedId);
+  const pending = migrationEntries.filter(
+    ([id]) =>
+      id > latestRecordedId && (toMigrationInclusive === undefined || id <= toMigrationInclusive),
+  );
   // One transaction per migration: an index build on a large database can take minutes, and a
   // restart then resumes after the last finished migration instead of rolling all of them back.
   const executedMigrations: Array<readonly [id: number, name: string]> = [];
