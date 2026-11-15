@@ -921,22 +921,23 @@ it.effect("moves a queued message to the end when beforeRunId is null", () => {
   );
 });
 
-it.effect("refuses act-as-caller tools to a client caller", () =>
+it.effect("hides act-as-caller tools from a client caller", () =>
   Effect.gen(function* () {
     const server = yield* McpServer.McpServer;
-    const result = yield* server
+    const error = yield* server
       .callTool({
         name: "delegate_task",
         arguments: { task: "Review", mode: "async" },
       })
       .pipe(
+        Effect.flip,
         Effect.provideService(
           McpInvocationContext.McpInvocationContext,
           clientScope("full-access"),
         ),
         Effect.provideService(McpSchema.McpServerClient, client),
       );
-    expect(declaredFailure(result)).toMatchObject({ code: "thread_credential_required" });
+    expect(error.message).toContain("Tool 'delegate_task' not found");
   }).pipe(
     Effect.provide(
       layerOrchestratorToolkit.pipe(
