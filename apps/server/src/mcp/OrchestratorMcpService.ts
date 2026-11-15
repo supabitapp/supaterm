@@ -750,17 +750,38 @@ function pageIncludesTerminalTaskResult(input: {
 function latestTerminalResultRun(
   projection: Pick<OrchestrationV2ThreadProjection, "messages" | "runs">,
   delegatedRun: OrchestrationV2Run | undefined,
+  awaitingContinuationRun: OrchestrationV2Run | undefined,
 ): OrchestrationV2Run | undefined {
   const monitorRunIds = new Set(
     projection.messages
       .filter((message) => message.notification?.source.kind === "monitor")
       .map((message) => message.runId),
   );
+  // A restart-cut run, and each cut run before it in the chain, has no outcome while a
+  // continuation is pending, live, or ran to a result.
+  const runsById = new Map(projection.runs.map((run) => [run.id, run]));
+  const supersededRunIds = new Set<RunId>();
+  const supersede = (runId: RunId | undefined) => {
+    let id = runId;
+    while (id !== undefined && !supersededRunIds.has(id)) {
+      supersededRunIds.add(id);
+      id = runsById.get(id)?.restartContinuationOfRunId;
+    }
+  };
+  supersede(awaitingContinuationRun?.id);
+  for (const run of projection.runs) {
+    if (
+      !ThreadManagementService.isTerminalRunStatus(run.status) ||
+      (run.status !== "rolled_back" && run.startedAt !== null)
+    )
+      supersede(run.restartContinuationOfRunId);
+  }
   return projection.runs
     .filter(
       (run) =>
         isOrchestrationV2RunSettled(run.status) &&
         !monitorRunIds.has(run.id) &&
+        !supersededRunIds.has(run.id) &&
         run.status !== "rolled_back" &&
         (run.id === delegatedRun?.id || run.startedAt !== null),
     )
@@ -1808,7 +1829,6 @@ const make = Effect.gen(function* () {
       )
       .pipe(Effect.mapError(threadManagementFailure));
     const childRun = delegatedTaskRun(childControls, task);
-    const terminalRun = latestTerminalResultRun(childControls, childRun);
     const progress = delegatedTaskProgress(childControls);
     const followupRuns =
       childRun?.delegatedTaskId === task.id ? delegatedTaskRuns(childControls, task.id) : undefined;
@@ -1824,6 +1844,17 @@ const make = Effect.gen(function* () {
               delegatedTaskAwaitsWork(followupRuns, childControls)
             ? "waiting_for_children"
             : "result_available";
+    const heldForRestart =
+      task.result === null &&
+      taskWorkState === "result_available" &&
+      (yield* threadManagement
+        .delegatedTaskResultPending(task.childThreadId, childRun?.delegatedTaskId)
+        .pipe(Effect.mapError(threadManagementFailure)));
+    const terminalRun = latestTerminalResultRun(
+      childControls,
+      childRun,
+      heldForRestart ? taskResultRun : undefined,
+    );
     const resultRunIds = [
       ...new Set(
         [taskResultRun?.id, terminalRun?.id].filter((id): id is RunId => id !== undefined),
@@ -1842,12 +1873,6 @@ const make = Effect.gen(function* () {
       messages: [...childControls.messages, ...resultRecords.messages],
       turnItems: resultRecords.turnItems,
     };
-    const heldForRestart =
-      task.result === null &&
-      taskWorkState === "result_available" &&
-      (yield* threadManagement
-        .delegatedTaskResultPending(task.childThreadId, childRun?.delegatedTaskId)
-        .pipe(Effect.mapError(threadManagementFailure)));
     const workState =
       task.result !== null ? "result_available" : heldForRestart ? "working" : taskWorkState;
     const runStatus = taskStatusForRun(taskResultRun ?? childRun);
