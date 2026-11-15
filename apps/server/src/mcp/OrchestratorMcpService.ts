@@ -75,6 +75,7 @@ import {
 import { getProviderOptionCurrentValue, withLegacyUltracodeEffort } from "@supaterm/shared/model";
 import { backgroundWorkHoldsCompletion } from "@supaterm/shared/orchestrationV2PendingBackgroundWork";
 import { latestUnheldRun, runRanAfter } from "@supaterm/shared/orchestrationV2ThreadError";
+import { resolveProjectSettings } from "@supaterm/shared/projectSettings";
 import { formatThreadLink } from "@supaterm/shared/threadLinks";
 import { threadPullRequestUpdatedAtMs } from "@supaterm/shared/threadPullRequests";
 import {
@@ -1411,17 +1412,21 @@ const make = Effect.gen(function* () {
       ),
     );
 
-  const projectDefaultModelSelection = (
-    project: Effect.Success<ReturnType<typeof requireProject>>,
-  ) =>
-    project.defaultModelSelection === null
-      ? Effect.fail(
-          failure(
-            "invalid_request",
-            `Project ${project.id} has no default model, so this caller cannot pick one for it.`,
-          ),
-        )
-      : Effect.succeed(project.defaultModelSelection);
+  const projectDefaultModelSelection = Effect.fn(
+    "OrchestratorMcpService.projectDefaultModelSelection",
+  )(function* (project: Effect.Success<ReturnType<typeof requireProject>>) {
+    const settings = yield* serverSettings.getSettings.pipe(
+      Effect.mapError(() => failure("orchestration_error", "Unable to read server settings.")),
+    );
+    const selection = resolveProjectSettings(settings, project.id, project).settings
+      .defaultModelSelection;
+    if (selection === null)
+      return yield* failure(
+        "invalid_request",
+        `Project ${project.id} has no default model, so this caller cannot pick one for it.`,
+      );
+    return selection;
+  });
   const secretRequests = yield* SecretRequests.SecretRequests;
 
   const requireCapability = (scope: McpInvocationScope) =>
