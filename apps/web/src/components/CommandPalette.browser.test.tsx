@@ -155,7 +155,7 @@ describe("CommandPalette open intents", () => {
     await expect.element(input).not.toBeInTheDocument();
   });
 
-  it("opens a searched project's latest listed thread, not a newer subagent", async () => {
+  it("opens a searched project's latest listed thread, not a newer subagent or parked thread", async () => {
     const environmentId = EnvironmentId.make("local");
     const projectId = ProjectId.make("acme");
     const parentId = ThreadId.make("parent");
@@ -190,6 +190,20 @@ describe("CommandPalette open intents", () => {
             parentThreadId: parentId,
             relationshipToParent: "subagent",
           },
+        }),
+        makeThreadFixture({
+          id: ThreadId.make("done"),
+          environmentId,
+          projectId,
+          latestUserMessageAt: "2026-03-05T00:00:00.000Z",
+          doneOverride: "done",
+        }),
+        makeThreadFixture({
+          id: ThreadId.make("snoozed"),
+          environmentId,
+          projectId,
+          latestUserMessageAt: "2026-03-06T00:00:00.000Z",
+          snoozedUntil: "2999-01-01T00:00:00.000Z",
         }),
       ],
     });
