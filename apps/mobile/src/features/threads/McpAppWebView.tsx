@@ -344,7 +344,9 @@ export function ThreadMcpApp(props: {
           return current.displayMode ?? "inline";
         }
         if (mode === "fullscreen" && current.displayMode !== "fullscreen") {
-          await hostRef.current?.teardown();
+          await next.teardown();
+          // A crash restart or reload during the wait already replaced this document.
+          if (hostRef.current !== next) return "inline";
 
           if (latest.current.awaitingUser || !latest.current.navigation.isFocused()) {
             openNewDocument.current((value) => value + 1);
@@ -361,19 +363,19 @@ export function ThreadMcpApp(props: {
           return "fullscreen";
         }
         if (mode === "inline" && current.displayMode === "fullscreen") {
-          await hostRef.current?.teardown();
-          current.onExitFullscreen?.();
+          await next.teardown();
+          if (hostRef.current === next) current.onExitFullscreen?.();
           return "inline";
         }
         return current.displayMode ?? "inline";
       },
       onRequestTeardown: () => {
         const current = latest.current.props;
-        if (current.displayMode === "fullscreen") {
-          void hostRef.current?.teardown().then(() => current.onExitFullscreen?.());
-        } else {
-          void hostRef.current?.teardown().then(() => setClosed(true));
-        }
+        void next.teardown().then(() => {
+          if (hostRef.current !== next) return;
+          if (current.displayMode === "fullscreen") current.onExitFullscreen?.();
+          else setClosed(true);
+        });
       },
       onSizeChanged: (size) => {
         if (latest.current.props.displayMode === "fullscreen") return;
@@ -383,8 +385,8 @@ export function ThreadMcpApp(props: {
     });
     hostRef.current = next;
     return () => {
+      if (hostRef.current === next) hostRef.current = null;
       void next.teardown();
-      hostRef.current = null;
     };
     // oxlint-disable-next-line react/exhaustive-effect-dependencies -- A restarted view needs a new host.
   }, [uri, app, generation, documentKey]);
