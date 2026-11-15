@@ -489,6 +489,7 @@ const sameRules = (left: ReadonlyArray<Rule> | undefined, right: ReadonlyArray<R
  * which is Cancel.
  */
 const DECLINED = "The user declined this request.";
+const DISMISSED = "The user dismissed this question. Continue without an answer.";
 
 /**
  * Steered into the session before a decline: a declined shell call reaches the
@@ -5281,6 +5282,8 @@ export const make = Effect.fn("OpenCode2Adapter.make")(function* (instanceId: Pr
                   ? client.session.form.cancel({
                       sessionID: entry.sessionId,
                       formID: Form.ID.make(native.id),
+                      // Without a message OpenCode aborts the step, and a background subagent never reports.
+                      ...(asker.subagent === undefined ? {} : { message: DISMISSED }),
                     })
                   : client.session.form.reply({
                       sessionID: entry.sessionId,
