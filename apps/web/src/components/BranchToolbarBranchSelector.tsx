@@ -609,7 +609,7 @@ export function BranchToolbarBranchSelector({
   };
 
   const projectCloneDone = useProjectClone(activeProjectRef)?.phase === "done";
-  const refreshRefsAfterClone = useEffectEvent(() => {
+  const refreshStaleRefs = useEffectEvent(() => {
     if (branchCwd === null) return;
     void refreshLocalStatusForPicker({
       environmentId,
@@ -618,8 +618,18 @@ export function BranchToolbarBranchSelector({
   });
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- refs listed while the project was cloning are empty; reload them past the server's snapshot when the clone finishes
   useEffect(() => {
-    if (projectCloneDone) refreshRefsAfterClone();
+    if (projectCloneDone) refreshStaleRefs();
   }, [projectCloneDone]);
+  // A checkout made outside Supaterm, such as a clone finishing, leaves refs listed before it.
+  const statusBranch = branchStatusQuery.data?.refName ?? null;
+  const refreshRefsMissingStatusBranch = useEffectEvent((branch: string | null) => {
+    if (isInitialBranchesLoadPending || branch === null) return;
+    if (branchByName.get(branch)?.current !== true) refreshStaleRefs();
+  });
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- reloads refs from the server once per branch live status reports that they do not list as checked out
+  useEffect(() => {
+    refreshRefsMissingStatusBranch(statusBranch);
+  }, [statusBranch]);
 
   const handleOpenChange = (open: boolean) => {
     setIsBranchMenuOpen(open);
