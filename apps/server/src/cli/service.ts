@@ -13,7 +13,7 @@ import { compareExactServiceVersions } from "../service/serviceProtocol.ts";
 import * as ServerConfig from "../config.ts";
 import * as ProcessRunner from "../processRunner.ts";
 import { projectLocationFlags, resolveCliAuthConfig } from "./config.ts";
-import { resolveEntryPath } from "./invocation.ts";
+import { resolveEntryPath, resolveHostCliHint } from "./invocation.ts";
 
 export const layer = (config: ServerConfig.ServerConfig["Service"]) =>
   BootService.layer({
@@ -92,13 +92,14 @@ function formatProtection(
 function formatServiceStatus(
   status: BootService.BootServiceStatus,
   cliVersion: string,
+  commands: { readonly install: string; readonly restart: string; readonly update: string },
   protection?: ServiceProtection.ServiceProtectionState,
 ): string {
   if (!status.supported) {
     return "Supaterm service\n  Status: unavailable on this machine\n  Supported on: Linux with systemd, macOS with launchd";
   }
   if (!status.installed) {
-    return "supaterm service\n  Status: not installed\n  Next: Run `supaterm service install`.";
+    return `Supaterm service\n  Status: not installed\n  Next: Run \`${commands.install}\`.`;
   }
   if (status.otherBaseDir !== undefined) {
     return [
@@ -110,7 +111,7 @@ function formatServiceStatus(
   }
   const installedVersion = status.installedVersion ?? cliVersion;
   const problems = (status.problems ?? []).map(
-    (problem) => `  [${problem}] ${BootService.formatBootServiceProblem(problem)}`,
+    (problem) => `  [${problem}] ${BootService.formatBootServiceProblem(problem, commands)}`,
   );
   if (
     !status.current &&
@@ -124,7 +125,7 @@ function formatServiceStatus(
       `  Logs: ${status.logPath}`,
       ...formatProtection(protection),
       ...problems,
-      `  Next: Run \`supaterm update ${installedVersion}\` to match it, or pass \`--allow-downgrade\` to \`supaterm service install\` explicitly.`,
+      `  Next: Run \`${commands.update}\` to match it, or pass \`--allow-downgrade\` to \`${commands.install}\` explicitly.`,
     ].join("\n");
   }
   return [
@@ -134,7 +135,7 @@ function formatServiceStatus(
     `  Logs: ${status.logPath}`,
     ...formatProtection(protection),
     ...problems,
-    ...(status.current ? [] : ["  Next: Run `supaterm service install` to repair it."]),
+    ...(status.current ? [] : [`  Next: Run \`${commands.install}\` to repair it.`]),
   ].join("\n");
 }
 
@@ -248,7 +249,14 @@ const serviceStatusCommand = Command.make("status", projectLocationFlags).pipe(
                 Effect.provide(ProcessRunner.layer),
               )
             : undefined;
-        yield* Console.log(formatServiceStatus(status, packageJson.version, protection));
+        const commands = {
+          install: yield* resolveHostCliHint("service install", flags.baseDir),
+          restart: yield* resolveHostCliHint("service restart", flags.baseDir),
+          update: yield* resolveHostCliHint("update", flags.baseDir, [
+            status.installedVersion ?? packageJson.version,
+          ]),
+        };
+        yield* Console.log(formatServiceStatus(status, packageJson.version, commands, protection));
       }),
     ),
   ),
