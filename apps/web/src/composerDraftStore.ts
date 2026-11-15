@@ -1156,16 +1156,45 @@ export function deriveEffectiveComposerModelState(input: {
         baseSelection?.instanceId ?? activeSelectionInstanceId,
         baseSelection?.model,
       );
-  // Draft options win; otherwise an existing thread's options, even none, outrank the project's.
-  const modelOptions =
-    modelSelectionByProviderToOptions(draft?.modelSelectionByProvider) ??
-    (draftPicksOtherModel ? null : providerSelectionsFromModelSelection(baseSelection)) ??
-    null;
+  // An existing thread's options, even none, outrank the project's. Next to draft options, they
+  // fill in only for the model they were stored with.
+  const draftOptions = modelSelectionByProviderToOptions(draft?.modelSelectionByProvider);
+  const storedIsShownModel =
+    baseSelection != null &&
+    isSameModel(input, baseSelection, {
+      instanceId: input.selectedInstanceId ?? baseSelection.instanceId,
+      model: selectedModel,
+    });
+  const storedOptions =
+    !draftPicksOtherModel && (draftOptions === null || storedIsShownModel)
+      ? providerSelectionsFromModelSelection(baseSelection)
+      : null;
 
   return {
     selectedModel,
-    modelOptions,
+    modelOptions: draftOptions || storedOptions ? { ...storedOptions, ...draftOptions } : null,
   };
+}
+
+interface InstanceModel {
+  readonly instanceId: ProviderInstanceId;
+  readonly model: string | undefined;
+}
+
+export function isSameModel(
+  input: {
+    readonly providers: ReadonlyArray<ServerProvider>;
+    readonly selectedProvider: ProviderDriverKind;
+    readonly settings: UnifiedSettings;
+  },
+  a: InstanceModel,
+  b: InstanceModel,
+): boolean {
+  return (
+    a.model === b.model ||
+    composerModelIdentity(input, a.instanceId, a.model) ===
+      composerModelIdentity(input, b.instanceId, b.model)
+  );
 }
 
 function revokeObjectPreviewUrl(previewUrl: string): void {
