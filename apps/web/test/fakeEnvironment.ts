@@ -30,6 +30,7 @@ import {
   type OrchestrationV2ThreadStreamItem,
   type OrchestrationV2TurnItem,
   type TerminalMetadataStreamEvent,
+  type ResolvedKeybindingsConfig,
 } from "@supaterm/contracts";
 import type {
   ConnectionAttemptError,
@@ -108,10 +109,11 @@ const baseServerConfig: ServerConfig = {
   keybindings: DEFAULT_RESOLVED_KEYBINDINGS,
 };
 // A server only leaves threads out of the shell when it serves their families.
-const serverConfig = (): ServerConfig =>
-  threads.some((thread) => thread.olderDone)
-    ? { ...baseServerConfig, shellThreadFamilies: true }
-    : baseServerConfig;
+const serverConfig = (): ServerConfig => ({
+  ...baseServerConfig,
+  keybindings,
+  ...(threads.some((thread) => thread.olderDone) ? { shellThreadFamilies: true } : {}),
+});
 
 const project: OrchestrationProjectShell = {
   id: PROJECT_ID,
@@ -332,6 +334,7 @@ let terminalMetadataSubscriber: Queue.Queue<TerminalMetadataStreamEvent> | null 
 let threads: ReadonlyArray<FakeThread> = [];
 let dispatched: OrchestrationV2Command[] = [];
 let acceptCommands = false;
+let keybindings: ResolvedKeybindingsConfig = DEFAULT_RESOLVED_KEYBINDINGS;
 let projects: ReadonlyArray<OrchestrationProjectShell> = [project];
 let sequence = 1;
 let vcsStatusSubscriber: Queue.Queue<VcsStatusStreamEvent> | null = null;
@@ -474,10 +477,12 @@ export function installFakeEnvironment(
   fixtures: ReadonlyArray<FakeThread>,
   options?: {
     readonly acceptCommands?: boolean;
+    readonly keybindings?: ResolvedKeybindingsConfig;
     readonly extraProjects?: ReadonlyArray<Pick<OrchestrationProjectShell, "id" | "title">>;
   },
 ): Disposable {
   threads = fixtures;
+  keybindings = options?.keybindings ?? DEFAULT_RESOLVED_KEYBINDINGS;
   dispatched = [];
   acceptCommands = options?.acceptCommands === true;
   projects = [
@@ -526,6 +531,7 @@ export function installFakeEnvironment(
     [Symbol.dispose]: () => {
       globalThis.fetch = realFetch;
       threads = [];
+      keybindings = DEFAULT_RESOLVED_KEYBINDINGS;
       dispatched = [];
       acceptCommands = false;
       projects = [project];
