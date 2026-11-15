@@ -197,7 +197,7 @@ export function MarkdownCodeBlock({
             type="button"
             variant="ghost-muted"
             size="icon-xs"
-            onClick={() => copyToClipboard(code)}
+            onClick={() => copyToClipboard(code.endsWith("\n") ? code.slice(0, -1) : code)}
             aria-label={copyLabel}
           />
         }
