@@ -355,6 +355,19 @@ export function PendingUserInputCard(props: PendingUserInputCardProps) {
   const autoDismissAt = props.supportsQuestionAutoDismiss
     ? (props.pendingUserInput.autoDismissAt ?? null)
     : null;
+  const stopButton = props.onStopThread ? (
+    <ControlPill
+      accessibilityLabel="Stop"
+      icon="stop.fill"
+      variant="danger"
+      className="h-9 w-9"
+      disabled={!props.canOperateThread}
+      onPress={() => {
+        void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+        props.onStopThread?.();
+      }}
+    />
+  ) : null;
   const bar = (
     <View
       onLayout={handleBarLayout}
@@ -393,19 +406,7 @@ export function PendingUserInputCard(props: PendingUserInputCardProps) {
           </>
         )}
       </QuestionAutoDismissToggle>
-      {props.onStopThread ? (
-        <ControlPill
-          accessibilityLabel="Stop"
-          icon="stop.fill"
-          variant="danger"
-          className="h-9 w-9"
-          disabled={!props.canOperateThread}
-          onPress={() => {
-            void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-            props.onStopThread?.();
-          }}
-        />
-      ) : null}
+      {stopButton}
     </View>
   );
   const card = (
@@ -417,47 +418,52 @@ export function PendingUserInputCard(props: PendingUserInputCardProps) {
       className="overflow-hidden gap-2.5 rounded-[20px] border border-border bg-card-alt p-4"
       style={cardAnimatedStyle}
     >
-      <QuestionAutoDismissToggle
-        deadline={autoDismissAt}
-        accessibilityLabel={describeQuestion(questionIndex)}
-        accessibilityHint="Collapses user input"
-        onPress={props.onToggleCollapsed}
-        className="flex-row items-center gap-2"
-      >
-        {(timer) => (
-          <>
-            <View className="min-w-[33%] flex-1 overflow-hidden">
-              <QuestionPage
-                questionId={question?.id}
-                direction={pushDirection}
-                className="flex-row items-center gap-2"
-              >
-                <Text
-                  numberOfLines={1}
-                  className="shrink font-supaterm-bold text-2xs uppercase tracking-[1.1px] text-foreground-secondary"
-                  style={question ? proseDirectionStyle(question.header, setDirection) : undefined}
+      <View className="flex-row items-center gap-2">
+        <QuestionAutoDismissToggle
+          deadline={autoDismissAt}
+          accessibilityLabel={describeQuestion(questionIndex)}
+          accessibilityHint="Collapses user input"
+          onPress={props.onToggleCollapsed}
+          className="flex-1 flex-row items-center gap-2"
+        >
+          {(timer) => (
+            <>
+              <View className="min-w-[33%] flex-1 overflow-hidden">
+                <QuestionPage
+                  questionId={question?.id}
+                  direction={pushDirection}
+                  className="flex-row items-center gap-2"
                 >
-                  {question?.header ?? FALLBACK_TITLE}
-                </Text>
-                {questionCount > 1 ? (
-                  <Text className="font-sans text-xs tabular-nums text-foreground-muted">
-                    {questionIndex + 1} of {questionCount}
+                  <Text
+                    numberOfLines={1}
+                    className="shrink font-supaterm-bold text-2xs uppercase tracking-[1.1px] text-foreground-secondary"
+                    style={
+                      question ? proseDirectionStyle(question.header, setDirection) : undefined
+                    }
+                  >
+                    {question?.header ?? FALLBACK_TITLE}
                   </Text>
-                ) : null}
-              </QuestionPage>
-            </View>
-            {timer}
-            <View className="h-8 w-8 items-center justify-center rounded-full bg-subtle-strong">
-              <SymbolView
-                name="chevron.down"
-                size={13}
-                tintColorClassName={"accent-icon-subtle"}
-                type="monochrome"
-              />
-            </View>
-          </>
-        )}
-      </QuestionAutoDismissToggle>
+                  {questionCount > 1 ? (
+                    <Text className="font-sans text-xs tabular-nums text-foreground-muted">
+                      {questionIndex + 1} of {questionCount}
+                    </Text>
+                  ) : null}
+                </QuestionPage>
+              </View>
+              {timer}
+              <View className="h-8 w-8 items-center justify-center rounded-full bg-subtle-strong">
+                <SymbolView
+                  name="chevron.down"
+                  size={13}
+                  tintColorClassName={"accent-icon-subtle"}
+                  type="monochrome"
+                />
+              </View>
+            </>
+          )}
+        </QuestionAutoDismissToggle>
+        {stopButton}
+      </View>
       {/* Remounting per question also starts each page scrolled to its top. */}
       <QuestionPage
         questionId={question?.id}
