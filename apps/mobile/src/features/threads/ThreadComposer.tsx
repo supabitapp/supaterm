@@ -525,6 +525,7 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
     offersUsageLimits: usageLimitsOffered,
     onUsageLimits:
       usageLimitsOffered && draftAttachments.length === 0 ? openUsageLimits : undefined,
+    onOpenModelPicker: settingsSheetPresentation.open,
     ...(props.onFreshSession === undefined ? {} : { onFreshSession: props.onFreshSession }),
   });
   const voiceInput = useVoiceInputController({
