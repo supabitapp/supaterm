@@ -964,9 +964,12 @@ export function useComposerSend(input: ComposerSendInput) {
         );
       }
       if (useComposerDraftStore.getState().getComposerDraft(composerDraftTarget) === savedDraft) {
-        promptRef.current = "";
         clearComposerDraftContent(composerDraftTarget);
-        composerRef.current?.resetCursorState();
+        // The prompt ref and cursor belong to the thread on screen, which may no longer be this one.
+        if (currentRouteThreadKeyRef.current === routeThreadKey) {
+          promptRef.current = "";
+          composerRef.current?.resetCursorState();
+        }
       }
       // The outbox owns its own bytes. References recovered without bytes stay owned until delivery.
       releaseDraftAttachments(
