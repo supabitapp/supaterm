@@ -143,6 +143,7 @@ import { Image as ExpoImage } from "expo-image";
 import { useResolveClassNames } from "uniwind";
 import { useFilePreviewGallery, FilePreviewGallery } from "../../components/ui/FilePreviewGallery";
 import { assetImageSource } from "../../lib/assetImageSource";
+import { filePreviewSourceIdentifier } from "../../lib/filePreviewGallery";
 import { composerImageGallery } from "../../lib/composerImageGallery";
 import { isFileBackedComposerAttachment } from "../../lib/composerImages";
 import { useLocalAttachmentPreview } from "../../lib/localAttachmentPreview";
@@ -664,13 +665,17 @@ function MessageAttachmentImage(props: {
   readonly onPressPreview: (source: FilePreviewSource) => void;
 }) {
   const withGallery = useFilePreviewGallery();
-  const sourceIdentifier = useId();
   const resource = {
     _tag: "attachment" as const,
     attachmentId: props.attachmentId,
     fileName: props.name,
     mimeType: props.mimeType,
   };
+  const sourceIdentifier = filePreviewSourceIdentifier({
+    kind: "image",
+    environmentId: props.environmentId,
+    resource,
+  });
   const uri = useAssetUrl(props.environmentId, resource);
   const refreshAssetUrl = useRefreshAssetUrl(props.environmentId, resource);
   const retriedImage = useRef(false);
