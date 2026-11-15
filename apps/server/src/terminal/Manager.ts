@@ -254,6 +254,7 @@ interface TerminalSubprocessInspectResult {
 interface TerminalSubprocessInspector {
   (
     terminalPid: number,
+    shell: string | null,
   ): Effect.Effect<TerminalSubprocessInspectResult, TerminalSubprocessCheckError>;
 }
 
@@ -774,21 +775,48 @@ function processTableSnapshotFromProcesses(
   return { childrenByParent, commandById };
 }
 
+// A root with one of these names is still an interactive shell, e.g. after `.bashrc` runs `exec zsh`.
+const INTERACTIVE_SHELL_NAMES = new Set([
+  "bash",
+  "zsh",
+  "fish",
+  "sh",
+  "dash",
+  "ksh",
+  "mksh",
+  "tcsh",
+  "csh",
+  "nu",
+]);
+
 function deriveSubprocessInspectResult(
   snapshot: TerminalProcessTableSnapshot,
   terminalPid: number,
+  shell: string | null,
   platform: NodeJS.Platform,
+  foregroundProcessGroup?: number | null,
 ): TerminalSubprocessInspectResult {
   const commandName = (pid: number) =>
     normalizeChildCommandName(snapshot.commandById.get(pid) ?? "", platform);
   const shellName = commandName(terminalPid);
-  // Async prompt themes fork childless shell helpers that are not user commands.
-  const childPid = (snapshot.childrenByParent.get(terminalPid) ?? []).find(
-    (pid) =>
-      shellName === null ||
-      commandName(pid) !== shellName ||
-      (snapshot.childrenByParent.get(pid)?.length ?? 0) > 0,
-  );
+  // `exec <command>` replaces the shell, leaving the command itself as the root.
+  const rootIsCommand =
+    platform !== "win32" &&
+    shell !== null &&
+    shellName !== null &&
+    shellName !== normalizeChildCommandName(shell, platform) &&
+    !INTERACTIVE_SHELL_NAMES.has(shellName.replace(/^-/, ""));
+  // Async prompt themes fork childless shell helpers that are not user commands;
+  // a foreground job owns the terminal's process group, and an unknown one counts as foreground.
+  const childPid = rootIsCommand
+    ? terminalPid
+    : (snapshot.childrenByParent.get(terminalPid) ?? []).find(
+        (pid) =>
+          shellName === null ||
+          commandName(pid) !== shellName ||
+          (snapshot.childrenByParent.get(pid)?.length ?? 0) > 0 ||
+          (foregroundProcessGroup !== undefined && foregroundProcessGroup !== terminalPid),
+      );
   if (childPid === undefined) {
     return { hasRunningSubprocess: false, childCommand: null, processIds: [] };
   }
@@ -809,6 +837,12 @@ function deriveSubprocessInspectResult(
     childCommand: normalized ? truncateTerminalWireLabel(normalized) : null,
     processIds: [...processIds],
   };
+}
+
+// Field 8 of /proc/<pid>/stat is the tty's foreground process group; comm (field 2) may hold spaces or parens.
+function parseProcStatForegroundProcessGroup(stat: string): number | null {
+  const tpgid = Number(stat.slice(stat.lastIndexOf(")") + 2).split(" ")[5]);
+  return Number.isInteger(tpgid) ? tpgid : null;
 }
 
 const POSIX_PS_ABSOLUTE_PATHS = ["/bin/ps", "/usr/bin/ps"] as const;
@@ -1625,6 +1659,7 @@ interface TerminalManagerOptions {
     ReadonlyArray<ResourceMonitorProcessTableEntry>,
     TerminalSubprocessCheckError
   >;
+  foregroundProcessGroup?: (terminalPid: number) => Effect.Effect<number | null>;
   subprocessPollIntervalMs?: number;
   processKillGraceMs?: number;
   maxRetainedInactiveSessions?: number;
@@ -1805,6 +1840,30 @@ export const makeWithOptions = Effect.fn("TerminalManager.makeWithOptions")(func
             snapshotSucceeded: Result.isSuccess(fallback.snapshot),
           })),
         );
+  const foregroundProcessGroup =
+    options.foregroundProcessGroup ??
+    ((terminalPid: number) =>
+      platform === "linux"
+        ? fileSystem.readFileString(`/proc/${terminalPid}/stat`).pipe(
+            Effect.map(parseProcStatForegroundProcessGroup),
+            Effect.orElseSucceed(() => null),
+          )
+        : processRunner
+            .run({
+              command: posixPsCommand ?? "ps",
+              args: ["-o", "tpgid=", "-p", String(terminalPid)],
+              timeout: CLOSE_IDLE_QUERY_TIMEOUT.posix,
+              timeoutBehavior: "timedOutResult",
+            })
+            .pipe(
+              Effect.map((result) => {
+                const tpgid = Number(result.stdout.trim());
+                return result.code === 0 && !result.timedOut && Number.isInteger(tpgid) && tpgid > 0
+                  ? tpgid
+                  : null;
+              }),
+              Effect.orElseSucceed(() => null),
+            ));
   const customSubprocessInspector = options.subprocessInspector;
   const acquireSubprocessInspector = (
     fallbackTimeout: Duration.Input,
@@ -1825,8 +1884,20 @@ export const makeWithOptions = Effect.fn("TerminalManager.makeWithOptions")(func
             inspector: Result.map(
               snapshot,
               (table): TerminalSubprocessInspector =>
-                (terminalPid) =>
-                  Effect.succeed(deriveSubprocessInspectResult(table, terminalPid, platform)),
+                (terminalPid, shell) => {
+                  const result = deriveSubprocessInspectResult(table, terminalPid, shell, platform);
+                  // Only shell-named childless children are ambiguous; read the foreground group for those alone.
+                  if (
+                    result.hasRunningSubprocess ||
+                    platform === "win32" ||
+                    (table.childrenByParent.get(terminalPid)?.length ?? 0) === 0
+                  ) {
+                    return Effect.succeed(result);
+                  }
+                  return Effect.map(foregroundProcessGroup(terminalPid), (group) =>
+                    deriveSubprocessInspectResult(table, terminalPid, shell, platform, group),
+                  );
+                },
             ),
             snapshotSucceeded,
             queryElapsedMs,
@@ -2939,7 +3010,7 @@ export const makeWithOptions = Effect.fn("TerminalManager.makeWithOptions")(func
       let mark = candidate.mark;
       const previous = quietSessions.get(session);
       quietSessions.delete(session);
-      const inspectResult = yield* subprocessInspector(terminalPid).pipe(
+      const inspectResult = yield* subprocessInspector(terminalPid, session.shell).pipe(
         Effect.asSome,
         Effect.catch((reason) =>
           Effect.logWarning("failed to check terminal subprocess activity", {
@@ -3735,7 +3806,7 @@ export const makeWithOptions = Effect.fn("TerminalManager.makeWithOptions")(func
         yield* Effect.forEach(
           running,
           (session) =>
-            inspector(session.pid).pipe(
+            inspector(session.pid, session.shell).pipe(
               Effect.flatMap((result) =>
                 result.hasRunningSubprocess ||
                 terminalActivityMark(session) !== marks.get(session.terminalId)
