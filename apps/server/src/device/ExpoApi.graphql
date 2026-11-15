@@ -21,17 +21,6 @@ query SupatermExpoViewer {
   }
 }
 
-query SupatermEasSimulatorAvailability($appId: String!, $filter: [String!]) {
-  app {
-    byId(appId: $appId) {
-      ownerAccount {
-        name
-        accountFeatureGates(filter: $filter)
-      }
-    }
-  }
-}
-
 mutation SupatermCreateEasSimulatorSession($input: CreateDeviceRunSessionInput!) {
   deviceRunSession {
     createDeviceRunSession(deviceRunSessionInput: $input) {
