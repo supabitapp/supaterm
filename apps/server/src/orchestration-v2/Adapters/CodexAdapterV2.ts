@@ -6546,7 +6546,8 @@ export const makeCodexAdapterV2 = Effect.fn("makeCodexAdapterV2")(function* (
               Effect.timeout(PromptSuggestionHub.PREDICTION_WAIT),
               Effect.flatMap(decodeCodexThreadSampleResponse),
               Effect.flatMap(({ text }) =>
-                text === null
+                // Delegated completion wakes arrive as user input, so samples can imitate one.
+                text === null || text.trim().startsWith("Delegated task")
                   ? Effect.void
                   : emitProviderEvent({
                       type: "prompt_suggestion.ready",

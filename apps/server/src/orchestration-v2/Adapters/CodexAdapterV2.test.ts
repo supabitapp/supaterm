@@ -2669,6 +2669,111 @@ describe("CodexAdapterV2 post-settle continuation", () => {
       ),
   );
 
+  it.effect("does not suggest a sample that imitates a delegated task wake", () =>
+    Effect.gen(function* () {
+      const nativeThreadId = "suggest-wake-thread";
+      const prompt = "Delegate the README check.";
+      const first = codexReplayPreamble({ nativeThreadId, nativeTurnId: "wake-turn-1", prompt });
+      const second = codexReplayPreamble({ nativeThreadId, nativeTurnId: "wake-turn-2", prompt });
+      const completedAndSampled = (
+        nativeTurnId: string,
+        id: number,
+        text: string,
+      ): Array<CodexReplay.CodexAppServerReplayEntry> => [
+        {
+          type: "emit_inbound",
+          label: `${nativeTurnId} completed`,
+          frame: {
+            method: "turn/completed",
+            params: {
+              threadId: nativeThreadId,
+              turn: makeCodexReplayTurn({ id: nativeTurnId, status: "completed" }),
+            },
+          },
+        },
+        {
+          type: "expect_outbound",
+          label: `${nativeTurnId} thread/sample`,
+          frame: {
+            id,
+            method: "thread/sample",
+            params: {
+              threadId: nativeThreadId,
+              expectedTurnId: nativeTurnId,
+              prompt: CodexAdapterV2.CODEX_NEXT_PROMPT_REQUEST,
+            },
+          },
+        },
+        {
+          type: "emit_inbound",
+          label: `${nativeTurnId} thread/sample`,
+          frame: { id, result: { sourceTurnId: nativeTurnId, text } },
+        },
+      ];
+      // The second turn's ordinary suggestion is the barrier for the first turn's sample.
+      const firstSampleAnswered = yield* Deferred.make<void>();
+      const harness = yield* makeCodexReplayHarness(
+        makeCodexReplayTranscript({
+          scenario: "next-prompt-delegated-wake",
+          entries: [
+            ...first,
+            ...completedAndSampled(
+              "wake-turn-1",
+              4,
+              "Delegated task (Read README) [completed]: Here is the first line of the README.",
+            ),
+            ...second.slice(5, 7).map((entry) => withReplayRequestId(entry, 5)),
+            ...completedAndSampled("wake-turn-2", 6, "Add tests for subtract."),
+          ],
+        }),
+        undefined,
+        undefined,
+        undefined,
+        {
+          promptSuggestionsEnabled: Effect.succeed(true),
+          beforeEmitInbound: (entry) =>
+            entry.label === "wake-turn-1 thread/sample"
+              ? Deferred.succeed(firstSampleAnswered, undefined).pipe(Effect.asVoid)
+              : Effect.void,
+        },
+      );
+      const turn = makeCodexTestTurnInput({
+        threadId: harness.threadId,
+        providerThread: harness.providerThread,
+        now: yield* DateTime.now,
+        attemptId: RunAttemptId.make("wake-attempt-1"),
+        text: prompt,
+      });
+      yield* harness.runtime.startTurn(turn);
+      yield* harness.awaitTerminal(1);
+      yield* Deferred.await(firstSampleAnswered);
+      yield* harness.runtime.startTurn({
+        ...turn,
+        runId: RunId.make("wake-run-2"),
+        attemptId: RunAttemptId.make("wake-attempt-2"),
+        rootNodeId: NodeId.make("wake-root-2"),
+        runOrdinal: 2,
+        providerTurnOrdinal: 2,
+      });
+      const suggestions = () =>
+        harness.events.flatMap((event) =>
+          event.type === "prompt_suggestion.ready" ? [event.suggestion] : [],
+        );
+      yield* harness.until(() => suggestions().length > 0);
+      assert.deepEqual(suggestions(), ["Add tests for subtract."]);
+    }).pipe(
+      Effect.scoped,
+      Effect.provide(
+        Layer.mergeAll(
+          IdAllocator.layer,
+          McpProviderSessions.layer,
+          NodeServices.layer,
+          NodeCrypto.layer,
+        ),
+      ),
+    ),
+  );
+
   it.effect("waits for native start before interrupting an acknowledged queued turn", () =>
     Effect.gen(function* () {
       const nativeThreadId = "early-stop-thread";
