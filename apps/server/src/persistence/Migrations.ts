@@ -28,6 +28,7 @@ import Migration0018 from "./Migrations/018_ShellThreadReadIndexes.ts";
 import Migration0019 from "./Migrations/019_ProviderTurnAttemptIndex.ts";
 import Migration0020 from "./Migrations/020_TurnItemMessageOrdinalIndex.ts";
 import Migration0021 from "./Migrations/021_TurnItemInlineWorkOutput.ts";
+import Migration0022 from "./Migrations/022_RepairStaleTitleRegeneration.ts";
 
 /**
  * Add a schema change as a new entry with the next id. Never edit, renumber, or
@@ -56,6 +57,7 @@ const migrationEntries = [
   [19, "ProviderTurnAttemptIndex", Migration0019],
   [20, "TurnItemMessageOrdinalIndex", Migration0020],
   [21, "TurnItemInlineWorkOutput", Migration0021],
+  [22, "RepairStaleTitleRegeneration", Migration0022],
 ] as const;
 
 export const migrationManifest = migrationEntries.map(([id, name]) => [id, name] as const);
