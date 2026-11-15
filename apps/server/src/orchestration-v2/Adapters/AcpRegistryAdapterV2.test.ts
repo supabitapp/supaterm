@@ -1259,7 +1259,7 @@ describe("AcpRegistryAdapterV2", () => {
     }).pipe(Effect.provide(layerTest)),
   );
 
-  it.effect("gives Copilot Supaterm's MCP server over HTTP when it advertises HTTP", () =>
+  it.effect("gives HTTP-capable agents Supaterm's MCP server over HTTP", () =>
     Effect.gen(function* () {
       const selfInvocation = yield* resolveSelfInvocation();
       const mockAgentPath = yield* (yield* Path.Path).fromFileUrl(
@@ -1345,6 +1345,14 @@ describe("AcpRegistryAdapterV2", () => {
         };
         return { new: sent("session/new"), load: sent("session/load") };
       });
+      const plainHttp = (authorization: string) => [
+        {
+          type: "http",
+          name: "supaterm",
+          url: endpoint,
+          headers: [{ name: "Authorization", value: authorization }],
+        },
+      ];
       const http = (authorization: string) => [
         {
           type: "http",
@@ -1391,6 +1399,30 @@ describe("AcpRegistryAdapterV2", () => {
           new: stdio("Bearer opened-token"),
           load: stdio("Bearer rotated-token"),
         },
+      );
+      // Command Code cannot start the stdio bridge on Windows: it spawns MCP commands through
+      // cmd.exe, which splits an unquoted Supaterm executable path at a space.
+      const commandCode = {
+        source: "local",
+        commandPath: "C:\\tools\\cmdc.exe",
+        commandArgs: ["acp"],
+      };
+      // Command Code is not Copilot: no deferred tool-exposure header.
+      assert.deepEqual(yield* sessionMcpServers(commandCode, { SUPATERM_ACP_MCP_HTTP: "1" }), {
+        new: plainHttp("Bearer opened-token"),
+        load: plainHttp("Bearer rotated-token"),
+      });
+      assert.deepEqual(yield* sessionMcpServers(commandCode), {
+        new: stdio("Bearer opened-token"),
+        load: stdio("Bearer rotated-token"),
+      });
+      // Any other local agent keeps the stdio bridge.
+      assert.deepEqual(
+        yield* sessionMcpServers(
+          { source: "local", commandPath: "C:\\tools\\node.exe", commandArgs: ["agent.mjs"] },
+          { SUPATERM_ACP_MCP_HTTP: "1" },
+        ),
+        { new: stdio("Bearer opened-token"), load: stdio("Bearer rotated-token") },
       );
     }).pipe(Effect.provide(layerTest)),
   );
