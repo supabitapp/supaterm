@@ -267,6 +267,7 @@ vi.mock("../features/threads/PendingVoiceMessage", () => ({
 }));
 vi.mock("../components/ui/FilePreviewGallery", () => ({
   FilePreviewGallery: ({ children }: { children?: ReactNode }) => children,
+  useFilePreviewGallery: () => (source: unknown) => source,
 }));
 vi.mock("../components/ui/FilePreviewModal", () => ({
   FilePreviewModal: (props: { source: { name: string } | null }) =>
