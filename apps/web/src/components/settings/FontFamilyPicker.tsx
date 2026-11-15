@@ -2,7 +2,11 @@ import { useLegendListRef } from "~/hooks/useLegendListRef";
 import { LegendList, type LegendListRef } from "@legendapp/list/react";
 import { CheckIcon } from "@supaterm/icons";
 import { useEffect, useEffectEvent, useRef, useState, useSyncExternalStore } from "react";
-import { isMonospaceFamily, queryInstalledFontFamilies } from "../../appearanceFonts";
+import {
+  displayFontFamily,
+  isMonospaceFamily,
+  queryInstalledFontFamilies,
+} from "../../appearanceFonts";
 import {
   Combobox,
   ComboboxEmpty,
@@ -163,7 +167,7 @@ export function FontFamilyPicker({
     return (
       <ComboboxItem hideIndicator index={index} key={item} value={item}>
         <div className="flex w-full min-w-0 items-center justify-between gap-2">
-          <span className="min-w-0 truncate" style={{ fontFamily: family }}>
+          <span className="min-w-0 truncate" style={{ fontFamily: displayFontFamily(family) }}>
             {family}
           </span>
           <span className="flex shrink-0 items-center gap-1.5">
