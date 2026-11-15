@@ -99,7 +99,7 @@ const ThreadLaunchResult = Schema.Struct({
 });
 
 const withThreadTools = <A, E, R>(
-  flags: { readonly baseDir: Option.Option<string> },
+  flags: { readonly baseDir: Option.Option<string>; readonly json: boolean },
   run: (tools: ServerTools) => Effect.Effect<A, E, R>,
 ) => withServerTools(flags, { label: "supaterm thread cli", name: "supaterm-thread-cli" }, run);
 
