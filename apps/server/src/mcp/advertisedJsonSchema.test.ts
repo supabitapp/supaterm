@@ -43,3 +43,25 @@ it("drops JSON noise, merges tagged unions, and keeps null where it is required"
     required: ["beforeRunId", "every"],
   });
 });
+
+it("advertises only string enum values, which Gemini requires", () => {
+  const enumValues: Array<unknown> = [];
+  const collect = (node: unknown): void => {
+    if (Array.isArray(node)) return node.forEach(collect);
+    if (typeof node !== "object" || node === null) return;
+    for (const [key, value] of Object.entries(node)) {
+      if (key === "enum" && Array.isArray(value)) enumValues.push(...value);
+      else collect(value);
+    }
+  };
+  const tool = Tool.make("example", {
+    parameters: Schema.Struct({
+      level: Schema.Literals([1, 2, 3]),
+      enabled: Schema.optional(Schema.Literal(true)),
+      mode: Schema.Literals(["light", "dark"]),
+    }),
+  });
+  collect(advertisedJsonSchema(tool));
+
+  expect(enumValues).toEqual(["light", "dark"]);
+});
