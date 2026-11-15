@@ -300,7 +300,7 @@ import { type AppModelOption, getAppModelOptionsForInstance } from "../../modelS
 import type { UnifiedSettings } from "@supaterm/contracts/settings";
 import { isVideoAttachment, type SessionPhase, type Thread, type ThreadShell } from "../../types";
 import { type ComposerPromptHistoryPosition } from "./composerPromptHistory";
-import type { PendingUserInputDraftAnswer } from "@supaterm/client-runtime/state/pending-user-input";
+import { usePendingUserInputDraft } from "./usePendingThreadRequests";
 import type { PendingApproval, PendingUserInput, TimelineEntry } from "../../session-logic";
 import {
   resolveComposerDispatchMode,
@@ -449,23 +449,7 @@ export interface ChatComposerProps {
   pendingApprovals: PendingApproval[];
   pendingUserInputs: PendingUserInput[];
   supportsQuestionAutoDismiss?: boolean;
-  activePendingProgress: {
-    questionIndex: number;
-    isLastQuestion: boolean;
-    canAdvance: boolean;
-    customAnswer: string;
-    activeQuestion: {
-      id: string;
-      options: ReadonlyArray<unknown>;
-      initialAnswer?: string | undefined;
-      multiSelect?: boolean | undefined;
-      allowCustomAnswer?: boolean | undefined;
-    } | null;
-  } | null;
-  activePendingResolvedAnswers: Record<string, unknown> | null;
   activePendingIsResponding: boolean;
-  activePendingDraftAnswers: Record<string, PendingUserInputDraftAnswer>;
-  activePendingQuestionIndex: number;
   respondingRequestIds: RuntimeRequestId[];
 
   activeTasksProgress: ComposerTasksProgress | null;
@@ -608,11 +592,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     activePendingApproval: incomingPendingApproval,
     pendingApprovals,
     pendingUserInputs: incomingPendingUserInputs,
-    activePendingProgress: incomingPendingProgress,
-    activePendingResolvedAnswers,
     activePendingIsResponding: incomingPendingIsResponding,
-    activePendingDraftAnswers,
-    activePendingQuestionIndex,
     respondingRequestIds,
     runtimeMode,
     lockedProvider,
@@ -673,6 +653,17 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     onEditLatestQueuedMessage,
     onCancelQueuedMessageEdit,
   } = props;
+  const {
+    activePendingProgress: incomingPendingProgress,
+    activePendingResolvedAnswers,
+    activePendingDraftAnswers,
+    activePendingQuestionIndex,
+  } = usePendingUserInputDraft({
+    environmentId,
+    activeThreadId,
+    activePendingUserInput: incomingPendingUserInputs[0] ?? null,
+    supportsQuestionAttachments,
+  });
   const primaryEnvironmentId = usePrimaryEnvironmentId();
   const composerDraftTargetKey = composerTargetKey(composerDraftTarget);
   const {

@@ -155,7 +155,7 @@ function sendInput(
       },
     ],
     respondingRequestIds: [],
-    activePendingProgress: null,
+    activePendingUserInput: null,
     onAdvanceActivePendingUserInput: () => {},
     onRespondToApproval,
     beginWorktreeSetup: () => {},

@@ -1464,10 +1464,6 @@ export default function ChatView(props: ChatViewProps) {
     pendingUserInputs,
     activePendingApproval,
     activePendingUserInput,
-    activePendingDraftAnswers,
-    activePendingQuestionIndex,
-    activePendingProgress,
-    activePendingResolvedAnswers,
     activePendingIsResponding,
     respondingRequestIds,
     supportsQuestionAutoDismiss,
@@ -3096,7 +3092,7 @@ export default function ChatView(props: ChatViewProps) {
     readPendingEnvironmentChange,
     pendingApprovals,
     respondingRequestIds,
-    activePendingProgress,
+    activePendingUserInput,
     onAdvanceActivePendingUserInput,
     onRespondToApproval: onRespondToApprovalStable,
     beginWorktreeSetup,
@@ -3178,7 +3174,7 @@ export default function ChatView(props: ChatViewProps) {
     clientSettingsHydrated &&
     !needsLoadBalancing &&
     !activeEnvironmentUnavailable &&
-    !activePendingProgress &&
+    !activePendingUserInput &&
     !feedbackUploading;
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- switches the draft to local mode, then resends the waiting message once sending is idle
   useEffect(() => {
@@ -3885,13 +3881,7 @@ export default function ChatView(props: ChatViewProps) {
                                     queuedRunEdit.outbox.isEditing ? [] : pendingUserInputs
                                   }
                                   supportsQuestionAutoDismiss={supportsQuestionAutoDismiss}
-                                  activePendingProgress={
-                                    queuedRunEdit.outbox.isEditing ? null : activePendingProgress
-                                  }
-                                  activePendingResolvedAnswers={activePendingResolvedAnswers}
                                   activePendingIsResponding={activePendingIsResponding}
-                                  activePendingDraftAnswers={activePendingDraftAnswers}
-                                  activePendingQuestionIndex={activePendingQuestionIndex}
                                   respondingRequestIds={respondingRequestIds}
                                   threadSyncPhase={
                                     activeEnvironmentUnavailable ? null : threadSyncPhase

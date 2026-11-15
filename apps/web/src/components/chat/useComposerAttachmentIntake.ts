@@ -24,6 +24,7 @@ import {
   composerFileMatchesReattachMarker,
   composerFileNeedsReattach,
 } from "../../composerDraftStore";
+import type { PendingUserInputProgress } from "../../pendingUserInput";
 import {
   inheritComposerImageThumbnail,
   prepareImageForAttachment,
@@ -65,7 +66,7 @@ import {
  */
 export function useComposerAttachmentIntake(input: {
   readonly activeThreadId: ChatComposerProps["activeThreadId"];
-  readonly activePendingProgress: ChatComposerProps["activePendingProgress"];
+  readonly activePendingProgress: PendingUserInputProgress | null;
   readonly activePendingIsResponding: boolean;
   readonly pendingUserInputs: ReadonlyArray<PendingUserInput>;
   readonly supportsQuestionAttachments: boolean;

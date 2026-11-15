@@ -1,5 +1,6 @@
 import type { EnvironmentId, PreviewAnnotationPayload, ScopedThreadRef } from "@supaterm/contracts";
 import { PROVIDER_SEND_TURN_MAX_ATTACHMENTS } from "@supaterm/contracts";
+import type { PendingUserInputProgress } from "../../pendingUserInput";
 import {
   type Dispatch,
   type RefObject,
@@ -91,7 +92,7 @@ export function useComposerStash(input: {
   readonly isRevertingCheckpoint: boolean;
   readonly isEditingQueuedMessage: boolean;
   readonly pendingUserInputs: ReadonlyArray<PendingUserInput>;
-  readonly activePendingProgress: ChatComposerProps["activePendingProgress"];
+  readonly activePendingProgress: PendingUserInputProgress | null;
   readonly canQueueMessage: boolean;
   readonly canQueueSelectedProvider: boolean;
   readonly isSendBusy: boolean;
