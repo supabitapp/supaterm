@@ -180,6 +180,16 @@ function SetupCard(props: WorktreeSetupCardProps) {
   );
 }
 
+export function WorktreePreparingHeader() {
+  return (
+    <View className="py-1">
+      <View className="min-h-11 flex-row items-center border-b border-border px-1">
+        <HeaderLabel label="Setting up worktree…" active />
+      </View>
+    </View>
+  );
+}
+
 function HeaderLabel({
   label,
   active,

@@ -636,6 +636,11 @@ function ThreadDetailBody(
     props.creationState?.kind === "preparing" && !props.creationState.serverOwned
       ? props.creationState
       : null;
+  const preparingWorktreeInFeed =
+    props.creationState?.kind === "preparing" &&
+    props.creationState.preparingWorktree &&
+    !props.worktreeSetup &&
+    props.connectionStateLabel === "connected";
   const connectionRetrying =
     props.connectionStateLabel === "connecting" || props.connectionStateLabel === "reconnecting";
   const retryError = connectionRetrying ? props.connectionError : null;
@@ -863,7 +868,7 @@ function ThreadDetailBody(
       return null;
     }
     if (props.creationState?.kind === "preparing") {
-      if (props.worktreeSetup) return null;
+      if (props.worktreeSetup || preparingWorktreeInFeed) return null;
       return {
         kind: "preparing",
         label: pendingThreadCreationLabel({
@@ -1604,6 +1609,7 @@ function ThreadDetailBody(
                   feed={props.selectedThreadFeed}
                   pendingHandoff={props.pendingHandoff}
                   worktreeSetup={props.worktreeSetup}
+                  preparingWorktree={preparingWorktreeInFeed}
                   queuedMessages={props.queuedMessages}
                   creatingThread={clientCreation !== null}
                   dispatchingMessageId={props.dispatchingMessageId}
