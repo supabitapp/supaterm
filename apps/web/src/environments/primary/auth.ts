@@ -298,7 +298,7 @@ function waitForBootstrapRetry(delayMs: number): Promise<void> {
 
 function isTransientBootstrapError(error: unknown): boolean {
   if (isPrimaryEnvironmentRequestError(error)) {
-    return TRANSIENT_BOOTSTRAP_STATUS_CODES.has(error.status);
+    return TRANSIENT_BOOTSTRAP_STATUS_CODES.has(error.status) || isTransportError(error.cause);
   }
 
   if (error instanceof TypeError) {
@@ -306,6 +306,10 @@ function isTransientBootstrapError(error: unknown): boolean {
   }
 
   return error instanceof DOMException && error.name === "AbortError";
+}
+
+function isTransportError(error: unknown): boolean {
+  return HttpClientError.isHttpClientError(error) && error.reason._tag === "TransportError";
 }
 
 async function verifyPairingEnvironment(pairingUrl?: string): Promise<void> {
