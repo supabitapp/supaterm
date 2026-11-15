@@ -10,6 +10,8 @@ import {
   type AtomCommandFailure,
   type AtomCommandResult,
 } from "@supaterm/client-runtime/state/runtime";
+import { parseFileUrlHref, splitFilePathPosition } from "@supaterm/shared/fileLinks";
+import { safeDecodeURIComponent } from "@supaterm/shared/markdownLinks";
 import * as Cause from "effect/Cause";
 import * as Schema from "effect/Schema";
 import { AsyncResult } from "effect/reactivity";
@@ -127,10 +129,13 @@ export function useOpenInPreferredEditor(
         ),
       );
     }
+    const uri = /^file:\/\//iu.test(targetPath) ? parseFileUrlHref(targetPath) : null;
+    const { line, column } = uri ? splitFilePathPosition("", uri.hash) : {};
     const result = await openInEditor({
       environmentId,
       input: {
-        cwd: targetPath,
+        cwd: uri ? safeDecodeURIComponent(uri.path) : targetPath,
+        ...(uri ? { position: { line, column } } : {}),
         editor,
         ...(projectRoot ? { projectRoot } : {}),
       },

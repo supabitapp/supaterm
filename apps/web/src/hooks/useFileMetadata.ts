@@ -3,12 +3,17 @@ import {
   type EnvironmentId,
   type ScopedThreadRef,
 } from "@supaterm/contracts";
-import { resolvePathLinkTarget, splitFilePathPosition } from "@supaterm/shared/fileLinks";
+import {
+  parseFileUrlHref,
+  resolvePathLinkTarget,
+  splitFilePathPosition,
+} from "@supaterm/shared/fileLinks";
 import {
   isAbsolutePath,
   isNetworkPath,
   normalizeProjectPathForComparison,
 } from "@supaterm/shared/path";
+import { safeDecodeURIComponent } from "@supaterm/shared/markdownLinks";
 import { useContext } from "react";
 
 import { useEnvironmentScope } from "../state/session";
@@ -22,9 +27,14 @@ export function getFileMetadataQueryAtom(
   cwd?: string,
   threadRef?: ScopedThreadRef | null,
 ) {
+  const uri = /^file:\/\//iu.test(path) ? parseFileUrlHref(path) : null;
   const hostPath = splitFilePathPosition(path).path;
   const targetPath = normalizeProjectPathForComparison(
-    hostPath.startsWith("~/") || !cwd ? hostPath : resolvePathLinkTarget(hostPath, cwd),
+    uri
+      ? safeDecodeURIComponent(uri.path)
+      : hostPath.startsWith("~/") || !cwd
+        ? hostPath
+        : resolvePathLinkTarget(hostPath, cwd),
   );
   const absolute = isAbsolutePath(targetPath) || targetPath.startsWith("~/");
   return (
