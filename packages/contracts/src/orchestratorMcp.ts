@@ -382,6 +382,8 @@ export const OrchestratorMcpThreadListItem = Schema.Struct({
 
   snoozedUntil: Schema.NullOr(IsoDateTime),
   /** Absent from servers that predate it. */
+  pinned: Schema.optional(Schema.Boolean),
+  /** Absent from servers that predate it. */
   blockedOnThreadWait: Schema.optional(Schema.Boolean),
   /** Absent from servers that predate it. */
   pendingBackgroundTasks: Schema.optional(Schema.Array(OrchestratorMcpThreadBackgroundTask)),
@@ -452,6 +454,8 @@ export const OrchestratorMcpThreadDetail = Schema.Struct({
   snoozed: Schema.Boolean,
 
   snoozedUntil: Schema.NullOr(IsoDateTime),
+  /** Absent from servers that predate it. */
+  pinned: Schema.optional(Schema.Boolean),
   pinnedMessages: Schema.Array(ThreadPinnedMessage),
   /** Absent from servers that predate it. */
   blockedOnThreadWait: Schema.optional(Schema.Boolean),

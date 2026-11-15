@@ -1085,6 +1085,7 @@ function listItemFromShell(
     ...threadPullRequests(shell.pullRequests),
     ...threadDone(shell),
     ...threadSnooze(shell, nowMs),
+    pinned: shell.pinnedAt != null,
     ...threadBackgroundWork(shell),
     parentThreadId: shell.lineage.parentThreadId,
     relationshipToParent: shell.lineage.relationshipToParent,
@@ -1148,6 +1149,7 @@ function threadDetail(
     ...threadDone(projection.thread),
 
     ...threadSnooze(shell, nowMs),
+    pinned: shell.pinnedAt != null,
     pinnedMessages: projection.thread.pinnedMessages ?? [],
     ...threadBackgroundWork(shell),
     createdAt: DateTime.formatIso(projection.thread.createdAt),

@@ -392,7 +392,7 @@ then by a unique match in another enabled environment. An outside OAuth client
 cannot render `supaterm-thread://` links, so it gets a web URL on the origin it
 reached, `<origin>/<environmentId>/<threadId>`, for threads in this environment.
 
-List and read results report `snoozed` and `snoozedUntil`, and
+List and read results report `snoozed`, `snoozedUntil`, and `pinned`, and
 `supaterm_thread_list` filters on `snoozed`. The server's `isSnoozed` follows the
 client's `effectiveSnoozed`, so agents and the sidebar agree: a snoozed thread
 wakes early only when it has a pending request or fails after snoozing. Completed
