@@ -235,6 +235,32 @@ it("shows a side chat's full title in its tooltip", async () => {
   );
 });
 
+it("explains why Merge back is unavailable before the fork completes a run", async () => {
+  setup();
+  state.projection = { ...(state.projection as Record<string, unknown>), runs: [] };
+  await using screen = await render(
+    <ThreadRelationshipsPanel
+      environmentId={environmentId}
+      threadId={threadId}
+      showLineage
+      showSideChats={false}
+    />,
+    { router: "/environment/fork" },
+  );
+
+  const mergeBack = screen.getByRole("button", { name: "Merge back to source conversation" });
+  await userEvent.hover(mergeBack);
+  await vi.waitFor(() =>
+    expect(document.querySelector('[data-slot="tooltip-popup"]')?.textContent).toBe(
+      "Complete a run in this fork before merging it back",
+    ),
+  );
+
+  state.commandSucceeds = true;
+  await mergeBack.click({ force: true });
+  expect(screen.router?.state.location.pathname).toBe("/environment/fork");
+});
+
 it("hides a deleted fork and keeps unloaded and archived forks with their current titles", async () => {
   setup();
   const projection = makeThreadProjectionFixture();
