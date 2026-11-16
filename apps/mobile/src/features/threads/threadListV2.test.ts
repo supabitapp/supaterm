@@ -178,6 +178,23 @@ describe("threadHasUnseenCompletion", () => {
 
     expect(threadHasUnseenCompletion(thread)).toBe(unseen);
   });
+
+  it.each(["interrupted", "cancelled"] as const)(
+    "does not present a %s run as an unseen completion",
+    (status) => {
+      const thread = presentThreadShell(
+        environmentId,
+        makeRawThreadShell({
+          latestRunId: RunId.make("run-stopped"),
+          status,
+          latestRunCompletedAt: DateTime.makeUnsafe(NOW),
+          lastVisitedAt: DateTime.makeUnsafe("2026-06-01T23:59:00.000Z"),
+        }),
+      );
+
+      expect(threadHasUnseenCompletion(thread)).toBe(false);
+    },
+  );
 });
 
 describe("queued messages keep a done thread active", () => {
