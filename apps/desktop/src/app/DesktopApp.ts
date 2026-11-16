@@ -17,6 +17,7 @@ import * as DesktopAppActivation from "./DesktopAppActivation.ts";
 import * as DesktopAppIdentity from "./DesktopAppIdentity.ts";
 import * as PreviewPasskeys from "../preview/Passkeys.ts";
 import * as DesktopDeepLinks from "./DesktopDeepLinks.ts";
+import * as DesktopCliShim from "./DesktopCliShim.ts";
 import * as DesktopCliCommand from "./DesktopCliCommand.ts";
 import * as DesktopApplicationMenu from "../window/DesktopApplicationMenu.ts";
 import * as DesktopWindow from "../window/DesktopWindow.ts";
@@ -281,6 +282,8 @@ const bootstrap = Effect.fn("desktop.bootstrap")(function* (backendStarted: bool
   yield* snapShot.initialize;
 
   if (!settings.localEnvironmentEnabled) {
+    // The backend config refreshes the launcher when the local environment runs; an update may move the app.
+    yield* DesktopCliShim.install;
     if (!(yield* Ref.get(state.quitting))) {
       yield* desktopWindow.createMainIfBackendReady;
     }
