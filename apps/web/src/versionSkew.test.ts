@@ -178,12 +178,18 @@ describe("versionSkew", () => {
     ).toBeNull();
   });
 
-  it("still flags a desktop-hosted server on another channel, which updates from its own feed", () => {
+  it("flags a Nightly desktop host behind a Stable client, but not a Stable one behind a Nightly client", () => {
+    expect(
+      resolveServerConfigVersionMismatch(
+        serverConfig("0.0.33-nightly.20260818.1124", "desktop-managed"),
+      ),
+    ).toMatchObject({ serverVersion: "0.0.33-nightly.20260818.1124" });
+
     branding.APP_VERSION = "0.0.35-nightly.20260818.1124";
 
     expect(
       resolveServerConfigVersionMismatch(serverConfig("0.0.34", "desktop-managed")),
-    ).toMatchObject({ serverVersion: "0.0.34" });
+    ).toBeNull();
   });
 
   it("keys dismissals by environment, client version, and server version", () => {

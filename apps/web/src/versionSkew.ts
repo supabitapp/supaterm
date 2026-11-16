@@ -100,9 +100,12 @@ export function isServerUpdateChannelCompatible(
   targetVersion: string,
   selfUpdate: ServerSelfUpdateCapability | null,
 ): boolean {
+  const serverChannel = cliReleaseChannelOf(serverVersion);
+  // A desktop app installs its own track's newest release. Nightly builds run ahead of Stable, so a
+  // Nightly host behind a Stable target has something newer; a Stable host may not.
   return (
-    selfUpdate === "desktop-managed" ||
-    cliReleaseChannelOf(serverVersion) === cliReleaseChannelOf(targetVersion)
+    serverChannel === cliReleaseChannelOf(targetVersion) ||
+    (selfUpdate === "desktop-managed" && serverChannel !== "stable")
   );
 }
 
