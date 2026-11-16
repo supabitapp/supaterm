@@ -10,12 +10,14 @@ import {
   getCloneDirectoryLeafName,
   getCloneDirectoryName,
   getCloneDirectoryPath,
+  getAddProjectInitialQuery,
   getDefaultCloneUrl,
   githubIncompleteOwnerRepositoryMessage,
   normalizePastedCloneUrl,
 } from "./projects.ts";
 import type { EnvironmentProject } from "../state/models.ts";
 import { v2Project } from "../state/orchestrationV2TestFixtures.ts";
+import { isFilesystemBrowseQuery } from "../state/projects.ts";
 
 describe("scratch project availability", () => {
   const environmentId = EnvironmentId.make("local");
@@ -67,6 +69,15 @@ describe("scratch project availability", () => {
 });
 
 describe("add project shared logic", () => {
+  it("starts the Add Project picker on a browsable path for a relative base directory", () => {
+    expect(isFilesystemBrowseQuery(getAddProjectInitialQuery("Desktop/dev"))).toBe(true);
+    expect(getAddProjectInitialQuery("Desktop/dev")).toBe("~/Desktop/dev/");
+    expect(getAddProjectInitialQuery("/srv/code")).toBe("/srv/code/");
+    expect(getAddProjectInitialQuery("~")).toBe("~/");
+    expect(getAddProjectInitialQuery("./work")).toBe("./work/");
+    expect(getAddProjectInitialQuery("C:\\dev")).toBe("C:\\dev\\");
+  });
+
   it("asks for a repository name when GitHub input is only an owner path", () => {
     const github = SourceControlProviderKind.make("github");
     expect(githubIncompleteOwnerRepositoryMessage(github, "pingdotgg/")).toBe(
