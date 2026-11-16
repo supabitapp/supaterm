@@ -47,7 +47,6 @@ import { isPasteAsTextShortcut } from "@supaterm/client-runtime/text-paste";
 import {
   detectComposerTrigger,
   extendReplacementRangeForTrailingSpace,
-  parseSideChatCommand,
   replaceTextRange,
   serializeComposerFileLink,
   type ComposerTrigger,
@@ -303,6 +302,7 @@ import { type ComposerPromptHistoryPosition } from "./composerPromptHistory";
 import { usePendingUserInputDraft } from "./usePendingThreadRequests";
 import type { PendingApproval, PendingUserInput, TimelineEntry } from "../../session-logic";
 import {
+  composerRunsDraftLocally,
   resolveComposerDispatchMode,
   type ComposerDispatchMode,
 } from "@supaterm/client-runtime/state/composer-dispatch";
@@ -1331,13 +1331,24 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
   const showResumeAction =
     canResume && !composerDraftHasUserContent(composerDraft) && !isEditingQueuedMessage;
   const turnRunning = phase === "running" || (deferredSteering && phase === "connecting");
+  const draftRunsLocally = composerRunsDraftLocally({
+    text: prompt,
+    holdsOnlyText:
+      composerImages.length + composerFiles.length === 0 &&
+      composerSendState.sendableTerminalContexts.length === 0 &&
+      composerPreviewAnnotations.length === 0 &&
+      composerReviewComments.length === 0 &&
+      composerReferenceContexts.length === 0,
+    sideChat: props.sideChatAvailable === true,
+    usageLimits: props.onUsageLimitsCommand !== undefined,
+    codexFeedback: selectedProvider === "codex" && multipleModelSelections === null,
+    freshSession: props.onFreshSession !== undefined,
+  });
   const composerPrimaryActionFacts = {
     canOperateThread,
     canQueueMessage,
     pendingAction: pendingPrimaryAction,
-    // A side-chat command starts a side chat; it never queues or steers the turn.
-    isRunning:
-      turnRunning && !(props.sideChatAvailable === true && parseSideChatCommand(prompt) !== null),
+    isRunning: turnRunning && !draftRunsLocally,
     canInterrupt,
     followUpBehavior,
     canSteer,
