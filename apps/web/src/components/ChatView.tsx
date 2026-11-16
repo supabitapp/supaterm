@@ -2275,7 +2275,8 @@ export default function ChatView(props: ChatViewProps) {
 
           if (document.querySelector("[data-mcp-app-fullscreen]") !== null) return;
           if (!isPaneInputOwner()) return;
-          if (shouldRefocusComposerOnWindowFocus(document.activeElement)) focusComposerStable();
+          if (shouldRefocusComposerOnWindowFocus(document.activeElement, document.getSelection()))
+            focusComposerStable();
         });
       });
     };

@@ -1284,7 +1284,9 @@ describe("MessagesTimeline citations", () => {
     await userEvent.keyboard("{Tab}");
     await expect.element(annotate).toHaveFocus();
     // Focus leaving the frame is a window focus for the host, which must not hand it on.
-    expect(shouldRefocusComposerOnWindowFocus(document.activeElement)).toBe(false);
+    expect(
+      shouldRefocusComposerOnWindowFocus(document.activeElement, document.getSelection()),
+    ).toBe(false);
     await userEvent.keyboard("{Enter}");
     expect(onCiteAssistantText).toHaveBeenCalledTimes(2);
     expect(onCiteAssistantText).toHaveBeenLastCalledWith(...quoteFromRow);
