@@ -96,6 +96,8 @@ function PopoverPopup({
             "relative flex h-(--popup-height,auto) w-(--popup-width,auto) origin-(--transform-origin) rounded-lg text-popover-foreground outline-none transition-[width,height,scale,opacity] before:pointer-events-none before:absolute before:inset-0 before:rounded-[calc(var(--radius-lg)-1px)] before:shadow-[0_1px_--theme(--color-black/4%)] has-data-[slot=calendar]:rounded-xl has-data-[slot=calendar]:before:rounded-[calc(var(--radius-xl)-1px)] dark:before:shadow-[0_-1px_--theme(--color-white/6%)]",
             POPUP_MOTION_CLASS,
             variant !== "panel" && "dropdown-glass",
+            // Without it, Chromium re-snaps text after the scale-in at fractional zoom, so hovered rows jump a pixel.
+            "will-change-[scale]",
             // Electron drag hit-testing ignores z-index; popups over a drag region would swallow hover.
             "[-webkit-app-region:no-drag]",
             tooltipStyle &&
