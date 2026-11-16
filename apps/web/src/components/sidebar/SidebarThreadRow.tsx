@@ -2,6 +2,7 @@ import { SIDEBAR_SORTABLE_DRAG_DISABLED } from "./SidebarListMarkers";
 import { asLaunchingThread } from "@supaterm/client-runtime/state/thread-inbox";
 import { ThreadHoverCard, ThreadHoverCardPopup } from "../ThreadHoverCard";
 import { discardComposerDraft } from "../../lib/discardComposerDraft";
+import { contextMenuSourceOf } from "../../contextMenuSource";
 import { resolveThreadCurrentPullRequestLink } from "@supaterm/client-runtime/thread-pull-requests";
 import { getProviderOptionDescriptors } from "@supaterm/shared/model";
 import { formatModelSelectionEffort } from "@supaterm/client-runtime/state/thread-execution";
@@ -27,6 +28,7 @@ import { scopeThreadRef, scopedThreadKey } from "@supaterm/client-runtime/enviro
 import { toServerClock } from "@supaterm/client-runtime/clock";
 import {
   AuthOrchestrationOperateScope,
+  type ContextMenuSource,
   type EnvironmentId,
   type EnvironmentMachineKind,
   type ScopedThreadRef,
@@ -608,7 +610,11 @@ type SidebarThreadRowProps = {
   onCancelRename: () => void;
   isRenaming: boolean;
   renamingTitle: string;
-  onContextMenu: (threadRef: ScopedThreadRef, position: { x: number; y: number }) => void;
+  onContextMenu: (
+    threadRef: ScopedThreadRef,
+    position: { x: number; y: number },
+    source: ContextMenuSource,
+  ) => void;
   onMarkDone: (threadRef: ScopedThreadRef) => void;
   onActionSweepStart: (
     threadRef: ScopedThreadRef,
@@ -926,7 +932,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
   };
   const handleContextMenu = (event: ReactMouseEvent) => {
     event.preventDefault();
-    onContextMenu(threadRef, { x: event.clientX, y: event.clientY });
+    onContextMenu(threadRef, { x: event.clientX, y: event.clientY }, contextMenuSourceOf(event));
   };
   const handleKeyDown = (event: ReactKeyboardEvent) => {
     if (event.target !== event.currentTarget) return;

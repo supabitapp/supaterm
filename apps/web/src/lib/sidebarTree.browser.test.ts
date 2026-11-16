@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vite-plus/test";
 import { userEvent } from "vite-plus/test/browser";
+import { contextMenuSourceOf } from "../contextMenuSource";
 import { installSidebarTree } from "./sidebarTree";
 
 function setup() {
@@ -93,6 +94,7 @@ describe("sidebar keyboard navigation", () => {
       new KeyboardEvent("keyup", { key: "F10", shiftKey: true, bubbles: true, cancelable: true }),
     );
     expect(contextMenu).toHaveBeenCalledOnce();
+    expect(contextMenuSourceOf(contextMenu.mock.calls[0]![0])).toBe("keyboard");
     expect(document.activeElement).toBe(selected);
   });
 
