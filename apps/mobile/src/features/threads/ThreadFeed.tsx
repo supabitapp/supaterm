@@ -3478,10 +3478,6 @@ export const ThreadFeed = memo(function ThreadFeed(props: ThreadFeedProps) {
     headerMaterialVisibleRef.current = visible;
     onHeaderMaterialVisibilityChange?.(visible);
   };
-  const handleMetricsChange = () => {
-    const state = listRef.current?.getState();
-    if (state) onIsAtEndChange?.(state.isAtEnd);
-  };
   const handleScrollBeginDrag = () => {
     // Android's on-drag only blurs RN TextInputs, not the native composer editor.
     if (Platform.OS === "android" && KeyboardController.isVisible()) {
@@ -3508,6 +3504,18 @@ export const ThreadFeed = memo(function ThreadFeed(props: ThreadFeedProps) {
   // current overlay height before the scroll integration's next reaction;
   // on Android the declarative contentInset floor covers this same window.
   const listMountKey = `${feedThreadKey}:${presentedFeed.some((entry) => entry.type !== "thinking") ? "filled" : "empty"}`;
+  const { loading: feedLoading, onListLoaded } = useThreadFeedLoading({
+    listMountKey,
+    contentKind: props.contentPresentation.kind,
+    hasContent: presentedFeed.length > 0,
+    hasLocalMessages: props.creatingThread || props.queuedMessages.length > 0,
+  });
+  const handleMetricsChange = () => {
+    const state = listRef.current?.getState();
+    // Offset 0 before the first positioning, and the gaps while rows measure in, are not the
+    // user leaving the end; only a scroll away stops end following.
+    if (state) onIsAtEndChange?.(feedLoading || state.isAtEnd || state.isFollowingEnd);
+  };
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- subscribes to the list's end state to report it to the parent
   useLayoutEffect(() => {
     const state = listRef.current?.getState();
@@ -3515,6 +3523,7 @@ export const ThreadFeed = memo(function ThreadFeed(props: ThreadFeedProps) {
     handleMetricsChange();
     const stops = [
       state.listen("isAtEnd", handleMetricsChange),
+      state.listen("isFollowingEnd", handleMetricsChange),
       state.listen("totalSize", handleMetricsChange),
       state.listen("footerSize", handleMetricsChange),
       state.listen("headerSize", handleMetricsChange),
@@ -3524,12 +3533,6 @@ export const ThreadFeed = memo(function ThreadFeed(props: ThreadFeedProps) {
     };
     // oxlint-disable-next-line react/exhaustive-effect-dependencies -- The empty↔filled remount replaces the list state, so its listeners move to the new one.
   }, [listRef, handleMetricsChange, listMountKey]);
-  const { loading: feedLoading, onListLoaded } = useThreadFeedLoading({
-    listMountKey,
-    contentKind: props.contentPresentation.kind,
-    hasContent: presentedFeed.length > 0,
-    hasLocalMessages: props.creatingThread || props.queuedMessages.length > 0,
-  });
   const feedOpacity = useSharedValue(feedLoading ? 0 : 1);
   const [prefetchHistory] = useState(createThreadHistoryPrefetcher);
   const handleHistoryPrefetch = () => {
