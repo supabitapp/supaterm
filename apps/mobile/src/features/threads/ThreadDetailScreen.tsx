@@ -186,7 +186,7 @@ import {
   FloatingWorkingControl,
 } from "./floating-working-control";
 import { connectionFloatingStatus, type FloatingWorkingStatus } from "./floating-working-status";
-import type { ThreadLifecycleEvent } from "./thread-context-divider";
+import type { ThreadStatusLineModel } from "./thread-context-divider";
 import { useConnectionStatusVisibility } from "../../connection/useConnectionStatusVisibility";
 import {
   derivePendingUserInputMaxHeight,
@@ -392,6 +392,7 @@ function ColumnWidth(props: { readonly width: number | null; readonly children: 
   );
 }
 const USAGE_LIMITS_PANEL_GAP = 12;
+const FEED_END_GAP = 12;
 const USAGE_LIMITS_PANEL_MIN_HEIGHT = 44;
 
 const USER_INPUT_TOGGLE_TIMING = {
@@ -820,7 +821,31 @@ function ThreadDetailBody(
           Dialog.alert("Pi", props.extensionStatuses?.map((status) => status.text).join("\n\n")),
       }
     : null;
-  const lifecycleEvent = ((): ThreadLifecycleEvent | null => {
+  const backgroundLine = ((): ThreadStatusLineModel | null => {
+    if (pendingBackgroundWork === null || contentPresentationKind !== "ready") return null;
+    return {
+      key: "background",
+      icon: pendingBackgroundWork.waiting ? "person.2" : "terminal",
+      label: pendingBackgroundWork.title,
+      accessibilityLabel: `${pendingBackgroundWork.title}: ${pendingBackgroundWork.items
+        .map((item) => item.label)
+        .join(", ")}`,
+      onOpen: () => {
+        Keyboard.dismiss();
+        navigation.navigate("ThreadBackgroundWork", {
+          environmentId: props.environmentId,
+          threadId: props.selectedThread.id,
+        });
+      },
+      action: {
+        label: statusPending ? "Stopping..." : "Stop",
+        accessibilityLabel: "Stop background work",
+        disabled: !props.canOperateThread || statusPending,
+        onPress: () => void runStatusAction("stop"),
+      },
+    };
+  })();
+  const lifecycleLine = ((): ThreadStatusLineModel | null => {
     if (contentPresentationKind !== "ready" || !(lifecycleSnoozed || done || woke)) return null;
     const actionLabel = lifecycleSnoozed ? "Wake now" : done ? "Reopen" : "Dismiss";
     const wake =
@@ -828,7 +853,8 @@ function ThreadDetailBody(
         ? snoozeWakeLabel(snoozedUntil, { now: lifecycleNow })
         : "now";
     return {
-      state: lifecycleSnoozed ? "snoozed" : done ? "done" : "woke",
+      key: "lifecycle",
+      icon: done && !lifecycleSnoozed ? "checkmark.circle" : "alarm",
       label: lifecycleSnoozed
         ? wake === "now"
           ? "Snoozed"
@@ -851,6 +877,7 @@ function ThreadDetailBody(
       },
     };
   })();
+  const statusLines = [backgroundLine, lifecycleLine].filter((line) => line !== null);
   const deriveFloatingStatus = (ready: boolean): FloatingWorkingStatus | null => {
     const connectionStatus = connectionFloatingStatus({
       connectionError: props.connectionError,
@@ -913,29 +940,6 @@ function ThreadDetailBody(
         onPress: () => {
           Keyboard.dismiss();
           openLinkedThread({ environmentId: props.environmentId, threadId: childInput.id });
-        },
-      };
-    }
-    if (pendingBackgroundWork !== null) {
-      return {
-        kind: "background",
-        label: pendingBackgroundWork.title,
-        accessibilityLabel: `${pendingBackgroundWork.title}: ${pendingBackgroundWork.items
-          .map((item) => item.label)
-          .join(", ")}`,
-        waiting: pendingBackgroundWork.waiting,
-        onPress: () => {
-          Keyboard.dismiss();
-          navigation.navigate("ThreadBackgroundWork", {
-            environmentId: props.environmentId,
-            threadId: props.selectedThread.id,
-          });
-        },
-        action: {
-          label: statusPending ? "Stopping..." : "Stop",
-          accessibilityLabel: "Stop background work",
-          disabled: !props.canOperateThread || statusPending,
-          onPress: () => void runStatusAction("stop"),
         },
       };
     }
@@ -1200,7 +1204,8 @@ function ThreadDetailBody(
       questionInFlow
         ? 0
         : contentInsetEndAdjustment.value +
-          floatingControlCoverage.value +
+          // The feed's last row keeps a gap above the composer; the status row grows from it.
+          Math.max(FEED_END_GAP, floatingControlCoverage.value) +
           (userInputCoverageApplies
             ? userInputInsetProgress.value * userInputCardCoverage.value
             : 0),
@@ -1589,7 +1594,7 @@ function ThreadDetailBody(
                   repositoryIdentity={props.repositoryIdentity}
                   feed={props.selectedThreadFeed}
                   pendingHandoff={props.pendingHandoff}
-                  lifecycleEvent={lifecycleEvent}
+                  statusLines={statusLines}
                   worktreeSetup={props.worktreeSetup}
                   preparingWorktree={preparingWorktreeInFeed}
                   queuedMessages={props.queuedMessages}
@@ -1618,7 +1623,7 @@ function ThreadDetailBody(
                     questionInFlow
                       ? 0
                       : estimatedOverlayHeight +
-                        (showFloatingStatus ? FLOATING_WORKING_CONTROL_COVERAGE : 0)
+                        (showFloatingStatus ? FLOATING_WORKING_CONTROL_COVERAGE : FEED_END_GAP)
                   }
                   contentMaxWidth={contentMaxWidth}
                   historyControls={props.historyControls}
@@ -1720,8 +1725,7 @@ function ThreadDetailBody(
                     colorScheme={isDarkMode ? "dark" : "light"}
                     status={floatingStatus}
                     extensionStatus={
-                      floatingStatus !== null &&
-                      (floatingStatus.kind === "background" || floatingStatus.kind === "goal")
+                      floatingStatus !== null && floatingStatus.kind === "goal"
                         ? extensionStatus
                         : null
                     }

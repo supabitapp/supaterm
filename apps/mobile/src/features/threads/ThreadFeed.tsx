@@ -28,8 +28,8 @@ import {
 import { formatProviderSkillDisplayName } from "@supaterm/shared/inlineSkills";
 import {
   ThreadContextDivider,
-  ThreadLifecycleLine,
-  type ThreadLifecycleEvent,
+  ThreadStatusLine,
+  type ThreadStatusLineModel,
 } from "./thread-context-divider";
 import { useVisibleSecondClock } from "./use-visible-second-clock";
 import {
@@ -398,7 +398,8 @@ export interface ThreadFeedProps {
   readonly repositoryIdentity?: RepositoryIdentity | null;
   readonly feed: ReadonlyArray<ThreadFeedEntry>;
   readonly pendingHandoff?: HandoffEndpoints | null;
-  readonly lifecycleEvent?: ThreadLifecycleEvent | null;
+  /** Thread states that close the feed: background work, then snooze or done. */
+  readonly statusLines?: ReadonlyArray<ThreadStatusLineModel>;
   readonly contentPresentation: ThreadContentPresentation;
   readonly latestRun: ThreadFeedLatestRun | null;
   readonly activeWorkStartedAt: string | null;
@@ -1702,7 +1703,7 @@ function ThreadAutomationMessageRow(props: {
   const summary = taskTitle ?? props.text.trim().split(/\r?\n/, 1)[0] ?? "";
 
   return (
-    <View className="mb-5 items-end">
+    <View className="mb-2 items-end">
       <View
         className="min-w-0 rounded-[20px]"
         style={{
@@ -2276,7 +2277,8 @@ function renderFeedEntry(
           visibleAttachments.length + pendingBubbleAttachments.length > 0);
       return (
         <Animated.View
-          className={cn("items-end", props.userMessageGrouping.groupedWithNext ? "mb-1" : "mb-5")}
+          // A prompt sits close to its own response; the answer's margin separates turns.
+          className={cn("items-end", props.userMessageGrouping.groupedWithNext ? "mb-1" : "mb-2")}
           {...(enterAnimated ? { entering: FadeInDown.duration(220) } : {})}
         >
           {presentation.attribution === "supaterm" ? (
@@ -4191,7 +4193,7 @@ export const ThreadFeed = memo(function ThreadFeed(props: ThreadFeedProps) {
               </>
             }
             ListFooterComponent={
-              props.pendingHandoff || props.lifecycleEvent ? (
+              props.pendingHandoff || props.statusLines?.length ? (
                 <>
                   {props.pendingHandoff ? (
                     <ThreadHandoffDivider
@@ -4202,9 +4204,9 @@ export const ThreadFeed = memo(function ThreadFeed(props: ThreadFeedProps) {
                       label="Context handoff pending"
                     />
                   ) : null}
-                  {props.lifecycleEvent ? (
-                    <ThreadLifecycleLine event={props.lifecycleEvent} iconColor={iconSubtleColor} />
-                  ) : null}
+                  {props.statusLines?.map((line) => (
+                    <ThreadStatusLine key={line.key} line={line} iconColor={iconSubtleColor} />
+                  ))}
                 </>
               ) : null
             }
