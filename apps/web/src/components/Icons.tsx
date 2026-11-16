@@ -5,8 +5,13 @@ export type Icon = React.FC<SVGProps<SVGSVGElement>>;
 
 export const UltrafastIcon: Icon = (props) => (
   <svg viewBox="0 0 24 24" fill="currentColor" stroke="none" {...props}>
-    <path d={ZapFilled} transform="translate(4.6 1.8) scale(0.85)" opacity="0.4" />
-    <path d={ZapFilled} transform="translate(-2.4 1.8) scale(0.85)" />
+    <path
+      d={ZapFilled.fill}
+      fillRule="evenodd"
+      transform="translate(4.6 1.8) scale(0.85)"
+      opacity="0.4"
+    />
+    <path d={ZapFilled.fill} fillRule="evenodd" transform="translate(-2.4 1.8) scale(0.85)" />
   </svg>
 );
 

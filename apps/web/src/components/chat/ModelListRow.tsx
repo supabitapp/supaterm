@@ -1,6 +1,6 @@
 import { type ProviderDriverKind, type ProviderInstanceId } from "@supaterm/contracts";
 import { memo } from "react";
-import { CheckIcon, StarIcon } from "@supaterm/icons";
+import { CheckIcon, StarFilledIcon, StarIcon } from "@supaterm/icons";
 import { getDisplayModelName, getProviderRowLabel } from "./providerIconUtils";
 import { ComboboxItem } from "../ui/combobox";
 import { Button } from "../ui/button";
@@ -38,6 +38,7 @@ export const ModelListRow = memo(function ModelListRow(props: {
     subProvider: props.subProvider,
   };
   const providerLabel = getProviderRowLabel(props.providerDisplayName, props.subProvider);
+  const FavoriteIcon = props.isFavorite ? StarFilledIcon : StarIcon;
 
   const row = (
     <ComboboxItem
@@ -114,8 +115,7 @@ export const ModelListRow = memo(function ModelListRow(props: {
                 disabled={Boolean(props.disabledReason)}
                 aria-label={props.isFavorite ? "Remove from favorites" : "Add to favorites"}
               >
-                <StarIcon
-                  weight={props.isFavorite ? "fill" : "regular"}
+                <FavoriteIcon
                   className={cn("size-3.5 sm:size-3", props.isFavorite && "text-warning")}
                 />
               </Button>

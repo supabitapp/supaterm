@@ -193,7 +193,7 @@ function ToastExpandableSection({
         onClick={() => setOpen((prev) => !prev)}
         type="button"
       >
-        <Icon className="size-3.5 shrink-0 opacity-80" weight="bold" />
+        <Icon className="size-3.5 shrink-0 opacity-80" strokeWidth={2} />
         {open ? collapseLabel : expandLabel}
       </button>
       {open ? <div className={toastExpandablePanelClassName}>{children}</div> : null}
@@ -277,7 +277,7 @@ function ToastDescriptionAndExpandable({
           <Icon
             aria-hidden
             className="size-3.5 h-lh shrink-0 text-muted-foreground opacity-80"
-            weight="bold"
+            strokeWidth={2}
           />
         </TooltipTrigger>
         <TooltipPopup side="top">{open ? collapseLabel : expandLabel}</TooltipPopup>
@@ -690,7 +690,7 @@ function Toasts({ position }: { position: ToastPosition }) {
                   }
                   type="button"
                 >
-                  <XIcon className="size-3" weight="bold" />
+                  <XIcon className="size-3" strokeWidth={2} />
                 </button>
               </div>
               <Toast.Content
@@ -786,7 +786,7 @@ function AnchoredToasts() {
                           }
                           type="button"
                         >
-                          <XIcon className="size-3" weight="bold" />
+                          <XIcon className="size-3" strokeWidth={2} />
                         </button>
                       </div>
                       <Toast.Content

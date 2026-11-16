@@ -1,7 +1,7 @@
 import { useAtomValue } from "@effect/atom-react";
 import { voiceInputSessionActive } from "@supaterm/client-runtime/voice-input";
 import type { EnvironmentId, ProjectId, ThreadId } from "@supaterm/contracts";
-import { MicIcon, SquareIcon, XIcon } from "@supaterm/icons";
+import { MicIcon, StopFilledIcon, XIcon } from "@supaterm/icons";
 import { useNavigate } from "@tanstack/react-router";
 import { type RefObject, useEffect, useId } from "react";
 
@@ -134,7 +134,7 @@ export function TextFieldVoiceInput(props: {
           disabled={phase !== "recording"}
           onClick={voice.stop}
         >
-          <SquareIcon weight="fill" aria-hidden className="size-3" />
+          <StopFilledIcon aria-hidden className="size-3" />
         </VoicePillButton>
       </div>
     );

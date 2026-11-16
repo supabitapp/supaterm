@@ -168,7 +168,7 @@ Architecture and its constraints: `docs/internals/overview.md`. Glossary: `docs/
 - `packages/contracts` - Effect/Schema contracts plus small derived helpers. No heavy runtime logic.
 - `packages/shared` - shared runtime utils, subpath exports, no barrel.
 - `packages/client-runtime` - client code shared by web and mobile.
-- `packages/icons` - Phosphor icons shared across clients. Import from `@supaterm/icons`; never add another icon library or hand-draw a glyph. See [Icons](docs/operations/development.md#icons) to add one.
+- `packages/icons` - Hugeicons icons shared across clients. Import from `@supaterm/icons`; never add another icon library or hand-draw a glyph. See [Icons](docs/operations/development.md#icons) to add one.
 
 ## Taste
 

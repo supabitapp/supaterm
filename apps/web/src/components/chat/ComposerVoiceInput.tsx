@@ -1,4 +1,4 @@
-import { CircleAlertIcon, MicIcon, SquareIcon, XIcon } from "@supaterm/icons";
+import { CircleAlertIcon, MicIcon, StopFilledIcon, XIcon } from "@supaterm/icons";
 import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useState, type PointerEvent, type ReactNode } from "react";
 
@@ -187,7 +187,7 @@ export function ComposerVoiceSession(props: {
             disabled={phase !== "recording"}
             onClick={voice.stop}
           >
-            <SquareIcon weight="fill" aria-hidden className="size-3" />
+            <StopFilledIcon aria-hidden className="size-3" />
           </VoicePillButton>
         ) : null}
       </div>

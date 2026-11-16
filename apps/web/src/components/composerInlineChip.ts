@@ -1,6 +1,6 @@
-import { Box, iconSvgElements, ICON_SVG_ROOT_ATTRIBUTES } from "@supaterm/icons/nodes";
+import { Box, iconSvgElements } from "@supaterm/icons/nodes";
 
-export const SKILL_CHIP_ICON_SVG = `<svg width="100%" height="100%" viewBox="0 0 24 24" ${ICON_SVG_ROOT_ATTRIBUTES}>${iconSvgElements(Box)}</svg>`;
+export const SKILL_CHIP_ICON_SVG = `<svg width="100%" height="100%" viewBox="0 0 24 24">${iconSvgElements(Box)}</svg>`;
 
 export function middleTruncateAttachmentName(name: string, maxCharacters = 36): string {
   const characters = Array.from(name);

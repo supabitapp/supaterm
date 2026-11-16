@@ -19,7 +19,7 @@ import {
   type PreviewAutomationWaitForInput,
 } from "@supaterm/contracts";
 import { constVoid } from "effect/Function";
-import { MousePointer, MousePointerFilled } from "@supaterm/icons/nodes";
+import { ICON_STROKE_WIDTH, MousePointer, MousePointerFilled } from "@supaterm/icons/nodes";
 import type { CDPSession, ConsoleMessage, Frame, Locator, Page } from "playwright-core";
 import * as NodeCrypto from "node:crypto";
 import { BrowserControlInterrupted } from "./SessionControl.ts";
@@ -1019,8 +1019,8 @@ export const recordingEncoderScript = (frameRate: BrowserRecordingFrameRate) => 
   let frame = null;
   let cursor = null;
   let ring = null;
-  const AGENT_CURSOR_PATH = new Path2D(${JSON.stringify(MousePointer)});
-  const AGENT_CURSOR_FILL_PATH = new Path2D(${JSON.stringify(MousePointerFilled)});
+  const AGENT_CURSOR_PATH = new Path2D(${JSON.stringify(MousePointer.stroke)});
+  const AGENT_CURSOR_FILL_PATH = new Path2D(${JSON.stringify(MousePointerFilled.fill)});
   let ringTimer = null;
   let scale = 1;
   let offsetX = 0;
@@ -1057,10 +1057,13 @@ export const recordingEncoderScript = (frameRate: BrowserRecordingFrameRate) => 
       context.fillStyle = "#fff";
       context.shadowColor = "rgba(0,0,0,0.25)";
       context.shadowBlur = 2;
-      context.fill(AGENT_CURSOR_FILL_PATH);
-      context.fillStyle = "#2563eb";
+      context.fill(AGENT_CURSOR_FILL_PATH, "evenodd");
+      context.strokeStyle = "#2563eb";
+      context.lineWidth = ${ICON_STROKE_WIDTH};
+      context.lineCap = "round";
+      context.lineJoin = "round";
       context.shadowColor = "transparent";
-      context.fill(AGENT_CURSOR_PATH);
+      context.stroke(AGENT_CURSOR_PATH);
       context.restore();
     }
   };

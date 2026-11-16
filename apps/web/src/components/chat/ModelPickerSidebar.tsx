@@ -1,7 +1,7 @@
 import { Toolbar } from "@base-ui/react/toolbar";
 import { type ProviderInstanceId } from "@supaterm/contracts";
 import { memo, useLayoutEffect, useRef, useState } from "react";
-import { StarIcon } from "@supaterm/icons";
+import { StarFilledIcon } from "@supaterm/icons";
 import { ProviderInstanceIcon } from "./ProviderInstanceIcon";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { cn } from "~/lib/utils";
@@ -111,7 +111,7 @@ export const ModelPickerSidebar = memo(function ModelPickerSidebar(props: {
                         aria-label="Favorites"
                         aria-pressed={props.selectedInstanceId === "favorites"}
                       >
-                        <StarIcon weight="fill" className="size-5 shrink-0" aria-hidden />
+                        <StarFilledIcon className="size-5 shrink-0" aria-hidden />
                       </Toolbar.Button>
                     }
                   />

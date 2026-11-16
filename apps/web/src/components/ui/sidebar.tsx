@@ -1,4 +1,5 @@
 import { PanelLeftIcon } from "@supaterm/icons";
+import { PanelLeft } from "@supaterm/icons/nodes";
 import { mergeProps } from "@base-ui/react/merge-props";
 import { useRender } from "@base-ui/react/use-render";
 import { cva, type VariantProps } from "class-variance-authority";
@@ -310,6 +311,7 @@ function Sidebar({
 function SidebarTrigger({ className, onClick, ...props }: React.ComponentProps<typeof Button>) {
   const { toggleSidebar } = useSidebar();
   const isOpen = useSidebarVisibility();
+  const paneClipId = React.useId();
 
   return (
     <Button
@@ -328,14 +330,25 @@ function SidebarTrigger({ className, onClick, ...props }: React.ComponentProps<t
       variant="ghost"
       {...props}
     >
-      <PanelLeftIcon
-        weight="duotone"
-        className={cn(
-          "size-4 [&>path[opacity]]:opacity-100 [&>path[opacity]]:origin-left [&>path[opacity]]:transform-fill",
-          "[[data-panel-animations=true]_&>path[opacity]]:motion-safe:transition-[scale] [[data-panel-animations=true]_&>path[opacity]]:motion-safe:duration-(--panel-animation-duration) [[data-panel-animations=true]_&>path[opacity]]:motion-safe:ease-drawer",
-          !isOpen && "[&>path[opacity]]:scale-x-0",
-        )}
-      />
+      <PanelLeftIcon className="size-4">
+        <clipPath id={paneClipId}>
+          <path d={PanelLeft.stroke} />
+        </clipPath>
+        <g clipPath={`url(#${paneClipId})`}>
+          {/* Fills the pane left of the divider, which PanelLeft draws at x=9. */}
+          <rect
+            width="9"
+            height="24"
+            fill="currentColor"
+            stroke="none"
+            className={cn(
+              "origin-left transform-fill",
+              "[[data-panel-animations=true]_&]:motion-safe:transition-[scale] [[data-panel-animations=true]_&]:motion-safe:duration-(--panel-animation-duration) [[data-panel-animations=true]_&]:motion-safe:ease-drawer",
+              !isOpen && "scale-x-0",
+            )}
+          />
+        </g>
+      </PanelLeftIcon>
       <span className="sr-only">Toggle Sidebar</span>
     </Button>
   );

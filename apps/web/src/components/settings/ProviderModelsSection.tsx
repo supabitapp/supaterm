@@ -1,4 +1,12 @@
-import { ArrowDownIcon, ArrowUpIcon, PencilIcon, PlusIcon, StarIcon, XIcon } from "@supaterm/icons";
+import {
+  ArrowDownIcon,
+  ArrowUpIcon,
+  PencilIcon,
+  PlusIcon,
+  StarFilledIcon,
+  StarIcon,
+  XIcon,
+} from "@supaterm/icons";
 import { useEffect, useRef, useState } from "react";
 import {
   ProviderDriverKind,
@@ -474,6 +482,7 @@ function ProviderModelRow({
 }) {
   const capLabels = describeModelCapabilities(model, flagMissingReasoning);
   const nameClassName = cn("text-xs", isHidden ? "text-muted-foreground" : "text-foreground/90");
+  const FavoriteIcon = isFavorite ? StarFilledIcon : StarIcon;
   const pickerTooltip = model.isCustom
     ? "Custom models are always shown in the picker"
     : isHidden
@@ -502,10 +511,7 @@ function ProviderModelRow({
             />
           }
         >
-          <StarIcon
-            weight={isFavorite ? "fill" : "regular"}
-            className={cn("size-3", isFavorite && "text-warning")}
-          />
+          <FavoriteIcon className={cn("size-3", isFavorite && "text-warning")} />
         </TooltipTrigger>
         <TooltipPopup side="top">
           {isFavorite ? "Remove from favorites" : "Add to favorites"}

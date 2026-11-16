@@ -1,4 +1,4 @@
-import { PinIcon } from "@supaterm/icons";
+import { PinFilledIcon, PinIcon } from "@supaterm/icons";
 
 import { useInlineConfirm } from "~/hooks/useInlineConfirm";
 import { useClientSettings } from "~/hooks/useSettings";
@@ -24,6 +24,7 @@ export function SidebarPinButton({
       ? confirm.bind("unpin", onUnpin)
       : { onClick: pinned ? onUnpin : onPin };
   const label = pinned ? "Unpin thread" : "Pin thread";
+  const PinStateIcon = pinned ? PinFilledIcon : PinIcon;
   return (
     <InlineConfirmTooltip
       armed={armed}
@@ -47,7 +48,7 @@ export function SidebarPinButton({
       }
     >
       <InlineConfirmIcon armed={armed}>
-        <PinIcon aria-hidden weight={pinned ? "fill" : "regular"} />
+        <PinStateIcon aria-hidden />
       </InlineConfirmIcon>
     </InlineConfirmTooltip>
   );

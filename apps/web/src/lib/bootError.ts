@@ -1,11 +1,5 @@
 import type { DesktopBridge, DesktopUpdateState } from "@supaterm/contracts";
-import {
-  Check,
-  Copy,
-  ICON_SVG_ROOT_ATTRIBUTES,
-  iconSvgElements,
-  type IconNode,
-} from "@supaterm/icons/nodes";
+import { Check, Copy, iconSvgElements, type IconNode } from "@supaterm/icons/nodes";
 
 const FALLBACK_TRIAGE_COMMAND = "npx supaterm triage";
 const DOWNLOAD_URL = "https://supaterm.com/download";
@@ -160,7 +154,7 @@ function isRepeatFailure(now: number) {
 
 // The boot screen renders before React, so it takes the icons as SVG markup.
 const icon = (node: IconNode) =>
-  `<svg width="14" height="14" viewBox="0 0 24 24" ${ICON_SVG_ROOT_ATTRIBUTES} aria-hidden="true">${iconSvgElements(node)}</svg>`;
+  `<svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true">${iconSvgElements(node)}</svg>`;
 const COPY_ICON = icon(Copy);
 const CHECK_ICON = icon(Check);
 

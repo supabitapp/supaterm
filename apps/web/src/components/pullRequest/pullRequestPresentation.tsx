@@ -11,11 +11,14 @@ import type {
 } from "@supaterm/contracts";
 import { formatDiffCount } from "@supaterm/client-runtime/diff-count";
 import {
+  CircleCheckFilledIcon,
   CircleCheckIcon,
   CircleDashedIcon,
   CircleDotIcon,
   CircleSlashIcon,
+  CircleXFilledIcon,
   CircleXIcon,
+  type IconComponent,
   UserCheckIcon,
   UserIcon,
   UserXIcon,
@@ -337,6 +340,7 @@ const REVIEW_OUTCOME_PRESENTATION = {
   approved: {
     label: "Approved",
     Icon: CircleCheckIcon,
+    BadgeIcon: CircleCheckFilledIcon,
     toneClassName: "text-emerald-600 dark:text-emerald-300/90",
     ringClassName: "ring-2 ring-emerald-500 dark:ring-emerald-400",
     staleRingClassName:
@@ -346,6 +350,7 @@ const REVIEW_OUTCOME_PRESENTATION = {
   "changes-requested": {
     label: "Changes requested",
     Icon: CircleXIcon,
+    BadgeIcon: CircleXFilledIcon,
     toneClassName: "text-destructive",
     ringClassName: "ring-2 ring-destructive",
     staleRingClassName: "ring-2 ring-[color-mix(in_srgb,var(--destructive)_35%,var(--background))]",
@@ -354,6 +359,7 @@ const REVIEW_OUTCOME_PRESENTATION = {
   dismissed: {
     label: "Review dismissed",
     Icon: CircleDashedIcon,
+    BadgeIcon: CircleDashedIcon,
     toneClassName: "text-muted-foreground/70",
     ringClassName: "ring-2 ring-muted-foreground/60",
     staleRingClassName:
@@ -364,7 +370,8 @@ const REVIEW_OUTCOME_PRESENTATION = {
   PullRequestReviewOutcome,
   {
     label: string;
-    Icon: typeof CircleCheckIcon;
+    Icon: IconComponent;
+    BadgeIcon: IconComponent;
     toneClassName: string;
     ringClassName: string;
     staleRingClassName: string;
@@ -420,9 +427,8 @@ export function PullRequestReviewOutcomeAvatarBadge({
 }) {
   const presentation = REVIEW_OUTCOME_PRESENTATION[outcome];
   return (
-    <presentation.Icon
+    <presentation.BadgeIcon
       aria-hidden
-      weight="fill"
       className={cn(
         "absolute -right-1 -bottom-1 size-3 rounded-full bg-background",
         presentation.toneClassName,

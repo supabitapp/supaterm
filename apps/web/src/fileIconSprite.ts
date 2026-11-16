@@ -5,7 +5,6 @@ import {
   File as FileGlyph,
   FileText,
   Film,
-  ICON_SVG_ROOT_ATTRIBUTES,
   iconSvgElements,
   LoaderCircle,
   Presentation,
@@ -23,7 +22,7 @@ const DOCUMENT_ICON_COLORS: Readonly<Record<string, string>> = {
 export const SUPATERM_FILE_ICON_SPRITE = `
 <svg xmlns="http://www.w3.org/2000/svg" width="0" height="0" aria-hidden="true">
   <symbol id="supaterm-file-icon-video" viewBox="0 0 24 24">
-    <g color="#a631be" ${ICON_SVG_ROOT_ATTRIBUTES}>${iconSvgElements(Film)}</g>
+    <g color="#a631be">${iconSvgElements(Film)}</g>
   </symbol>
   <symbol id="supaterm-file-icon-agents" viewBox="0 0 32 32">
     <path fill="currentColor" d="M27.2 16c0-6.19-5.01-11.2-11.2-11.2C9.81 4.8 4.8 9.81 4.8 16S9.81 27.2 16 27.2c6.19 0 11.2-5.01 11.2-11.2Zm-5.6 2.1a1.4 1.4 0 1 1 0 2.8h-4.2a1.4 1.4 0 1 1 0-2.8Zm-11.2-6.8c.622-.373 1.42-.208 1.84.361l.079.119 2.1 3.5.088.171c.15.351.15.748 0 1.1l-.088.171-2.1 3.5a1.4 1.4 0 0 1-2.4-1.44L11.59 16l-1.67-2.78-.067-.127c-.302-.642-.075-1.42.547-1.79ZM30 16c0 7.73-6.27 14-14 14S2 23.73 2 16 8.27 2 16 2s14 6.27 14 14Z" />
@@ -33,28 +32,28 @@ export const SUPATERM_FILE_ICON_SPRITE = `
     <path fill="currentColor" d="M20.374 20.375h-8.75v-8.75h8.75Zm0 9.625h-8.75v-8.75h8.75ZM30 30h-8.749v-8.75H30Zm-19.251 0H2v-8.75h8.749Z" />
   </symbol>
   <symbol id="supaterm-tree-icon-loading" viewBox="0 0 24 24">
-    <g ${ICON_SVG_ROOT_ATTRIBUTES}>${iconSvgElements(LoaderCircle)}</g>
+    ${iconSvgElements(LoaderCircle)}
   </symbol>
   <symbol id="supaterm-file-icon-diff" viewBox="0 0 24 24">
-    <g style="color: light-dark(#199f43, #5ecc71)" ${ICON_SVG_ROOT_ATTRIBUTES}>${iconSvgElements(Diff)}</g>
+    <g style="color: light-dark(#199f43, #5ecc71)">${iconSvgElements(Diff)}</g>
   </symbol>
   <symbol id="supaterm-file-icon-xml" viewBox="0 0 24 24">
-    <g style="color: light-dark(#d47628, #ffa359)" ${ICON_SVG_ROOT_ATTRIBUTES}>${iconSvgElements(CodeXml)}</g>
+    <g style="color: light-dark(#d47628, #ffa359)">${iconSvgElements(CodeXml)}</g>
   </symbol>
   <symbol id="supaterm-file-icon-pdf" viewBox="0 0 24 24">
-    <g style="color: var(--document-icon-stroke, ${DOCUMENT_ICON_COLORS["supaterm-file-icon-pdf"]})" ${ICON_SVG_ROOT_ATTRIBUTES}>${iconSvgElements(FileGlyph)}</g>
+    <g style="color: var(--document-icon-stroke, ${DOCUMENT_ICON_COLORS["supaterm-file-icon-pdf"]})">${iconSvgElements(FileGlyph)}</g>
   </symbol>
   <symbol id="supaterm-file-icon-word" viewBox="0 0 24 24">
-    <g style="color: var(--document-icon-stroke, ${DOCUMENT_ICON_COLORS["supaterm-file-icon-word"]})" ${ICON_SVG_ROOT_ATTRIBUTES}>${iconSvgElements(FileText)}</g>
+    <g style="color: var(--document-icon-stroke, ${DOCUMENT_ICON_COLORS["supaterm-file-icon-word"]})">${iconSvgElements(FileText)}</g>
   </symbol>
   <symbol id="supaterm-file-icon-spreadsheet" viewBox="0 0 24 24">
-    <g style="color: var(--document-icon-stroke, ${DOCUMENT_ICON_COLORS["supaterm-file-icon-spreadsheet"]})" ${ICON_SVG_ROOT_ATTRIBUTES}>${iconSvgElements(Table)}</g>
+    <g style="color: var(--document-icon-stroke, ${DOCUMENT_ICON_COLORS["supaterm-file-icon-spreadsheet"]})">${iconSvgElements(Table)}</g>
   </symbol>
   <symbol id="supaterm-file-icon-slides" viewBox="0 0 24 24">
-    <g style="color: var(--document-icon-stroke, ${DOCUMENT_ICON_COLORS["supaterm-file-icon-slides"]})" ${ICON_SVG_ROOT_ATTRIBUTES}>${iconSvgElements(Presentation)}</g>
+    <g style="color: var(--document-icon-stroke, ${DOCUMENT_ICON_COLORS["supaterm-file-icon-slides"]})">${iconSvgElements(Presentation)}</g>
   </symbol>
   <symbol id="supaterm-file-icon-epub" viewBox="0 0 24 24">
-    <g style="color: var(--document-icon-stroke, ${DOCUMENT_ICON_COLORS["supaterm-file-icon-epub"]})" ${ICON_SVG_ROOT_ATTRIBUTES}>${iconSvgElements(BookOpen)}</g>
+    <g style="color: var(--document-icon-stroke, ${DOCUMENT_ICON_COLORS["supaterm-file-icon-epub"]})">${iconSvgElements(BookOpen)}</g>
   </symbol>
   <!-- Language logos from Simple Icons, CC0. -->
   <symbol id="supaterm-file-icon-csharp" viewBox="0 0 24 24">

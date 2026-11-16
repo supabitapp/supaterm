@@ -1,6 +1,6 @@
 import type { ThreadPinnedMessage } from "@supaterm/contracts";
 import type { TimestampFormat } from "@supaterm/contracts/settings";
-import { PinIcon, PinOffIcon } from "@supaterm/icons";
+import { PinFilledIcon, PinIcon, PinOffIcon } from "@supaterm/icons";
 import { use, useState } from "react";
 import { cn } from "~/lib/utils";
 import { formatDayAwareTimestamp } from "../../timestampFormat";
@@ -33,6 +33,7 @@ export function MessagePinButton({ projectedItem }: { projectedItem: PinnablePro
   if (ctx.onTogglePinnedMessage === null) return null;
   const onToggle = ctx.onTogglePinnedMessage;
   const label = pinned ? "Unpin message" : "Pin message";
+  const PinStateIcon = pinned ? PinFilledIcon : PinIcon;
   return (
     <Tooltip>
       <TooltipTrigger
@@ -47,10 +48,7 @@ export function MessagePinButton({ projectedItem }: { projectedItem: PinnablePro
           />
         }
       >
-        <PinIcon
-          weight={pinned ? "fill" : "regular"}
-          className={cn("size-3", pinned && "text-info")}
-        />
+        <PinStateIcon className={cn("size-3", pinned && "text-info")} />
       </TooltipTrigger>
       <TooltipPopup side="top">{label}</TooltipPopup>
     </Tooltip>

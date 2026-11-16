@@ -1,6 +1,6 @@
 import { settlePromise } from "@supaterm/client-runtime/state/runtime";
 import { AsyncResult } from "effect/reactivity";
-import { PlayIcon, RotateCwIcon, TriangleAlertIcon } from "@supaterm/icons";
+import { PlayFilledIcon, RotateCwIcon, TriangleAlertIcon } from "@supaterm/icons";
 import { useState, type CSSProperties } from "react";
 
 import { observeIntersection } from "../../lib/observeIntersection";
@@ -205,7 +205,7 @@ export function MediaVideoPlayer({
           className="absolute inset-0 flex cursor-pointer items-center justify-center rounded-lg focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring"
         >
           <span className="flex size-8 items-center justify-center rounded-full bg-black/50 text-white">
-            <PlayIcon weight="fill" aria-hidden className="size-4" />
+            <PlayFilledIcon aria-hidden className="size-4" />
           </span>
         </button>
       ) : null}

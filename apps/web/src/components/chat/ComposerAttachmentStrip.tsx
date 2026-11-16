@@ -6,7 +6,7 @@ import type {
   SnapShotSource,
 } from "@supaterm/contracts";
 import { formatAttachmentSize } from "@supaterm/client-runtime/state/attachments";
-import { CircleAlertIcon, PaperclipIcon, PlayIcon, XIcon } from "@supaterm/icons";
+import { CircleAlertIcon, PaperclipIcon, PlayFilledIcon, XIcon } from "@supaterm/icons";
 import { type ComponentProps, useLayoutEffect, useRef } from "react";
 
 import {
@@ -367,7 +367,7 @@ export function ComposerAttachmentMediaRow({
                   <span className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-black/10" />
                 </>
               )}
-              <PlayIcon weight="fill" className="relative z-10 size-4 drop-shadow-md" />
+              <PlayFilledIcon className="relative z-10 size-4 drop-shadow-md" />
             </button>
             {upload?.status === "uploading" && (
               <span className="pointer-events-none absolute inset-x-0 bottom-0 bg-background/85 px-1 text-center text-3xs text-foreground">

@@ -2,6 +2,8 @@ import * as NodeFS from "node:fs";
 import * as NodeModule from "node:module";
 import * as NodePath from "node:path";
 import * as NodeURL from "node:url";
+import * as icons from "@supaterm/icons/nodes";
+import { filledPath } from "@supaterm/icons/outline";
 
 const scriptDirectory = NodePath.dirname(NodeURL.fileURLToPath(import.meta.url));
 const appDirectory = NodePath.resolve(scriptDirectory, "..");
@@ -13,9 +15,6 @@ const requireFromScripts = NodeModule.createRequire(
   NodePath.join(repositoryRoot, "scripts/package.json"),
 );
 const sharp = requireFromScripts("sharp");
-const icons = await import(
-  NodeURL.pathToFileURL(NodePath.join(repositoryRoot, "packages/icons/src/nodes.ts")).href
-);
 
 const chipIcons = [
   "bot",
@@ -40,7 +39,17 @@ const exportName = (token) =>
     .join("");
 
 function iconSvg(node) {
-  return `<svg viewBox="0 0 24 24" ${icons.ICON_SVG_ROOT_ATTRIBUTES}>${icons.iconSvgElements(node)}</svg>`;
+  return `<svg viewBox="0 0 24 24">${icons.iconSvgElements(node)}</svg>`;
+}
+
+// Android vector drawables take one filled path: the Compose image loader skips strokes.
+function androidVector(node, color) {
+  return `<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp" android:height="24dp"
+    android:viewportWidth="24" android:viewportHeight="24">
+    <path android:fillColor="${color}" android:fillType="evenOdd" android:pathData="${filledPath(node)}" />
+</vector>
+`;
 }
 
 async function renderIcon(token, svg) {
@@ -76,20 +85,34 @@ const generatedSource = `import type { ImageSourcePropType } from "react-native"
   .join("\n")}\n} as const satisfies Readonly<Record<string, ImageSourcePropType>>;\n`;
 NodeFS.writeFileSync(generatedModulePath, generatedSource);
 
-const nativeDirectory = NodePath.join(appDirectory, "assets/icons");
 for (const [name, node] of Object.entries({
   compose: icons.SquarePen,
   delete: icons.Trash,
   "chevron-down": icons.ChevronDown,
+  search: icons.Search,
+  filter: icons.Filter,
+  "filter-filled": icons.FilterFilled,
 })) {
   NodeFS.writeFileSync(
-    NodePath.join(nativeDirectory, `${name}.xml`),
-    `<vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:width="24dp" android:height="24dp"
-    android:viewportWidth="24" android:viewportHeight="24">
-    <path android:fillColor="#FFFFFFFF" android:pathData="${node}" />
-</vector>
-`,
+    NodePath.join(appDirectory, "assets/icons", `${name}.xml`),
+    androidVector(node, "#FFFFFFFF"),
+  );
+}
+for (const [name, node] of Object.entries({
+  chats: icons.MessageSquareText,
+  menu: icons.Menu,
+  new_thread: icons.SquarePen,
+  pull_requests: icons.GitPullRequest,
+  settings: icons.Settings,
+  usage: icons.ChartColumn,
+})) {
+  NodeFS.writeFileSync(
+    NodePath.join(
+      appDirectory,
+      "modules/supaterm-native-controls/android/src/main/res/drawable",
+      `supaterm_${name}.xml`,
+    ),
+    androidVector(node, "#000000"),
   );
 }
 for (const [path, node] of [

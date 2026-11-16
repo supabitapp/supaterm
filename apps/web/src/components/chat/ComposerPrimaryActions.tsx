@@ -5,7 +5,7 @@ import {
   type PointerEventHandler,
   type ReactNode,
 } from "react";
-import { CheckIcon, CornerUpRightIcon, ListPlusIcon, PlayIcon } from "@supaterm/icons";
+import { CheckIcon, CornerUpRightIcon, ListPlusIcon, PlayFilledIcon } from "@supaterm/icons";
 import type { ResolvedKeybindingsConfig } from "@supaterm/contracts";
 import type { ClientSettings } from "@supaterm/contracts/settings";
 import { useSoftwareKeyboardOpen } from "~/hooks/useSoftwareKeyboardOpen";
@@ -97,7 +97,7 @@ const SUBMIT_ACTIONS: Record<
 > = {
   resume: {
     label: "Resume thread",
-    icon: <PlayIcon weight="fill" className="size-4" aria-hidden="true" />,
+    icon: <PlayFilledIcon className="size-4" aria-hidden="true" />,
   },
   "update-queued": {
     label: "Update queued message",

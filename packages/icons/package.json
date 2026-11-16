@@ -16,18 +16,20 @@
     "./project": {
       "types": "./src/project.ts",
       "import": "./src/project.ts"
+    },
+    "./outline": {
+      "types": "./scripts/outline.ts",
+      "import": "./scripts/outline.ts"
     }
   },
   "scripts": {
-    "sync": "node scripts/sync-phosphor-icons.ts",
+    "sync": "node scripts/sync-icons.ts",
     "typecheck": "tsc --noEmit",
     "test": "vp test run --config ../../vite.config.ts --dir ."
   },
-  "dependencies": {
-    "@phosphor-icons/react": "2.1.10"
-  },
   "devDependencies": {
-    "@phosphor-icons/core": "2.1.1",
+    "@hugeicons/core-free-icons": "4.4.0",
+    "@napi-rs/canvas": "1.0.13",
     "@types/node": "catalog:",
     "@types/react": "catalog:",
     "react": "catalog:",

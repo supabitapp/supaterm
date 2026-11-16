@@ -282,7 +282,7 @@ const COMPOSER_SCROLL_COLLAPSE_THRESHOLD_PX = 24;
 const COMPOSER_SCROLL_GESTURE_RESET_MS = 120;
 
 import { toastManager } from "../ui/toast";
-import { PlayIcon, ShieldIcon } from "@supaterm/icons";
+import { PlayFilledIcon, ShieldIcon } from "@supaterm/icons";
 import { NO_PROVIDER_MODEL_SELECTION } from "../../providerInstances";
 import { type AppModelOption, getAppModelOptionsForInstance } from "../../modelSelection";
 import type { UnifiedSettings } from "@supaterm/contracts/settings";
@@ -3872,7 +3872,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
                   }}
                 >
                   {collapsedComposerResumes ? (
-                    <PlayIcon weight="fill" className="size-4" aria-hidden="true" />
+                    <PlayFilledIcon className="size-4" aria-hidden="true" />
                   ) : (
                     <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
                       <path

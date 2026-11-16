@@ -15,7 +15,7 @@ import {
   ChevronUpIcon,
   GlobeIcon,
   LoaderCircleIcon,
-  SquareIcon,
+  StopFilledIcon,
 } from "@supaterm/icons";
 import { type MouseEvent, useState } from "react";
 
@@ -172,7 +172,7 @@ function ThreadServersList(props: ThreadServersPanelProps) {
                       {stoppingKey === key ? (
                         <LoaderCircleIcon aria-hidden className="size-3 animate-spin" />
                       ) : (
-                        <SquareIcon weight="fill" aria-hidden className="size-3" />
+                        <StopFilledIcon aria-hidden className="size-3" />
                       )}
                     </TooltipTrigger>
                     <TooltipPopup side="left">Stop server</TooltipPopup>

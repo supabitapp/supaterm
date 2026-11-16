@@ -98,7 +98,7 @@ export function ComposerControlChevron({
         className,
       )}
       data-composer-control-chevron
-      weight="bold"
+      strokeWidth={2}
     />
   );
 }

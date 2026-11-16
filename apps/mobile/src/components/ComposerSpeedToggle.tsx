@@ -8,11 +8,12 @@ import { getProviderOptionCurrentValue } from "@supaterm/shared/model";
 import * as Haptics from "expo-haptics";
 import { Platform, Pressable } from "react-native";
 import { Zap, ZapFilled } from "@supaterm/icons/nodes";
-import Svg, { G, Path } from "react-native-svg";
+import Svg, { G } from "react-native-svg";
 import { withUniwind } from "uniwind";
 
 import { applyProviderOptionSelection } from "../lib/providerOptions";
 import { Menu } from "./ui/Menu";
+import { NodeIconPaths } from "./ui/NodeIcon";
 import { useAndroidControlSizing } from "./ui/useAndroidControlSizing";
 
 const ThemedSvg = withUniwind(Svg);
@@ -57,21 +58,19 @@ export function ComposerSpeedToggle(props: {
         width={size}
         height={size}
         viewBox="0 0 24 24"
-        fill="currentColor"
-        stroke="none"
         colorClassName={on ? "accent-yellow-500" : "accent-icon-muted"}
       >
         {speedToggle.level === "ultrafast" ? (
           <>
             <G transform="translate(4.6 1.8) scale(0.85)" opacity={0.4}>
-              <Path d={ZapFilled} />
+              <NodeIconPaths node={ZapFilled} />
             </G>
             <G transform="translate(-2.4 1.8) scale(0.85)">
-              <Path d={ZapFilled} />
+              <NodeIconPaths node={ZapFilled} />
             </G>
           </>
         ) : (
-          <Path d={on ? ZapFilled : Zap} />
+          <NodeIconPaths node={on ? ZapFilled : Zap} />
         )}
       </ThemedSvg>
     </Pressable>

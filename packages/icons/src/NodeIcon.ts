@@ -1,10 +1,20 @@
-import { createElement } from "react";
-import type { IconProps } from "@phosphor-icons/react";
-import type { IconNode } from "./iconNode.ts";
-import { iconDefaults } from "./iconDefaults.ts";
+import { createElement, type ComponentProps } from "react";
+import { ICON_STROKE_WIDTH, type IconNode } from "./iconNode.ts";
 
-export function NodeIcon({ node, ...input }: IconProps & { readonly node: IconNode }) {
-  const { size, children, ...props } = iconDefaults(input);
+export interface IconProps extends ComponentProps<"svg"> {
+  readonly size?: number | string;
+}
+
+export function NodeIcon({
+  node,
+  size = 24,
+  children,
+  ...props
+}: IconProps & { readonly node: IconNode }) {
+  const labelled =
+    props["aria-label"] !== undefined ||
+    props["aria-labelledby"] !== undefined ||
+    props.role !== undefined;
   return createElement(
     "svg",
     {
@@ -12,11 +22,23 @@ export function NodeIcon({ node, ...input }: IconProps & { readonly node: IconNo
       width: size,
       height: size,
       viewBox: "0 0 24 24",
-      fill: "currentColor",
-      stroke: "none",
+      fill: "none",
+      stroke: "currentColor",
+      strokeWidth: ICON_STROKE_WIDTH,
+      strokeLinecap: "round",
+      strokeLinejoin: "round",
+      "aria-hidden": labelled ? undefined : true,
       ...props,
     },
-    createElement("path", { d: node }),
+    node.stroke === undefined ? null : createElement("path", { d: node.stroke }),
+    node.fill === undefined
+      ? null
+      : createElement("path", {
+          d: node.fill,
+          fill: "currentColor",
+          fillRule: "evenodd",
+          stroke: "none",
+        }),
     children,
   );
 }

@@ -1,9 +1,4 @@
-import {
-  ICON_SVG_ROOT_ATTRIBUTES,
-  iconSvgElements,
-  MousePointer,
-  MousePointerFilled,
-} from "@supaterm/icons/nodes";
+import { iconSvgElements, MousePointer, MousePointerFilled } from "@supaterm/icons/nodes";
 import type {
   DesktopPreviewAnnotationTheme,
   DesktopPreviewRecordingInput,
@@ -47,7 +42,7 @@ export function installRecordingCursor(
   agentCursor.style.cssText =
     POPOVER_RESET +
     "position:fixed;left:0;top:0;width:20px;height:20px;pointer-events:none;z-index:2147483647;display:none;filter:drop-shadow(0 1px 2px #0003);transition:transform 150ms ease-out,opacity 150ms ease-out;";
-  agentCursor.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" ${ICON_SVG_ROOT_ATTRIBUTES} style="color:var(--recording-cursor-primary,#2563eb);transform:translate(-2px,-2px)"><g style="color:var(--recording-cursor-background,white)">${iconSvgElements(MousePointerFilled)}</g>${iconSvgElements(MousePointer)}</svg>`;
+  agentCursor.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" style="color:var(--recording-cursor-primary,#2563eb);transform:translate(-2px,-2px)"><g style="color:var(--recording-cursor-background,white)">${iconSvgElements(MousePointerFilled)}</g>${iconSvgElements(MousePointer)}</svg>`;
   document.documentElement.append(style, cursor, agentCursor);
   const cursors = [cursor, agentCursor];
   const raise = () => {

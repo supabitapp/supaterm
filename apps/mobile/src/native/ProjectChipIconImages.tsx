@@ -4,9 +4,10 @@ import * as Effect from "effect/Effect";
 import { Atom } from "effect/reactivity";
 import { useRef, useSyncExternalStore } from "react";
 import { Platform, View } from "react-native";
-import Svg, { Path, G, Rect, Text } from "react-native-svg";
+import Svg, { G, Rect, Text } from "react-native-svg";
 import { useResolveClassNames } from "uniwind";
 
+import { NodeIconPaths } from "../components/ui/NodeIcon";
 import { countGlyphs, projectIconColorClassNames, type ProjectIconGlyph } from "../lib/projectIcon";
 
 const TILE_SIZE = 48;
@@ -168,10 +169,8 @@ function IconTile(props: { readonly node: IconNode; readonly color: ProjectIconC
     <G
       transform={`translate(${TILE_SIZE * 0.1} ${TILE_SIZE * 0.1}) scale(${(TILE_SIZE * 0.8) / 24})`}
       color={String(color)}
-      fill="currentColor"
-      stroke="none"
     >
-      <Path d={props.node} />
+      <NodeIconPaths node={props.node} />
     </G>
   );
 }

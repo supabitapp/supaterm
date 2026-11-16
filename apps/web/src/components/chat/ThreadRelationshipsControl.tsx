@@ -45,7 +45,7 @@ import {
   GitForkIcon,
   MessagesSquareIcon,
   PlusIcon,
-  SquareIcon,
+  StopFilledIcon,
 } from "@supaterm/icons";
 import { useId, useRef, useState, type ReactNode } from "react";
 
@@ -748,7 +748,7 @@ export function ThreadRelationshipsPanel(props: {
                           {stoppingId === threadId ? (
                             <Spinner aria-hidden size="xs" />
                           ) : (
-                            <SquareIcon weight="fill" aria-hidden className="size-3" />
+                            <StopFilledIcon aria-hidden className="size-3" />
                           )}
                         </TooltipTrigger>
                         <TooltipPopup side="left">Stop subagent</TooltipPopup>

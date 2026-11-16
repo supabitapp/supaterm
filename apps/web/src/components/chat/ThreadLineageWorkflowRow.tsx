@@ -4,7 +4,7 @@ import {
   type RuntimeSubagent,
 } from "@supaterm/client-runtime/state/subagentRuntime";
 import type { ProviderDriverKind, ProviderInstanceId, ServerProvider } from "@supaterm/contracts";
-import { SquareIcon } from "@supaterm/icons";
+import { StopFilledIcon } from "@supaterm/icons";
 import { useState, type ReactNode } from "react";
 
 import { AgentElapsed } from "./AgentElapsed";
@@ -178,7 +178,7 @@ export function ThreadLineageWorkflowRow({
                 {stopping ? (
                   <Spinner aria-hidden size="xs" />
                 ) : (
-                  <SquareIcon weight="fill" aria-hidden className="size-3" />
+                  <StopFilledIcon aria-hidden className="size-3" />
                 )}
               </TooltipTrigger>
               <TooltipPopup side="left">Stop entire workflow</TooltipPopup>

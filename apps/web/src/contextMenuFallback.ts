@@ -70,8 +70,6 @@ function createIconElement(name: string, tone: "neutral" | "destructive"): SVGSV
   svg.setAttribute("aria-hidden", "true");
   svg.setAttribute("xmlns", SVG_NS);
   svg.setAttribute("viewBox", "0 0 24 24");
-  svg.setAttribute("fill", "currentColor");
-  svg.setAttribute("stroke", "none");
   svg.setAttribute(
     "class",
     tone === "destructive"

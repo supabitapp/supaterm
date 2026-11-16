@@ -180,13 +180,17 @@ for the security model.
 Web, desktop, Android, the marketing site, and the project icon picker draw icons from
 `@supaterm/icons` (`packages/icons`). iOS and macOS native menus use SF Symbols. Surfaces outside
 React (sprites, injected pages, canvas, rasterized assets) render the same glyphs with
-`iconSvgElements` from `@supaterm/icons/nodes`. React components come from the official
-[Phosphor package](https://github.com/phosphor-icons/react); generated SVG data serves the other
-surfaces. Both are MIT licensed; see `packages/icons/LICENSE.md`.
+`iconSvgElements` from `@supaterm/icons/nodes`. Every surface draws from path data generated out of
+the free [Hugeicons](https://hugeicons.com) set, so the package ships no icon runtime. Hugeicons is
+MIT licensed; see `packages/icons/LICENSE.md`.
 
-To add an icon, map its app name to a Phosphor name without the `Icon` suffix in
-`packages/icons/icons.json` (for example, `"Activity": "Heartbeat"`). To choose a weight or
-mirror a glyph, use `{ "icon": "Star", "props": { "weight": "fill", "mirrored": false } }`. Then run:
+Hugeicons glyphs are 1.5px strokes on a 24px grid. An icon node carries a `stroke` path, a `fill`
+path, or both. To draw a heavier glyph, pass `strokeWidth` to the component.
+
+To add an icon, map its app name to a Hugeicons name without the `Icon` suffix in
+`packages/icons/icons.json` (for example, `"Activity": "Pulse01"`). The free set has no filled
+style, so a filled glyph is generated from the outline: `{ "icon": "Star", "solid": true }` fills
+each closed shape and cuts out the detail drawn inside it. Then run:
 
 ```sh
 vp run --filter @supaterm/icons sync
@@ -194,8 +198,9 @@ vp run --filter @supaterm/mobile sync:ui-icons
 vp run --filter @supaterm/mobile sync:pierre-icons
 ```
 
-The `project` list controls the project picker. Keep its app names stable because projects persist
-those names. Commit the manifest with the regenerated `src/generated/` files.
+The `project` map controls the project picker and its order. Keep its app names stable because
+projects persist those names. Each value lists extra search words for that icon. Commit the manifest
+with the regenerated `src/generated/` files.
 
 ## Checks
 
