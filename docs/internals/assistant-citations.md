@@ -26,6 +26,16 @@ highlight. The [navigation hash](../../apps/web/src/lib/assistantCitationNavigat
 uses base64url because router normalization otherwise decodes whitespace and
 source IDs inside the citation URI.
 
+An HTML render is cited by its turn item ID in the message slot, which history paging already
+resolves, so the wire shape is unchanged. The host cannot read a selection inside the sandboxed
+page. On web the page's [bootstrap](../../packages/shared/src/htmlRender.ts) reports a settled
+selection, and the host accepts it only from the focused frame, as plain text capped at the
+citation limit. The bootstrap is written into the page at publish, so a render published before
+the bridge existed never reports. Mobile needs no page script: the WebView's selection menu
+carries the action through a [library patch](../../patches/react-native-webview@14.0.1.patch),
+which adds custom items to the platform menu where upstream replaces it. Navigation reveals the
+render's row and stops there, because nothing outside the frame can find or highlight its text.
+
 Expand citations with the [shared formatter](../../packages/shared/src/assistantCitations.ts)
 before dispatch to a provider adapter. Send the saved excerpt without looking up
 the source, distinguish quoted reference material from the user's comment, and

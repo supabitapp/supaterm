@@ -151,8 +151,13 @@ On web and desktop, select text within one assistant response and choose
 **Add annotation**. You can add a comment about the quote and write instructions
 around it.
 
-Select the quote in a draft or sent message to return to its source. If the source
-is unavailable or has changed, the saved quote remains readable.
+Text inside a [page the agent published](html-renders.md) can be quoted the same way, from the
+thread or from the page's full-screen view. Annotating from full screen returns you to the thread.
+On web and desktop this needs a page published by this version or later; older pages offer it on
+mobile only.
+
+Select the quote in a draft or sent message to return to its source. A quote from a page returns
+to that page. If the source is unavailable or has changed, the saved quote remains readable.
 
 The chip shows your comment when it has one, or a short quote preview otherwise. Use the pencil
 button to add or change the comment. To remove the citation, place the caret beside its chip and
@@ -161,10 +166,10 @@ delete it like other inline context. Copying, reloading, and restoring a
 with its quote, and sending tells the agent which words were quoted and which comment you wrote.
 The quoted text and comment count toward the message limit.
 
-On mobile, select text in an assistant response and choose **Annotate**, then add an optional
-comment. Tap the chip in the composer to change the comment. Mobile does not navigate to a
-quote's source. A quote made on mobile returns to its source on web only when its text appears
-once in the response.
+On mobile, select text in an assistant response or in a page and choose **Annotate**, then add
+an optional comment. Tap the chip in the composer to change the comment. Mobile does not navigate
+to a quote's source. A quote made on mobile returns to its source on web only when its text appears
+once in the response; a quote from a page always returns to the page.
 
 ## Recall a sent prompt
 
