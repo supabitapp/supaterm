@@ -98,12 +98,13 @@ describe("MessagesTimeline end-follow", () => {
       const scrollToEnd = vi.fn(() => {
         timelineIsAtEnd = true;
       });
+      const anchorVisibleContent = vi.fn();
       props.listRef.current = {
         getState: () => ({ isAtEnd: timelineIsAtEnd, indexByKey: () => undefined }),
         getScrollableNode: () => null,
         scrollToEnd,
         cancelScroll: () => {},
-        anchorVisibleContent: () => undefined,
+        anchorVisibleContent,
       } as unknown as LegendListRef;
       const onToolOutputCollapsedAtEnd = vi.fn();
       await act(async () =>
@@ -134,9 +135,13 @@ describe("MessagesTimeline end-follow", () => {
       await act(async () => toggle.click());
       await flushFrames(3);
       scrollToEnd.mockClear();
+      expect(anchorVisibleContent).toHaveBeenCalledOnce();
+      anchorVisibleContent.mockClear();
 
       await act(async () => toggle.click());
-      // A streamed row lands below while end-follow is held.
+      // A close that ends back at the end holds no anchor against it.
+      expect(anchorVisibleContent).toHaveBeenCalledTimes(returnsToEnd ? 0 : 1);
+      // A streamed row lands below while the output closes.
       timelineIsAtEnd = false;
       await flushFrames(3);
 

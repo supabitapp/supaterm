@@ -53,7 +53,16 @@ import {
 import { MarkdownFindContext } from "./markdownFindContext";
 import { useChatCanvas } from "./ChatCanvasContext";
 import { ThreadTimelineLoading } from "./ThreadTimelineLoading";
-import { WorkLogBlock } from "./WorkLog";
+import { WorkLogBlock, WorkLogGroupContent } from "./WorkLog";
+import {
+  WORK_GROUP_CLOSE_MS,
+  WORK_GROUP_OPEN_MS,
+  expandedWorkGroupIds,
+  restingWorkGroupDisclosures,
+  settleWorkGroupTransition,
+  startWorkGroupTransition,
+  toggledWorkGroupTransition,
+} from "./workGroupDisclosure";
 import type {
   ServerProviderSkill,
   RunId,
@@ -126,6 +135,7 @@ import {
   resolveTimelineIsAtEnd,
   type MessagesTimelineRow,
   timelineTurnFoldRunIdsByEntryId,
+  workGroupDetailsRowId,
   resolveTimelineMinimapVisibleRange,
   isTimelineMinimapRowVisible,
   resolveTimelineMinimapCurrentIndex,
@@ -449,8 +459,8 @@ const ConversationTimeline = memo(function ConversationTimeline({
   const [expandedRunIds, setExpandedRunIds] = useState<ReadonlySet<RunId>>(
     () => listState.rememberedPosition?.disclosures?.runs ?? new Set(),
   );
-  const [expandedWorkGroupIds, setExpandedWorkGroupIds] = useState<ReadonlySet<string>>(
-    () => listState.rememberedPosition?.disclosures?.workGroups ?? new Set(),
+  const [workGroupDisclosures, setWorkGroupDisclosures] = useState(() =>
+    restingWorkGroupDisclosures(listState.rememberedPosition?.disclosures?.workGroups),
   );
   const [expandedAttemptIds, setExpandedAttemptIds] = useState<ReadonlySet<RunAttemptId>>(
     () => listState.rememberedPosition?.disclosures?.attempts ?? new Set(),
@@ -468,7 +478,7 @@ const ConversationTimeline = memo(function ConversationTimeline({
   );
   const [fullscreenAppRowId, setFullscreenAppRowId] = useState<string | null>(null);
   let paintedExpandedRunIds = expandedRunIds;
-  let paintedExpandedWorkGroupIds = expandedWorkGroupIds;
+  let paintedWorkGroupDisclosures = workGroupDisclosures;
   let paintedExpandedAttemptIds = expandedAttemptIds;
   const identityChanged = listState.identity !== listIdentityKey;
   const { rememberedPosition, workGroupViewState } = identityChanged
@@ -488,10 +498,12 @@ const ConversationTimeline = memo(function ConversationTimeline({
     // nor when that thread comes back.
     setFullscreenAppRowId(null);
     paintedExpandedRunIds = rememberedPosition?.disclosures?.runs ?? new Set();
-    paintedExpandedWorkGroupIds = rememberedPosition?.disclosures?.workGroups ?? new Set();
+    paintedWorkGroupDisclosures = restingWorkGroupDisclosures(
+      rememberedPosition?.disclosures?.workGroups,
+    );
     paintedExpandedAttemptIds = rememberedPosition?.disclosures?.attempts ?? new Set();
     setExpandedRunIds(paintedExpandedRunIds);
-    setExpandedWorkGroupIds(paintedExpandedWorkGroupIds);
+    setWorkGroupDisclosures(paintedWorkGroupDisclosures);
     setExpandedAttemptIds(paintedExpandedAttemptIds);
   }
   const citationThreadRef = parseScopedThreadKey(routeThreadKey);
@@ -506,6 +518,12 @@ const ConversationTimeline = memo(function ConversationTimeline({
   } | null>(null);
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- cancels the pending disclosure settle wait on unmount
   useEffect(() => () => disclosureSettleRef.current?.cancel(), []);
+  const workGroupSettleTimersRef = useRef(new Map<string, number>());
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- clears the tool groups' pending transition timers on unmount
+  useEffect(() => {
+    const timers = workGroupSettleTimersRef.current;
+    return () => timers.forEach((timer) => window.clearTimeout(timer));
+  }, []);
   const endFollowAllowedRef = useRef(false);
   const normalizedFindQuery = findQuery.trim();
   const findActive = findExpanded;
@@ -525,7 +543,12 @@ const ConversationTimeline = memo(function ConversationTimeline({
     };
   }, [settlingListIdentity]);
 
-  const preserveDisclosurePosition = (anchorKey: string, collapsed = false) => {
+  // A tool group resizes in the row under its header, so that row decides the settle.
+  const preserveDisclosurePosition = (
+    anchorKey: string,
+    collapsed = false,
+    resizingKey = anchorKey,
+  ) => {
     const pending = disclosureSettleRef.current;
     pending?.cancel();
     // Rows streamed in while the row resizes push the end away, so the toggle-time
@@ -536,7 +559,7 @@ const ConversationTimeline = memo(function ConversationTimeline({
     const cancel = waitForDisclosureSettle(
       () => {
         const state = listRef.current?.getState();
-        const index = state?.indexByKey(anchorKey);
+        const index = state?.indexByKey(resizingKey);
         if (state === undefined || index === undefined) return null;
         return { size: state.sizeAtIndex(index), element: state.elementAtIndex(index) };
       },
@@ -556,6 +579,9 @@ const ConversationTimeline = memo(function ConversationTimeline({
     const list = listRef.current;
     // An anchor ends end-follow until the reader scrolls, so a streaming turn keeps the live end.
     if (!list || (isWorking && list.getState().isFollowingEnd)) return;
+    // A close at the live edge settles back at the end; an anchor would fight
+    // the shrinking end on every frame of the way there.
+    if (collapsed && followingEnd && endFollowAllowedRef.current) return;
     list.cancelScroll();
     list.anchorVisibleContent({ key: anchorKey });
   };
@@ -578,16 +604,23 @@ const ConversationTimeline = memo(function ConversationTimeline({
     });
   };
   const onToggleWorkGroup = (groupId: string, anchorKey: string) => {
-    preserveDisclosurePosition(anchorKey, expandedWorkGroupIds.has(groupId));
-    setExpandedWorkGroupIds((existing) => {
-      const next = new Set(existing);
-      if (next.has(groupId)) {
-        next.delete(groupId);
-      } else {
-        next.add(groupId);
-      }
-      return next;
-    });
+    const transition = toggledWorkGroupTransition(workGroupDisclosures.get(groupId));
+    preserveDisclosurePosition(anchorKey, transition === "closing", workGroupDetailsRowId(groupId));
+    setWorkGroupDisclosures((existing) => startWorkGroupTransition(existing, groupId, transition));
+    const timers = workGroupSettleTimersRef.current;
+    window.clearTimeout(timers.get(groupId));
+    timers.set(
+      groupId,
+      window.setTimeout(
+        () => {
+          timers.delete(groupId);
+          setWorkGroupDisclosures((existing) =>
+            settleWorkGroupTransition(existing, groupId, transition),
+          );
+        },
+        transition === "closing" ? WORK_GROUP_CLOSE_MS : WORK_GROUP_OPEN_MS,
+      ),
+    );
   };
   const onToggleAttemptFold = (attemptId: RunAttemptId) => {
     preserveDisclosurePosition(`attempt-fold:${attemptId}`);
@@ -721,7 +754,7 @@ const ConversationTimeline = memo(function ConversationTimeline({
     runningRunId,
     expandedRunIds: visibleExpandedRunIds,
     expandedAttemptIds: visibleExpandedAttemptIds,
-    expandedWorkGroupIds,
+    workGroupDisclosures,
     isWorking,
     runlessWorkActive,
     activeTurnStartedAt,
@@ -1018,7 +1051,7 @@ const ConversationTimeline = memo(function ConversationTimeline({
             atEnd: isAtEnd,
             disclosures: {
               runs: paintedExpandedRunIds,
-              workGroups: paintedExpandedWorkGroupIds,
+              workGroups: expandedWorkGroupIds(paintedWorkGroupDisclosures),
               attempts: paintedExpandedAttemptIds,
               workGroupState: workGroupViewState,
             },
@@ -1562,7 +1595,6 @@ function getItemType(item: MessagesTimelineRow) {
 }
 
 const TimelineRowContent = memo(function TimelineRowContent({ row }: { row: TimelineRow }) {
-  const isExpandedToolGroup = row.kind === "work" && row.isExpandedToolGroup;
   const isSubagentGroup = row.kind === "event" && row.projectedItem.item.type === "subagent";
   const isWorkLogRow =
     row.kind === "work" ||
@@ -1603,22 +1635,24 @@ const TimelineRowContent = memo(function TimelineRowContent({ row }: { row: Time
       }
       data-message-role={row.kind === "message" ? row.message.role : undefined}
     >
-      {isWorkLogRow ? (
+      {row.kind === "work" && row.groupDisclosure !== null ? (
+        <WorkLogGroupContent disclosure={row.groupDisclosure} continues={row.continuesWorkLog}>
+          <WorkGroupSection
+            anchorKey={row.id}
+            groupedEntries={row.groupedEntries}
+            isExpandedToolGroup
+          />
+        </WorkLogGroupContent>
+      ) : isWorkLogRow ? (
         <WorkLogBlock
           continues={row.continuesWorkLog}
-          layout={
-            isExpandedToolGroup
-              ? "group-content"
-              : isExpandedToolGroupHeader
-                ? "group-header"
-                : "standalone"
-          }
+          layout={isExpandedToolGroupHeader ? "group-header" : "standalone"}
         >
           {row.kind === "work" ? (
             <WorkGroupSection
               anchorKey={row.id}
               groupedEntries={row.groupedEntries}
-              isExpandedToolGroup={row.isExpandedToolGroup}
+              isExpandedToolGroup={false}
               displayLabel={row.displayLabel}
             />
           ) : null}

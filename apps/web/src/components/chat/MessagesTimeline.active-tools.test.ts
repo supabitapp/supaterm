@@ -30,7 +30,7 @@ describe("long active tool groups", () => {
         activeTurnStartedAt: createdAt,
         turnDiffSummaries: [],
         supportsConversationRollback: false,
-        expandedWorkGroupIds: new Set(expanded ? ["work-group:work-entry-0"] : []),
+        workGroupDisclosures: new Map(expanded ? [["work-group:work-entry-0", "open"]] : []),
       });
       const live = rows.find((row) => row.kind === "work-live");
       expect(live).toBeDefined();

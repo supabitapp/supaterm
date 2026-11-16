@@ -39,6 +39,7 @@ import {
   withExitingWorktreeSetupRow,
   workEntryDisplayLabel,
 } from "./MessagesTimeline.logic";
+import type { WorkGroupDisclosures } from "./workGroupDisclosure";
 
 describe("work entry labels", () => {
   const entry = {
@@ -75,7 +76,7 @@ describe("work entry labels", () => {
       const directRow = rows.find((row) => row.kind === "work");
       expect(directRow).toMatchObject({
         groupedEntries: [expect.objectContaining({ id: "tool-1" })],
-        isExpandedToolGroup: false,
+        groupDisclosure: null,
         displayLabel: label,
       });
     },
@@ -477,15 +478,17 @@ describe("deriveMessagesTimelineRows", () => {
         activeTurnStartedAt: fixture.time(0),
         turnDiffSummaries: [],
         supportsConversationRollback: false,
-        expandedWorkGroupIds: new Set([workRows[0]!.groupId]),
+        workGroupDisclosures: new Map([[workRows[0]!.groupId, "open"]]),
       });
-      const expanded = expandedRows.find((row) => row.kind === "work" && row.isExpandedToolGroup);
+      const expanded = expandedRows.find(
+        (row) => row.kind === "work" && row.groupDisclosure !== null,
+      );
       expect(
         expanded?.kind === "work" && expanded.groupedEntries.map((entry) => entry.itemType),
       ).toEqual(["command_execution", "approval_request", "user_input_request"]);
       expect(rows.some((row) => row.kind === "event")).toBe(false);
       expect(workRows[0]).not.toMatchObject({ expanded: true });
-      expect(workRows[0]).not.toMatchObject({ isExpandedToolGroup: true });
+      expect(workRows[0]).not.toMatchObject({ groupDisclosure: "open" });
       const approvalWaitRows = [entries, entries.slice(1, 2)].flatMap((timelineEntries) =>
         deriveMessagesTimelineRows({
           timelineEntries,
@@ -2714,7 +2717,7 @@ describe("deriveMessagesTimelineRows", () => {
     expect(rows.map((row) => row.kind)).toEqual(["working", "work", "message", "work-live"]);
     expect(rows.find((row) => row.kind === "work")).toMatchObject({
       groupedEntries: [{ id: "completed-command", command: "rg toolCall" }],
-      isExpandedToolGroup: false,
+      groupDisclosure: null,
       displayLabel: "rg toolCall",
     });
   });
@@ -2945,11 +2948,11 @@ describe("deriveMessagesTimelineRows", () => {
   it("reuses one activity row for initial thinking and the latest tool", () => {
     const deriveRows = (
       toolLifecycleStatus: "inProgress" | "completed" | "failed" | "declined" | null,
-      expandedWorkGroupIds?: ReadonlySet<string>,
+      workGroupDisclosures?: WorkGroupDisclosures,
       awaitingApproval = false,
     ) =>
       deriveMessagesTimelineRows({
-        ...(expandedWorkGroupIds ? { expandedWorkGroupIds } : {}),
+        ...(workGroupDisclosures ? { workGroupDisclosures } : {}),
         awaitingApproval,
         timelineEntries:
           toolLifecycleStatus === null
@@ -3011,12 +3014,12 @@ describe("deriveMessagesTimelineRows", () => {
     const failedGroupId =
       failedThinkingRow?.kind === "thinking" ? failedThinkingRow.groupId : undefined;
     expect(failedGroupId).toBeDefined();
-    const expandedFailedRows = deriveRows("failed", new Set([failedGroupId!]));
+    const expandedFailedRows = deriveRows("failed", new Map([[failedGroupId!, "open"]]));
     expect(expandedFailedRows.slice(-2)).toMatchObject([
       { kind: "thinking", id: "live-activity-row", expanded: true },
       {
         kind: "work",
-        isExpandedToolGroup: true,
+        groupDisclosure: "open",
         groupedEntries: [{ id: "latest-command" }],
       },
     ]);
@@ -3233,7 +3236,7 @@ describe("deriveMessagesTimelineRows", () => {
     const collapsedRows = deriveMessagesTimelineRows(baseInput);
     const expandedRows = deriveMessagesTimelineRows({
       ...baseInput,
-      expandedWorkGroupIds: new Set(["work-group:work-entry-1"]),
+      workGroupDisclosures: new Map([["work-group:work-entry-1", "open"]]),
     });
 
     expect(collapsedRows.map((row) => row.id)).toEqual(["work-toggle:work-entry-1"]);
@@ -3250,12 +3253,27 @@ describe("deriveMessagesTimelineRows", () => {
       "work-group:work-entry-1:details",
     ]);
     expect(expandedRows.find((row) => row.kind === "work")).toMatchObject({
-      isExpandedToolGroup: true,
+      groupDisclosure: "open",
       groupedEntries: timelineEntries.map(({ entry }) => entry),
     });
     expect(expandedRows.find((row) => row.kind === "work-toggle")).toMatchObject({
       expanded: true,
     });
+
+    const closingRows = deriveMessagesTimelineRows({
+      ...baseInput,
+      workGroupDisclosures: new Map([["work-group:work-entry-1", "closing"]]),
+    });
+    expect(closingRows.map((row) => row.id)).toEqual(expandedRows.map((row) => row.id));
+    expect(closingRows.find((row) => row.kind === "work")).toMatchObject({
+      groupDisclosure: "closing",
+    });
+    expect(closingRows.find((row) => row.kind === "work-toggle")).toMatchObject({
+      expanded: false,
+      continuesWorkLog: true,
+    });
+    const closing = computeStableMessagesTimelineRows(closingRows, { result: [], byId: new Map() });
+    expect(computeStableMessagesTimelineRows(collapsedRows, closing).result).toEqual(collapsedRows);
   });
 
   it("deduplicates integration sources and uses the first source icon for the group", () => {
@@ -3373,7 +3391,7 @@ describe("deriveMessagesTimelineRows", () => {
       const groupId = collapsedGroup!.groupId;
       const expandedRows = deriveMessagesTimelineRows({
         ...input,
-        expandedWorkGroupIds: new Set([groupId]),
+        workGroupDisclosures: new Map([[groupId, "open"]]),
       });
       const groupRows = expandedRows.filter((row) => row.kind === "work");
       expect(groupRows).toHaveLength(1);
@@ -3809,7 +3827,7 @@ describe("v2 run and attempt history", () => {
     const openedActivity = deriveMessagesTimelineRows({
       timelineEntries,
       expandedRunIds: new Set(["turn-1" as never]),
-      expandedWorkGroupIds: new Set(["work-group:work-entry-1"]),
+      workGroupDisclosures: new Map([["work-group:work-entry-1", "open"]]),
       isWorking: false,
       turnDiffSummaries: [],
       supportsConversationRollback: false,
@@ -4629,7 +4647,7 @@ describe("streaming v2 row projection", () => {
     });
     check({ expandedRunIds: new Set([initial.historyRunId, initial.runId]) });
     const group = projection.rows.find((row) => row.kind === "work-toggle");
-    check({ expandedWorkGroupIds: new Set(group ? [group.groupId] : []) });
+    check({ workGroupDisclosures: new Map(group ? [[group.groupId, "open"]] : []) });
     const first = initial.visibleTurnItems[0]!;
     if (first.item.type !== "user_message") throw new Error("Expected user fixture");
     timelineInput = {
