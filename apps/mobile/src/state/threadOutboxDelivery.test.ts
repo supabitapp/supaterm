@@ -1,4 +1,5 @@
 import { acknowledgedThreadMessagesAtom } from "./acknowledged-thread-messages";
+import * as Effect from "effect/Effect";
 import {
   CommandId,
   ComposerContextId,
@@ -90,6 +91,7 @@ vi.mock("../lib/uuid", () => ({
 vi.mock("../lib/attachmentUpload", () => ({
   prepareTurnAttachments: harness.prepareTurnAttachments,
 }));
+vi.mock("./composer-attachment-uploads", () => ({ uploadComposerAttachmentShared: vi.fn() }));
 
 vi.mock("./transcription", () => ({ uploadEnvironmentVoiceRecording: harness.uploadVoice }));
 
@@ -455,12 +457,14 @@ describe("thread outbox attachment preparation", () => {
       fileUri: "file:///documents/keep.pdf",
     });
     await harness.manager.enqueue(message);
-    harness.prepareTurnAttachments.mockResolvedValueOnce({
-      status: "ready",
-      attachments: [],
-      draftAttachments: message.attachments,
-      pendingAttachmentIds: [],
-    });
+    harness.prepareTurnAttachments.mockReturnValueOnce(
+      Effect.succeed({
+        status: "ready",
+        attachments: [],
+        draftAttachments: message.attachments,
+        pendingAttachmentIds: [],
+      }),
+    );
     harness.canOperate = false;
     await expect(prepareQueuedMessageAttachments(message)).resolves.toEqual({
       status: "abandoned",
@@ -480,10 +484,12 @@ describe("thread outbox attachment preparation", () => {
     );
     const preparationStarted = Promise.withResolvers<void>();
     const preparationBarrier = Promise.withResolvers<PreparedTurnAttachments>();
-    harness.prepareTurnAttachments.mockImplementationOnce(async () => {
-      preparationStarted.resolve();
-      return preparationBarrier.promise;
-    });
+    harness.prepareTurnAttachments.mockImplementationOnce(() =>
+      Effect.promise(() => {
+        preparationStarted.resolve();
+        return preparationBarrier.promise;
+      }),
+    );
     await harness.manager.enqueue(message);
     appAtomRegistry.set(editingQueuedMessageIdsAtom, { [message.messageId]: "editing" });
 
@@ -512,12 +518,14 @@ describe("thread outbox attachment preparation", () => {
       }),
       "pending-reused-upload",
     );
-    harness.prepareTurnAttachments.mockResolvedValueOnce({
-      status: "ready",
-      attachments: [],
-      draftAttachments: message.attachments,
-      pendingAttachmentIds: ["pending-reused-upload"],
-    });
+    harness.prepareTurnAttachments.mockReturnValueOnce(
+      Effect.succeed({
+        status: "ready",
+        attachments: [],
+        draftAttachments: message.attachments,
+        pendingAttachmentIds: ["pending-reused-upload"],
+      }),
+    );
     await harness.manager.enqueue(message);
     const revision = harness.manager.revisionOf(message.messageId);
     appAtomRegistry.set(editingQueuedMessageIdsAtom, { [message.messageId]: "editing" });
@@ -544,15 +552,17 @@ describe("thread outbox attachment preparation", () => {
           }
         : attachment,
     );
-    harness.prepareTurnAttachments.mockImplementationOnce(async (input) => {
-      expect(await input.persistUploadedReferences?.(uploadedAttachments)).toBe("persisted");
-      return {
-        status: "ready",
-        attachments: [],
-        draftAttachments: uploadedAttachments,
-        pendingAttachmentIds: ["pending-new-upload"],
-      };
-    });
+    harness.prepareTurnAttachments.mockImplementationOnce((input) =>
+      Effect.gen(function* () {
+        expect(yield* input.persistUploadedReferences!(uploadedAttachments)).toBe("persisted");
+        return {
+          status: "ready",
+          attachments: [],
+          draftAttachments: uploadedAttachments,
+          pendingAttachmentIds: ["pending-new-upload"],
+        } as const;
+      }),
+    );
     await harness.manager.enqueue(message);
     const revision = harness.manager.revisionOf(message.messageId);
 

@@ -398,11 +398,23 @@ function useNewTaskFlowValue(
   const updateFlow = (patch: Partial<NewTaskFlowState>) =>
     updateNewTaskFlowState(flowKey, { ...readFlow(), ...patch });
   const readEditingPendingTask = () => readFlow().editingPendingTask?.message ?? null;
+  // A draft's project stamp is the selection: picking a project writes it, and uploads and
+  // the send read it, so the screen cannot show one project while the draft holds another.
+  const draftStamp = useComposerDraft(activeDraftKey).project;
+  const stampedProject =
+    draftStamp === undefined
+      ? undefined
+      : projects.find(
+          (project) =>
+            project.environmentId === draftStamp.environmentId &&
+            project.id === draftStamp.projectId,
+        );
   const selectedEnvironmentId =
-    selectedEnvironmentIdOverride !== null &&
+    stampedProject?.environmentId ??
+    (selectedEnvironmentIdOverride !== null &&
     projects.some((project) => project.environmentId === selectedEnvironmentIdOverride)
       ? selectedEnvironmentIdOverride
-      : (projects[0]?.environmentId ?? null);
+      : (projects[0]?.environmentId ?? null));
 
   const cancelEnvironmentSwitch = () => updateFlow({ environmentSwitch: null });
   const setSubmitting = (value: boolean) =>
@@ -436,7 +448,8 @@ function useNewTaskFlowValue(
   const selectedProject =
     routeDraftResolution.kind === "pending"
       ? null
-      : (projectsForEnvironment.find(
+      : (stampedProject ??
+        projectsForEnvironment.find(
           (project) => scopedProjectKey(project.environmentId, project.id) === selectedProjectKey,
         ) ??
         // While editing a queued task whose project shell is absent, keep the task
@@ -482,7 +495,9 @@ function useNewTaskFlowValue(
       routeDraftId !== undefined ||
       activeDraftKey !== null ||
       editingPendingTask !== null ||
-      selectedProject === null
+      selectedProject === null ||
+      // The screen may have picked a project, and created its draft, earlier in this commit.
+      readNewTaskFlowState(flowKey).draftKey !== null
     ) {
       return;
     }

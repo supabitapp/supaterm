@@ -13,7 +13,7 @@ import {
   type ServerProvider,
 } from "@supaterm/contracts";
 import { AsyncResult, Atom } from "effect/reactivity";
-import { useLayoutEffect } from "react";
+import { useEffect, useLayoutEffect } from "react";
 import { Alert } from "react-native";
 import { act, create, type ReactTestRenderer } from "react-test-renderer";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
@@ -293,6 +293,7 @@ const NOTHING_SENDING = {
 type NewTaskFlow = ReturnType<typeof useNewTaskFlow>;
 interface TestDraftRoute {
   readonly key: string;
+  readonly pickOnMount?: EnvironmentProject;
   readonly draft: {
     readonly requestId: string;
     readonly draftId?: string;
@@ -308,7 +309,11 @@ let flow: NewTaskFlow;
 let pendingActions: ReturnType<typeof usePendingTaskListActions>;
 const selectThreadRoute = (params: ReactNavigation.RootParamList["Thread"]) =>
   transport.navigate("Thread", params);
-function Probe(props: { readonly routeKey: string; readonly top: boolean }) {
+function Probe(props: {
+  readonly routeKey: string;
+  readonly top: boolean;
+  readonly pickOnMount?: EnvironmentProject;
+}) {
   const current = useNewTaskFlow();
   const actions = usePendingTaskListActions(selectThreadRoute);
   useLayoutEffect(() => {
@@ -318,6 +323,11 @@ function Probe(props: { readonly routeKey: string; readonly top: boolean }) {
       pendingActions = actions;
     }
   }, [actions, current, props.routeKey, props.top]);
+  // Mirrors the draft screen applying its route project on mount, before the provider's effects run.
+  useEffect(() => {
+    if (props.pickOnMount) current.setProject(props.pickOnMount);
+    // oxlint-disable-next-line react/exhaustive-effect-dependencies -- picks once on mount; setProject changes every render
+  }, []);
   return null;
 }
 // Draft routes stay mounted under the ones pushed above them, as on the native stack.
@@ -332,7 +342,7 @@ function draftStack(routes: ReadonlyArray<TestDraftRoute>) {
       >
         {routes.map((route) => (
           <NewTaskFlowProvider key={route.key} route={draftFlowRoute(route.key, route.draft)}>
-            <Probe routeKey={route.key} top={route === top} />
+            <Probe routeKey={route.key} top={route === top} pickOnMount={route.pickOnMount} />
           </NewTaskFlowProvider>
         ))}
       </ServedNewTaskRouteProvider>
@@ -530,6 +540,17 @@ describe("pending task editor dismissal", () => {
     await act(() => popDraftRoute());
     expect(flow.editingPendingTask?.messageId).toBe(pendingTask.messageId);
     expect(flow.prompt).toBe("");
+  });
+});
+
+it("keeps the draft on a project the screen picks as it mounts", async () => {
+  await act(() => {
+    renderer!.update(draftStack([...stack, { ...draftRoute(), pickOnMount: thirdProject }]));
+  });
+  expect(flow.selectedProject).toEqual(thirdProject);
+  expect(readDraft(flow.draftKey!).project).toMatchObject({
+    environmentId: thirdProject.environmentId,
+    projectId: thirdProject.id,
   });
 });
 

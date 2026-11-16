@@ -26,6 +26,7 @@ import {
 import { VoiceUploadError } from "@supaterm/client-runtime/state/transcription";
 import { buildTemporaryWorktreeBranchName } from "@supaterm/shared/git";
 import * as Cause from "effect/Cause";
+import * as Effect from "effect/Effect";
 import { AsyncResult, Atom } from "effect/reactivity";
 
 import { createDebugLogger } from "../lib/debugLog";
@@ -54,6 +55,7 @@ import { environmentProjects } from "./projects";
 import { environmentServerConfigsAtom, serverEnvironment } from "./server";
 import { prepareQueuedThreadCreation } from "./queued-thread-creation";
 import { fetchVcsRefs } from "./vcs";
+import { uploadComposerAttachmentShared } from "./composer-attachment-uploads";
 import { gitEnvironment } from "./git";
 import { environmentSession, readEnvironmentScope, sessionHasScope } from "./session";
 import {
@@ -235,22 +237,27 @@ export async function prepareQueuedMessageAttachments(queuedMessage: QueuedThrea
   }
   let persistedMessage = queuedMessage;
   let deliveryRevision = revision;
-  const result = await prepareTurnAttachments({
-    environmentId: queuedMessage.environmentId,
-    attachments: queuedMessage.attachments,
-    persistUploadedReferences: async (draftAttachments) => {
-      if (appAtomRegistry.get(editingQueuedMessageIdsAtom)[queuedMessage.messageId]) {
-        return "abandon";
-      }
-      const updatedMessage = { ...queuedMessage, attachments: draftAttachments };
-      if (!(await updateThreadOutboxMessage(updatedMessage, revision))) {
-        return "abandon";
-      }
-      persistedMessage = updatedMessage;
-      deliveryRevision = revision + 1;
-      return "persisted";
-    },
-  });
+  const result = await Effect.runPromise(
+    prepareTurnAttachments({
+      environmentId: queuedMessage.environmentId,
+      attachments: queuedMessage.attachments,
+      uploadAttachment: (attachment) =>
+        uploadComposerAttachmentShared(queuedMessage.environmentId, attachment),
+      persistUploadedReferences: (draftAttachments) =>
+        Effect.promise(async () => {
+          if (appAtomRegistry.get(editingQueuedMessageIdsAtom)[queuedMessage.messageId]) {
+            return "abandon" as const;
+          }
+          const updatedMessage = { ...queuedMessage, attachments: draftAttachments };
+          if (!(await updateThreadOutboxMessage(updatedMessage, revision))) {
+            return "abandon" as const;
+          }
+          persistedMessage = updatedMessage;
+          deliveryRevision = revision + 1;
+          return "persisted" as const;
+        }),
+    }),
+  );
   if (
     result.status === "abandoned" ||
     !isQueuedMessagePayloadCurrent(persistedMessage, deliveryRevision)
