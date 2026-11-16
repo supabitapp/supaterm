@@ -13,8 +13,7 @@ export function workGroupIsExpanded(disclosure: WorkGroupDisclosure | undefined)
   return disclosure === "opening" || disclosure === "open";
 }
 
-/** Groups restored from a remembered list are already open, so none animates. */
-export function restingWorkGroupDisclosures(
+export function restoredWorkGroupDisclosures(
   expandedGroupIds: ReadonlySet<string> | undefined,
 ): WorkGroupDisclosures {
   return new Map(Array.from(expandedGroupIds ?? [], (groupId) => [groupId, "open"]));
@@ -28,7 +27,7 @@ export function expandedWorkGroupIds(disclosures: WorkGroupDisclosures): Readonl
   return expanded;
 }
 
-export function toggledWorkGroupTransition(
+export function nextWorkGroupTransition(
   disclosure: WorkGroupDisclosure | undefined,
 ): WorkGroupTransition {
   return workGroupIsExpanded(disclosure) ? "closing" : "opening";
@@ -42,7 +41,6 @@ export function startWorkGroupTransition(
   return new Map(disclosures).set(groupId, transition);
 }
 
-/** Ends a transition only while it is still the group's current one, so a later toggle wins. */
 export function settleWorkGroupTransition(
   disclosures: WorkGroupDisclosures,
   groupId: string,

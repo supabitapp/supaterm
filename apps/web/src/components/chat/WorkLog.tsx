@@ -17,15 +17,13 @@ const GroupedRows = createContext(false);
 
 /** Groups may span virtualized timeline items. Each part owns its trailing space. */
 export function WorkLogBlock({
-  layout = "standalone",
   continues = false,
   children,
 }: {
-  layout?: "standalone" | "group-header";
   continues?: boolean | undefined;
   children: ReactNode;
 }) {
-  return <div className={continues || layout === "group-header" ? "pb-0" : "pb-2"}>{children}</div>;
+  return <div className={continues ? "pb-0" : "pb-2"}>{children}</div>;
 }
 
 const groupContentRows: Record<WorkGroupDisclosure, string> = {

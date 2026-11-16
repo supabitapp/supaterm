@@ -64,7 +64,12 @@ function hasHeightAnimation(element: Element | null | undefined) {
 }
 
 function animatesHeight(animation: Animation) {
-  if ("transitionProperty" in animation) return animation.transitionProperty === "height";
+  if ("transitionProperty" in animation) {
+    return (
+      animation.transitionProperty === "height" ||
+      animation.transitionProperty === "grid-template-rows"
+    );
+  }
   return (
     animation.effect instanceof KeyframeEffect &&
     animation.effect.getKeyframes().some((keyframe) => "height" in keyframe)
