@@ -94,7 +94,10 @@ import { resolveProviderOptionDescriptors } from "../../lib/providerOptions";
 import { ComposerSpeedToggle } from "../../components/ComposerSpeedToggle";
 import { ComposerModelControl } from "./ComposerModelControl";
 import { Menu } from "../../components/ui/Menu";
-import type { ActiveTurnComposerAction } from "@supaterm/client-runtime/state/composer-dispatch";
+import {
+  composerRunsDraftLocally,
+  type ActiveTurnComposerAction,
+} from "@supaterm/client-runtime/state/composer-dispatch";
 import type { FollowUpBehavior } from "../../lib/followUpBehavior";
 import {
   resolveComposerSendPresentation,
@@ -398,7 +401,11 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
   const [previewVideo, setPreviewVideo] = useState<VideoPreviewSource | null>(null);
   const composerOwnerKey = scopedThreadKey(props.environmentId, props.selectedThread.id);
   const composerDraftKey = props.draftKey ?? composerOwnerKey;
-  const { text: draftMessage, attachments: draftAttachments } = useComposerDraft(composerDraftKey);
+  const {
+    text: draftMessage,
+    attachments: draftAttachments,
+    context: draftContext,
+  } = useComposerDraft(composerDraftKey);
   const queuedEdit = props.queuedEdit ?? null;
   const hasContent =
     draftMessage.trim().length > 0 ||
@@ -445,21 +452,6 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
       states: uploadStates,
     });
   const sideChat = useSideChat(props.environmentId, props.isDraft ? null : props.selectedThread);
-  const sendPresentation = resolveComposerSendPresentation({
-    editingQueuedMessage: queuedEdit !== null,
-    // A side-chat command starts a side chat; it never queues or steers the running turn.
-    running:
-      props.activeThreadBusy &&
-      resolveSideChatCommand(draftMessage, sideChat.disabledReason).kind !== "start",
-    canSteer: props.canSteerActiveTurn,
-    followUpBehavior: props.followUpBehavior,
-    deliveryDeferred:
-      props.connectionState !== "connected" ||
-      props.queueCount > 0 ||
-      attachmentsUploading ||
-      props.awaitingCreation,
-  });
-  const sendLabel = sendPresentation.label;
   const currentModelSelection = props.selectedThread.modelSelection;
   const modelUnavailable =
     props.connectionState === "connected" &&
@@ -492,6 +484,28 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
   const usageLimitsOffered =
     selectedProviderStatus !== null &&
     hasProviderUsageLimits(selectedProviderStatus.driver, props.serverConfig?.providers ?? []);
+  const draftRunsLocally = composerRunsDraftLocally({
+    text: draftMessage,
+    holdsOnlyText: draftAttachments.length === 0,
+    // A side-chat command starts a side chat; it never queues or steers the running turn.
+    sideChat: sideChat.disabledReason === null,
+    usageLimits: usageLimitsOffered,
+    codexFeedback: selectedProviderStatus?.driver === "codex",
+    freshSession: props.onFreshSession !== undefined && draftContext === undefined,
+  });
+  const sendPresentation = resolveComposerSendPresentation({
+    editingQueuedMessage: queuedEdit !== null,
+    running: props.activeThreadBusy && !draftRunsLocally,
+    canSteer: props.canSteerActiveTurn,
+    followUpBehavior: props.followUpBehavior,
+    deliveryDeferred:
+      !draftRunsLocally &&
+      (props.connectionState !== "connected" ||
+        props.queueCount > 0 ||
+        attachmentsUploading ||
+        props.awaitingCreation),
+  });
+  const sendLabel = sendPresentation.label;
   const openUsageLimits = () => {
     const report = collectProviderUsageLimits(
       currentModelSelection.instanceId,
