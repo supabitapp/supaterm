@@ -24,11 +24,14 @@ import {
   useComposerDraftResetGeneration,
 } from "../state/use-composer-drafts";
 import { importComposerContextClipboard } from "../lib/composerContextClipboard";
+import { replaceDraftQuote } from "../state/annotationDrafts";
 import { startComposerDraftOperation } from "../state/composerDraftOperations";
 import { appAtomRegistry } from "../state/atom-registry";
 import { mobilePreferencesAtom } from "../state/preferences";
 import { useOpenLinkedThread } from "../features/threads/useOpenLinkedThread";
 import { ComposerContextSheet } from "./ComposerContextSheet";
+import { promptAssistantAnnotation } from "./assistantAnnotationPrompt";
+import { assistantCitationFromToken } from "../lib/assistantAnnotation";
 import { AppText as Text } from "./ui/AppText";
 import {
   composerDocumentAttachment,
@@ -207,6 +210,14 @@ export function ComposerEditor({
           const document = composerDocumentAttachment(selection.source, draft.context);
           if (document && onOpenAttachment) {
             onOpenAttachment(document);
+            return;
+          }
+          const citation = assistantCitationFromToken(selection.source);
+          if (citation) {
+            if (!draftKey || props.readOnly || props.editable === false) return;
+            promptAssistantAnnotation(citation, "edit", (annotated) =>
+              replaceDraftQuote(draftKey, selection, annotated),
+            );
             return;
           }
           setSelected(selection);

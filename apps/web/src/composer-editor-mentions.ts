@@ -1,10 +1,9 @@
 import type { AssistantCitation } from "@supaterm/contracts";
-import { collectAssistantCitations } from "@supaterm/shared/assistantCitations";
-import { collectComposerContextReferences } from "@supaterm/shared/composerContextReferences";
 import {
   collectComposerInlineTokens,
   type ComposerInlineToken,
 } from "@supaterm/shared/composerInlineTokens";
+import { withComposerLinkTokens } from "@supaterm/shared/composerPromptTokens";
 
 export type ComposerPromptSegment =
   | {
@@ -76,22 +75,7 @@ function forEachMentionMatch(
 }
 
 export function collectComposerPromptInlineTokens(text: string) {
-  const tokens = collectComposerInlineTokens(text);
-  const citations = collectAssistantCitations(text);
-  const references = collectComposerContextReferences(text);
-  if (citations.length === 0 && references.length === 0) return tokens;
-
-  // An unfinished @ mention can otherwise consume the start of a link label.
-  const links = [
-    ...citations.map((match) => ({ ...match, type: "citation" as const })),
-    ...references.map((match) => ({ ...match, type: "context-reference" as const })),
-  ];
-  return [
-    ...tokens.filter(
-      (token) => !links.some((link) => token.start < link.end && token.end > link.start),
-    ),
-    ...links,
-  ].sort((left, right) => left.start - right.start);
+  return withComposerLinkTokens(text, collectComposerInlineTokens(text));
 }
 
 function splitPromptTextIntoComposerSegments(text: string): ComposerPromptSegment[] {

@@ -161,8 +161,10 @@ delete it like other inline context. Copying, reloading, and restoring a
 with its quote, and sending tells the agent which words were quoted and which comment you wrote.
 The quoted text and comment count toward the message limit.
 
-Mobile displays saved quotes and comments, but does not create citations or
-navigate to their sources.
+On mobile, select text in an assistant response and choose **Annotate**, then add an optional
+comment. Tap the chip in the composer to change the comment. Mobile does not navigate to a
+quote's source. A quote made on mobile returns to its source on web only when its text appears
+once in the response.
 
 ## Recall a sent prompt
 

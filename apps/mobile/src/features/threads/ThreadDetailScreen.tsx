@@ -129,6 +129,8 @@ import { collectProviderUsageLimits } from "@supaterm/shared/usageLimits";
 import type { ComposerEditorHandle } from "../../components/ComposerEditor";
 import type { StatusTone } from "../../components/StatusPill";
 import { getComposerDraftSnapshot, setFreshSessionPending } from "../../state/use-composer-drafts";
+import type { MarkdownTextSelection } from "../../native/SelectableMarkdownText";
+import { annotateAssistantText } from "./annotateAssistantText";
 import { RenderErrorBoundary, RenderFailureView } from "../../components/RenderErrorBoundary";
 import {
   ANDROID_READING_MAX_WIDTH,
@@ -1503,6 +1505,15 @@ function ThreadDetailBody(
     });
   };
 
+  const handleAnnotateAssistantText = (messageId: MessageId, selection: MarkdownTextSelection) => {
+    if (props.composerDraftKey === null) return;
+    annotateAssistantText({
+      source: { environmentId: props.environmentId, threadId: props.selectedThread.id, messageId },
+      draftKey: props.composerDraftKey,
+      selection,
+    });
+  };
+
   const handleScrollToEnd = () => {
     void Haptics.selectionAsync();
     void scrollMessageToEnd({ animated: !reduceMotion, closeKeyboard: false }).catch(() => {
@@ -1633,6 +1644,15 @@ function ThreadDetailBody(
                   onIsAtEndChange={setIsAtEnd}
                   skills={selectedProviderSkills}
                   onUseArtifactTemplate={handleUseArtifactTemplate}
+                  onAnnotateAssistantText={
+                    // A queued edit's save has already read its draft, so a quote added now is lost.
+                    isProviderSubagent ||
+                    props.draftMode ||
+                    props.isSavingQueuedEdit ||
+                    props.composerDraftKey === null
+                      ? undefined
+                      : handleAnnotateAssistantText
+                  }
                 />
               </ColumnWidth>
             </WorkspaceMutationIdProvider>

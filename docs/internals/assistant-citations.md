@@ -14,6 +14,11 @@ normalization is only for locating it. Repeated text needs an unambiguous contex
 match, even if one occurrence still sits at the saved offsets. Guessing could
 highlight the wrong claim.
 
+Mobile's renderer reports only the selected text and its offset inside one native
+text block. A [mobile citation](../../apps/mobile/src/lib/assistantAnnotation.ts)
+therefore carries block offsets and no context, and web locates it only when the
+quote is unique in the message. Keep that fallback when changing the matcher.
+
 Navigation owns the highlight's lifetime across virtual-row remounts. The source
 row must be fetched, unfolded, mounted, and measured before quote positioning
 takes over from normal timeline scrolling. Remounting must not revive a dismissed
