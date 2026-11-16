@@ -531,6 +531,7 @@ export function useComposerSend(input: ComposerSendInput) {
           referenceContexts: composerReferenceContexts,
         },
         setThreadError,
+        { dispatchMode, submissionIntent },
       );
       return;
     }

@@ -2300,14 +2300,16 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
   const submitComposerStable = useStableCallback(submitComposer);
   const handleSubmitMessage = (event: React.MouseEvent<HTMLButtonElement>) => {
     event.preventDefault();
+    const alternateModifier = event.metaKey || event.ctrlKey;
     submitComposer(
       event,
       resolveComposerDispatchMode({
         running: turnRunning,
-        alternateModifier: event.metaKey || event.ctrlKey,
+        alternateModifier,
         activeTurnDefault: followUpBehavior,
         canSteer,
       }),
+      turnRunning && alternateModifier ? "alternate" : undefined,
     );
   };
   const handleSubmitMessageStable = useStableCallback(handleSubmitMessage);
