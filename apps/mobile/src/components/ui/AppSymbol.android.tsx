@@ -70,6 +70,7 @@ const ANDROID_ICON_BY_SF_SYMBOL = {
   ellipsis: IconNodes.Ellipsis,
   moon: IconNodes.Moon,
   "ellipsis.circle": IconNodes.CircleEllipsis,
+  "envelope.badge": IconNodes.Mail,
   "exclamationmark.triangle": IconNodes.TriangleAlert,
   "exclamationmark.circle": IconNodes.CircleAlert,
   eye: IconNodes.Eye,
