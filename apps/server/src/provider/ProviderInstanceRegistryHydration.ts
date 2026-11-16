@@ -144,7 +144,8 @@ const layerSettingsWatcher = (settingsChanges: Stream.Stream<ServerSettings>) =>
   );
 
 export const layer: Layer.Layer<
-  ProviderInstanceRegistry.ProviderInstanceRegistry,
+  | ProviderInstanceRegistry.ProviderInstanceRegistry
+  | ProviderInstanceRegistryMutator.ProviderInstanceRegistryMutator,
   never,
   ProviderInstanceRegistryHydrationEnv
 > = Layer.unwrap(
@@ -175,7 +176,8 @@ export const layer: Layer.Layer<
     return layerSettingsWatcher(settingsChanges).pipe(Layer.provideMerge(layerMutable));
   }),
 ) as Layer.Layer<
-  ProviderInstanceRegistry.ProviderInstanceRegistry,
+  | ProviderInstanceRegistry.ProviderInstanceRegistry
+  | ProviderInstanceRegistryMutator.ProviderInstanceRegistryMutator,
   never,
   ProviderInstanceRegistryHydrationEnv
 >;
