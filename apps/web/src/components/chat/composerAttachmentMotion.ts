@@ -1,7 +1,8 @@
 import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from "react";
 import { flushSync } from "react-dom";
 
-import { EASE_DRAWER, animationsSettled, prefersReducedMotion } from "~/lib/motion";
+import { type HeightReveal, revealHeightChange } from "~/lib/layoutShift";
+import { animationsSettled, prefersReducedMotion } from "~/lib/motion";
 import { observeResize } from "~/lib/observeResize";
 
 export const COMPOSER_ATTACHMENT_PRESENCE_CLASS =
@@ -60,33 +61,31 @@ export function useAttachmentTrayMotion(
       settledHeightRef.current = element.getBoundingClientRect().height;
     });
   }, []);
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- starts a Web Animations height transition on the tray before paint when attachments arrive
+  const revealRef = useRef<HeightReveal | null>(null);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- starts the tray's height reveal before paint when attachments arrive
   useLayoutEffect(() => {
     const element = trayRef.current;
     if (!element) return;
-    const running = element.getAnimations();
-    const from =
-      running.length > 0 ? element.getBoundingClientRect().height : settledHeightRef.current;
-    for (const animation of running) animation.cancel();
+    const interrupted = revealRef.current?.stop() ?? null;
+    revealRef.current = null;
+    const from = interrupted?.visible ?? settledHeightRef.current;
+    const laidOut = interrupted?.layout ?? settledHeightRef.current;
     const to = element.getBoundingClientRect().height;
     settledHeightRef.current = to;
     if (
       !tray.animateHeight ||
       snapShotPending ||
       from === null ||
+      laidOut === null ||
       from === to ||
       prefersReducedMotion()
     ) {
       return;
     }
-    element.animate(
-      [
-        { height: `${from}px`, overflow: "clip" },
-        { height: `${to}px`, overflow: "clip" },
-      ],
-      { duration: 200, easing: EASE_DRAWER },
-    );
+    revealRef.current = revealHeightChange(element, from, to, laidOut, "bottom", 200);
   }, [snapShotPending, tray]);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- cancels a running reveal on unmount
+  useEffect(() => () => void revealRef.current?.stop(), []);
   const findAttachment = (id: string) =>
     [...(trayRef.current?.querySelectorAll<HTMLElement>("[data-composer-attachment]") ?? [])].find(
       (element) => element.dataset.composerAttachment === id,

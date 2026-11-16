@@ -31,6 +31,9 @@ export function runningSizeAnimation(
         animation.effect.getComputedTiming().iterations !== Infinity &&
         animation.effect
           .getKeyframes()
-          .some((keyframe) => "height" in keyframe || "gridTemplateRows" in keyframe),
+          .some(
+            (keyframe) =>
+              "height" in keyframe || "gridTemplateRows" in keyframe || "clipPath" in keyframe,
+          ),
     );
 }

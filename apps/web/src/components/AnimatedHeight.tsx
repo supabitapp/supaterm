@@ -1,7 +1,8 @@
 import { type ReactNode, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { observeResize } from "../lib/observeResize";
 
-import { EASE_DRAWER, prefersReducedMotion } from "~/lib/motion";
+import { type HeightReveal, revealHeightChange } from "~/lib/layoutShift";
+import { prefersReducedMotion } from "~/lib/motion";
 import { cn } from "~/lib/utils";
 
 const HEIGHT_TRANSITION_FALLBACK_MS = 250;
@@ -145,10 +146,10 @@ function KeyedHeight({
   // The layout effect below runs after the new content is in the DOM, so the
   // starting height comes from the last observed size.
   const lastHeightRef = useRef<number | null>(null);
-  const animationRef = useRef<Animation | null>(null);
+  const revealRef = useRef<HeightReveal | null>(null);
   const animatedKeyRef = useRef(animateKey);
 
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- observes the content's size to record the start height and cancels a running animation on unmount
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- observes the content's size to record the start height and cancels a running reveal on unmount
   useLayoutEffect(() => {
     const content = contentRef.current;
     if (!content) return;
@@ -157,40 +158,30 @@ function KeyedHeight({
     });
     return () => {
       stopObserving();
-      animationRef.current?.cancel();
+      revealRef.current?.stop();
     };
   }, []);
 
-  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- starts a Web Animations height transition on the wrapper before paint when the key changes
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- starts the reveal on the wrapper before paint when the key changes
   useLayoutEffect(() => {
     if (animatedKeyRef.current === animateKey) return;
     animatedKeyRef.current = animateKey;
     const wrapper = wrapperRef.current;
     const content = contentRef.current;
     if (!wrapper || !content) return;
-    const running = animationRef.current;
-    const from = running ? wrapper.getBoundingClientRect().height : lastHeightRef.current;
-    running?.cancel();
-    animationRef.current = null;
+    const interrupted = revealRef.current?.stop() ?? null;
+    revealRef.current = null;
+    const from = interrupted?.visible ?? lastHeightRef.current;
+    const laidOut = interrupted?.layout ?? lastHeightRef.current;
     const to = content.offsetHeight;
-    if (from === null || from === to || prefersReducedMotion()) {
-      wrapper.style.removeProperty("overflow");
+    if (from === null || laidOut === null || Math.abs(from - to) < 0.5 || prefersReducedMotion()) {
       return;
     }
-    wrapper.style.overflow = "clip";
-    const animation = wrapper.animate(
-      { height: [`${from}px`, `${to}px`] },
-      { duration: to > from ? 200 : 150, easing: EASE_DRAWER },
-    );
-    animation.onfinish = () => {
-      animationRef.current = null;
-      wrapper.style.removeProperty("overflow");
-    };
-    animationRef.current = animation;
+    revealRef.current = revealHeightChange(wrapper, from, to, laidOut);
   }, [animateKey]);
 
   return (
-    <div ref={wrapperRef} className="[overflow-clip-margin:2px]">
+    <div ref={wrapperRef}>
       <div ref={contentRef}>{children}</div>
     </div>
   );

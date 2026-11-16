@@ -1,7 +1,29 @@
 import type { ComponentProps } from "react";
 
+import { LAYOUT_SHIFT_EVENT, type LayoutShift } from "~/lib/layoutShift";
 import { cn } from "~/lib/utils";
+import { carryHostSurface, paintOwnSurfaces } from "./composerSurfaceReveal";
 import { ComposerBanner } from "./ComposerBanner";
+
+/**
+ * A height reveal keeps the shell's box at its largest size, so the shell's glass and the
+ * host's outline and shadow would show the wrong shape. The main surface, which the
+ * reveal clips, carries them until it ends.
+ */
+function paintOwnSurfacesDuringReveals(shell: HTMLDivElement) {
+  const onShift = (event: Event) => {
+    if (!(event instanceof CustomEvent)) return;
+    const shift: LayoutShift = event.detail;
+    const host = shell.querySelector('[data-slot="composer-host"]');
+    const main = shell.querySelector('[data-chat-composer-main-surface="true"]');
+    if (host && main) {
+      for (const animation of carryHostSurface(host, main, shift.timing)) shift.add(animation);
+    }
+    void shift.settled.then(paintOwnSurfaces(shell));
+  };
+  shell.addEventListener(LAYOUT_SHIFT_EVENT, onShift);
+  return () => shell.removeEventListener(LAYOUT_SHIFT_EVENT, onShift);
+}
 
 function Shell({
   bottomStrip = false,
@@ -10,6 +32,7 @@ function Shell({
 }: ComponentProps<"div"> & { bottomStrip?: boolean }) {
   return (
     <div
+      ref={paintOwnSurfacesDuringReveals}
       data-slot="composer-shell"
       data-with-context={bottomStrip || undefined}
       className={cn(
@@ -57,10 +80,11 @@ function Host({ className, ...props }: ComponentProps<"div">) {
   );
 }
 
-function Main({ className, ...props }: ComponentProps<"div">) {
+function Main({ className, children, ...props }: ComponentProps<"div">) {
   return (
     <div
       data-chat-composer-main-surface="true"
+      data-height-reveal-surface=""
       className={cn(
         "group relative z-10 rounded-3xl p-px",
         "group-data-model-strip-transition/composer-surface:bg-(--chat-composer-glass-surface)/(--glass-opacity) group-data-model-strip-transition/composer-surface:backdrop-blur-(--glass-blur) group-data-model-strip-transition/composer-surface:backdrop-saturate-(--glass-saturation)",
@@ -74,7 +98,14 @@ function Main({ className, ...props }: ComponentProps<"div">) {
         className,
       )}
       {...props}
-    />
+    >
+      {children}
+      <span
+        aria-hidden
+        data-height-reveal-edge=""
+        className="pointer-events-none invisible absolute inset-x-0 top-0 z-20 h-(--chat-composer-drawer-inset) rounded-t-3xl border border-b-0 border-(--chat-composer-outline) dark:inset-shadow-2xs dark:inset-shadow-(color:--chat-composer-highlight)"
+      />
+    </div>
   );
 }
 

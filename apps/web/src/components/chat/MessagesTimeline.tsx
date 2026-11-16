@@ -2,6 +2,7 @@ import { threadEnvironment } from "../../state/threads";
 import { useAtomCommand } from "../../state/use-atom-command";
 import type { ToolCallDiffTarget } from "../../diffPanelStore";
 import { AudioPreviewUnmountContext } from "../files/AudioPreview";
+import { followTimelineLayoutShifts } from "./timelineLayoutShift";
 import { TimelineMinimap } from "./TimelineMinimap";
 import {
   type WorkGroupViewState,
@@ -1218,6 +1219,7 @@ const ConversationTimeline = memo(function ConversationTimeline({
       : null;
     viewportRef.current = viewport;
     const detachViewport = viewport ? onViewportAttach?.(viewport) : undefined;
+    const stopFollowingLayoutShifts = scrollNode ? followTimelineLayoutShifts(scrollNode) : null;
     // LegendList lays rows out from layout effects; the next frame sees them settled.
     let contentSizeFrame: number | null = null;
     const scheduleContentSizeChanged = () => {
@@ -1234,6 +1236,7 @@ const ConversationTimeline = memo(function ConversationTimeline({
     return () => {
       stopListeningToContentSize?.();
       if (contentSizeFrame !== null) cancelAnimationFrame(contentSizeFrame);
+      stopFollowingLayoutShifts?.();
       detachViewport?.();
       viewport?.dispose();
       if (viewportRef.current === viewport) viewportRef.current = null;

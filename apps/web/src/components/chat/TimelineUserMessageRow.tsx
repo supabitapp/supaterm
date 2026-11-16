@@ -840,6 +840,7 @@ function UserTimelineRow({ row }: { row: Extract<TimelineRow, { kind: "message" 
         </div>
       ) : null}
       <div
+        data-height-reveal-surface=""
         className={cn(
           "relative min-w-0 max-w-[80%] rounded-2xl text-message-foreground",
           (mediaAboveText || row.groupedWithPrevious) && "rounded-tr-md",

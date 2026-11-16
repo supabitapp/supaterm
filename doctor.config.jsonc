@@ -4,21 +4,7 @@
   "noScore": true,
   "supplyChain": { "enabled": false },
   "projects": ["*"],
-  "ignore": {
-    "files": ["**/.generated/**"],
-    "overrides": [
-      {
-        // Disclosure and composer heights animate so the content below reflows with them.
-        // Each runs once for at most 200ms; a transform cannot move siblings.
-        "files": [
-          "**/components/AnimatedHeight.tsx",
-          "**/components/chat/composerAttachmentMotion.ts",
-          "**/components/chat/useComposerRestingTransition.ts",
-        ],
-        "rules": ["react-doctor/no-layout-property-animation"],
-      },
-    ],
-  },
+  "ignore": { "files": ["**/.generated/**"] },
   // The pre-commit hook reports only findings a commit introduces, so a rule stays on even
   // where older code trips it. A rule is off only when oxlint already owns it, or when
   // correct code written the way this codebase writes it would trip it on most commits.

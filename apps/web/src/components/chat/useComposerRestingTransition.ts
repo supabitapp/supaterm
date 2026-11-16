@@ -1,5 +1,7 @@
 import { useEffect, useLayoutEffect, useRef } from "react";
 import { shouldAnimateComposerRestingTransition } from "../composerFooterLayout";
+import { paintOwnSurfaces, revealComposerSurface } from "./composerSurfaceReveal";
+import { slideNeighbours } from "~/lib/layoutShift";
 import { EASE_DRAWER } from "~/lib/motion";
 import { observeResize } from "~/lib/observeResize";
 
@@ -39,6 +41,11 @@ export function useComposerRestingTransition(
   });
   const animationRef = useRef<Animation | null>(null);
   const animationTargetHeightRef = useRef<number | null>(null);
+  // Layout holds the taller height for the whole transition; these say what is on screen.
+  const animationFromHeightRef = useRef<number | null>(null);
+  const stripRevealRef = useRef<{ from: number; to: number } | null>(null);
+  const layoutAnimationsRef = useRef<Animation[]>([]);
+  const releaseOwnSurfacesRef = useRef<(() => void) | null>(null);
   const contentAnimationsRef = useRef<Animation[]>([]);
   const stateChangeAnimationsRef = useRef<Animation[]>([]);
   const pinnedOverlayRef = useRef<HTMLElement | null>(null);
@@ -62,11 +69,11 @@ export function useComposerRestingTransition(
     const element = elementRef.current;
     const footer = element?.querySelector<HTMLElement>('[data-chat-composer-footer="true"]');
     element?.style.removeProperty("overflow");
-    element?.style.removeProperty("clip-path");
+    element?.style.removeProperty("height");
     element?.style.removeProperty("overflow-clip-margin");
-    element
-      ?.querySelector<HTMLElement>('[data-chat-composer-surface="true"]')
-      ?.style.removeProperty("height");
+    const surface = element?.querySelector<HTMLElement>('[data-chat-composer-surface="true"]');
+    surface?.style.removeProperty("height");
+    surface?.style.removeProperty("clip-path");
     footer?.style.removeProperty("position");
     footer?.style.removeProperty("top");
     footer?.style.removeProperty("bottom");
@@ -74,7 +81,8 @@ export function useComposerRestingTransition(
     footer?.style.removeProperty("right");
     footer?.style.removeProperty("height");
     const shell = element?.closest<HTMLElement>('[data-slot="composer-shell"]');
-    shell?.removeAttribute("data-model-strip-transition");
+    releaseOwnSurfacesRef.current?.();
+    releaseOwnSurfacesRef.current = null;
     const modelStrip = shell?.querySelector<HTMLElement>('[data-composer-model-strip="true"]');
     for (const property of [
       "position",
@@ -130,11 +138,14 @@ export function useComposerRestingTransition(
 
     const shell = element.closest<HTMLElement>('[data-slot="composer-shell"]');
     const modelStrip = shell?.querySelector<HTMLElement>('[data-composer-model-strip="true"]');
-    const interruptedStripHeight =
-      animationRef.current && modelStrip?.style.visibility === "visible"
-        ? modelStrip.getBoundingClientRect().height
-        : null;
     const interruptedAnimation = animationRef.current;
+    const interruptedProgress = interruptedAnimation?.effect?.getComputedTiming().progress ?? 1;
+    const visibleNow = (from: number | null, to: number | null) =>
+      from === null || to === null ? null : from + (to - from) * interruptedProgress;
+    const interruptedStripHeight =
+      interruptedAnimation && modelStrip?.style.visibility === "visible"
+        ? visibleNow(stripRevealRef.current?.from ?? null, stripRevealRef.current?.to ?? null)
+        : null;
     const interruptedPromptTop = interruptedAnimation
       ? (prompt?.getBoundingClientRect().top ?? null)
       : null;
@@ -147,7 +158,9 @@ export function useComposerRestingTransition(
     const interruptedControlsTop = interruptedAnimation
       ? (controls?.getBoundingClientRect().top ?? null)
       : null;
-    const interruptedHeight = interruptedAnimation ? element.getBoundingClientRect().height : null;
+    const interruptedHeight = interruptedAnimation
+      ? visibleNow(animationFromHeightRef.current, animationTargetHeightRef.current)
+      : null;
     const interruptedTargetHeight = animationTargetHeightRef.current;
     const interruptedCurrentTime =
       typeof interruptedAnimation?.currentTime === "number"
@@ -160,6 +173,9 @@ export function useComposerRestingTransition(
     }
     interruptedAnimation?.cancel();
     animationRef.current = null;
+    for (const animation of layoutAnimationsRef.current) animation.cancel();
+    layoutAnimationsRef.current = [];
+    stripRevealRef.current = null;
     for (const animation of contentAnimationsRef.current) animation.cancel();
     contentAnimationsRef.current = [];
     if (stateChanged) {
@@ -208,14 +224,20 @@ export function useComposerRestingTransition(
           : animationDurationMs;
       const duration =
         interruptedHeight !== null && !targetChanged ? remainingDuration : animationDurationMs;
+      // Layout keeps the taller height throughout. A clip shows the height in between,
+      // and the content slides by what the clip hides, as it would if layout resized.
+      const layoutHeight = Math.max(previousHeight, nextHeight);
+      const hidden = [layoutHeight - previousHeight, layoutHeight - nextHeight] as const;
+      const timing = { duration, easing: EASE_DRAWER, fill: "both" } as const;
       element.style.overflow = "clip";
+      element.style.height = `${layoutHeight}px`;
       if (modelStrip) {
         const controlsClearance = Math.max(
           nextModelStripHeight ?? 0,
           previousModelStripHeightRef.current ?? 0,
         );
         element.style.overflowClipMargin = `${controlsClearance}px`;
-        element.style.clipPath = `inset(0 0 -${controlsClearance}px 0)`;
+        surface.style.clipPath = `inset(0 0 -${controlsClearance}px 0)`;
       }
       surface.style.height = "100%";
 
@@ -241,8 +263,10 @@ export function useComposerRestingTransition(
         }
       }
 
-      let stripAnimation: Animation | null = null;
-      if (modelStrip) shell?.setAttribute("data-model-strip-transition", "true");
+      let stripAnimations: Animation[] = [];
+      if (shell && !releaseOwnSurfacesRef.current) {
+        releaseOwnSurfacesRef.current = paintOwnSurfaces(shell);
+      }
       // A resting desktop composer tucks the strip behind the input.
       const stripOpen = (collapsed: boolean, resting: boolean) => collapsed && !resting;
       const stripWasOpen = stripOpen(
@@ -265,24 +289,44 @@ export function useComposerRestingTransition(
         modelStrip.style.alignItems = "flex-end";
         modelStrip.style.pointerEvents = "none";
         modelStrip.style.zIndex = "20";
-        stripAnimation = modelStrip.animate(
-          [{ height: `${fromHeight}px` }, { height: `${toHeight}px` }],
-          { duration, easing: EASE_DRAWER, fill: "both" },
-        );
+        // The strip keeps its taller box. Its drawer is clipped down to the height on
+        // screen, and the composer above rides the difference as it would on layout.
+        const stripLayoutHeight = Math.max(fromHeight, toHeight);
+        const stripHidden = [stripLayoutHeight - fromHeight, stripLayoutHeight - toHeight] as const;
+        modelStrip.style.height = `${stripLayoutHeight}px`;
+        stripAnimations = [
+          modelStrip.animate(
+            {
+              clipPath: stripHidden.map(
+                (inset) => `inset(${inset + stripOverlap}px -200px -200px -200px)`,
+              ),
+            },
+            { ...timing, pseudoElement: "::before" },
+          ),
+          ...slideNeighbours(modelStrip, "bottom", stripHidden, timing),
+        ];
+        stripRevealRef.current = { from: fromHeight, to: toHeight };
       }
 
-      const animation = element.animate(
-        [{ height: `${previousHeight}px` }, { height: `${nextHeight}px` }],
-        {
-          duration,
-          easing: EASE_DRAWER,
-          fill: "both",
-        },
-      );
+      const layoutAnimations = revealComposerSurface(element, hidden, timing);
+      for (const child of surface.children) {
+        if (!(child instanceof HTMLElement) || child === footer) continue;
+        layoutAnimations.push(
+          child.animate({ translate: hidden.map((inset) => `0 ${inset}px`) }, timing),
+        );
+      }
+      layoutAnimationsRef.current = layoutAnimations;
+      const animation = layoutAnimations[0]!;
       animationRef.current = animation;
+      animationFromHeightRef.current = previousHeight;
       animationTargetHeightRef.current = nextHeight;
 
-      const animatedRect = element.getBoundingClientRect();
+      const layoutRect = element.getBoundingClientRect();
+      const animatedRect = {
+        top: layoutRect.top + hidden[0],
+        bottom: layoutRect.bottom,
+        left: layoutRect.left,
+      };
       const previousBottom =
         overlayRect && previousContentOffsetsRef.current.surfaceBottomInset !== null
           ? overlayRect.bottom - previousContentOffsetsRef.current.surfaceBottomInset
@@ -298,7 +342,7 @@ export function useComposerRestingTransition(
         (previousContentOffsetsRef.current.actionFromBottom === null
           ? null
           : previousBottom - previousContentOffsetsRef.current.actionFromBottom);
-      const contentAnimations: Animation[] = stripAnimation ? [stripAnimation] : [];
+      const contentAnimations: Animation[] = [...stripAnimations];
       const animateContentPosition = (
         content: HTMLElement | null,
         previousTop: number | null,
@@ -424,8 +468,10 @@ export function useComposerRestingTransition(
         animationTargetHeightRef.current = null;
         contentAnimationsRef.current = [];
         stateChangeAnimationsRef.current = [];
-        animation.cancel();
-        stripAnimation?.cancel();
+        for (const layoutAnimation of layoutAnimationsRef.current) layoutAnimation.cancel();
+        layoutAnimationsRef.current = [];
+        stripRevealRef.current = null;
+        for (const stripAnimation of stripAnimations) stripAnimation.cancel();
         clearTransitionStyles();
       };
       void animation.finished.catch(() => undefined).then(() => finishTransition(false));
@@ -543,9 +589,10 @@ export function useComposerRestingTransition(
         window.clearTimeout(transitionCleanupTimeoutRef.current);
         transitionCleanupTimeoutRef.current = null;
       }
-      animationRef.current?.cancel();
       animationRef.current = null;
       animationTargetHeightRef.current = null;
+      for (const animation of layoutAnimationsRef.current) animation.cancel();
+      layoutAnimationsRef.current = [];
       for (const animation of contentAnimationsRef.current) animation.cancel();
       contentAnimationsRef.current = [];
       for (const animation of stateChangeAnimationsRef.current) animation.cancel();
