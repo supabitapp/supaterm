@@ -1032,6 +1032,11 @@ export class PullRequestUnavailableError extends Schema.TaggedError<PullRequestU
     requirement: Schema.optional(TrimmedNonEmptyString),
     /** The repository no project has, for `repository-without-project`. */
     repository: Schema.optional(TrimmedNonEmptyString),
+    /**
+     * For `repository-without-project` on a host read through any checkout on it: the host no
+     * project is on.
+     */
+    host: Schema.optional(TrimmedNonEmptyString),
     cause: Schema.optional(Schema.Defect()),
   },
   { httpApiStatus: 503 },
@@ -1049,6 +1054,9 @@ export class PullRequestUnavailableError extends Schema.TaggedError<PullRequestU
       case "provider-unsupported":
         return "Change requests cannot be browsed for this project's host yet.";
       case "repository-without-project":
+        if (this.host !== undefined) {
+          return `No project in Supaterm is on ${this.host}. Add any ${this.host} project to read its change requests.`;
+        }
         return `${this.repository ?? "This repository"} is not a project in Supaterm. Add it as a project to read its change requests.`;
     }
   }
