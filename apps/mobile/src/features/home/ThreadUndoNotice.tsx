@@ -5,11 +5,11 @@ import Animated, {
   Easing,
   FadeInDown,
   FadeOut,
-  runOnJS,
   useAnimatedStyle,
   useSharedValue,
   withTiming,
 } from "react-native-reanimated";
+import { scheduleOnRN } from "react-native-worklets";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { AppSymbolName } from "../../components/ui/AppSymbol";
 import { Toast } from "../../components/ui/Toast";
@@ -79,7 +79,7 @@ function SwipeableUndoNotice(props: { readonly notice: Notice }) {
       ) {
         translation.set(
           withTiming(bottom + height.value, exitTiming, (finished) => {
-            if (finished) runOnJS(dismiss)();
+            if (finished) scheduleOnRN(dismiss);
           }),
         );
       } else {

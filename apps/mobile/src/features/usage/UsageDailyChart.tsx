@@ -3,7 +3,8 @@ import * as Haptics from "expo-haptics";
 import { useState } from "react";
 import { View } from "react-native";
 import { GestureDetector, usePanGesture } from "react-native-gesture-handler";
-import { runOnJS, useSharedValue } from "react-native-reanimated";
+import { useSharedValue } from "react-native-reanimated";
+import { scheduleOnRN } from "react-native-worklets";
 import Svg, { Line } from "react-native-svg";
 
 import type { UsageChartDay, UsageChartMetric } from "./usageChartData";
@@ -49,7 +50,7 @@ export function UsageDailyChart({
     const index = Math.min(count - 1, Math.max(0, Math.floor((x / width) * count)));
     if (index === activeIndex.get()) return;
     activeIndex.set(index);
-    runOnJS(select)(index);
+    scheduleOnRN(select, index);
   };
   const gesture = usePanGesture({
     activateAfterLongPress: HOLD_DELAY_MS,
@@ -58,7 +59,7 @@ export function UsageDailyChart({
     onFinalize: () => {
       if (activeIndex.get() === -1) return;
       activeIndex.set(-1);
-      runOnJS(select)(-1);
+      scheduleOnRN(select, -1);
     },
   });
 

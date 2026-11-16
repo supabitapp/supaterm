@@ -35,12 +35,12 @@ import {
   View,
 } from "react-native";
 import Animated, {
-  runOnJS,
   useAnimatedStyle,
   useDerivedValue,
   useSharedValue,
   withTiming,
 } from "react-native-reanimated";
+import { scheduleOnRN } from "react-native-worklets";
 import { AsyncResult } from "effect/reactivity";
 
 import {
@@ -739,7 +739,7 @@ function AdaptiveWorkspaceLayoutContent(
       withTiming(targetWidth, snap ? { duration: 0 } : WORKSPACE_PANE_TIMING, (finished) => {
         // Only a hinge resize widens the list's span; a toggle has nothing to settle.
         if (finished && Platform.OS === "android" && listPaneFloor !== listPaneCeiling) {
-          runOnJS(settleListPane)(listPaneRevision);
+          scheduleOnRN(settleListPane, listPaneRevision);
         }
       }),
     );

@@ -9,11 +9,11 @@ import {
 import Animated, {
   Easing,
   ReduceMotion,
-  runOnJS,
   useAnimatedStyle,
   useSharedValue,
   withTiming,
 } from "react-native-reanimated";
+import { scheduleOnRN } from "react-native-worklets";
 
 import { useReducedMotionPreference } from "../../lib/useReducedMotionPreference";
 import { isKeyboardMotionSuppressed } from "../../lib/motionInput";
@@ -68,7 +68,7 @@ export function MotionPresence({
           reduceMotion: ReduceMotion.Never,
         },
         (finished) => {
-          if (finished && !visible) runOnJS(hide)();
+          if (finished && !visible) scheduleOnRN(hide);
         },
       ),
     );

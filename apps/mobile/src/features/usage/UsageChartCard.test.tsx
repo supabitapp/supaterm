@@ -12,8 +12,10 @@ vi.mock("react-native-gesture-handler", () => ({
   GestureDetector: ({ children }: { readonly children: ReactNode }) => children,
   usePanGesture: () => ({}),
 }));
+vi.mock("react-native-worklets", () => ({
+  scheduleOnRN: <Args extends unknown[]>(fn: (...args: Args) => void, ...args: Args) => fn(...args),
+}));
 vi.mock("react-native-reanimated", () => ({
-  runOnJS: <T,>(fn: T) => fn,
   useSharedValue: (initial: number) => {
     let value = initial;
     return { get: () => value, set: (next: number) => (value = next) };

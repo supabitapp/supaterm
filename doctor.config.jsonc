@@ -36,8 +36,5 @@
     "react-doctor/effect-needs-cleanup": "off",
     // Every screen pads its scroll content by the safe-area insets.
     "react-doctor/rn-scrollview-dynamic-padding": "off",
-    // Upstream still calls runOnJS, which Reanimated 4 keeps as a wrapper. Flagging it
-    // would block ports.
-    "react-doctor/rn-reanimated-4-use-worklets-scheduler": "off",
   },
 }

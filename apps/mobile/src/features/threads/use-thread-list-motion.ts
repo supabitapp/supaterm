@@ -2,13 +2,13 @@ import { useCallback, useLayoutEffect, useMemo, useRef } from "react";
 import {
   Easing,
   ReduceMotion,
-  runOnUI,
   useSharedValue,
   withTiming,
   type EntryAnimationsValues,
   type ExitAnimationsValues,
   type LayoutAnimationFunction,
 } from "react-native-reanimated";
+import { scheduleOnUI } from "react-native-worklets";
 
 import { useReducedMotionPreference } from "../../lib/useReducedMotionPreference";
 import {
@@ -38,10 +38,10 @@ export function useThreadListMotion(input: {
   const deadline = useSharedValue(0);
   const prepare = useCallback(() => {
     if (!ready || reducedMotion || scrolling || searching || isKeyboardMotionSuppressed()) return;
-    runOnUI(() => {
+    scheduleOnUI(() => {
       "worklet";
       deadline.set(performance.now() + 300);
-    })();
+    });
   }, [deadline, ready, reducedMotion, scrolling, searching]);
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- compares the committed list frame with the previous one and opens the UI-thread layout animation window
   useLayoutEffect(() => {
@@ -60,10 +60,13 @@ export function useThreadListMotion(input: {
       });
     previous.current = ready ? frame : null;
     // Bound eligibility without scheduling an animation just to expire a flag.
-    runOnUI((allow: boolean) => {
-      "worklet";
-      deadline.set(allow ? performance.now() + 300 : 0);
-    })(animate && !reducedMotion && !scrolling);
+    scheduleOnUI(
+      (allow: boolean) => {
+        "worklet";
+        deadline.set(allow ? performance.now() + 300 : 0);
+      },
+      animate && !reducedMotion && !scrolling,
+    );
   }, [deadline, frame, scrolling, searching, reducedMotion, ready]);
 
   return useMemo(() => {

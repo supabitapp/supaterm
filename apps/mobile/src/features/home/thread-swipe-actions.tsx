@@ -30,14 +30,13 @@ import Animated, {
   Easing,
   Extrapolation,
   interpolate,
-  runOnJS,
-  runOnUI,
   type SharedValue,
   useAnimatedReaction,
   useAnimatedStyle,
   useSharedValue,
   withTiming,
 } from "react-native-reanimated";
+import { scheduleOnRN, scheduleOnUI } from "react-native-worklets";
 
 import { AppText as Text } from "../../components/ui/AppText";
 import { SwipeRowActivationContext, type SwipeRowActivation } from "./swipe-row-activation";
@@ -293,7 +292,7 @@ function ThreadSwipeableRow(props: ThreadSwipeableProps) {
     if (!mountedRef.current) return;
     dismissalRef.current = null;
     // RN-to-UI jobs run in order, so this also resets a queued dismissal.
-    runOnUI((methods: SwipeableMethods | null) => {
+    scheduleOnUI((methods: SwipeableMethods | null) => {
       "worklet";
       methods?.reset();
       // RNGH reset() leaves tap-to-close enabled; close() clears it.
@@ -302,7 +301,7 @@ function ThreadSwipeableRow(props: ThreadSwipeableProps) {
       collapse.set(0);
       actionOpacity.set(1);
       dismissing.set(false);
-    })(swipeableRef.current);
+    }, swipeableRef.current);
     setIsDismissing(false);
   }, [actionOpacity, collapse, dismissing, fallbackTranslation]);
 
@@ -356,7 +355,7 @@ function ThreadSwipeableRow(props: ThreadSwipeableProps) {
       translation.set(withTiming(Math.min(translation.value, -rowWidth.value), timing));
       collapse.set(
         withTiming(1, timing, (finished) => {
-          if (finished) runOnJS(finishDismiss)(id);
+          if (finished) scheduleOnRN(finishDismiss, id);
         }),
       );
     },
@@ -375,7 +374,7 @@ function ThreadSwipeableRow(props: ThreadSwipeableProps) {
             });
             setIsDismissing(true);
             if (swipeableRef.current) onSwipeableClose?.(swipeableRef.current);
-            runOnUI(dismiss)(activeTranslationRef.current ?? fallbackTranslation, id);
+            scheduleOnUI(dismiss, activeTranslationRef.current ?? fallbackTranslation, id);
             const dismissal = {
               finished,
               restore: () => {
@@ -414,7 +413,7 @@ function ThreadSwipeableRow(props: ThreadSwipeableProps) {
       "worklet";
       if (dismissing.value) return true;
       if (!canceled && -translation.value >= fullSwipeThreshold) {
-        runOnJS(commitFullSwipe)();
+        scheduleOnRN(commitFullSwipe);
         return true;
       }
       return false;
@@ -755,7 +754,7 @@ function ThreadSwipeActions(props: {
     () => -translation.value >= fullSwipeThreshold,
     (armed, previous) => {
       if (armed !== previous) {
-        runOnJS(onFullSwipeArmedChange)(armed);
+        scheduleOnRN(onFullSwipeArmedChange, armed);
       }
     },
     [fullSwipeThreshold, onFullSwipeArmedChange, translation],

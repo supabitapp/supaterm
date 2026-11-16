@@ -1,7 +1,7 @@
 import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { Platform, Pressable, StyleSheet, View, type AccessibilityActionEvent } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
-import { runOnJS } from "react-native-reanimated";
+import { scheduleOnRN } from "react-native-worklets";
 import { cn } from "../../lib/cn";
 const ACCESSIBILITY_RESIZE_STEP = 24;
 interface WorkspacePaneDividerProps {
@@ -21,13 +21,13 @@ function createResizeGesture(
     .activeOffsetX([-4, 4])
     .failOffsetY([-24, 24])
     .onStart(() => {
-      runOnJS(onResizeStart)();
+      scheduleOnRN(onResizeStart);
     })
     .onUpdate((event) => {
-      runOnJS(onResize)(event.translationX);
+      scheduleOnRN(onResize, event.translationX);
     })
     .onFinalize(() => {
-      runOnJS(onResizeEnd)();
+      scheduleOnRN(onResizeEnd);
     });
 }
 function ResizeGestureDetector(props: {

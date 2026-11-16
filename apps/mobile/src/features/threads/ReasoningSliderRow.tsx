@@ -3,12 +3,12 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { View } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, {
-  runOnJS,
   useAnimatedStyle,
   useSharedValue,
   withTiming,
   type SharedValue,
 } from "react-native-reanimated";
+import { scheduleOnRN } from "react-native-worklets";
 
 import { AppText as Text } from "../../components/ui/AppText";
 import { themeColorWithAlpha } from "../../lib/mobileTheme";
@@ -63,7 +63,7 @@ function createReasoningGesture(input: {
     const next = Math.round(fraction * max);
     if (next !== lastStop.value) {
       lastStop.set(next);
-      runOnJS(preview)(next);
+      scheduleOnRN(preview, next);
     }
   };
   const pan = Gesture.Pan()
@@ -80,12 +80,12 @@ function createReasoningGesture(input: {
       if (!success) {
         progress.set(withTiming(selectedIndex / max, SNAP_ANIMATION));
         lastStop.set(selectedIndex);
-        runOnJS(preview)(selectedIndex, false);
+        scheduleOnRN(preview, selectedIndex, false);
         return;
       }
       const next = lastStop.value;
       progress.set(withTiming(next / max, SNAP_ANIMATION));
-      runOnJS(commit)(next);
+      scheduleOnRN(commit, next);
     });
   const tap = Gesture.Tap()
     .enabled(!disabled)
@@ -93,7 +93,7 @@ function createReasoningGesture(input: {
       if (!success) return;
       const next = Math.round(fractionAt(event.x) * max);
       update(next / max);
-      runOnJS(commit)(next);
+      scheduleOnRN(commit, next);
     });
   return Gesture.Race(pan, tap);
 }

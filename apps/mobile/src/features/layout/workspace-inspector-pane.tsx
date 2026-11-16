@@ -1,13 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import Animated, {
   cubicBezier,
-  runOnJS,
   useAnimatedStyle,
   useReducedMotion,
   useSharedValue,
   withTiming,
   type SharedValue,
 } from "react-native-reanimated";
+import { scheduleOnRN } from "react-native-worklets";
 
 import { constrainAuxiliaryPaneWidth, type WorkspacePaneLayout } from "../../lib/layout";
 import { WORKSPACE_PANE_TIMING } from "./workspace-pane-animation";
@@ -46,7 +46,7 @@ export function WorkspaceInspectorPane(props: {
     inspectorProgress.set(
       withTiming(inspectorVisible ? 1 : 0, WORKSPACE_PANE_TIMING, (finished) => {
         if (finished === true && !inspectorVisible && onClosed !== undefined) {
-          runOnJS(onClosed)();
+          scheduleOnRN(onClosed);
         }
       }),
     );
