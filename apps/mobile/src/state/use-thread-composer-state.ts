@@ -57,7 +57,7 @@ import { scopedThreadKey } from "../lib/scopedEntities";
 import { buildThreadFeed, createThreadFeedCache } from "../lib/threadActivity";
 import { acknowledgedThreadMessagesAtom } from "./acknowledged-thread-messages";
 import {
-  appendPendingThreadMessages,
+  appendAcceptedThreadMessages,
   retainPendingCreationAttachments,
   selectPendingAcknowledgedMessages,
 } from "../features/threads/pending-thread-feed";
@@ -276,9 +276,10 @@ export function useThreadComposerState() {
       sequence: selectedThreadSequence,
       projectedMessages: selectedThreadMessages,
     });
-    if (pendingAcknowledgments.length === 0) return feed;
-    return appendPendingThreadMessages(feed, feed, pendingAcknowledgments).map((entry) =>
-      entry.pendingMessage ? { ...entry, acknowledged: true } : entry,
+    return appendAcceptedThreadMessages(
+      feed,
+      pendingAcknowledgments,
+      pendingCreation.length > 0 ? pendingCreationMessage : null,
     );
   })();
 

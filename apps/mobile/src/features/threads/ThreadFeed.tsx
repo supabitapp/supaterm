@@ -152,7 +152,10 @@ import { useFilePreviewGallery, FilePreviewGallery } from "../../components/ui/F
 import { assetImageSource } from "../../lib/assetImageSource";
 import { filePreviewSourceIdentifier } from "../../lib/filePreviewGallery";
 import { composerImageGallery } from "../../lib/composerImageGallery";
-import { isFileBackedComposerAttachment } from "../../lib/composerImages";
+import {
+  isFileBackedComposerAttachment,
+  type FileBackedComposerAttachment,
+} from "../../lib/composerImages";
 import { useLocalAttachmentPreview } from "../../lib/localAttachmentPreview";
 import {
   rememberSentImage,
@@ -206,7 +209,11 @@ import {
 import { AppText as Text } from "../../components/ui/AppText";
 import { VideoPreviewModal, type VideoPreviewSource } from "../../components/ui/VideoPreviewModal";
 import { markdownFileEmbedLabel, resolveMarkdownMediaPreview } from "../../lib/markdownMedia";
-import { attachmentVideoPreviewSource } from "../../lib/videoPreviewSource";
+import {
+  attachmentVideoPreviewSource,
+  mediaVideoThumbnailKey,
+  type MediaVideoPreviewSource,
+} from "../../lib/videoPreviewSource";
 import { CopyTextButton } from "./CopyTextButton";
 import { getReviewSectionIdForCheckpoint } from "../review/reviewModel";
 import { setReviewSelectedSectionId } from "../review/reviewState";
@@ -780,7 +787,6 @@ function MessageAttachmentFile(props: {
   readonly attachment: ChatFileAttachment;
   readonly onPressPreview: (source: FilePreviewSource) => void;
   readonly onPlaybackStart: () => void;
-  readonly standaloneMedia?: boolean;
   readonly standaloneFile?: boolean;
   readonly available?: boolean;
 }) {
@@ -928,14 +934,10 @@ function MessageAttachmentFile(props: {
 
   if (videoType !== null) {
     return (
-      <View
-        className={props.standaloneMedia ? undefined : "my-1"}
-        style={{ width: props.standaloneMedia ? 320 : 224, maxWidth: "100%" }}
-      >
+      <View className="my-1" style={{ width: 224, maxWidth: "100%" }}>
         <ThreadMarkdownVideo
           source={attachmentVideoPreviewSource(props.environmentId, attachment, sourceIdentifier)}
           onPlaybackStart={props.onPlaybackStart}
-          borderRadius={props.standaloneMedia ? 20 : undefined}
         />
       </View>
     );
@@ -1026,7 +1028,6 @@ function UserMessageMedia(props: {
     ...props.pendingAttachments.map((attachment, index) => {
       const image = isImageAttachment(attachment);
       return {
-        id: attachment.id,
         image,
         content:
           image && attachment.uploadedAttachmentId ? (
@@ -1040,30 +1041,31 @@ function UserMessageMedia(props: {
               onImageLoad={(loaded) => rememberSentImage(props.messageId, index, loaded)}
               onPressPreview={props.onPressPreview}
             />
-          ) : !image && attachment.uploadedAttachmentId ? (
-            <ThreadMarkdownVideo
-              source={attachmentVideoPreviewSource(props.environmentId, {
-                ...attachment,
-                type: "file",
-                id: attachment.uploadedAttachmentId,
-              })}
+          ) : !image ? (
+            <UserMessageVideo
+              environmentId={props.environmentId}
+              messageId={props.messageId}
+              index={index}
+              local={isFileBackedComposerAttachment(attachment) ? attachment : null}
+              uploaded={
+                attachment.uploadedAttachmentId === undefined
+                  ? null
+                  : { ...attachment, type: "file", id: attachment.uploadedAttachmentId }
+              }
               onPlaybackStart={props.onPlaybackStart}
-              borderRadius={20}
             />
           ) : (
-            <PendingMessageMedia
+            <PendingMessageImage
               attachment={attachment}
               {...imageProps(index)}
               {...handoffProps(sentImageHandoff(props.messageId, index, attachment.id))}
               onImageLoad={(image) => rememberSentImage(props.messageId, index, image)}
               onPressPreview={props.onPressPreview}
-              onPlaybackStart={props.onPlaybackStart}
             />
           ),
       };
     }),
     ...props.attachments.map((attachment, index) => ({
-      id: attachment.id,
       image: isImageAttachment(attachment),
       content: isImageAttachment(attachment) ? (
         <MessageAttachmentImage
@@ -1076,12 +1078,13 @@ function UserMessageMedia(props: {
           onPressPreview={props.onPressPreview}
         />
       ) : isFileAttachment(attachment) ? (
-        <MessageAttachmentFile
+        <UserMessageVideo
           environmentId={props.environmentId}
-          attachment={attachment}
-          onPressPreview={props.onPressPreview}
+          messageId={props.messageId}
+          index={index}
+          local={null}
+          uploaded={attachment}
           onPlaybackStart={props.onPlaybackStart}
-          standaloneMedia
         />
       ) : null,
     })),
@@ -1105,7 +1108,8 @@ function UserMessageMedia(props: {
         media.flatMap((item, index) =>
           index % 2 === 0
             ? [
-                <View key={item.id} className="flex-row" style={{ gap: StyleSheet.hairlineWidth }}>
+                // oxlint-disable-next-line react/no-array-index-key -- delivery re-ids attachments; position is the stable identity
+                <View key={index} className="flex-row" style={{ gap: StyleSheet.hairlineWidth }}>
                   <View className="min-w-0 flex-1">{item.content}</View>
                   {media[index + 1] ? (
                     <View className="min-w-0 flex-1">{media[index + 1]!.content}</View>
@@ -1119,9 +1123,10 @@ function UserMessageMedia(props: {
     </View>
   ) : (
     <View className="items-end gap-2">
-      {media.map((item) => (
+      {media.map((item, index) => (
         <View
-          key={item.id}
+          // oxlint-disable-next-line react/no-array-index-key -- delivery re-ids attachments; a new key would remount the media
+          key={index}
           className="overflow-hidden rounded-[20px]"
           style={{ width: item.image ? undefined : 320, maxWidth: "100%" }}
         >
@@ -1136,7 +1141,7 @@ function UserMessageMedia(props: {
   );
 }
 
-function PendingMessageMedia(props: {
+function PendingMessageImage(props: {
   readonly attachment: QueuedThreadMessage["attachments"][number];
   readonly className: string;
   readonly maxWidth?: number;
@@ -1144,36 +1149,70 @@ function PendingMessageMedia(props: {
   readonly handoff?: SentImageHandoff;
   readonly onImageLoad?: (image: SentImageHandoff) => void;
   readonly onPressPreview: (source: FilePreviewSource) => void;
-  readonly onPlaybackStart: () => void;
 }) {
   const withGallery = useFilePreviewGallery();
   const { attachment, handoff } = props;
   const fileBacked = isFileBackedComposerAttachment(attachment);
   const preview = useLocalAttachmentPreview(fileBacked ? attachment : null);
-  if (isImageAttachment(attachment)) {
-    // The composer already showed this image; reuse its pixels and shape instead of a blank box.
-    const uri =
-      handoff?.uri ?? (fileBacked ? preview.uri : (attachment.dataUrl ?? attachment.previewUri));
-    return (
-      <MessageImage
-        key={attachment.id}
-        source={uri == null ? undefined : { uri }}
-        className={props.className}
-        maxWidth={props.maxWidth}
-        height={props.height}
-        accessibilityLabel={`Open ${attachment.name}`}
-        {...handoffProps(handoff)}
-        onLoad={(size) => {
-          if (uri) props.onImageLoad?.({ uri, aspectRatio: size.width / size.height });
-        }}
-        onPress={() => {
-          const source = composerImageGallery([attachment])[0];
-          if (source) props.onPressPreview(withGallery(source));
-        }}
-      />
-    );
+  // The composer already showed this image; reuse its pixels and shape instead of a blank box.
+  const uri =
+    handoff?.uri ?? (fileBacked ? preview.uri : (attachment.dataUrl ?? attachment.previewUri));
+  return (
+    <MessageImage
+      key={attachment.id}
+      source={uri == null ? undefined : { uri }}
+      className={props.className}
+      maxWidth={props.maxWidth}
+      height={props.height}
+      accessibilityLabel={`Open ${attachment.name}`}
+      {...handoffProps(handoff)}
+      onLoad={(size) => {
+        if (uri) props.onImageLoad?.({ uri, aspectRatio: size.width / size.height });
+      }}
+      onPress={() => {
+        const source = composerImageGallery([attachment])[0];
+        if (source) props.onPressPreview(withGallery(source));
+      }}
+    />
+  );
+}
+
+/**
+ * A sent video from queueing through delivery. Every stage renders this one player under a
+ * thumbnail key of message and position, so swapping the local file for the server copy keeps
+ * the poster on screen instead of remounting to black and extracting a frame again.
+ */
+function UserMessageVideo(props: {
+  readonly environmentId: EnvironmentId;
+  readonly messageId: string;
+  readonly index: number;
+  readonly local: FileBackedComposerAttachment | null;
+  readonly uploaded: ChatFileAttachment | null;
+  readonly onPlaybackStart: () => void;
+}) {
+  const sourceIdentifier = useId();
+  const preview = useLocalAttachmentPreview(props.local);
+  const current: MediaVideoPreviewSource | null =
+    props.local !== null && preview.uri !== null
+      ? {
+          type: "media",
+          name: props.local.name,
+          mimeType: props.local.mimeType,
+          uri: preview.uri,
+        }
+      : props.uploaded !== null
+        ? attachmentVideoPreviewSource(props.environmentId, props.uploaded, sourceIdentifier)
+        : null;
+  // Each copy of a message reopens its local file; keep the last source while the next one loads.
+  const [shown, setShown] = useState(current);
+  if (
+    current !== null &&
+    (shown === null || mediaVideoThumbnailKey(current) !== mediaVideoThumbnailKey(shown))
+  ) {
+    setShown(current);
   }
-  if (preview.uri === null) {
+  const source = current ?? shown;
+  if (source === null) {
     return (
       <View className="aspect-video items-center justify-center bg-black">
         {preview.error ? (
@@ -1186,12 +1225,8 @@ function PendingMessageMedia(props: {
   }
   return (
     <ThreadMarkdownVideo
-      source={{
-        type: "media",
-        name: attachment.name,
-        mimeType: attachment.mimeType,
-        uri: preview.uri,
-      }}
+      source={source}
+      thumbnailKey={JSON.stringify(["user-message-video", props.messageId, props.index])}
       onPlaybackStart={props.onPlaybackStart}
       borderRadius={20}
     />

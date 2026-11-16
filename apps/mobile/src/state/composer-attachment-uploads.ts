@@ -18,7 +18,14 @@ import {
 } from "../lib/composerAttachmentUploadQueue";
 import { appAtomRegistry } from "./atom-registry";
 import { environmentServerConfigsAtom } from "./server";
-import { flattenQueuedThreadMessages, threadOutboxManager } from "./thread-outbox";
+import {
+  flattenQueuedThreadMessages,
+  threadOutboxManager,
+  threadOutboxRevision,
+  updateThreadOutboxMessage,
+  type QueuedThreadMessage,
+} from "./thread-outbox";
+import { editingQueuedMessageIdsAtom } from "./use-thread-outbox";
 import {
   ComposerDraftPersistenceError,
   type ComposerDraft,
@@ -66,6 +73,8 @@ type ComposerAttachmentUploadRequest = {
 export function composerAttachmentUploadRequests(input: {
   readonly drafts: Readonly<Record<string, Pick<ComposerDraft, "attachments" | "project">>>;
   readonly queuedMessagesByThreadKey: Parameters<typeof flattenQueuedThreadMessages>[0];
+  /** An edited message's attachments upload through its editor draft. */
+  readonly editingQueuedMessageIds: Readonly<Record<string, unknown>>;
   /** Every environment the client knows, so a draft key never resolves to a shorter connected prefix. */
   readonly knownEnvironmentIds: Iterable<EnvironmentId>;
   readonly connectedEnvironmentIds: ReadonlySet<EnvironmentId>;
@@ -76,20 +85,82 @@ export function composerAttachmentUploadRequests(input: {
   >;
 }): ReadonlyArray<ComposerAttachmentUploadRequest> {
   const queued = flattenQueuedThreadMessages(input.queuedMessagesByThreadKey);
-  return Object.entries(input.drafts).flatMap(([key, draft]) => {
-    const environmentId = composerDraftEnvironmentId(key, input.knownEnvironmentIds, queued, draft);
-    if (
-      environmentId === null ||
-      !input.connectedEnvironmentIds.has(environmentId) ||
-      !input.operableEnvironmentIds.has(environmentId)
-    )
-      return [];
-    return draft.attachments
-      .filter((attachment) =>
-        canUploadComposerAttachment(attachment, input.serverConfigs.get(environmentId)),
-      )
-      .map((attachment) => ({ environmentId, attachment }));
-  });
+  const uploadable = (
+    environmentId: EnvironmentId | null,
+    attachments: ReadonlyArray<DraftComposerAttachment>,
+  ): ReadonlyArray<ComposerAttachmentUploadRequest> =>
+    environmentId === null ||
+    !input.connectedEnvironmentIds.has(environmentId) ||
+    !input.operableEnvironmentIds.has(environmentId)
+      ? []
+      : attachments.flatMap((attachment) =>
+          canUploadComposerAttachment(attachment, input.serverConfigs.get(environmentId))
+            ? [{ environmentId, attachment }]
+            : [],
+        );
+  return [
+    ...Object.entries(input.drafts).flatMap(([key, draft]) =>
+      uploadable(
+        composerDraftEnvironmentId(key, input.knownEnvironmentIds, queued, draft),
+        draft.attachments,
+      ),
+    ),
+    // Sending mid-upload hands the attachment to the outbox; requesting it here keeps that
+    // upload running instead of aborting it for the outbox to start over.
+    ...queued.flatMap((message) =>
+      input.editingQueuedMessageIds[message.messageId]
+        ? []
+        : uploadable(
+            message.environmentId,
+            message.attachments.filter(
+              (attachment) => attachment.uploadedAttachmentId === undefined,
+            ),
+          ),
+    ),
+  ];
+}
+
+function withUploadedAttachment(
+  message: QueuedThreadMessage,
+  uploaded: DraftComposerAttachment,
+): QueuedThreadMessage | null {
+  const awaiting = (attachment: DraftComposerAttachment) =>
+    attachment.id === uploaded.id && attachment.uploadedAttachmentId === undefined;
+  if (!message.attachments.some(awaiting)) return null;
+  return {
+    ...message,
+    attachments: message.attachments.map((attachment) =>
+      awaiting(attachment) ? uploaded : attachment,
+    ),
+  };
+}
+
+async function recordQueuedAttachmentUpload(
+  environmentId: EnvironmentId,
+  uploaded: DraftComposerAttachment,
+): Promise<boolean> {
+  const awaiting = () => {
+    const editing = appAtomRegistry.get(editingQueuedMessageIdsAtom);
+    return flattenQueuedThreadMessages(
+      appAtomRegistry.get(threadOutboxManager.queuedMessagesByThreadKeyAtom),
+    ).flatMap((message) => {
+      if (message.environmentId !== environmentId || editing[message.messageId]) return [];
+      const updated = withUploadedAttachment(message, uploaded);
+      return updated === null
+        ? []
+        : [{ updated, revision: threadOutboxRevision(message.messageId) }];
+    });
+  };
+  let recorded = false;
+  // A sibling attachment finishing at the same time bumps the revision; reread and retry.
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const pending = awaiting();
+    if (pending.length === 0) break;
+    for (const { updated, revision } of pending) {
+      recorded = (await updateThreadOutboxMessage(updated, revision)) || recorded;
+    }
+  }
+  return recorded;
 }
 
 // Each connected environment's session is read here so a granted or revoked
@@ -113,6 +184,7 @@ const composerAttachmentUploadRequestsAtom = Atom.make((get) => {
   return composerAttachmentUploadRequests({
     drafts: get(composerDraftUploadSourcesAtom),
     queuedMessagesByThreadKey: get(threadOutboxManager.queuedMessagesByThreadKeyAtom),
+    editingQueuedMessageIds: get(editingQueuedMessageIdsAtom),
     knownEnvironmentIds: environments.map((environment) => environment.environmentId),
     connectedEnvironmentIds: new Set(connected.map((environment) => environment.environmentId)),
     operableEnvironmentIds,
@@ -160,6 +232,7 @@ export function createComposerAttachmentUploadWorker(
                 retained = setComposerDraftAttachmentUpload(key, uploaded) || retained;
               }
             }
+            retained = (await recordQueuedAttachmentUpload(environmentId, uploaded)) || retained;
             if (!retained) return "abandon";
             // Draft-save failure only costs re-upload after restart; the outbox saves references independently, so preserve accepted uploads.
             await flushComposerDrafts().catch((error: unknown) => {

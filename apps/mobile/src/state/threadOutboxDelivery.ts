@@ -856,6 +856,7 @@ export function createThreadOutboxDelivery(): {
 } {
   let disposed = false;
   const retries = new Map<MessageId, ThreadOutboxRetry>();
+  let readyEnvironmentIds = new Set<EnvironmentId>();
   // Existing-thread turns the server accepted but whose outbox removal has
   // not landed; the next pass retries only the removal, never the send.
   const acknowledgedExistingThreadMessageIds = new Set<MessageId>();
@@ -1356,6 +1357,23 @@ export function createThreadOutboxDelivery(): {
       connectedEnvironments,
       operableEnvironments,
     } = appAtomRegistry.get(deliveryInputsAtom);
+    // Failures while an environment was unreachable say nothing about it now; a backoff
+    // started then would hold a message for up to its full delay after reconnecting.
+    const ready = new Set(
+      connectedEnvironments
+        .filter(
+          (environment) =>
+            environment.connectionState === "connected" &&
+            serverConfigs.has(environment.environmentId),
+        )
+        .map((environment) => environment.environmentId),
+    );
+    for (const message of Object.values(queuedMessagesByThreadKey).flat()) {
+      if (ready.has(message.environmentId) && !readyEnvironmentIds.has(message.environmentId)) {
+        clearRetry(message.messageId);
+      }
+    }
+    readyEnvironmentIds = ready;
     if (dispatchingQueuedMessageId !== null) {
       return;
     }

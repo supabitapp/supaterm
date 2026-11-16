@@ -198,6 +198,7 @@ import {
 } from "./composer-attachment-uploads";
 import {
   enqueueThreadOutboxMessage,
+  flattenQueuedThreadMessages,
   flushThreadOutbox,
   threadOutboxManager,
 } from "./thread-outbox";
@@ -224,6 +225,7 @@ const requestsAtom = Atom.make((get) =>
   composerAttachmentUploadRequests({
     drafts: get(drafts.composerDraftUploadSourcesAtom),
     queuedMessagesByThreadKey: get(threadOutboxManager.queuedMessagesByThreadKeyAtom),
+    editingQueuedMessageIds: {},
     knownEnvironmentIds: [environmentId],
     connectedEnvironmentIds: new Set([environmentId]),
     operableEnvironmentIds: new Set([environmentId]),
@@ -327,6 +329,31 @@ it.each(["decode", "read", "write"] as const)(
   },
 );
 
+it("keeps an upload running when its message is sent mid-upload and records it on the message", async () => {
+  const transferStarted = Promise.withResolvers<void>();
+  const finishTransfer = Promise.withResolvers<{ status: number }>();
+  native.transfer.mockImplementationOnce(async (uri, url) => {
+    native.server.set(url.split("/").at(-1)!, native.files.get(uri)!);
+    transferStarted.resolve();
+    return finishTransfer.promise;
+  });
+  const queue = worker();
+  await transferStarted.promise;
+
+  // Send enqueues the message, then clears the draft that owned the upload.
+  await enqueueThreadOutboxMessage(queuedMessage());
+  drafts.clearComposerDraftContent(draftKey, { deferAttachmentCleanup: true });
+  finishTransfer.resolve({ status: 204 });
+  await queue.settled();
+
+  expect(native.transfer).toHaveBeenCalledOnce();
+  expect(native.deleted).toEqual([]);
+  const [queued] = flattenQueuedThreadMessages(
+    appAtomRegistry.get(threadOutboxManager.queuedMessagesByThreadKeyAtom),
+  );
+  expect(queued?.attachments[0]?.uploadedAttachmentId).toBe("pending-1");
+});
+
 it.each(["http", "permission"] as const)(
   "keeps a real %s upload failure blocking Send",
   async (failure) => {
@@ -363,6 +390,7 @@ it("uploads draft attachments for threads whose ids contain colons", () => {
   const requests = composerAttachmentUploadRequests({
     drafts: Object.fromEntries(keys.map((key) => [key, { attachments: [{ ...image, id: key }] }])),
     queuedMessagesByThreadKey: {},
+    editingQueuedMessageIds: {},
     knownEnvironmentIds: [environmentId],
     connectedEnvironmentIds: new Set([environmentId]),
     operableEnvironmentIds: new Set([environmentId]),
@@ -379,6 +407,7 @@ it("does not upload a disconnected colon environment's draft to its connected pr
   const requests = composerAttachmentUploadRequests({
     drafts: { [`${disconnected}:thread-1`]: { attachments: [image] } },
     queuedMessagesByThreadKey: {},
+    editingQueuedMessageIds: {},
     knownEnvironmentIds: [connected, disconnected],
     connectedEnvironmentIds: new Set([connected]),
     operableEnvironmentIds: new Set([connected]),

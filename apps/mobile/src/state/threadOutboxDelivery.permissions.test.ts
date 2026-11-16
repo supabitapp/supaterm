@@ -166,6 +166,7 @@ import { appAtomRegistry } from "./atom-registry";
 import { environmentSession } from "./session";
 import { dispatchingQueuedMessageIdAtom, editingQueuedMessageIdsAtom } from "./use-thread-outbox";
 import { createThreadOutboxDelivery } from "./threadOutboxDelivery";
+import { workspaceConnections } from "./workspace";
 
 const message = (overrides: Partial<QueuedThreadMessage> = {}): QueuedThreadMessage => ({
   environmentId: EnvironmentId.make("secondary"),
@@ -624,6 +625,43 @@ describe("queued task whose launch reply is lost", () => {
     const [first, resent] = state.start.mock.calls.map(([call]) => call.input);
     expect(resent.bootstrap.createThread.worktreePath).toBe("/repo/.supaterm/worktrees/pr-123");
     expect(resent.bootstrap).toEqual(first.bootstrap);
+    expect(remaining()).toEqual([]);
+  });
+});
+
+describe("queued delivery timing", () => {
+  /** Runs `change`, then resolves once the delivery it starts has settled. */
+  async function deliveryAfter(change: () => void): Promise<void> {
+    const settled = Promise.withResolvers<void>();
+    const release = appAtomRegistry.subscribe(dispatchingQueuedMessageIdAtom, (id) => {
+      if (id === null) settled.resolve();
+    });
+    change();
+    expect(appAtomRegistry.get(dispatchingQueuedMessageIdAtom)).not.toBeNull();
+    await settled.promise.finally(release);
+  }
+
+  it("sends at once when its environment reconnects instead of waiting out the backoff", async () => {
+    setOperateGrant("secondary", true);
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] });
+    state.cleanups.push(() => vi.useRealTimers());
+    const environments = workspaceConnections.environmentsAtom as unknown as Atom.Writable<
+      ReadonlyArray<{ environmentId: string; connectionState: string }>
+    >;
+    const connected = [{ environmentId: "secondary", connectionState: "connected" }];
+    state.cleanups.push(() => appAtomRegistry.set(environments, connected));
+    await state.manager.enqueue(message());
+    state.start.mockResolvedValueOnce(
+      AsyncResult.failure(Cause.fail(new Error("Socket is not connected"))),
+    );
+    await runDrain();
+    expect(state.start).toHaveBeenCalledOnce();
+
+    appAtomRegistry.set(environments, [
+      { environmentId: "secondary", connectionState: "disconnected" },
+    ]);
+    await deliveryAfter(() => appAtomRegistry.set(environments, connected));
+    expect(state.start).toHaveBeenCalledTimes(2);
     expect(remaining()).toEqual([]);
   });
 });
