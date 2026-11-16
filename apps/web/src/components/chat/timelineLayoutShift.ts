@@ -71,9 +71,6 @@ export function followTimelineLayoutShifts(scrollNode: HTMLElement) {
     const content = row?.parentElement;
     const list = content?.parentElement;
     if (!frame || !row || !content || !list || Number.isNaN(topOf(row))) return;
-    const view = scrollNode.getBoundingClientRect();
-    const place = row.getBoundingClientRect();
-    if (place.bottom < view.top || place.top > view.bottom) return;
 
     const [first, last] = shift.offsets;
     const interrupted = follows.get(row);

@@ -21,7 +21,7 @@ function timeline() {
       row('<div style="height: 100px"></div>'),
       row(message),
       row(message),
-      row('<div style="height: 280px"></div>'),
+      row('<div style="height: 600px"></div>'),
     ].join("")}</div>
     <div style="height: 40px"></div>
   </div>`;
@@ -121,6 +121,24 @@ it("gives the list a shrinking row's final height at once and follows where the 
     "",
     ROW_CONTAINMENT,
   ]);
+});
+
+it("slides the rows in view when a row scrolled out above them shrinks", async () => {
+  using list = timeline();
+  list.resize(list.messages[0]!, 220);
+  await list.relayout();
+  list.scroll.scrollTop = 350;
+  expect(list.rows[1]!.getBoundingClientRect().bottom).toBeLessThan(0);
+  const before = list.places();
+
+  list.resize(list.messages[0]!, 100);
+  revealHeightChange(list.messages[0]!, 220, 100, 220);
+  await list.relayout();
+
+  expect(list.places()).toEqual(before);
+  for (const animation of list.animations()) animation.finish();
+  await list.shifts[0]!.settled;
+  expect(list.places()).toEqual(shifted(before, [0, 0, 0, -120, -120, -120]));
 });
 
 it("takes over from an interrupted reveal where everything is", async () => {
