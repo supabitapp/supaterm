@@ -23,6 +23,8 @@ import { resolveDefaultWorktreeBaseBranch } from "@supaterm/shared/git";
 import { resolveAssetUrl } from "@supaterm/client-runtime/state/assets";
 import { sourceControlClients } from "@supaterm/client-runtime/source-control-clients";
 import { normalizeThreadPullRequestKey } from "@supaterm/client-runtime/thread-pull-requests";
+import { attachmentUploadError } from "@supaterm/client-runtime/state/attachment-uploads";
+import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
 import { Atom } from "effect/reactivity";
 import { useSyncExternalStore } from "react";
@@ -63,53 +65,59 @@ async function command<A, E, Input>(
   return result.value;
 }
 
+async function postAttachmentBytes(
+  url: string,
+  attachment: typeof OutboxAttachment.Type,
+  signal: AbortSignal,
+): Promise<void> {
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      method: "POST",
+      body: attachment.bytes,
+      headers: { "Content-Type": attachment.mimeType },
+      signal: AbortSignal.any([signal, AbortSignal.timeout(300_000)]),
+    });
+  } catch (error) {
+    throw new Error("Attachment upload disconnected.", { cause: error });
+  }
+  if (!response.ok)
+    throw new Error(
+      response.status >= 500 || response.status === 408 || response.status === 429
+        ? `Attachment upload (${response.status}) disconnected.`
+        : `Attachment upload failed (${response.status}).`,
+    );
+}
+
 async function uploadAttachment(
   environmentId: EnvironmentId,
   attachment: typeof OutboxAttachment.Type,
 ) {
   if (attachment.bytes === null)
     throw new Error(`Attach '${attachment.name}' again before sending.`);
-  const result = await runAttachmentUploadCycle({
-    registry: appAtomRegistry,
-    createUploadUrl: attachmentEnvironment.createUploadUrl,
-    remove: attachmentEnvironment.remove,
-    environmentId,
-    upload: decodeUpload({
-      type: attachment.type,
-      name: attachment.name,
-      mimeType: attachment.mimeType,
-      sizeBytes: attachment.sizeBytes,
+  const result = await Effect.runPromise(
+    runAttachmentUploadCycle({
+      registry: appAtomRegistry,
+      createUploadUrl: attachmentEnvironment.createUploadUrl,
+      remove: attachmentEnvironment.remove,
+      environmentId,
+      upload: decodeUpload({
+        type: attachment.type,
+        name: attachment.name,
+        mimeType: attachment.mimeType,
+        sizeBytes: attachment.sizeBytes,
+      }),
+      resolveUploadUrl: (relativeUrl) => {
+        const connection = readPreparedConnection(environmentId);
+        return connection ? resolveAssetUrl(connection.httpBaseUrl, relativeUrl) : null;
+      },
+      transport: (url) =>
+        Effect.tryPromise({
+          try: (signal) => postAttachmentBytes(url, attachment, signal),
+          catch: attachmentUploadError,
+        }),
     }),
-    resolveUploadUrl: (relativeUrl) => {
-      const connection = readPreparedConnection(environmentId);
-      return connection ? resolveAssetUrl(connection.httpBaseUrl, relativeUrl) : null;
-    },
-    transport: (url) => {
-      const controller = new AbortController();
-      return {
-        abort: () => controller.abort(),
-        done: (async () => {
-          let response: Response;
-          try {
-            response = await fetch(url, {
-              method: "POST",
-              body: attachment.bytes,
-              headers: { "Content-Type": attachment.mimeType },
-              signal: AbortSignal.any([controller.signal, AbortSignal.timeout(300_000)]),
-            });
-          } catch (error) {
-            throw new Error("Attachment upload disconnected.", { cause: error });
-          }
-          if (!response.ok)
-            throw new Error(
-              response.status >= 500 || response.status === 408 || response.status === 429
-                ? `Attachment upload (${response.status}) disconnected.`
-                : `Attachment upload failed (${response.status}).`,
-            );
-        })(),
-      };
-    },
-  });
+  );
   if (result.status === "failed") throw result.error;
   if (result.status !== "uploaded") throw new Error("Attachment upload disconnected.");
   return decodeAttachment({
@@ -311,12 +319,14 @@ export const webThreadOutbox = createBrowserThreadOutbox<OutboxTurn>({
     for (let index = 0; index < payload.localAttachments.length; index++) {
       let attachment = payload.localAttachments[index]!;
       if (attachment.uploaded) {
-        const verified = await verifyPersistedAttachmentUpload({
-          registry: appAtomRegistry,
-          createAssetUrl: assetEnvironment.createUrl,
-          environmentId,
-          attachmentId: attachment.uploaded.id,
-        });
+        const verified = await Effect.runPromise(
+          verifyPersistedAttachmentUpload({
+            registry: appAtomRegistry,
+            createAssetUrl: assetEnvironment.createUrl,
+            environmentId,
+            attachmentId: attachment.uploaded.id,
+          }),
+        );
         if (verified.status === "failed") throw verified.error;
         if (verified.status === "verified") continue;
         const { uploaded: _, ...remaining } = attachment;
