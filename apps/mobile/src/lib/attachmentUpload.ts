@@ -27,7 +27,10 @@ import { resolveOwnedComposerAttachmentFileUri } from "./composerAttachmentFiles
 import { isComposerImageAttachment, type DraftComposerAttachment } from "./composerImages";
 import { imageMimeType } from "@supaterm/shared/image";
 import { uuidv4 } from "./uuid";
-import { type ComposerAttachmentUploadError, uploadError } from "./composerAttachmentUploadQueue";
+import {
+  attachmentUploadError,
+  type AttachmentUploadError,
+} from "@supaterm/client-runtime/state/attachment-uploads";
 
 export type UploadedMobileAttachment =
   | UploadChatImageAttachment
@@ -216,40 +219,46 @@ function requireUploadAccess(environmentId: EnvironmentId): void {
 }
 
 /**
- * Uploads one attachment and resolves to its uploaded id, reusing an earlier upload the server
- * still has. An abort deletes the pending upload it created.
+ * Uploads one attachment and returns its uploaded id, reusing an earlier upload the server
+ * still has. Interrupting it aborts the native transfer and deletes the pending upload it minted;
+ * a failed transfer deletes it too.
  */
-export async function uploadComposerAttachment(
+export const uploadComposerAttachment = Effect.fn("uploadComposerAttachment")(function* (
   environmentId: EnvironmentId,
   attachment: DraftComposerAttachment,
-  signal: AbortSignal,
   onProgress?: (progress: number) => void,
-): Promise<string> {
-  requireUploadAccess(environmentId);
+) {
+  yield* Effect.try({
+    try: () => requireUploadAccess(environmentId),
+    catch: attachmentUploadError,
+  });
   if (
     attachment.uploadEnvironmentId === environmentId &&
     attachment.uploadedAttachmentId !== undefined
   ) {
-    const verification = await verifyPersistedAttachmentUpload({
+    const verification = yield* verifyPersistedAttachmentUpload({
       registry: appAtomRegistry,
       createAssetUrl: assetEnvironment.createUrl,
       environmentId,
       attachmentId: attachment.uploadedAttachmentId,
     });
-    if (verification.status === "failed") throw verification.error;
+    if (verification.status === "failed") {
+      return yield* attachmentUploadError(verification.error);
+    }
     if (verification.status === "verified") return attachment.uploadedAttachmentId;
   }
-  if (signal.aborted) throw new Error("Upload cancelled.");
-  requireUploadAccess(environmentId);
+  yield* Effect.try({
+    try: () => requireUploadAccess(environmentId),
+    catch: attachmentUploadError,
+  });
   if (
     Option.isNone(
       appAtomRegistry.get(environmentSession.preparedConnectionValueAtom(environmentId)),
     )
   ) {
-    throw new Error("The environment is not connected.");
+    return yield* attachmentUploadError(new Error("The environment is not connected."));
   }
-  let minted: string | null = null;
-  const result = await runAttachmentUploadCycle({
+  const result = yield* runAttachmentUploadCycle({
     registry: appAtomRegistry,
     createUploadUrl: attachmentEnvironment.createUploadUrl,
     remove: attachmentEnvironment.remove,
@@ -257,7 +266,7 @@ export async function uploadComposerAttachment(
     upload: attachmentUploadInput(attachment),
     // Resolve at transfer time; reconnects may change the base URL.
     resolveUploadUrl: (relativeUrl) => {
-      requireUploadAccess(environmentId);
+      if (!readEnvironmentScope(environmentId, AuthOrchestrationOperateScope)) return null;
       const connection = appAtomRegistry.get(
         environmentSession.preparedConnectionValueAtom(environmentId),
       );
@@ -265,22 +274,27 @@ export async function uploadComposerAttachment(
         ? null
         : resolveAssetUrl(connection.value.httpBaseUrl, relativeUrl);
     },
-    transport: (url) => ({
-      done: uploadFileBytes(environmentId, attachment, url, signal, onProgress),
-      abort: () => {},
-    }),
-    onMinted: (attachmentId) => {
-      if (signal.aborted) return "cancel";
-      minted = attachmentId;
-      return "continue";
-    },
+    transport: (url) =>
+      Effect.tryPromise({
+        try: (signal) => uploadFileBytes(environmentId, attachment, url, signal, onProgress),
+        catch: attachmentUploadError,
+      }),
   });
   if (result.status === "uploaded") return result.attachmentId;
-  if (minted !== null) await releaseCreatedUploadsQuietly(environmentId, [minted]);
-  throw result.status === "failed" && result.error !== undefined
-    ? result.error
-    : new Error(`Upload failed for '${attachment.name}'.`);
-}
+  if (result.attachmentId !== null) {
+    yield* Effect.promise(() =>
+      releaseCreatedUploadsQuietly(environmentId, [result.attachmentId!]),
+    );
+  }
+  return yield* attachmentUploadError(
+    result.step === "resolve-url" &&
+      !readEnvironmentScope(environmentId, AuthOrchestrationOperateScope)
+      ? new Error("This connection cannot upload attachments.")
+      : result.error instanceof Error
+        ? result.error
+        : new Error(`Upload failed for '${attachment.name}'.`),
+  );
+});
 
 /**
  * Turns a message's attachments into wire references. `uploadAttachment` is the shared upload
@@ -293,7 +307,7 @@ export const prepareTurnAttachments = Effect.fn("prepareTurnAttachments")(functi
   readonly attachments: ReadonlyArray<DraftComposerAttachment>;
   readonly uploadAttachment: (
     attachment: DraftComposerAttachment,
-  ) => Effect.Effect<string, ComposerAttachmentUploadError>;
+  ) => Effect.Effect<string, AttachmentUploadError>;
   readonly persistUploadedReferences?: (
     draftAttachments: ReadonlyArray<DraftComposerAttachment>,
   ) => Effect.Effect<"persisted" | "abandon">;
@@ -308,7 +322,10 @@ export const prepareTurnAttachments = Effect.fn("prepareTurnAttachments")(functi
     } satisfies PreparedTurnAttachments as PrepareTurnAttachmentsResult;
   }
 
-  yield* Effect.try({ try: () => requireUploadAccess(environmentId), catch: uploadError });
+  yield* Effect.try({
+    try: () => requireUploadAccess(environmentId),
+    catch: attachmentUploadError,
+  });
   const uploadedAttachments: UploadedMobileAttachment[] = [];
   const pendingAttachmentIds: string[] = [];
   for (const attachment of input.attachments) {

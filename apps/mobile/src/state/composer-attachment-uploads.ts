@@ -1,6 +1,11 @@
 import { useAtomValue } from "@effect/atom-react";
 import { AuthOrchestrationOperateScope, type EnvironmentId } from "@supaterm/contracts";
 import * as Effect from "effect/Effect";
+import {
+  attachmentUploadError,
+  createAttachmentUploadRegistry,
+} from "@supaterm/client-runtime/state/attachment-uploads";
+import { verifyPersistedAttachmentUpload } from "@supaterm/client-runtime/state/attachments";
 import { Atom } from "effect/reactivity";
 
 import { uploadComposerAttachment } from "../lib/attachmentUpload";
@@ -10,14 +15,13 @@ import {
   type DraftComposerAttachment,
 } from "../lib/composerImages";
 import {
-  uploadError,
   composerAttachmentUploadKey,
   composerDraftEnvironmentId,
   canUploadComposerAttachment,
-  createComposerAttachmentUploadQueue,
   type ComposerAttachmentUploadState,
 } from "../lib/composerAttachmentUploadQueue";
 import { appAtomRegistry } from "./atom-registry";
+import { assetEnvironment } from "./assets";
 import { environmentServerConfigsAtom } from "./server";
 import {
   flattenQueuedThreadMessages,
@@ -49,7 +53,7 @@ export const composerAttachmentUploadsAtom = Atom.make<
 const uploadStateAtom = Atom.family((key: string) =>
   Atom.map(composerAttachmentUploadsAtom, (states) => states[key]),
 );
-let uploadQueue: ReturnType<typeof createComposerAttachmentUploadQueue> | null = null;
+let uploadQueue: ReturnType<typeof createComposerUploadRegistry> | null = null;
 
 export function useComposerAttachmentUploadState(
   environmentId: EnvironmentId | undefined,
@@ -62,7 +66,7 @@ export function useComposerAttachmentUploadState(
 
 export function retryComposerAttachmentUpload(environmentId: EnvironmentId, attachmentId: string) {
   if (!readEnvironmentScope(environmentId, AuthOrchestrationOperateScope)) return;
-  uploadQueue?.retry(environmentId, attachmentId);
+  uploadQueue?.retry(composerAttachmentUploadKey(environmentId, attachmentId));
 }
 
 type ComposerAttachmentUploadRequest = {
@@ -159,7 +163,7 @@ const recordQueuedAttachmentUpload = Effect.fn("ComposerAttachments.recordQueued
               ? null
               : withUploadedAttachment(current, uploaded),
           ),
-        catch: uploadError,
+        catch: attachmentUploadError,
       }),
     { concurrency: "unbounded", discard: true },
   );
@@ -223,7 +227,7 @@ const recordComposerAttachmentUpload = Effect.fn("ComposerAttachments.recordUplo
   yield* recordQueuedAttachmentUpload(environmentId, uploaded);
   if (!draftsChanged) return;
   // A failed draft save only costs a re-upload after restart; the outbox saves its own references.
-  yield* Effect.tryPromise({ try: () => flushComposerDrafts(), catch: uploadError }).pipe(
+  yield* Effect.tryPromise({ try: () => flushComposerDrafts(), catch: attachmentUploadError }).pipe(
     Effect.catchIf(
       (error) => error.cause instanceof ComposerDraftPersistenceError,
       (error) =>
@@ -235,29 +239,54 @@ const recordComposerAttachmentUpload = Effect.fn("ComposerAttachments.recordUplo
   );
 });
 
-function composerAttachmentUploads() {
-  uploadQueue ??= createComposerAttachmentUploadQueue({
+const createComposerUploadRegistry = () =>
+  createAttachmentUploadRegistry<ComposerAttachmentUploadRequest>({
+    key: (request) => composerAttachmentUploadKey(request.environmentId, request.attachment.id),
+    environmentId: (request) => request.environmentId,
+    concurrencyPerEnvironment: 3,
     onChange: (states) => appAtomRegistry.set(composerAttachmentUploadsAtom, states),
-    upload: ({ environmentId, attachment }, signal, onProgress) => {
-      const release = isFileBackedComposerAttachment(attachment)
-        ? retainComposerAttachmentFileForPreview(attachment)
-        : undefined;
-      return uploadComposerAttachment(environmentId, attachment, signal, onProgress).finally(() =>
-        release?.(),
-      );
-    },
+    // The file stays on disk while its upload reads it, even if its draft lets go meanwhile.
+    upload: ({ environmentId, attachment }, reportProgress) =>
+      Effect.acquireUseRelease(
+        Effect.sync(() =>
+          isFileBackedComposerAttachment(attachment)
+            ? retainComposerAttachmentFileForPreview(attachment)
+            : undefined,
+        ),
+        () => uploadComposerAttachment(environmentId, attachment, reportProgress),
+        (release) => Effect.sync(() => release?.()),
+      ),
     onUploaded: recordComposerAttachmentUpload,
   });
+
+function composerAttachmentUploads() {
+  uploadQueue ??= createComposerUploadRegistry();
   return uploadQueue;
 }
 
 /** Every send uploads through here, so it joins the composer's upload of the same attachment. */
-export function uploadComposerAttachmentShared(
-  environmentId: EnvironmentId,
-  attachment: DraftComposerAttachment,
-) {
-  return composerAttachmentUploads().upload({ environmentId, attachment });
-}
+export const uploadComposerAttachmentShared = Effect.fn("ComposerAttachments.uploadForSend")(
+  function* (environmentId: EnvironmentId, attachment: DraftComposerAttachment) {
+    const uploads = composerAttachmentUploads();
+    const request = { environmentId, attachment };
+    const key = composerAttachmentUploadKey(environmentId, attachment.id);
+    // An upload that finished earlier can outlive the server's pending-upload sweep.
+    const finishedEarlier = uploads.status(key)?.status === "ready";
+    const uploadedId = yield* uploads.upload(request);
+    if (!finishedEarlier) return uploadedId;
+    const verification = yield* verifyPersistedAttachmentUpload({
+      registry: appAtomRegistry,
+      createAssetUrl: assetEnvironment.createUrl,
+      environmentId,
+      attachmentId: uploadedId,
+    });
+    if (verification.status === "verified") return uploadedId;
+    if (verification.status === "failed") return yield* attachmentUploadError(verification.error);
+    // Starting over verifies the saved id again and uploads the bytes when it is gone.
+    uploads.restart(key);
+    return yield* uploads.upload(request);
+  },
+);
 
 /**
  * Uploads draft and queued attachments to their environment as soon as it is connected and

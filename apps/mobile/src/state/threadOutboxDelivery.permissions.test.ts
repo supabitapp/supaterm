@@ -7,7 +7,7 @@ import {
   ProviderInstanceId,
   ThreadId,
 } from "@supaterm/contracts";
-import { uploadError } from "../lib/composerAttachmentUploadQueue";
+import { attachmentUploadError } from "@supaterm/client-runtime/state/attachment-uploads";
 import * as Effect from "effect/Effect";
 import * as Cause from "effect/Cause";
 import { AsyncResult, type Atom } from "effect/reactivity";
@@ -544,7 +544,9 @@ describe("queued task operation access", () => {
         Effect.suspend(() => {
           setOperateGrant("secondary", false);
           return uploadFails
-            ? Effect.fail(uploadError(new Error("This connection cannot upload attachments.")))
+            ? Effect.fail(
+                attachmentUploadError(new Error("This connection cannot upload attachments.")),
+              )
             : Effect.succeed({
                 status: "ready",
                 attachments: [],
