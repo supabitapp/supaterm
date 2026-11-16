@@ -380,6 +380,8 @@ export interface ThreadFeedProps {
   readonly onAnnotateAssistantText?:
     | ((messageId: MessageId, selection: MarkdownTextSelection) => void)
     | undefined;
+  /** The draft a quote from an HTML render lands in; set exactly when annotating is offered. */
+  readonly annotationDraftKey?: string | undefined;
 }
 
 async function waitForThreadShell(
@@ -1722,6 +1724,7 @@ function renderFeedEntry(
     | "environmentId"
     | "onUseArtifactTemplate"
     | "onAnnotateAssistantText"
+    | "annotationDraftKey"
     | "skills"
     | "dispatchingMessageId"
     | "onEditPendingMessage"
@@ -1800,6 +1803,8 @@ function renderFeedEntry(
         environmentId={props.environmentId}
         threadId={props.threadId}
         render={entry.render}
+        itemId={entry.itemId}
+        annotationDraftKey={props.annotationDraftKey}
         frameWidth={props.contentWidth}
         iconColor={iconSubtleColor}
       />
@@ -3620,6 +3625,7 @@ export const ThreadFeed = memo(function ThreadFeed(props: ThreadFeedProps) {
             onEditPendingMessage: props.onEditPendingMessage,
             onUseArtifactTemplate: props.onUseArtifactTemplate,
             onAnnotateAssistantText: props.onAnnotateAssistantText,
+            annotationDraftKey: props.annotationDraftKey,
             threadId: props.threadId,
             copiedRowId,
             motionEnabled: !reduceMotion && !isKeyboardMotionSuppressed(),

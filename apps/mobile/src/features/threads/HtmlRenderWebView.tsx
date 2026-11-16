@@ -1,6 +1,6 @@
 import { AppActivityIndicator } from "../../components/ui/AppActivityIndicator";
 import { useNavigation } from "@react-navigation/native";
-import type { EnvironmentId, ThreadId } from "@supaterm/contracts";
+import type { EnvironmentId, ThreadId, TurnItemId } from "@supaterm/contracts";
 import {
   htmlRenderFileName,
   htmlRenderFrameHeight,
@@ -19,6 +19,7 @@ import { mobileHtmlRenderTheme } from "../../lib/htmlRenderTheme";
 import { tryOpenExternalUrl } from "../../lib/openExternalUrl";
 import { useAssetUrlState, useRefreshAssetUrl } from "../../state/assets";
 import { useAppearancePreferences } from "../settings/appearance/AppearancePreferencesProvider";
+import { annotateHtmlRenderText, type HtmlRenderAnnotation } from "./annotateAssistantText";
 
 const ROW_BOTTOM_MARGIN = 8;
 const FULL_SCREEN_GUTTER = 16;
@@ -73,10 +74,14 @@ function readOverflowMessage(data: string): Overflow | null {
 
 const withoutFragment = (url: string) => url.split("#", 1)[0];
 
+const ANNOTATE_MENU_KEY = "annotate";
+const ANNOTATE_MENU_ITEMS = [{ label: "Annotate", key: ANNOTATE_MENU_KEY }];
+
 export function HtmlRenderWebView(props: {
   readonly uri: string;
   readonly title: string;
   readonly nested: boolean;
+  readonly annotation?: HtmlRenderAnnotation | undefined;
   readonly onLoadError?: () => void;
 }) {
   const theme = useHtmlRenderTheme();
@@ -106,6 +111,7 @@ export function HtmlRenderWebView(props: {
     setGeneration((value) => value + 1);
   };
   const scrollable = !props.nested || overflow.x || overflow.y;
+  const { annotation } = props;
   return (
     <View
       style={
@@ -150,6 +156,18 @@ export function HtmlRenderWebView(props: {
         onHttpError={props.onLoadError}
         onContentProcessDidTerminate={restart}
         onRenderProcessGone={restart}
+        {...(annotation
+          ? {
+              menuItems: ANNOTATE_MENU_ITEMS,
+              onCustomMenuSelection: (event) => {
+                const { key, selectedText } = event.nativeEvent;
+                if (key !== ANNOTATE_MENU_KEY || typeof selectedText !== "string") return;
+                // Android drops the selection with its menu; iOS keeps it under the prompt.
+                webView.current?.injectJavaScript("getSelection().removeAllRanges();true;");
+                annotateHtmlRenderText(annotation, selectedText);
+              },
+            }
+          : {})}
         {...(props.nested
           ? {
               injectedJavaScript: OVERFLOW_SCRIPT,
@@ -173,10 +191,22 @@ export function ThreadHtmlRender(props: {
   readonly environmentId: EnvironmentId;
   readonly threadId: ThreadId;
   readonly render: HtmlRenderReference;
+  readonly itemId: TurnItemId;
+  /** The composer draft a quote lands in, or undefined where the thread takes none. */
+  readonly annotationDraftKey: string | undefined;
   readonly frameWidth: number;
   readonly iconColor: ColorValue;
 }) {
   const navigation = useNavigation();
+  const annotation =
+    props.annotationDraftKey === undefined
+      ? undefined
+      : {
+          environmentId: props.environmentId,
+          threadId: props.threadId,
+          itemId: props.itemId,
+          draftKey: props.annotationDraftKey,
+        };
   const { attachmentId, title } = props.render;
   const height = htmlRenderFrameHeight(props.render, props.frameWidth);
   const fileName = htmlRenderFileName(title);
@@ -217,6 +247,7 @@ export function ThreadHtmlRender(props: {
             uri={uri}
             title={title}
             nested
+            annotation={annotation}
             onLoadError={handleLoadError}
           />
         ) : failed || asset._tag === "Failure" ? (
@@ -252,6 +283,12 @@ export function ThreadHtmlRender(props: {
                 mimeType: "text/html",
                 sizeBytes: "0",
                 htmlRender: "1",
+                ...(annotation
+                  ? {
+                      annotationItemId: String(annotation.itemId),
+                      annotationDraftKey: annotation.draftKey,
+                    }
+                  : {}),
               })
             }
           >

@@ -1,6 +1,6 @@
 import * as Dialog from "../../components/ui/Dialog";
 import { useNavigation, type StaticScreenProps } from "@react-navigation/native";
-import { EnvironmentId, ThreadId } from "@supaterm/contracts";
+import { EnvironmentId, ThreadId, TurnItemId } from "@supaterm/contracts";
 import {
   clampFileAttachmentUploadBytes,
   formatAttachmentSize,
@@ -31,6 +31,9 @@ export type AttachmentFileRouteParams = {
   readonly sizeBytes: string;
   readonly draftKey?: string;
   readonly htmlRender?: "1";
+  /** Set together by a thread whose composer takes quotes from this render. */
+  readonly annotationItemId?: string;
+  readonly annotationDraftKey?: string;
 };
 
 type AttachmentFileScreenProps = StaticScreenProps<AttachmentFileRouteParams>;
@@ -220,6 +223,15 @@ export function AttachmentFileScreen(props: AttachmentFileScreenProps) {
   const subtitle = `${draftKey ? "Draft attachment" : "Attachment"}${sizeBytes > 0 ? ` · ${formatAttachmentSize(sizeBytes)}` : ""}`;
   const refresh = useRefreshAssetUrl(environmentId, resource);
   const capabilities = useEnvironmentServerConfig(environmentId)?.environment.capabilities;
+  const annotation =
+    environmentId && params.threadId && params.annotationItemId && params.annotationDraftKey
+      ? {
+          environmentId,
+          threadId: ThreadId.make(params.threadId),
+          itemId: TurnItemId.make(params.annotationItemId),
+          draftKey: params.annotationDraftKey,
+        }
+      : undefined;
 
   if (document.kind === "archive" && isZipFile(params) && !document.error) {
     const threadDraftKey =
@@ -256,6 +268,7 @@ export function AttachmentFileScreen(props: AttachmentFileScreenProps) {
         name={params.name}
         environmentId={environmentId}
         htmlRender={params.htmlRender === "1"}
+        annotation={annotation}
         nativeViewer={nativeViewer}
         nativeError={nativeError}
         onOpenNative={() => {

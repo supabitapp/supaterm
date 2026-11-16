@@ -1505,11 +1505,16 @@ function ThreadDetailBody(
     });
   };
 
+  // A queued edit's save has already read its draft, so a quote added now is lost.
+  const annotationDraftKey =
+    isProviderSubagent || props.draftMode || props.isSavingQueuedEdit
+      ? null
+      : props.composerDraftKey;
   const handleAnnotateAssistantText = (messageId: MessageId, selection: MarkdownTextSelection) => {
-    if (props.composerDraftKey === null) return;
+    if (annotationDraftKey === null) return;
     annotateAssistantText({
       source: { environmentId: props.environmentId, threadId: props.selectedThread.id, messageId },
-      draftKey: props.composerDraftKey,
+      draftKey: annotationDraftKey,
       selection,
     });
   };
@@ -1645,14 +1650,9 @@ function ThreadDetailBody(
                   skills={selectedProviderSkills}
                   onUseArtifactTemplate={handleUseArtifactTemplate}
                   onAnnotateAssistantText={
-                    // A queued edit's save has already read its draft, so a quote added now is lost.
-                    isProviderSubagent ||
-                    props.draftMode ||
-                    props.isSavingQueuedEdit ||
-                    props.composerDraftKey === null
-                      ? undefined
-                      : handleAnnotateAssistantText
+                    annotationDraftKey === null ? undefined : handleAnnotateAssistantText
                   }
+                  annotationDraftKey={annotationDraftKey ?? undefined}
                 />
               </ColumnWidth>
             </WorkspaceMutationIdProvider>
