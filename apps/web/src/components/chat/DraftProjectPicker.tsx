@@ -193,7 +193,6 @@ export function DraftProjectPicker({
         draftId,
         project,
         logicalProjectKey,
-        serverSettings: serverConfig?.settings ?? null,
         workspace,
       });
     });
