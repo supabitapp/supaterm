@@ -12,7 +12,10 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { CompactBrandTitle } from "../../../components/CompactBrandTitle";
 import { HeaderItemsWidthContext } from "../../../native/header-items-width";
 import { NativeStackScreenOptions } from "../../../native/StackHeader";
-import { NativePrimaryColumnContext } from "../../../native/v5-workspace-context";
+import {
+  NativePrimaryColumnContext,
+  NativeWorkspaceTabActivityContext,
+} from "../../../native/v5-workspace-context";
 import { isDuoDevice } from "../../../lib/device-type";
 import { NATIVE_LIQUID_GLASS_SUPPORTED } from "../../../native/native-glass";
 import {
@@ -84,6 +87,7 @@ function WorkspaceRootContent() {
   const { state } = workspace;
   // Settings is a workspace tab too; its list takes the place of the selected tab's.
   const settingsOpen = workspace.settingsOpen;
+  const headerOnly = use(NativeWorkspaceTabActivityContext)?.headerOnly === true;
   const renderHeaderTitle = () => (
     <WorkspaceRootTitle
       columnWidth={width}
@@ -143,7 +147,8 @@ function WorkspaceRootContent() {
                 : undefined,
           }}
         />
-        {settingsOpen ? (
+        {/* Usage draws its own header, and skips its body itself. */}
+        {headerOnly && (settingsOpen || state.selectedTab !== "usage") ? null : settingsOpen ? (
           <WorkspaceSettingsList />
         ) : enabled.length === 0 ? (
           <WorkspaceNoTabs />
