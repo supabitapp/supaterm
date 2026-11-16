@@ -9,7 +9,7 @@ import { removePendingThreadCreation } from "../../state/thread-outbox-removal";
 import { clearComposerDraftContent } from "../../state/use-composer-drafts";
 import type { PendingNewTask } from "../../state/use-pending-new-tasks";
 import {
-  dispatchingQueuedMessageIdAtom,
+  dispatchingQueuedMessageIdsAtom,
   holdDeletingQueuedMessage,
   releaseDeletingQueuedMessage,
 } from "../../state/use-thread-outbox";
@@ -91,7 +91,7 @@ export function usePendingTaskListActions(
                 async () => {
                   const removed = await removePendingThreadCreation(
                     pendingTask.message,
-                    () => appAtomRegistry.get(dispatchingQueuedMessageIdAtom) !== messageId,
+                    () => !appAtomRegistry.get(dispatchingQueuedMessageIdsAtom)[messageId],
                   );
                   releaseDeletingQueuedMessage(messageId, removed);
                   const route = navigation.getState()?.routes.at(-1);

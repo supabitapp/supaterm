@@ -10,7 +10,9 @@ import {
   ThreadId,
   type VcsListRefsResult,
 } from "@supaterm/contracts";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
+import { describe, expect, it } from "@effect/vitest";
+import { afterEach, beforeEach, vi } from "vite-plus/test";
+import * as Fiber from "effect/Fiber";
 import * as Cause from "effect/Cause";
 import { AsyncResult } from "effect/reactivity";
 import { VoiceUploadError } from "@supaterm/client-runtime/state/transcription";
@@ -141,7 +143,7 @@ vi.mock("./use-thread-outbox", async () => {
     editingQueuedMessageIdsAtom: Atom.make<Record<string, "editing" | "paused" | "deleting">>(
       {},
     ).pipe(Atom.keepAlive),
-    dispatchingQueuedMessageIdAtom: Atom.make(null).pipe(Atom.keepAlive),
+    dispatchingQueuedMessageIdsAtom: Atom.make({}).pipe(Atom.keepAlive),
     retryingQueuedMessageIdsAtom: Atom.make({}).pipe(Atom.keepAlive),
     threadOutboxShellStatusesAtom: Atom.make(new Map()),
   };
@@ -190,6 +192,7 @@ import { recoverFailedThreadDraft } from "./recover-failed-thread-draft";
 import { editingQueuedMessageIdsAtom } from "./use-thread-outbox";
 import {
   completeQueuedMessageDelivery,
+  type DeliveryRetry,
   deliverQueuedVoiceMessage,
   prepareQueuedMessageAttachments,
   recoverEditedCreationAfterDelivery,
@@ -268,6 +271,10 @@ afterEach(() => {
   harness.releaseVoiceRecordings.mockClear();
   harness.audioExists = true;
 });
+
+/** True once a delivery step handled its message, false when it asks to retry. */
+const handled = (step: Effect.Effect<void, DeliveryRetry>) =>
+  step.pipe(Effect.as(true), Effect.catchTags({ DeliveryRetry: () => Effect.succeed(false) }));
 
 describe("queued worktree branch resolution", () => {
   const refs: VcsListRefsResult = {
@@ -450,528 +457,575 @@ describe("queued worktree branch resolution", () => {
 });
 
 describe("thread outbox attachment preparation", () => {
-  it("keeps a denied message queued without starting its attachment upload", async () => {
-    const message = queuedMessage({
-      messageId: "denied-queued-message",
-      text: "Keep this queued",
-      fileUri: "file:///documents/keep.pdf",
-    });
-    await harness.manager.enqueue(message);
-    harness.prepareTurnAttachments.mockReturnValueOnce(
-      Effect.succeed({
-        status: "ready",
-        attachments: [],
-        draftAttachments: message.attachments,
-        pendingAttachmentIds: [],
-      }),
-    );
-    harness.canOperate = false;
-    await expect(prepareQueuedMessageAttachments(message)).resolves.toEqual({
-      status: "abandoned",
-    });
-    expect(harness.prepareTurnAttachments).not.toHaveBeenCalled();
-    expect(remainingMessages()).toEqual([message]);
-  });
+  it.effect("keeps a denied message queued without starting its attachment upload", () =>
+    Effect.gen(function* () {
+      const message = queuedMessage({
+        messageId: "denied-queued-message",
+        text: "Keep this queued",
+        fileUri: "file:///documents/keep.pdf",
+      });
+      yield* Effect.promise(() => harness.manager.enqueue(message));
+      harness.prepareTurnAttachments.mockReturnValueOnce(
+        Effect.succeed({
+          status: "ready",
+          attachments: [],
+          draftAttachments: message.attachments,
+          pendingAttachmentIds: [],
+        }),
+      );
+      harness.canOperate = false;
+      expect(yield* prepareQueuedMessageAttachments(message)).toEqual({
+        status: "abandoned",
+      });
+      expect(harness.prepareTurnAttachments).not.toHaveBeenCalled();
+      expect(remainingMessages()).toEqual([message]);
+    }),
+  );
 
-  it("abandons reused uploads when an editor saves changed text during verification", async () => {
-    const message = withReusedFileUpload(
-      queuedMessage({
-        messageId: "message-reused-upload-race",
-        text: "original text",
-        fileUri: "file:///documents/supaterm-composer-attachments/reused.pdf",
-      }),
-      "pending-reused-upload",
-    );
-    const preparationStarted = Promise.withResolvers<void>();
-    const preparationBarrier = Promise.withResolvers<PreparedTurnAttachments>();
-    harness.prepareTurnAttachments.mockImplementationOnce(() =>
-      Effect.promise(() => {
-        preparationStarted.resolve();
-        return preparationBarrier.promise;
-      }),
-    );
-    await harness.manager.enqueue(message);
-    appAtomRegistry.set(editingQueuedMessageIdsAtom, { [message.messageId]: "editing" });
+  it.effect("abandons reused uploads when an editor saves changed text during verification", () =>
+    Effect.gen(function* () {
+      const message = withReusedFileUpload(
+        queuedMessage({
+          messageId: "message-reused-upload-race",
+          text: "original text",
+          fileUri: "file:///documents/supaterm-composer-attachments/reused.pdf",
+        }),
+        "pending-reused-upload",
+      );
+      const preparationStarted = Promise.withResolvers<void>();
+      const preparationBarrier = Promise.withResolvers<PreparedTurnAttachments>();
+      harness.prepareTurnAttachments.mockImplementationOnce(() =>
+        Effect.promise(() => {
+          preparationStarted.resolve();
+          return preparationBarrier.promise;
+        }),
+      );
+      yield* Effect.promise(() => harness.manager.enqueue(message));
+      appAtomRegistry.set(editingQueuedMessageIdsAtom, { [message.messageId]: "editing" });
 
-    const preparation = prepareQueuedMessageAttachments(message);
-    await preparationStarted.promise;
-    const edited = { ...message, text: "saved editor text" };
-    await harness.manager.update(edited);
-    appAtomRegistry.set(editingQueuedMessageIdsAtom, {});
-    preparationBarrier.resolve({
-      status: "ready",
-      attachments: [],
-      draftAttachments: message.attachments,
-      pendingAttachmentIds: ["pending-reused-upload"],
-    });
-
-    await expect(preparation).resolves.toEqual({ status: "abandoned" });
-    expect(remainingMessages()).toEqual([edited]);
-  });
-
-  it("keeps an unchanged queued payload ready after attachment reuse", async () => {
-    const message = withReusedFileUpload(
-      queuedMessage({
-        messageId: "message-reused-upload-current",
-        text: "unchanged text",
-        fileUri: "file:///documents/supaterm-composer-attachments/current.pdf",
-      }),
-      "pending-reused-upload",
-    );
-    harness.prepareTurnAttachments.mockReturnValueOnce(
-      Effect.succeed({
+      const preparation = yield* Effect.forkChild(prepareQueuedMessageAttachments(message), {
+        startImmediately: true,
+      });
+      yield* Effect.promise(() => preparationStarted.promise);
+      const edited = { ...message, text: "saved editor text" };
+      yield* Effect.promise(() => harness.manager.update(edited));
+      appAtomRegistry.set(editingQueuedMessageIdsAtom, {});
+      preparationBarrier.resolve({
         status: "ready",
         attachments: [],
         draftAttachments: message.attachments,
         pendingAttachmentIds: ["pending-reused-upload"],
-      }),
-    );
-    await harness.manager.enqueue(message);
-    const revision = harness.manager.revisionOf(message.messageId);
-    appAtomRegistry.set(editingQueuedMessageIdsAtom, { [message.messageId]: "editing" });
+      });
 
-    await expect(prepareQueuedMessageAttachments(message)).resolves.toMatchObject({
-      status: "ready",
-      persistedMessage: message,
-      deliveryRevision: revision,
-    });
-  });
+      expect(yield* Fiber.join(preparation)).toEqual({ status: "abandoned" });
+      expect(remainingMessages()).toEqual([edited]);
+    }),
+  );
 
-  it("uses the known next revision after persisting uploaded references", async () => {
-    const message = queuedMessage({
-      messageId: "message-new-upload-revision",
-      text: "upload this file",
-      fileUri: "file:///documents/supaterm-composer-attachments/new.pdf",
-    });
-    const uploadedAttachments = message.attachments.map((attachment) =>
-      attachment.type === "file"
-        ? {
-            ...attachment,
-            uploadedAttachmentId: "pending-new-upload",
-            uploadEnvironmentId: message.environmentId,
-          }
-        : attachment,
-    );
-    harness.prepareTurnAttachments.mockImplementationOnce((input) =>
-      Effect.gen(function* () {
-        expect(yield* input.persistUploadedReferences!(uploadedAttachments)).toBe("persisted");
-        return {
+  it.effect("keeps an unchanged queued payload ready after attachment reuse", () =>
+    Effect.gen(function* () {
+      const message = withReusedFileUpload(
+        queuedMessage({
+          messageId: "message-reused-upload-current",
+          text: "unchanged text",
+          fileUri: "file:///documents/supaterm-composer-attachments/current.pdf",
+        }),
+        "pending-reused-upload",
+      );
+      harness.prepareTurnAttachments.mockReturnValueOnce(
+        Effect.succeed({
           status: "ready",
           attachments: [],
-          draftAttachments: uploadedAttachments,
-          pendingAttachmentIds: ["pending-new-upload"],
-        } as const;
-      }),
-    );
-    await harness.manager.enqueue(message);
-    const revision = harness.manager.revisionOf(message.messageId);
+          draftAttachments: message.attachments,
+          pendingAttachmentIds: ["pending-reused-upload"],
+        }),
+      );
+      yield* Effect.promise(() => harness.manager.enqueue(message));
+      const revision = harness.manager.revisionOf(message.messageId);
+      appAtomRegistry.set(editingQueuedMessageIdsAtom, { [message.messageId]: "editing" });
 
-    const result = await prepareQueuedMessageAttachments(message);
+      expect(yield* prepareQueuedMessageAttachments(message)).toMatchObject({
+        status: "ready",
+        persistedMessage: message,
+        deliveryRevision: revision,
+      });
+    }),
+  );
 
-    expect(result).toMatchObject({
-      status: "ready",
-      persistedMessage: { attachments: uploadedAttachments },
-      deliveryRevision: revision + 1,
-    });
-    expect(harness.manager.revisionOf(message.messageId)).toBe(revision + 1);
-  });
+  it.effect("uses the known next revision after persisting uploaded references", () =>
+    Effect.gen(function* () {
+      const message = queuedMessage({
+        messageId: "message-new-upload-revision",
+        text: "upload this file",
+        fileUri: "file:///documents/supaterm-composer-attachments/new.pdf",
+      });
+      const uploadedAttachments = message.attachments.map((attachment) =>
+        attachment.type === "file"
+          ? {
+              ...attachment,
+              uploadedAttachmentId: "pending-new-upload",
+              uploadEnvironmentId: message.environmentId,
+            }
+          : attachment,
+      );
+      harness.prepareTurnAttachments.mockImplementationOnce((input) =>
+        Effect.gen(function* () {
+          expect(yield* input.persistUploadedReferences!(uploadedAttachments)).toBe("persisted");
+          return {
+            status: "ready",
+            attachments: [],
+            draftAttachments: uploadedAttachments,
+            pendingAttachmentIds: ["pending-new-upload"],
+          } as const;
+        }),
+      );
+      yield* Effect.promise(() => harness.manager.enqueue(message));
+      const revision = harness.manager.revisionOf(message.messageId);
 
-  it("does not prepare a payload that was already replaced", async () => {
-    const message = queuedMessage({ messageId: "message-stale-before-upload", text: "old" });
-    await harness.manager.enqueue(message);
-    const edited = { ...message, text: "new" };
-    await harness.manager.update(edited);
+      const result = yield* prepareQueuedMessageAttachments(message);
 
-    await expect(prepareQueuedMessageAttachments(message)).resolves.toEqual({
-      status: "abandoned",
-    });
-    expect(harness.prepareTurnAttachments).not.toHaveBeenCalled();
-    expect(remainingMessages()).toEqual([edited]);
-  });
+      expect(result).toMatchObject({
+        status: "ready",
+        persistedMessage: { attachments: uploadedAttachments },
+        deliveryRevision: revision + 1,
+      });
+      expect(harness.manager.revisionOf(message.messageId)).toBe(revision + 1);
+    }),
+  );
+
+  it.effect("does not prepare a payload that was already replaced", () =>
+    Effect.gen(function* () {
+      const message = queuedMessage({ messageId: "message-stale-before-upload", text: "old" });
+      yield* Effect.promise(() => harness.manager.enqueue(message));
+      const edited = { ...message, text: "new" };
+      yield* Effect.promise(() => harness.manager.update(edited));
+
+      expect(yield* prepareQueuedMessageAttachments(message)).toEqual({
+        status: "abandoned",
+      });
+      expect(harness.prepareTurnAttachments).not.toHaveBeenCalled();
+      expect(remainingMessages()).toEqual([edited]);
+    }),
+  );
 });
 
 describe("thread outbox drain delivery cleanup", () => {
-  it("retries only cleanup after an acknowledged send removal fails", async () => {
-    const message = queuedMessage({ messageId: "message-acknowledged", text: "delivered" });
-    const acknowledged = new Set([message.messageId]);
-    harness.removeOutboxMessage.mockRejectedValueOnce(new Error("storage unavailable"));
-    await harness.manager.enqueue(message);
+  it.effect("retries only cleanup after an acknowledged send removal fails", () =>
+    Effect.gen(function* () {
+      const message = queuedMessage({ messageId: "message-acknowledged", text: "delivered" });
+      const acknowledged = new Set([message.messageId]);
+      harness.removeOutboxMessage.mockRejectedValueOnce(new Error("storage unavailable"));
+      yield* Effect.promise(() => harness.manager.enqueue(message));
 
-    await expect(removeAcknowledgedExistingThreadMessage(message, acknowledged)).resolves.toBe(
-      false,
-    );
-    expect(remainingMessages()).toEqual([message]);
-    expect(acknowledged).toEqual(new Set([message.messageId]));
+      expect(yield* handled(removeAcknowledgedExistingThreadMessage(message, acknowledged))).toBe(
+        false,
+      );
+      expect(remainingMessages()).toEqual([message]);
+      expect(acknowledged).toEqual(new Set([message.messageId]));
 
-    await expect(removeAcknowledgedExistingThreadMessage(message, acknowledged)).resolves.toBe(
-      true,
-    );
-    expect(remainingMessages()).toEqual([]);
-    expect(acknowledged).toEqual(new Set());
-  });
+      expect(yield* handled(removeAcknowledgedExistingThreadMessage(message, acknowledged))).toBe(
+        true,
+      );
+      expect(remainingMessages()).toEqual([]);
+      expect(acknowledged).toEqual(new Set());
+    }),
+  );
 
-  it("keeps an edited message and its files when delivery cleanup loses the revision race", async () => {
-    const message = queuedMessage({
-      messageId: "message-edited",
-      text: "original",
-      fileUri: "file:///documents/supaterm-composer-attachments/report.pdf",
-    });
-    await harness.manager.enqueue(message);
-    const deliveryRevision = harness.manager.revisionOf(message.messageId);
-    const edited = { ...message, text: "edited while the turn delivered" };
-    await harness.manager.update(edited);
+  it.effect(
+    "keeps an edited message and its files when delivery cleanup loses the revision race",
+    () =>
+      Effect.gen(function* () {
+        const message = queuedMessage({
+          messageId: "message-edited",
+          text: "original",
+          fileUri: "file:///documents/supaterm-composer-attachments/report.pdf",
+        });
+        yield* Effect.promise(() => harness.manager.enqueue(message));
+        const deliveryRevision = harness.manager.revisionOf(message.messageId);
+        const edited = { ...message, text: "edited while the turn delivered" };
+        yield* Effect.promise(() => harness.manager.update(edited));
 
-    await expect(completeQueuedMessageDelivery(message, deliveryRevision, undefined)).resolves.toBe(
-      "edited",
-    );
+        expect(yield* completeQueuedMessageDelivery(message, deliveryRevision, undefined)).toBe(
+          "edited",
+        );
 
-    expect(remainingMessages()).toEqual([edited]);
-    expect(harness.removePersistedFile).not.toHaveBeenCalled();
-  });
+        expect(remainingMessages()).toEqual([edited]);
+        expect(harness.removePersistedFile).not.toHaveBeenCalled();
+      }),
+  );
 
-  it("removes the delivered message when no edit was accepted", async () => {
-    const message = queuedMessage({ messageId: "message-clean", text: "hello" });
-    await harness.manager.enqueue(message);
-    const deliveryRevision = harness.manager.revisionOf(message.messageId);
+  it.effect("removes the delivered message when no edit was accepted", () =>
+    Effect.gen(function* () {
+      const message = queuedMessage({ messageId: "message-clean", text: "hello" });
+      yield* Effect.promise(() => harness.manager.enqueue(message));
+      const deliveryRevision = harness.manager.revisionOf(message.messageId);
 
-    await expect(completeQueuedMessageDelivery(message, deliveryRevision, undefined)).resolves.toBe(
-      "removed",
-    );
+      expect(yield* completeQueuedMessageDelivery(message, deliveryRevision, undefined)).toBe(
+        "removed",
+      );
 
-    expect(remainingMessages()).toEqual([]);
-    expect(appAtomRegistry.get(acknowledgedThreadMessagesAtom)).toEqual([message]);
-  });
+      expect(remainingMessages()).toEqual([]);
+      expect(appAtomRegistry.get(acknowledgedThreadMessagesAtom)).toEqual([message]);
+    }),
+  );
 
-  it("clears an error about the delivered message but keeps one about another message", async () => {
-    const threadKey = "environment-1:thread-1";
-    const retried = queuedMessage({ messageId: "message-retried", text: "retried" });
-    await harness.manager.enqueue(retried);
-    setThreadComposerError(threadKey, "could not be restored", retried.messageId);
+  it.effect("clears an error about the delivered message but keeps one about another message", () =>
+    Effect.gen(function* () {
+      const threadKey = "environment-1:thread-1";
+      const retried = queuedMessage({ messageId: "message-retried", text: "retried" });
+      yield* Effect.promise(() => harness.manager.enqueue(retried));
+      setThreadComposerError(threadKey, "could not be restored", retried.messageId);
 
-    await completeQueuedMessageDelivery(
-      retried,
-      harness.manager.revisionOf(retried.messageId),
-      undefined,
-    );
-    expect(appAtomRegistry.get(threadComposerErrorsAtom)[threadKey]).toBeUndefined();
+      yield* completeQueuedMessageDelivery(
+        retried,
+        harness.manager.revisionOf(retried.messageId),
+        undefined,
+      );
+      expect(appAtomRegistry.get(threadComposerErrorsAtom)[threadKey]).toBeUndefined();
 
-    const other = queuedMessage({ messageId: "message-other", text: "other" });
-    await harness.manager.enqueue(other);
-    setThreadComposerError(threadKey, "rejected", "message-rejected");
+      const other = queuedMessage({ messageId: "message-other", text: "other" });
+      yield* Effect.promise(() => harness.manager.enqueue(other));
+      setThreadComposerError(threadKey, "rejected", "message-rejected");
 
-    await completeQueuedMessageDelivery(
-      other,
-      harness.manager.revisionOf(other.messageId),
-      undefined,
-    );
-    expect(appAtomRegistry.get(threadComposerErrorsAtom)[threadKey]?.message).toBe("rejected");
-  });
+      yield* completeQueuedMessageDelivery(
+        other,
+        harness.manager.revisionOf(other.messageId),
+        undefined,
+      );
+      expect(appAtomRegistry.get(threadComposerErrorsAtom)[threadKey]?.message).toBe("rejected");
+    }),
+  );
 
-  it("keeps a delivered message when its editor opens during storage removal", async () => {
-    const message = queuedMessage({
-      messageId: "message-editor-removal-race",
-      text: "keep editor changes",
-      fileUri: "file:///documents/supaterm-composer-attachments/editor-race.pdf",
-    });
-    const removeStarted = Promise.withResolvers<void>();
-    const removeBarrier = Promise.withResolvers<void>();
-    harness.removeOutboxMessage.mockImplementationOnce(async () => {
-      removeStarted.resolve();
-      await removeBarrier.promise;
-    });
-    await harness.manager.enqueue(message);
-    const deliveryRevision = harness.manager.revisionOf(message.messageId);
+  it.effect("keeps a delivered message when its editor opens during storage removal", () =>
+    Effect.gen(function* () {
+      const message = queuedMessage({
+        messageId: "message-editor-removal-race",
+        text: "keep editor changes",
+        fileUri: "file:///documents/supaterm-composer-attachments/editor-race.pdf",
+      });
+      const removeStarted = Promise.withResolvers<void>();
+      const removeBarrier = Promise.withResolvers<void>();
+      harness.removeOutboxMessage.mockImplementationOnce(async () => {
+        removeStarted.resolve();
+        await removeBarrier.promise;
+      });
+      yield* Effect.promise(() => harness.manager.enqueue(message));
+      const deliveryRevision = harness.manager.revisionOf(message.messageId);
 
-    const cleanup = completeQueuedMessageDelivery(message, deliveryRevision, undefined);
-    await removeStarted.promise;
-    appAtomRegistry.set(editingQueuedMessageIdsAtom, { [message.messageId]: "editing" });
-    removeBarrier.resolve();
+      const cleanup = yield* Effect.forkChild(
+        completeQueuedMessageDelivery(message, deliveryRevision, undefined),
+        { startImmediately: true },
+      );
+      yield* Effect.promise(() => removeStarted.promise);
+      appAtomRegistry.set(editingQueuedMessageIdsAtom, { [message.messageId]: "editing" });
+      removeBarrier.resolve();
 
-    await expect(cleanup).resolves.toBe("edited");
-    expect(remainingMessages()).toEqual([message]);
-    expect(harness.removePersistedFile).not.toHaveBeenCalled();
-  });
+      expect(yield* Fiber.join(cleanup)).toBe("edited");
+      expect(remainingMessages()).toEqual([message]);
+      expect(harness.removePersistedFile).not.toHaveBeenCalled();
+    }),
+  );
 });
 
 describe("thread outbox delivered creation recovery", () => {
-  it("keeps an edit accepted while the older payload is persisted to the draft", async () => {
-    const message = queuedMessage({
-      messageId: "message-recovery-race",
-      text: "original queued text",
-      fileUri: "file:///documents/supaterm-composer-attachments/report.pdf",
-    });
-    const originalMergeComposerDraftContent = composerDrafts.mergeComposerDraftContent;
-    const mergeCompleted = Promise.withResolvers<void>();
-    const releaseRecovery = Promise.withResolvers<void>();
-    const mergeSpy = vi
-      .spyOn(composerDrafts, "mergeComposerDraftContent")
-      .mockImplementation(async (draftKey, content) => {
-        const result = await originalMergeComposerDraftContent(draftKey, content);
-        mergeCompleted.resolve();
-        await releaseRecovery.promise;
-        return result;
+  it.effect("keeps an edit accepted while the older payload is persisted to the draft", () =>
+    Effect.gen(function* () {
+      const message = queuedMessage({
+        messageId: "message-recovery-race",
+        text: "original queued text",
+        fileUri: "file:///documents/supaterm-composer-attachments/report.pdf",
       });
+      const originalMergeComposerDraftContent = composerDrafts.mergeComposerDraftContent;
+      const mergeCompleted = Promise.withResolvers<void>();
+      const releaseRecovery = Promise.withResolvers<void>();
+      const mergeSpy = vi
+        .spyOn(composerDrafts, "mergeComposerDraftContent")
+        .mockImplementation(async (draftKey, content) => {
+          const result = await originalMergeComposerDraftContent(draftKey, content);
+          mergeCompleted.resolve();
+          await releaseRecovery.promise;
+          return result;
+        });
 
-    try {
-      await harness.manager.enqueue(message);
-      const recovery = recoverEditedCreationAfterDelivery(message);
-      await mergeCompleted.promise;
+      try {
+        yield* Effect.promise(() => harness.manager.enqueue(message));
+        const recovery = yield* Effect.forkChild(
+          handled(recoverEditedCreationAfterDelivery(message)),
+          { startImmediately: true },
+        );
+        yield* Effect.promise(() => mergeCompleted.promise);
 
-      const newer = { ...message, text: "edited while recovery persisted the draft" };
-      await harness.manager.update(newer);
+        const newer = { ...message, text: "edited while recovery persisted the draft" };
+        yield* Effect.promise(() => harness.manager.update(newer));
 
-      releaseRecovery.resolve();
-      await expect(recovery).resolves.toBe(false);
+        releaseRecovery.resolve();
+        expect(yield* Fiber.join(recovery)).toBe(false);
 
-      expect(remainingMessages()).toEqual([newer]);
-      expect(
-        composerDrafts.getComposerDraftSnapshot(`${message.environmentId}:${message.threadId}`),
-      ).toMatchObject({ text: message.text, attachments: [] });
-      expect(harness.removePersistedFile).not.toHaveBeenCalled();
-    } finally {
-      releaseRecovery.resolve();
-      mergeSpy.mockRestore();
-    }
-  });
+        expect(remainingMessages()).toEqual([newer]);
+        expect(
+          composerDrafts.getComposerDraftSnapshot(`${message.environmentId}:${message.threadId}`),
+        ).toMatchObject({ text: message.text, attachments: [] });
+        expect(harness.removePersistedFile).not.toHaveBeenCalled();
+      } finally {
+        releaseRecovery.resolve();
+        mergeSpy.mockRestore();
+      }
+    }),
+  );
 
-  it("leaves recovery to an editor that opens while the draft persists", async () => {
-    const message = queuedMessage({
-      messageId: "message-recovery-editor",
-      text: "recover this text",
-      fileUri: "file:///documents/supaterm-composer-attachments/editor.pdf",
-    });
-    const originalMergeComposerDraftContent = composerDrafts.mergeComposerDraftContent;
-    const mergeCompleted = Promise.withResolvers<void>();
-    const releaseRecovery = Promise.withResolvers<void>();
-    const mergeSpy = vi
-      .spyOn(composerDrafts, "mergeComposerDraftContent")
-      .mockImplementation(async (draftKey, content) => {
-        const result = await originalMergeComposerDraftContent(draftKey, content);
-        mergeCompleted.resolve();
-        await releaseRecovery.promise;
-        return result;
+  it.effect("leaves recovery to an editor that opens while the draft persists", () =>
+    Effect.gen(function* () {
+      const message = queuedMessage({
+        messageId: "message-recovery-editor",
+        text: "recover this text",
+        fileUri: "file:///documents/supaterm-composer-attachments/editor.pdf",
       });
+      const originalMergeComposerDraftContent = composerDrafts.mergeComposerDraftContent;
+      const mergeCompleted = Promise.withResolvers<void>();
+      const releaseRecovery = Promise.withResolvers<void>();
+      const mergeSpy = vi
+        .spyOn(composerDrafts, "mergeComposerDraftContent")
+        .mockImplementation(async (draftKey, content) => {
+          const result = await originalMergeComposerDraftContent(draftKey, content);
+          mergeCompleted.resolve();
+          await releaseRecovery.promise;
+          return result;
+        });
 
-    try {
-      await harness.manager.enqueue(message);
-      const recovery = recoverEditedCreationAfterDelivery(message);
-      await mergeCompleted.promise;
-      appAtomRegistry.set(editingQueuedMessageIdsAtom, { [message.messageId]: "editing" });
+      try {
+        yield* Effect.promise(() => harness.manager.enqueue(message));
+        const recovery = yield* Effect.forkChild(
+          handled(recoverEditedCreationAfterDelivery(message)),
+          { startImmediately: true },
+        );
+        yield* Effect.promise(() => mergeCompleted.promise);
+        appAtomRegistry.set(editingQueuedMessageIdsAtom, { [message.messageId]: "editing" });
 
-      releaseRecovery.resolve();
-      await expect(recovery).resolves.toBe(true);
+        releaseRecovery.resolve();
+        expect(yield* Fiber.join(recovery)).toBe(true);
+
+        expect(remainingMessages()).toEqual([message]);
+        expect(
+          composerDrafts.getComposerDraftSnapshot(`${message.environmentId}:${message.threadId}`),
+        ).toMatchObject({ text: message.text, attachments: [] });
+        expect(harness.removePersistedFile).not.toHaveBeenCalled();
+      } finally {
+        releaseRecovery.resolve();
+        mergeSpy.mockRestore();
+      }
+    }),
+  );
+
+  it.effect("retries a failed removal without duplicating recovered draft content", () =>
+    Effect.gen(function* () {
+      const message = queuedMessage({
+        messageId: "message-recovery-removal",
+        text: "recover once",
+        fileUri: "file:///documents/supaterm-composer-attachments/retry.pdf",
+      });
+      const draftKey = `${message.environmentId}:${message.threadId}`;
+      const removeSpy = vi
+        .spyOn(harness.manager, "remove")
+        .mockRejectedValueOnce(new Error("storage unavailable"));
+
+      try {
+        yield* Effect.promise(() => harness.manager.enqueue(message));
+
+        expect(yield* handled(recoverEditedCreationAfterDelivery(message))).toBe(false);
+        expect(remainingMessages()).toEqual([message]);
+
+        expect(yield* handled(recoverEditedCreationAfterDelivery(message))).toBe(true);
+
+        const draft = composerDrafts.getComposerDraftSnapshot(draftKey);
+        expect(draft.text).toBe(message.text);
+        expect(draft.attachments).toEqual(message.attachments);
+        expect(remainingMessages()).toEqual([]);
+        expect(harness.removePersistedFile).not.toHaveBeenCalled();
+      } finally {
+        removeSpy.mockRestore();
+      }
+    }),
+  );
+
+  it.effect("keeps the queue entry when the recovered draft cannot persist", () =>
+    Effect.gen(function* () {
+      const message = queuedMessage({
+        messageId: "message-recovery-persistence",
+        text: "recover after persistence returns",
+      });
+      yield* Effect.promise(() => harness.manager.enqueue(message));
+      harness.draftFile.setWriteError(new Error("disk full"));
+
+      expect(yield* handled(recoverEditedCreationAfterDelivery(message))).toBe(false);
 
       expect(remainingMessages()).toEqual([message]);
-      expect(
-        composerDrafts.getComposerDraftSnapshot(`${message.environmentId}:${message.threadId}`),
-      ).toMatchObject({ text: message.text, attachments: [] });
-      expect(harness.removePersistedFile).not.toHaveBeenCalled();
-    } finally {
-      releaseRecovery.resolve();
-      mergeSpy.mockRestore();
-    }
-  });
-
-  it("retries a failed removal without duplicating recovered draft content", async () => {
-    const message = queuedMessage({
-      messageId: "message-recovery-removal",
-      text: "recover once",
-      fileUri: "file:///documents/supaterm-composer-attachments/retry.pdf",
-    });
-    const draftKey = `${message.environmentId}:${message.threadId}`;
-    const removeSpy = vi
-      .spyOn(harness.manager, "remove")
-      .mockRejectedValueOnce(new Error("storage unavailable"));
-
-    try {
-      await harness.manager.enqueue(message);
-
-      await expect(recoverEditedCreationAfterDelivery(message)).resolves.toBe(false);
-      expect(remainingMessages()).toEqual([message]);
-
-      await expect(recoverEditedCreationAfterDelivery(message)).resolves.toBe(true);
-
-      const draft = composerDrafts.getComposerDraftSnapshot(draftKey);
-      expect(draft.text).toBe(message.text);
-      expect(draft.attachments).toEqual(message.attachments);
-      expect(remainingMessages()).toEqual([]);
-      expect(harness.removePersistedFile).not.toHaveBeenCalled();
-    } finally {
-      removeSpy.mockRestore();
-    }
-  });
-
-  it("keeps the queue entry when the recovered draft cannot persist", async () => {
-    const message = queuedMessage({
-      messageId: "message-recovery-persistence",
-      text: "recover after persistence returns",
-    });
-    await harness.manager.enqueue(message);
-    harness.draftFile.setWriteError(new Error("disk full"));
-
-    await expect(recoverEditedCreationAfterDelivery(message)).resolves.toBe(false);
-
-    expect(remainingMessages()).toEqual([message]);
-  });
+    }),
+  );
 });
 
 describe("thread outbox follow-ups behind a rejected creation", () => {
-  it("folds them into the task draft the rejected creation is restored into", async () => {
-    const creation: QueuedThreadMessage = {
-      ...queuedMessage({ messageId: "rejected-creation", text: "Original prompt" }),
-      modelSelection: { instanceId: ProviderInstanceId.make("codex"), model: "gpt-5.6-sol" },
-      creation: {
-        projectId: ProjectId.make("project-1"),
-        workspaceMode: "local",
-        branch: null,
-        worktreePath: null,
-      },
-    };
-    const followUp = {
-      ...queuedMessage({
-        messageId: "follow-up",
-        text: "Also cover the empty state",
-        fileUri: "file:///documents/supaterm-composer-attachments/follow-up.pdf",
-      }),
-      createdAt: "2026-08-24T12:01:00.000Z",
-    };
-    await harness.manager.enqueue(creation);
-    await harness.manager.enqueue(followUp);
+  it.effect("folds them into the task draft the rejected creation is restored into", () =>
+    Effect.gen(function* () {
+      const creation: QueuedThreadMessage = {
+        ...queuedMessage({ messageId: "rejected-creation", text: "Original prompt" }),
+        modelSelection: { instanceId: ProviderInstanceId.make("codex"), model: "gpt-5.6-sol" },
+        creation: {
+          projectId: ProjectId.make("project-1"),
+          workspaceMode: "local",
+          branch: null,
+          worktreePath: null,
+        },
+      };
+      const followUp = {
+        ...queuedMessage({
+          messageId: "follow-up",
+          text: "Also cover the empty state",
+          fileUri: "file:///documents/supaterm-composer-attachments/follow-up.pdf",
+        }),
+        createdAt: "2026-08-24T12:01:00.000Z",
+      };
+      yield* Effect.promise(() => harness.manager.enqueue(creation));
+      yield* Effect.promise(() => harness.manager.enqueue(followUp));
 
-    await expect(restoreRejectedQueuedMessage(creation, "rejected by server")).resolves.toBe(
-      "restored",
-    );
+      expect(yield* restoreRejectedQueuedMessage(creation, "rejected by server")).toBe("restored");
 
-    expect(
-      composerDrafts.getComposerDraftSnapshot("new-task:restored-rejected-creation"),
-    ).toMatchObject({
-      text: "Original prompt\n\nAlso cover the empty state",
-      attachments: followUp.attachments,
-    });
-    expect(remainingMessages()).toEqual([]);
-    expect(harness.removePersistedFile).not.toHaveBeenCalled();
-  });
-
-  it("takes folded follow-ups back out with the task when its removal fails", async () => {
-    const creation: QueuedThreadMessage = {
-      ...queuedMessage({ messageId: "rejected-creation-retry", text: "Original prompt" }),
-      modelSelection: { instanceId: ProviderInstanceId.make("codex"), model: "gpt-5.6-sol" },
-      creation: {
-        projectId: ProjectId.make("project-1"),
-        workspaceMode: "local",
-        branch: null,
-        worktreePath: null,
-      },
-    };
-    const followUp = {
-      ...queuedMessage({ messageId: "follow-up-retry", text: "Also cover the empty state" }),
-      createdAt: "2026-08-24T12:01:00.000Z",
-    };
-    await harness.manager.enqueue(creation);
-    await harness.manager.enqueue(followUp);
-    const removeSpy = vi
-      .spyOn(harness.manager, "remove")
-      .mockRejectedValueOnce(new Error("storage unavailable"));
-
-    try {
-      await expect(restoreRejectedQueuedMessage(creation, "rejected by server")).resolves.toBe(
-        "retry",
-      );
-      expect(remainingMessages().map((message) => message.messageId)).toEqual([
-        creation.messageId,
-        followUp.messageId,
-      ]);
-      expect(appAtomRegistry.get(pendingThreadCreationOutcomesAtom)).toEqual({});
-
-      await expect(restoreRejectedQueuedMessage(creation, "rejected by server")).resolves.toBe(
-        "restored",
-      );
       expect(
-        composerDrafts.getComposerDraftSnapshot("new-task:restored-rejected-creation-retry").text,
-      ).toBe("Original prompt\n\nAlso cover the empty state");
-      expect(remainingMessages()).toEqual([]);
-    } finally {
-      removeSpy.mockRestore();
-    }
-  });
-
-  it("keeps a follow-up's content in the draft when it cannot leave the queue", async () => {
-    const creation: QueuedThreadMessage = {
-      ...queuedMessage({ messageId: "rejected-creation-stuck", text: "Original prompt" }),
-      creation: {
-        projectId: ProjectId.make("project-1"),
-        workspaceMode: "local",
-        branch: null,
-        worktreePath: null,
-      },
-    };
-    const followUp = {
-      ...queuedMessage({ messageId: "follow-up-stuck", text: "Also cover the empty state" }),
-      createdAt: "2026-08-24T12:01:00.000Z",
-    };
-    await harness.manager.enqueue(creation);
-    await harness.manager.enqueue(followUp);
-    const remove = harness.manager.remove.bind(harness.manager);
-    const removeSpy = vi
-      .spyOn(harness.manager, "remove")
-      .mockImplementation((message, ...rest) =>
-        message.messageId === followUp.messageId
-          ? Promise.reject(new Error("storage unavailable"))
-          : remove(message, ...rest),
-      );
-
-    try {
-      await expect(restoreRejectedQueuedMessage(creation, "rejected by server")).resolves.toBe(
-        "restored",
-      );
-      expect(
-        composerDrafts.getComposerDraftSnapshot("new-task:restored-rejected-creation-stuck").text,
-      ).toBe("Original prompt\n\nAlso cover the empty state");
-      expect(remainingMessages().map((message) => message.messageId)).toEqual([followUp.messageId]);
-    } finally {
-      removeSpy.mockRestore();
-    }
-  });
-  it("folds a follow-up queued while the restore runs", async () => {
-    const creation: QueuedThreadMessage = {
-      ...queuedMessage({ messageId: "rejected-creation-late", text: "Original prompt" }),
-      creation: {
-        projectId: ProjectId.make("project-1"),
-        workspaceMode: "local",
-        branch: null,
-        worktreePath: null,
-      },
-    };
-    const followUp = {
-      ...queuedMessage({ messageId: "follow-up-early", text: "Also cover the empty state" }),
-      createdAt: "2026-08-24T12:01:00.000Z",
-    };
-    const lateFollowUp = {
-      ...queuedMessage({ messageId: "follow-up-late", text: "And the error state" }),
-      createdAt: "2026-08-24T12:02:00.000Z",
-    };
-    await harness.manager.enqueue(creation);
-    await harness.manager.enqueue(followUp);
-    const remove = harness.manager.remove.bind(harness.manager);
-    const removeSpy = vi
-      .spyOn(harness.manager, "remove")
-      .mockImplementation(async (message, ...rest) => {
-        if (message.messageId === creation.messageId) await harness.manager.enqueue(lateFollowUp);
-        return remove(message, ...rest);
+        composerDrafts.getComposerDraftSnapshot("new-task:restored-rejected-creation"),
+      ).toMatchObject({
+        text: "Original prompt\n\nAlso cover the empty state",
+        attachments: followUp.attachments,
       });
-
-    try {
-      await expect(restoreRejectedQueuedMessage(creation, "rejected by server")).resolves.toBe(
-        "restored",
-      );
-      expect(
-        composerDrafts.getComposerDraftSnapshot("new-task:restored-rejected-creation-late").text,
-      ).toBe("Original prompt\n\nAlso cover the empty state\n\nAnd the error state");
       expect(remainingMessages()).toEqual([]);
-    } finally {
-      removeSpy.mockRestore();
-    }
-  });
+      expect(harness.removePersistedFile).not.toHaveBeenCalled();
+    }),
+  );
+
+  it.effect("takes folded follow-ups back out with the task when its removal fails", () =>
+    Effect.gen(function* () {
+      const creation: QueuedThreadMessage = {
+        ...queuedMessage({ messageId: "rejected-creation-retry", text: "Original prompt" }),
+        modelSelection: { instanceId: ProviderInstanceId.make("codex"), model: "gpt-5.6-sol" },
+        creation: {
+          projectId: ProjectId.make("project-1"),
+          workspaceMode: "local",
+          branch: null,
+          worktreePath: null,
+        },
+      };
+      const followUp = {
+        ...queuedMessage({ messageId: "follow-up-retry", text: "Also cover the empty state" }),
+        createdAt: "2026-08-24T12:01:00.000Z",
+      };
+      yield* Effect.promise(() => harness.manager.enqueue(creation));
+      yield* Effect.promise(() => harness.manager.enqueue(followUp));
+      const removeSpy = vi
+        .spyOn(harness.manager, "remove")
+        .mockRejectedValueOnce(new Error("storage unavailable"));
+
+      try {
+        expect(yield* restoreRejectedQueuedMessage(creation, "rejected by server")).toBe("retry");
+        expect(remainingMessages().map((message) => message.messageId)).toEqual([
+          creation.messageId,
+          followUp.messageId,
+        ]);
+        expect(appAtomRegistry.get(pendingThreadCreationOutcomesAtom)).toEqual({});
+
+        expect(yield* restoreRejectedQueuedMessage(creation, "rejected by server")).toBe(
+          "restored",
+        );
+        expect(
+          composerDrafts.getComposerDraftSnapshot("new-task:restored-rejected-creation-retry").text,
+        ).toBe("Original prompt\n\nAlso cover the empty state");
+        expect(remainingMessages()).toEqual([]);
+      } finally {
+        removeSpy.mockRestore();
+      }
+    }),
+  );
+
+  it.effect("keeps a follow-up's content in the draft when it cannot leave the queue", () =>
+    Effect.gen(function* () {
+      const creation: QueuedThreadMessage = {
+        ...queuedMessage({ messageId: "rejected-creation-stuck", text: "Original prompt" }),
+        creation: {
+          projectId: ProjectId.make("project-1"),
+          workspaceMode: "local",
+          branch: null,
+          worktreePath: null,
+        },
+      };
+      const followUp = {
+        ...queuedMessage({ messageId: "follow-up-stuck", text: "Also cover the empty state" }),
+        createdAt: "2026-08-24T12:01:00.000Z",
+      };
+      yield* Effect.promise(() => harness.manager.enqueue(creation));
+      yield* Effect.promise(() => harness.manager.enqueue(followUp));
+      const remove = harness.manager.remove.bind(harness.manager);
+      const removeSpy = vi
+        .spyOn(harness.manager, "remove")
+        .mockImplementation((message, ...rest) =>
+          message.messageId === followUp.messageId
+            ? Promise.reject(new Error("storage unavailable"))
+            : remove(message, ...rest),
+        );
+
+      try {
+        expect(yield* restoreRejectedQueuedMessage(creation, "rejected by server")).toBe(
+          "restored",
+        );
+        expect(
+          composerDrafts.getComposerDraftSnapshot("new-task:restored-rejected-creation-stuck").text,
+        ).toBe("Original prompt\n\nAlso cover the empty state");
+        expect(remainingMessages().map((message) => message.messageId)).toEqual([
+          followUp.messageId,
+        ]);
+      } finally {
+        removeSpy.mockRestore();
+      }
+    }),
+  );
+  it.effect("folds a follow-up queued while the restore runs", () =>
+    Effect.gen(function* () {
+      const creation: QueuedThreadMessage = {
+        ...queuedMessage({ messageId: "rejected-creation-late", text: "Original prompt" }),
+        creation: {
+          projectId: ProjectId.make("project-1"),
+          workspaceMode: "local",
+          branch: null,
+          worktreePath: null,
+        },
+      };
+      const followUp = {
+        ...queuedMessage({ messageId: "follow-up-early", text: "Also cover the empty state" }),
+        createdAt: "2026-08-24T12:01:00.000Z",
+      };
+      const lateFollowUp = {
+        ...queuedMessage({ messageId: "follow-up-late", text: "And the error state" }),
+        createdAt: "2026-08-24T12:02:00.000Z",
+      };
+      yield* Effect.promise(() => harness.manager.enqueue(creation));
+      yield* Effect.promise(() => harness.manager.enqueue(followUp));
+      const remove = harness.manager.remove.bind(harness.manager);
+      const removeSpy = vi
+        .spyOn(harness.manager, "remove")
+        .mockImplementation(async (message, ...rest) => {
+          if (message.messageId === creation.messageId) await harness.manager.enqueue(lateFollowUp);
+          return remove(message, ...rest);
+        });
+
+      try {
+        expect(yield* restoreRejectedQueuedMessage(creation, "rejected by server")).toBe(
+          "restored",
+        );
+        expect(
+          composerDrafts.getComposerDraftSnapshot("new-task:restored-rejected-creation-late").text,
+        ).toBe("Original prompt\n\nAlso cover the empty state\n\nAnd the error state");
+        expect(remainingMessages()).toEqual([]);
+      } finally {
+        removeSpy.mockRestore();
+      }
+    }),
+  );
 });
 
 describe("thread outbox recovery rollback", () => {
@@ -1049,164 +1103,176 @@ describe("thread outbox recovery rollback", () => {
     );
   });
 
-  it("restores a rejected new task as its own draft for the project", async () => {
-    const message: QueuedThreadMessage = {
-      ...queuedMessage({ messageId: "message-creation-restore", text: "new task text" }),
-      modelSelection: { instanceId: ProviderInstanceId.make("codex"), model: "gpt-5.6-sol" },
-      creation: {
-        projectId: ProjectId.make("project-1"),
-        workspaceMode: "local",
-        branch: null,
-        worktreePath: null,
-      },
-    };
-    await harness.manager.enqueue(message);
+  it.effect("restores a rejected new task as its own draft for the project", () =>
+    Effect.gen(function* () {
+      const message: QueuedThreadMessage = {
+        ...queuedMessage({ messageId: "message-creation-restore", text: "new task text" }),
+        modelSelection: { instanceId: ProviderInstanceId.make("codex"), model: "gpt-5.6-sol" },
+        creation: {
+          projectId: ProjectId.make("project-1"),
+          workspaceMode: "local",
+          branch: null,
+          worktreePath: null,
+        },
+      };
+      yield* Effect.promise(() => harness.manager.enqueue(message));
 
-    await expect(restoreRejectedQueuedMessage(message, "rejected by server")).resolves.toBe(
-      "restored",
-    );
+      expect(yield* restoreRejectedQueuedMessage(message, "rejected by server")).toBe("restored");
 
-    expect(
-      composerDrafts.getComposerDraftSnapshot(`new-task:restored-${message.messageId}`),
-    ).toMatchObject({
-      text: message.text,
-      attachments: message.attachments,
-      modelSelection: message.modelSelection,
-      project: {
-        environmentId: message.environmentId,
-        projectId: message.creation!.projectId,
-        createdAt: message.createdAt,
-      },
-    });
-    expect(remainingMessages()).toEqual([]);
-    expect(appAtomRegistry.get(threadComposerErrorsAtom)).toEqual({});
-    expect(
-      appAtomRegistry.get(pendingThreadCreationOutcomesAtom)[
-        `${message.environmentId}:${message.threadId}`
-      ],
-    ).toEqual({ kind: "failed", message, reason: "rejected by server" });
-  });
+      expect(
+        composerDrafts.getComposerDraftSnapshot(`new-task:restored-${message.messageId}`),
+      ).toMatchObject({
+        text: message.text,
+        attachments: message.attachments,
+        modelSelection: message.modelSelection,
+        project: {
+          environmentId: message.environmentId,
+          projectId: message.creation!.projectId,
+          createdAt: message.createdAt,
+        },
+      });
+      expect(remainingMessages()).toEqual([]);
+      expect(appAtomRegistry.get(threadComposerErrorsAtom)).toEqual({});
+      expect(
+        appAtomRegistry.get(pendingThreadCreationOutcomesAtom)[
+          `${message.environmentId}:${message.threadId}`
+        ],
+      ).toEqual({ kind: "failed", message, reason: "rejected by server" });
+    }),
+  );
 
-  it("drops an earlier recovery error once a rejected new task is restored", async () => {
-    const message: QueuedThreadMessage = {
-      ...queuedMessage({ messageId: "message-creation-retried", text: "new task text" }),
-      modelSelection: { instanceId: ProviderInstanceId.make("codex"), model: "gpt-5.6-sol" },
-      creation: {
-        projectId: ProjectId.make("project-1"),
-        workspaceMode: "local",
-        branch: null,
-        worktreePath: null,
-      },
-    };
-    await harness.manager.enqueue(message);
-    harness.draftFile.setWriteError(new Error("disk full"));
-    await expect(restoreRejectedQueuedMessage(message, "rejected by server")).resolves.toBe(
-      "retry",
-    );
-    const threadKey = `${message.environmentId}:${message.threadId}`;
-    expect(appAtomRegistry.get(threadComposerErrorsAtom)[threadKey]?.messageId).toBe(
-      message.messageId,
-    );
+  it.effect("drops an earlier recovery error once a rejected new task is restored", () =>
+    Effect.gen(function* () {
+      const message: QueuedThreadMessage = {
+        ...queuedMessage({ messageId: "message-creation-retried", text: "new task text" }),
+        modelSelection: { instanceId: ProviderInstanceId.make("codex"), model: "gpt-5.6-sol" },
+        creation: {
+          projectId: ProjectId.make("project-1"),
+          workspaceMode: "local",
+          branch: null,
+          worktreePath: null,
+        },
+      };
+      yield* Effect.promise(() => harness.manager.enqueue(message));
+      harness.draftFile.setWriteError(new Error("disk full"));
+      expect(yield* restoreRejectedQueuedMessage(message, "rejected by server")).toBe("retry");
+      const threadKey = `${message.environmentId}:${message.threadId}`;
+      expect(appAtomRegistry.get(threadComposerErrorsAtom)[threadKey]?.messageId).toBe(
+        message.messageId,
+      );
 
-    harness.draftFile.setWriteError(null);
-    await expect(restoreRejectedQueuedMessage(message, "rejected by server")).resolves.toBe(
-      "restored",
-    );
+      harness.draftFile.setWriteError(null);
+      expect(yield* restoreRejectedQueuedMessage(message, "rejected by server")).toBe("restored");
 
-    expect(appAtomRegistry.get(threadComposerErrorsAtom)).toEqual({});
-    expect(appAtomRegistry.get(pendingThreadCreationOutcomesAtom)[threadKey]?.kind).toBe("failed");
-  });
+      expect(appAtomRegistry.get(threadComposerErrorsAtom)).toEqual({});
+      expect(appAtomRegistry.get(pendingThreadCreationOutcomesAtom)[threadKey]?.kind).toBe(
+        "failed",
+      );
+    }),
+  );
 
-  it("keeps a failed outcome until its thread screen consumes it", async () => {
-    const message: QueuedThreadMessage = {
-      ...queuedMessage({ messageId: "message-creation-kept", text: "new task text" }),
-      modelSelection: { instanceId: ProviderInstanceId.make("codex"), model: "gpt-5.6-sol" },
-      creation: {
-        projectId: ProjectId.make("project-1"),
-        workspaceMode: "local",
-        branch: null,
-        worktreePath: null,
-      },
-    };
-    await harness.manager.enqueue(message);
-    await restoreRejectedQueuedMessage(message, "rejected by server");
+  it.effect("keeps a failed outcome until its thread screen consumes it", () =>
+    Effect.gen(function* () {
+      const message: QueuedThreadMessage = {
+        ...queuedMessage({ messageId: "message-creation-kept", text: "new task text" }),
+        modelSelection: { instanceId: ProviderInstanceId.make("codex"), model: "gpt-5.6-sol" },
+        creation: {
+          projectId: ProjectId.make("project-1"),
+          workspaceMode: "local",
+          branch: null,
+          worktreePath: null,
+        },
+      };
+      yield* Effect.promise(() => harness.manager.enqueue(message));
+      yield* restoreRejectedQueuedMessage(message, "rejected by server");
 
-    const key = `${message.environmentId}:${message.threadId}`;
-    expect(appAtomRegistry.get(pendingThreadCreationOutcomesAtom)[key]?.kind).toBe("failed");
+      const key = `${message.environmentId}:${message.threadId}`;
+      expect(appAtomRegistry.get(pendingThreadCreationOutcomesAtom)[key]?.kind).toBe("failed");
 
-    clearPendingThreadCreationOutcome(key);
-    expect(appAtomRegistry.get(pendingThreadCreationOutcomesAtom)[key]).toBeUndefined();
-  });
+      clearPendingThreadCreationOutcome(key);
+      expect(appAtomRegistry.get(pendingThreadCreationOutcomesAtom)[key]).toBeUndefined();
+    }),
+  );
 
-  it("does not record a creation outcome for a rejected follow-up message", async () => {
-    const message = queuedMessage({ messageId: "message-followup-restore", text: "follow up" });
-    await harness.manager.enqueue(message);
+  it.effect("does not record a creation outcome for a rejected follow-up message", () =>
+    Effect.gen(function* () {
+      const message = queuedMessage({ messageId: "message-followup-restore", text: "follow up" });
+      yield* Effect.promise(() => harness.manager.enqueue(message));
 
-    await expect(restoreRejectedQueuedMessage(message, "rejected")).resolves.toBe("restored");
+      expect(yield* restoreRejectedQueuedMessage(message, "rejected")).toBe("restored");
 
-    expect(appAtomRegistry.get(pendingThreadCreationOutcomesAtom)).toEqual({});
-    expect(
-      appAtomRegistry.get(threadComposerErrorsAtom)[`${message.environmentId}:${message.threadId}`],
-    ).toEqual({ message: "rejected", messageId: message.messageId });
-  });
+      expect(appAtomRegistry.get(pendingThreadCreationOutcomesAtom)).toEqual({});
+      expect(
+        appAtomRegistry.get(threadComposerErrorsAtom)[
+          `${message.environmentId}:${message.threadId}`
+        ],
+      ).toEqual({ message: "rejected", messageId: message.messageId });
+    }),
+  );
 
-  it("leaves no error when the restored text is resent before recovery finishes", async () => {
-    const message = queuedMessage({ messageId: "message-resent", text: "resend me" });
-    const threadKey = `${message.environmentId}:${message.threadId}`;
-    await harness.manager.enqueue(message);
-    const unsubscribe = appAtomRegistry.subscribe(composerDrafts.composerDraftsAtom, (drafts) => {
-      if (drafts[threadKey]?.text === "resend me") {
-        unsubscribe();
-        clearThreadComposerError(threadKey);
-        void composerDrafts.clearComposerDraftContent(threadKey);
-      }
-    });
+  it.effect("leaves no error when the restored text is resent before recovery finishes", () =>
+    Effect.gen(function* () {
+      const message = queuedMessage({ messageId: "message-resent", text: "resend me" });
+      const threadKey = `${message.environmentId}:${message.threadId}`;
+      yield* Effect.promise(() => harness.manager.enqueue(message));
+      const unsubscribe = appAtomRegistry.subscribe(composerDrafts.composerDraftsAtom, (drafts) => {
+        if (drafts[threadKey]?.text === "resend me") {
+          unsubscribe();
+          clearThreadComposerError(threadKey);
+          void composerDrafts.clearComposerDraftContent(threadKey);
+        }
+      });
 
-    await expect(restoreRejectedQueuedMessage(message, "rejected")).resolves.toBe("restored");
+      expect(yield* restoreRejectedQueuedMessage(message, "rejected")).toBe("restored");
 
-    expect(appAtomRegistry.get(threadComposerErrorsAtom)).toEqual({});
-  });
+      expect(appAtomRegistry.get(threadComposerErrorsAtom)).toEqual({});
+    }),
+  );
 
-  it("withdraws the error when an edit makes the recovery back out", async () => {
-    const message = queuedMessage({ messageId: "message-edited-mid-recovery", text: "edit me" });
-    const threadKey = `${message.environmentId}:${message.threadId}`;
-    await harness.manager.enqueue(message);
-    const unsubscribe = appAtomRegistry.subscribe(composerDrafts.composerDraftsAtom, (drafts) => {
-      if (drafts[threadKey]?.text === "edit me") {
-        unsubscribe();
-        appAtomRegistry.set(editingQueuedMessageIdsAtom, { [message.messageId]: "editing" });
-      }
-    });
+  it.effect("withdraws the error when an edit makes the recovery back out", () =>
+    Effect.gen(function* () {
+      const message = queuedMessage({ messageId: "message-edited-mid-recovery", text: "edit me" });
+      const threadKey = `${message.environmentId}:${message.threadId}`;
+      yield* Effect.promise(() => harness.manager.enqueue(message));
+      const unsubscribe = appAtomRegistry.subscribe(composerDrafts.composerDraftsAtom, (drafts) => {
+        if (drafts[threadKey]?.text === "edit me") {
+          unsubscribe();
+          appAtomRegistry.set(editingQueuedMessageIdsAtom, { [message.messageId]: "editing" });
+        }
+      });
 
-    await expect(restoreRejectedQueuedMessage(message, "rejected")).resolves.toBe("deferred");
+      expect(yield* restoreRejectedQueuedMessage(message, "rejected")).toBe("deferred");
 
-    expect(appAtomRegistry.get(threadComposerErrorsAtom)).toEqual({});
-    expect(remainingMessages()).toEqual([message]);
-  });
+      expect(appAtomRegistry.get(threadComposerErrorsAtom)).toEqual({});
+      expect(remainingMessages()).toEqual([message]);
+    }),
+  );
 
-  it("rolls a failed recovery merge back so the retry cannot duplicate the text", async () => {
-    const message = queuedMessage({ messageId: "message-restore", text: "queued text" });
-    const draftKey = `${message.environmentId}:${message.threadId}`;
-    appAtomRegistry.set(composerDrafts.composerDraftsAtom, {
-      [draftKey]: { text: "typed offline", attachments: [] },
-    });
-    await harness.manager.enqueue(message);
+  it.effect("rolls a failed recovery merge back so the retry cannot duplicate the text", () =>
+    Effect.gen(function* () {
+      const message = queuedMessage({ messageId: "message-restore", text: "queued text" });
+      const draftKey = `${message.environmentId}:${message.threadId}`;
+      appAtomRegistry.set(composerDrafts.composerDraftsAtom, {
+        [draftKey]: { text: "typed offline", attachments: [] },
+      });
+      yield* Effect.promise(() => harness.manager.enqueue(message));
 
-    harness.draftFile.setWriteError(new Error("disk full"));
-    await expect(restoreRejectedQueuedMessage(message, "too large")).resolves.toBe("retry");
+      harness.draftFile.setWriteError(new Error("disk full"));
+      expect(yield* restoreRejectedQueuedMessage(message, "too large")).toBe("retry");
 
-    expect(composerDrafts.getComposerDraftSnapshot(draftKey).text).toBe("typed offline");
-    expect(remainingMessages()).toEqual([message]);
+      expect(composerDrafts.getComposerDraftSnapshot(draftKey).text).toBe("typed offline");
+      expect(remainingMessages()).toEqual([message]);
 
-    harness.draftFile.setWriteError(null);
-    await expect(restoreRejectedQueuedMessage(message, "too large")).resolves.toBe("restored");
+      harness.draftFile.setWriteError(null);
+      expect(yield* restoreRejectedQueuedMessage(message, "too large")).toBe("restored");
 
-    expect(composerDrafts.getComposerDraftSnapshot(draftKey).text).toBe(
-      "typed offline\n\nqueued text",
-    );
-    expect(remainingMessages()).toEqual([]);
-    expect(appAtomRegistry.get(threadComposerErrorsAtom)[draftKey]?.message).toBe("too large");
-  });
+      expect(composerDrafts.getComposerDraftSnapshot(draftKey).text).toBe(
+        "typed offline\n\nqueued text",
+      );
+      expect(remainingMessages()).toEqual([]);
+      expect(appAtomRegistry.get(threadComposerErrorsAtom)[draftKey]?.message).toBe("too large");
+    }),
+  );
 });
 
 describe("queued voice message delivery", () => {
@@ -1221,123 +1287,147 @@ describe("queued voice message delivery", () => {
     return message;
   };
 
-  it("has the environment send the recording under the message's own ids", async () => {
-    const message = await enqueue(voiceMessage());
-    harness.uploadVoice.mockResolvedValue({
-      text: "ship it",
-      submission: { status: "sent", sequence: 3 },
-    });
+  it.effect("has the environment send the recording under the message's own ids", () =>
+    Effect.gen(function* () {
+      const message = yield* Effect.promise(() => enqueue(voiceMessage()));
+      harness.uploadVoice.mockResolvedValue({
+        text: "ship it",
+        submission: { status: "sent", sequence: 3 },
+      });
 
-    const delivery = await deliverQueuedVoiceMessage(message, modelSelection);
+      const delivery = yield* deliverQueuedVoiceMessage(message, modelSelection);
 
-    expect(harness.uploadVoice).toHaveBeenCalledWith({
-      environmentId: message.environmentId,
-      uri: "file:///documents/thread-outbox-audio/voice-1.wav",
-      request: {
-        sizeBytes: 96_044,
-        language: "en-US",
-        submit: {
-          threadId: message.threadId,
-          commandId: message.commandId,
-          messageId: message.messageId,
-          modelSelection,
-          delivery: "queue",
-          creationSource: "mobile",
+      expect(harness.uploadVoice).toHaveBeenCalledWith({
+        environmentId: message.environmentId,
+        uri: "file:///documents/thread-outbox-audio/voice-1.wav",
+        request: {
+          sizeBytes: 96_044,
+          language: "en-US",
+          submit: {
+            threadId: message.threadId,
+            commandId: message.commandId,
+            messageId: message.messageId,
+            modelSelection,
+            delivery: "queue",
+            creationSource: "mobile",
+          },
         },
-      },
-    });
-    const { voice: _, ...sent } = message;
-    expect(delivery).toMatchObject({
-      status: "delivered",
-      message: { ...sent, text: "ship it" },
-      sequence: 3,
-    });
-  });
+      });
+      const { voice: _, ...sent } = message;
+      expect(delivery).toMatchObject({
+        status: "delivered",
+        message: { ...sent, text: "ship it" },
+        sequence: 3,
+      });
+    }),
+  );
 
-  it("starts a fresh session for a recording sent while /clear was armed", async () => {
-    const message = await enqueue({ ...voiceMessage(), freshContext: true });
-    harness.uploadVoice.mockResolvedValue({
-      text: "ship it",
-      submission: { status: "sent", sequence: 3 },
-    });
+  it.effect("starts a fresh session for a recording sent while /clear was armed", () =>
+    Effect.gen(function* () {
+      const message = yield* Effect.promise(() =>
+        enqueue({ ...voiceMessage(), freshContext: true }),
+      );
+      harness.uploadVoice.mockResolvedValue({
+        text: "ship it",
+        submission: { status: "sent", sequence: 3 },
+      });
 
-    await deliverQueuedVoiceMessage(message, modelSelection);
+      yield* deliverQueuedVoiceMessage(message, modelSelection);
 
-    expect(harness.uploadVoice.mock.calls[0]?.[0].request.submit?.freshContext).toBe(true);
-  });
+      expect(harness.uploadVoice.mock.calls[0]?.[0].request.submit?.freshContext).toBe(true);
+    }),
+  );
 
-  it("collects a streamed recording without its audio only under the id it streamed with", async () => {
-    harness.uploadVoice.mockResolvedValue({
-      text: "ship it",
-      submission: { status: "sent", sequence: 3 },
-    });
-    const base = voiceMessage();
-    const streamed = await enqueue({
-      ...base,
-      voice: { ...base.voice!, streamedUploadId: base.commandId },
-    });
-    const renamed = await enqueue({
-      ...queuedMessage({ messageId: "voice-2", text: "" }),
-      voice: { ...base.voice!, streamedUploadId: base.commandId },
-    });
+  it.effect(
+    "collects a streamed recording without its audio only under the id it streamed with",
+    () =>
+      Effect.gen(function* () {
+        harness.uploadVoice.mockResolvedValue({
+          text: "ship it",
+          submission: { status: "sent", sequence: 3 },
+        });
+        const base = voiceMessage();
+        const streamed = yield* Effect.promise(() =>
+          enqueue({
+            ...base,
+            voice: { ...base.voice!, streamedUploadId: base.commandId },
+          }),
+        );
+        const renamed = yield* Effect.promise(() =>
+          enqueue({
+            ...queuedMessage({ messageId: "voice-2", text: "" }),
+            voice: { ...base.voice!, streamedUploadId: base.commandId },
+          }),
+        );
 
-    await deliverQueuedVoiceMessage(streamed, modelSelection);
-    await deliverQueuedVoiceMessage(renamed, modelSelection);
+        yield* deliverQueuedVoiceMessage(streamed, modelSelection);
+        yield* deliverQueuedVoiceMessage(renamed, modelSelection);
 
-    expect(harness.uploadVoice.mock.calls.map(([upload]) => upload.streamed)).toEqual([
-      true,
-      undefined,
-    ]);
-  });
+        expect(harness.uploadVoice.mock.calls.map(([upload]) => upload.streamed)).toEqual([
+          true,
+          undefined,
+        ]);
+      }),
+  );
 
-  it("holds a refused recording under a fresh command id and keeps its audio", async () => {
-    const message = await enqueue(voiceMessage());
-    harness.uploadVoice.mockRejectedValue(
-      new VoiceUploadError("signedOut", "Sign in to this provider again to transcribe.", false),
-    );
+  it.effect("holds a refused recording under a fresh command id and keeps its audio", () =>
+    Effect.gen(function* () {
+      const message = yield* Effect.promise(() => enqueue(voiceMessage()));
+      harness.uploadVoice.mockRejectedValue(
+        new VoiceUploadError("signedOut", "Sign in to this provider again to transcribe.", false),
+      );
 
-    expect(await deliverQueuedVoiceMessage(message, modelSelection)).toEqual({ status: "held" });
+      expect(yield* deliverQueuedVoiceMessage(message, modelSelection)).toEqual({ status: "held" });
 
-    const [held] = remainingMessages();
-    expect(held).toMatchObject({
-      voice: message.voice,
-      failure: "Sign in to this provider again to transcribe.",
-    });
-    expect(held?.commandId).not.toBe(message.commandId);
-    expect(harness.releaseVoiceRecordings).not.toHaveBeenCalled();
-  });
+      const [held] = remainingMessages();
+      expect(held).toMatchObject({
+        voice: message.voice,
+        failure: "Sign in to this provider again to transcribe.",
+      });
+      expect(held?.commandId).not.toBe(message.commandId);
+      expect(harness.releaseVoiceRecordings).not.toHaveBeenCalled();
+    }),
+  );
 
-  it("keeps a transcript the thread refused as held text and deletes the recording", async () => {
-    const message = await enqueue(voiceMessage());
-    harness.uploadVoice.mockResolvedValue({ text: "ship it", submission: { status: "failed" } });
+  it.effect("keeps a transcript the thread refused as held text and deletes the recording", () =>
+    Effect.gen(function* () {
+      const message = yield* Effect.promise(() => enqueue(voiceMessage()));
+      harness.uploadVoice.mockResolvedValue({ text: "ship it", submission: { status: "failed" } });
 
-    expect(await deliverQueuedVoiceMessage(message, modelSelection)).toEqual({ status: "held" });
+      expect(yield* deliverQueuedVoiceMessage(message, modelSelection)).toEqual({ status: "held" });
 
-    const [held] = remainingMessages();
-    expect(held).toMatchObject({ messageId: message.messageId, text: "ship it" });
-    expect(held?.voice).toBeUndefined();
-    expect(held?.failure).toBeDefined();
-    expect(harness.releaseVoiceRecordings).toHaveBeenCalledTimes(1);
-  });
+      const [held] = remainingMessages();
+      expect(held).toMatchObject({ messageId: message.messageId, text: "ship it" });
+      expect(held?.voice).toBeUndefined();
+      expect(held?.failure).toBeDefined();
+      expect(harness.releaseVoiceRecordings).toHaveBeenCalledTimes(1);
+    }),
+  );
 
-  it("leaves a dropped upload queued unchanged for the backoff", async () => {
-    const message = await enqueue(voiceMessage());
-    harness.uploadVoice.mockRejectedValue(
-      new VoiceUploadError("disconnected", "The recording couldn't reach the environment.", true),
-    );
+  it.effect("leaves a dropped upload queued unchanged for the backoff", () =>
+    Effect.gen(function* () {
+      const message = yield* Effect.promise(() => enqueue(voiceMessage()));
+      harness.uploadVoice.mockRejectedValue(
+        new VoiceUploadError("disconnected", "The recording couldn't reach the environment.", true),
+      );
 
-    expect(await deliverQueuedVoiceMessage(message, modelSelection)).toEqual({ status: "retry" });
-    expect(remainingMessages()).toEqual([message]);
-  });
+      expect(yield* deliverQueuedVoiceMessage(message, modelSelection)).toEqual({
+        status: "retry",
+      });
+      expect(remainingMessages()).toEqual([message]);
+    }),
+  );
 
-  it("holds a message whose recording is gone without uploading", async () => {
-    harness.audioExists = false;
-    const message = await enqueue(voiceMessage());
+  it.effect("holds a message whose recording is gone without uploading", () =>
+    Effect.gen(function* () {
+      harness.audioExists = false;
+      const message = yield* Effect.promise(() => enqueue(voiceMessage()));
 
-    expect(await deliverQueuedVoiceMessage(message, modelSelection)).toEqual({ status: "held" });
-    expect(harness.uploadVoice).not.toHaveBeenCalled();
-    expect(remainingMessages()[0]?.failure).toBe(
-      "The recording is no longer available. Record it again.",
-    );
-  });
+      expect(yield* deliverQueuedVoiceMessage(message, modelSelection)).toEqual({ status: "held" });
+      expect(harness.uploadVoice).not.toHaveBeenCalled();
+      expect(remainingMessages()[0]?.failure).toBe(
+        "The recording is no longer available. Record it again.",
+      );
+    }),
+  );
 });
