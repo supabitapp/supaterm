@@ -1,3 +1,4 @@
+import { resolvePathLinkTarget } from "@supaterm/shared/fileLinks";
 import { clientHostEnvironmentAtom } from "../state/clientHostEnvironment";
 import { buildFileLinkParentSuffixByPath, fileLinkLabel } from "@supaterm/shared/fileLinks";
 import {
@@ -951,6 +952,9 @@ function useChatMarkdownState({
                     markdownFileEditorTarget(fileLinkMeta, await resolveHostPath()),
                   )
               : undefined
+        }
+        resolveDragPath={async () =>
+          resolvePathLinkTarget((await resolveHostPath()).absolutePath, cwd ?? "")
         }
         resolveCopyPaths={async () =>
           markdownFileCopyPaths(fileLinkMeta, await resolveHostPath(), cwd)

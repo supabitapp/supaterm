@@ -1,3 +1,5 @@
+import { useNativeFileDrag } from "../useNativeFileDrag";
+import { resolvePathLinkTarget } from "@supaterm/shared/fileLinks";
 import { documentChipKindForFileName } from "~/pierre-icons";
 import { isProviderSkillUserInvocable } from "@supaterm/client-runtime/providerSkills";
 import { formatProviderSkillDisplayName } from "@supaterm/shared/inlineSkills";
@@ -286,8 +288,12 @@ const ComposerMentionExtension = Node.create({
 function ComposerMentionNodeView({ node }: NodeViewProps) {
   const actions = use(ComposerContextActionsContext);
   const path = (node.attrs.path as string) ?? "";
+  const nativeDrag = useNativeFileDrag(actions.environmentId, () =>
+    resolvePathLinkTarget(path, actions.cwd ?? ""),
+  );
   const chip = (
     <ContextChip
+      {...nativeDrag}
       kind={documentChipKindForFileName(path) ?? "mention"}
       dir="ltr"
       render={<button type="button" />}
