@@ -1,9 +1,9 @@
 # Mobile Screens dependency
 
 The mobile client pins `react-native-screens` to the committed
-`apps/mobile/deps/react-native-screens-5.0.0-supacode.57.tgz` archive. Its runtime,
+`apps/mobile/deps/react-native-screens-5.0.0-supacode.58.tgz` archive. Its runtime,
 declarations and native sources come from
-[source commit 07c3fcbe](https://github.com/pingdotgg/react-native-screens/commit/07c3fcbe9eddd122f31d4b5218e9ffd70e2b4e32),
+[source commit 9924c9ef](https://github.com/pingdotgg/react-native-screens/commit/9924c9ef3f3b7359fb3585bc43a305caba2aa9c4),
 based on `72f38a66c188bdebee7a7798c9b72a121b7a8451`. Supaterm changes the package
 version and archive metadata; it preserves the runtime and native source.
 `supacode-fork.json` inside the archive records that provenance.
