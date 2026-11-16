@@ -97,9 +97,7 @@ import {
 import * as Context from "effect/Context";
 import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
-import * as Deferred from "effect/Deferred";
 import * as Exit from "effect/Exit";
-import * as FiberSet from "effect/FiberSet";
 import * as FileSystem from "effect/FileSystem";
 import * as Path from "effect/Path";
 import * as Layer from "effect/Layer";
@@ -14989,27 +14987,7 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
 
   // One thread's reactions run in event order; a reaction waiting on one thread's lock must
   // not hold up another thread's.
-  const threadReactions = yield* FiberSet.make<void>();
-  const threadReactionTails = new Map<ThreadId, Deferred.Deferred<void>>();
-  const reactInThreadOrder = Effect.fnUntraced(function* <R>(
-    threadId: ThreadId,
-    reaction: Effect.Effect<void, never, R>,
-  ) {
-    const done = yield* Deferred.make<void>();
-    const previous = threadReactionTails.get(threadId);
-    threadReactionTails.set(threadId, done);
-    yield* (
-      previous === undefined ? reaction : Effect.andThen(Deferred.await(previous), reaction)
-    ).pipe(
-      Effect.ensuring(
-        Effect.suspend(() => {
-          if (threadReactionTails.get(threadId) === done) threadReactionTails.delete(threadId);
-          return Deferred.succeed(done, undefined);
-        }),
-      ),
-      FiberSet.run(threadReactions),
-    );
-  });
+  const threadReactions = yield* KeyedLock.makeRunner<ThreadId>();
 
   // Historical terminal events are already represented by the projections
   // below. Replaying the full event table on every server start delays live
@@ -15033,7 +15011,7 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
             isOrchestrationV2RunSettled(stored.event.payload.status)),
       ),
       Stream.runForEach((stored) =>
-        reactInThreadOrder(stored.event.threadId, handleRunUpdate(stored)),
+        threadReactions.run(stored.event.threadId, handleRunUpdate(stored)),
       ),
       Effect.forkScoped,
     );
@@ -15092,7 +15070,7 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
           Effect.catchCause((cause) =>
             Effect.logWarning("Failed to deliver deferred steering", { cause }),
           ),
-          (effect, stored) => reactInThreadOrder(stored.event.threadId, effect),
+          (effect, stored) => threadReactions.run(stored.event.threadId, effect),
         ),
       ),
       Effect.forkScoped,
@@ -15122,7 +15100,7 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
   ).pipe(
     Stream.filter(settlesChildWork),
     Stream.runForEach((stored) =>
-      reactInThreadOrder(
+      threadReactions.run(
         stored.event.threadId,
         Effect.gen(function* () {
           const childThreadId = stored.event.threadId;
