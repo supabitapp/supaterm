@@ -1480,6 +1480,8 @@ export function deriveMessagesTimelineRows(input: {
       })
     : new Map<MessageId, number>();
   const nextRows: MessagesTimelineRow[] = [];
+  const workGroupExpanded = (groupId: string) =>
+    workGroupIsExpanded(input.workGroupDisclosures?.get(groupId));
   const terminalAssistantMessageIds = deriveTerminalAssistantMessageIds(timelineEntries);
   const failedRunIds = failedTimelineRunIds(timelineEntries, input.latestRun ?? null);
   const itemizedRunIds = itemizedFailedRunIds(timelineEntries, failedRunIds);
@@ -1608,7 +1610,7 @@ export function deriveMessagesTimelineRows(input: {
             entry: (latestRunningToolEntry ?? latestVisibleToolEntry).entry,
             groupedEntries: visibleActiveToolEntries.map((entry) => entry.entry),
             groupId,
-            expanded: workGroupIsExpanded(input.workGroupDisclosures?.get(groupId)),
+            expanded: workGroupExpanded(groupId),
             active: latestToolKeepsActivityLive,
             ...(latestThoughtEntry ? { thought: latestThoughtEntry.entry } : {}),
           };
@@ -1879,7 +1881,7 @@ export function deriveMessagesTimelineRows(input: {
             entry: latestActiveToolEntry,
             groupedEntries: visibleGroupedEntries,
             groupId,
-            expanded: workGroupIsExpanded(input.workGroupDisclosures?.get(groupId)),
+            expanded: workGroupExpanded(groupId),
             active: true,
           });
           hasActivityRow = true;
@@ -1929,7 +1931,7 @@ export function deriveMessagesTimelineRows(input: {
             runId: timelineEntry.entry.runId ?? null,
             groupId,
             hiddenCount: visibleGroupedEntries.length,
-            expanded: workGroupIsExpanded(input.workGroupDisclosures?.get(groupId)),
+            expanded: workGroupExpanded(groupId),
             summary:
               singleEntry !== null && !workLogEntryIsToolLike(singleEntry)
                 ? singleEntry.label
@@ -2121,7 +2123,7 @@ export function deriveMessagesTimelineRows(input: {
         createdAt: input.activeTurnStartedAt ?? null,
         active,
         groupId,
-        expanded: workGroupIsExpanded(input.workGroupDisclosures?.get(groupId)),
+        expanded: workGroupExpanded(groupId),
       });
       appendWorkGroupDetails(
         groupId,

@@ -28,6 +28,18 @@ export function WorkLogBlock({
   return <div className={continues || layout === "group-header" ? "pb-0" : "pb-2"}>{children}</div>;
 }
 
+const groupContentRows: Record<WorkGroupDisclosure, string> = {
+  opening: "grid-rows-[1fr] starting:grid-rows-[0fr]",
+  open: "grid-rows-[1fr]",
+  closing: "grid-rows-[0fr]",
+};
+
+const groupContentTrailingSpace: Record<WorkGroupDisclosure, string> = {
+  opening: "pb-1 starting:pb-2",
+  open: "pb-1",
+  closing: "pb-2",
+};
+
 /**
  * An expanded group's rows, sliding out from under their header. Collapsed, it
  * keeps the trailing space of the header it leaves standing alone, so the rows
@@ -49,10 +61,8 @@ export function WorkLogGroupContent({
       style={{ transitionDuration: `${closing ? WORK_GROUP_CLOSE_MS : WORK_GROUP_OPEN_MS}ms` }}
       className={cn(
         "grid transition-[grid-template-rows,padding-bottom] ease-drawer motion-reduce:transition-none",
-        closing ? "grid-rows-[0fr]" : "grid-rows-[1fr]",
-        continues ? "pb-0" : closing ? "pb-2" : "pb-1",
-        disclosure === "opening" && "starting:grid-rows-[0fr]",
-        disclosure === "opening" && !continues && "starting:pb-2",
+        groupContentRows[disclosure],
+        !continues && groupContentTrailingSpace[disclosure],
       )}
     >
       <div className="min-h-0 overflow-clip">{children}</div>

@@ -543,7 +543,6 @@ const ConversationTimeline = memo(function ConversationTimeline({
     };
   }, [settlingListIdentity]);
 
-  // A tool group resizes in the row under its header, so that row decides the settle.
   const preserveDisclosurePosition = (
     anchorKey: string,
     collapsed = false,
@@ -605,7 +604,9 @@ const ConversationTimeline = memo(function ConversationTimeline({
   };
   const onToggleWorkGroup = (groupId: string, anchorKey: string) => {
     const transition = toggledWorkGroupTransition(workGroupDisclosures.get(groupId));
-    preserveDisclosurePosition(anchorKey, transition === "closing", workGroupDetailsRowId(groupId));
+    const closing = transition === "closing";
+    // The group resizes in the row under its header, so that row decides the settle.
+    preserveDisclosurePosition(anchorKey, closing, workGroupDetailsRowId(groupId));
     setWorkGroupDisclosures((existing) => startWorkGroupTransition(existing, groupId, transition));
     const timers = workGroupSettleTimersRef.current;
     window.clearTimeout(timers.get(groupId));
@@ -618,7 +619,7 @@ const ConversationTimeline = memo(function ConversationTimeline({
             settleWorkGroupTransition(existing, groupId, transition),
           );
         },
-        transition === "closing" ? WORK_GROUP_CLOSE_MS : WORK_GROUP_OPEN_MS,
+        closing ? WORK_GROUP_CLOSE_MS : WORK_GROUP_OPEN_MS,
       ),
     );
   };
