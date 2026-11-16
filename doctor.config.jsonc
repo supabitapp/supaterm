@@ -20,22 +20,24 @@
     "react-hooks-js/refs": "off",
     "react-hooks-js/purity": "off",
     "react-doctor/no-array-index-as-key": "off",
-    // oxlint checks dependency lists. This rule's other claim, that a dependency is rebuilt
-    // every render, is false under React Compiler.
+    // oxlint checks effect and memo dependency lists, but not useImperativeHandle. This rule's
+    // other claim, that a dependency is rebuilt every render, is false under React Compiler.
     "react-doctor/exhaustive-deps": "off",
 
     // The lint config already declines this advice (no-await-in-loop, prefer-set-has).
     "react-doctor/async-await-in-loop": "off",
     "react-doctor/js-set-map-lookups": "off",
 
-    // Atom commands resolve to a result and never reject, so no flag can be stranded.
+    // Atom commands, query runners and settlePromise settle to a result and never reject, so
+    // the reset after the await always runs.
     "react-doctor/no-loading-flag-reset-outside-finally": "off",
     // Base UI `render={<a />}` receives its children at runtime.
     "react-doctor/anchor-has-content": "off",
     // Does not follow cleanup returned from ref callbacks, timers held in refs or re-armed in
     // callbacks, unsubscribe lists, or terminated workers.
     "react-doctor/effect-needs-cleanup": "off",
-    // Every screen pads its scroll content by the safe-area insets.
+    // Screens pad the end of their scroll content by the safe-area inset, or by the bar, composer
+    // or keyboard that covers it. Trailing padding moves no rows, and contentInset is iOS only.
     "react-doctor/rn-scrollview-dynamic-padding": "off",
   },
 }
