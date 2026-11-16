@@ -1318,6 +1318,7 @@ describe("resolveSidebarRouteReveal", () => {
       resolveSidebarRouteReveal({
         reveal: { observedKey: "environment-test:other", pendingKey: null },
         routeKey: hiddenKey,
+        routeKeyInPlace: false,
         scopedProjectKeys,
         findThread,
       }),
@@ -1330,6 +1331,7 @@ describe("resolveSidebarRouteReveal", () => {
       resolveSidebarRouteReveal({
         reveal: { observedKey: hiddenKey, pendingKey: null },
         routeKey: hiddenKey,
+        routeKeyInPlace: false,
         scopedProjectKeys,
         findThread,
       }),
@@ -1341,7 +1343,13 @@ describe("resolveSidebarRouteReveal", () => {
     // never mounted, then came back.
     const reveal = { observedKey: hiddenKey, pendingKey: null };
     const resolve = (routeKey: string) =>
-      resolveSidebarRouteReveal({ reveal, routeKey, scopedProjectKeys, findThread });
+      resolveSidebarRouteReveal({
+        reveal,
+        routeKey,
+        routeKeyInPlace: false,
+        scopedProjectKeys,
+        findThread,
+      });
     resolve("environment-test:unlisted");
     expect(resolve(hiddenKey)).toEqual({ pendingKey: hiddenKey, widensScope: true });
   });
