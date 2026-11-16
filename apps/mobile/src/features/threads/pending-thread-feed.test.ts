@@ -12,6 +12,7 @@ import type { QueuedThreadMessage } from "../../state/thread-outbox-model";
 import {
   appendAcceptedThreadMessages,
   appendPendingThreadMessages,
+  createPendingTurnAppender,
   createThreadFeedGrouping,
   isCompactionCommandFeedEntry,
   retainPendingCreationAttachments,
@@ -271,5 +272,47 @@ describe("pending timeline messages", () => {
     expect(appendPendingThreadMessages([], [], shown).map((entry) => entry.id)).toEqual([
       "waiting",
     ]);
+  });
+
+  it("holds the run's rows after a sent message until the run shows", () => {
+    const appendTurn = createPendingTurnAppender();
+    const sent = appendPendingThreadMessages([], [], [pending("sent")]);
+    const held = appendTurn(sent, { zen: false });
+    expect(held.map((entry) => [entry.id, "label" in entry ? entry.label : null])).toEqual([
+      ["sent", null],
+      ["pending-fold:sent", null],
+      ["live-activity-row", "Sending…"],
+    ]);
+    expect(appendTurn(sent, { zen: false })[1]).toBe(held[1]);
+    const delivered = sent.map((entry) => ({ ...entry, acknowledged: true }));
+    expect(appendTurn(delivered, { zen: true }).map((entry) => entry.id)).toEqual([
+      "sent",
+      "live-activity-row",
+    ]);
+    // A working run already shows its own rows.
+    const thinking = {
+      type: "thinking",
+      runId: null,
+      id: "thinking",
+      createdAt: "2026-09-06T11:00:00.000Z",
+    } as const;
+    const working = appendPendingThreadMessages([thinking], [], [pending("queued")]);
+    expect(appendTurn(working, { zen: false })).toBe(working);
+  });
+
+  it("leaves a held voice message on its own status line", () => {
+    const appendTurn = createPendingTurnAppender();
+    const held = appendPendingThreadMessages(
+      [],
+      [],
+      [
+        {
+          ...pending("held-voice"),
+          voice: { durationMs: 3_000, sizeBytes: 96_044, language: "en-US" },
+          failure: "Sign in to this provider again to transcribe.",
+        },
+      ],
+    );
+    expect(appendTurn(held, { zen: false })).toBe(held);
   });
 });

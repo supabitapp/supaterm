@@ -1852,24 +1852,24 @@ describe("buildThreadFeed", () => {
       "assistant:resume-answer",
     ]);
 
-    expect(
-      shape(
-        deriveThreadFeedPresentation(
-          feed(true),
-          null,
-          new Set(),
-          new Set(),
-          "2026-06-20T00:01:12.000Z",
-          true,
-        ),
-      ),
-    ).toEqual([
+    const working = deriveThreadFeedPresentation(
+      feed(true),
+      null,
+      new Set(),
+      new Set(),
+      "2026-06-20T00:01:12.000Z",
+      true,
+    );
+    expect(shape(working)).toEqual([
       "user:launch",
       "fold:Worked for 8s",
       "assistant:launch-answer",
       "user:resume",
+      "fold:Working",
       "activity-group",
     ]);
+    // The live timer row becomes the settled fold in place.
+    expect(working[4]?.id).toBe(settled[4]?.id);
   });
 
   it("keeps imported V1 turns folded once the thread's first V2 run starts", () => {
@@ -1990,7 +1990,10 @@ describe("buildThreadFeed", () => {
         new Set(),
         startedAt,
       ),
-    ).toEqual([{ type: "thinking", id: "live-activity-row", createdAt: startedAt, runId }]);
+    ).toEqual([
+      expect.objectContaining({ type: "run-fold", runId, workingSince: startedAt }),
+      { type: "thinking", id: "live-activity-row", createdAt: startedAt, runId },
+    ]);
   });
 
   it("says the run waits on its running subagents until newer parent work follows", () => {
@@ -2036,8 +2039,8 @@ describe("buildThreadFeed", () => {
         new Set(),
         new Set(),
         startedAt,
-      ),
-    ).toEqual([]);
+      ).map((row) => row.type),
+    ).toEqual(["run-fold"]);
   });
 
   it("keeps a final answer visible in a folded turn when a steer follows it", () => {
@@ -2669,7 +2672,8 @@ describe("retained v2 feed presentation", () => {
         new Set(),
         "2026-06-20T00:00:01.000Z",
       );
-      expect(rows[0]).toMatchObject({
+      expect(rows[0]).toMatchObject({ type: "run-fold", workingSince: "2026-06-20T00:00:01.000Z" });
+      expect(rows[1]).toMatchObject({
         type: "activity-group",
         activities: [{ status: activityStatus, live: false, groupStandIn: { label } }],
       });
@@ -2927,8 +2931,9 @@ describe("subagent continued by a later turn", () => {
   ];
 
   it("keeps each turn's fold between its own prompt and answer", () => {
+    const feed = buildThreadFeed(items.map((entry, index) => projected(entry, index)));
     const presented = deriveThreadFeedPresentation(
-      buildThreadFeed(items.map((entry, index) => projected(entry, index))),
+      feed,
       { runId: run2, status: "completed", startedAt: at(30), completedAt: at(41) },
       new Set(),
     );
@@ -2940,6 +2945,53 @@ describe("subagent continued by a later turn", () => {
       `run-fold:${run2}`,
       "closing-2",
     ]);
+
+    // While the run works, its fold row already holds that slot with a live timer.
+    const live = deriveThreadFeedPresentation(
+      feed,
+      { runId: run2, status: "running", startedAt: at(30), completedAt: null },
+      new Set(),
+      new Set(),
+      at(30),
+    );
+    expect(live.slice(3, 6).map((entry) => entry.id)).toEqual([
+      "prompt-2",
+      `run-fold:${run2}`,
+      expect.not.stringMatching(/^run-fold:/),
+    ]);
+    expect(live[4]).toMatchObject({ workingSince: at(30) });
+    expect(live.filter((entry) => entry.type === "run-fold")).toHaveLength(2);
+  });
+
+  it("puts the live fold after a plan the settled fold leaves in view", () => {
+    const planned = buildThreadFeed(
+      [
+        user("prompt", run2, 1, 0),
+        {
+          ...item("plan", run2, 2, 1),
+          type: "proposed_plan",
+          planId: "plan",
+          markdown: "The plan",
+          streaming: false,
+        } as OrchestrationV2TurnItem,
+        reasoning("reasoning", run2, 3, 2),
+        assistant("closing", run2, 4, 9),
+      ].map((entry, index) => projected(entry, index)),
+    );
+    const ids = (running: boolean) =>
+      deriveThreadFeedPresentation(
+        planned,
+        running
+          ? { runId: run2, status: "running", startedAt: at(0), completedAt: null }
+          : { runId: run2, status: "completed", startedAt: at(0), completedAt: at(9) },
+        new Set(),
+        new Set(),
+        running ? at(0) : null,
+      ).map((entry) => entry.id);
+    const settledIds = ids(false);
+    const foldIndex = settledIds.indexOf(`run-fold:${run2}`);
+    expect(foldIndex).toBeGreaterThan(1);
+    expect(ids(true).indexOf(`run-fold:${run2}`)).toBe(foldIndex);
   });
 
   it("keeps a wake run's work open when the user steers it", () => {
@@ -2978,6 +3030,7 @@ describe("subagent continued by a later turn", () => {
       "local:thread-1:wake",
       "work-toggle:work-group:local:thread-1:wake-command",
       "steer",
+      `run-fold:${wakeRun}`,
       "live-activity-row",
     ]);
   });

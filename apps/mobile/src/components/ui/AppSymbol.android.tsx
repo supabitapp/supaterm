@@ -49,6 +49,7 @@ const ANDROID_ICON_BY_SF_SYMBOL = {
   "circle.inset.filled": IconNodes.CircleDot,
   "circle.dashed.inset.filled": IconNodes.CircleDot,
   "calendar.badge.clock": IconNodes.CalendarClock,
+  alarm: IconNodes.AlarmClock,
   clock: IconNodes.Clock,
   timer: IconNodes.Clock,
   "face.smiling": IconNodes.SmilePlus,

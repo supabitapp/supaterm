@@ -1,7 +1,11 @@
 import { isCompactionCommandMessage } from "@supaterm/contracts";
 import { threadHasCaughtUpTo } from "@supaterm/client-runtime/state/threads";
 import type { DraftComposerAttachment } from "../../lib/composerImages";
-import { finalizeThreadFeedPresentation, type ThreadFeedEntry } from "../../lib/threadActivity";
+import {
+  finalizeThreadFeedPresentation,
+  LIVE_ACTIVITY_ROW_ID,
+  type ThreadFeedEntry,
+} from "../../lib/threadActivity";
 import { resolveUserMessageGrouping } from "@supaterm/client-runtime/user-message";
 import type {
   AcknowledgedThreadMessage,
@@ -54,15 +58,29 @@ export function retainPendingCreationAttachments(
   );
 }
 
-export type GroupedThreadFeedRow = PendingThreadFeedEntry & {
+/**
+ * Holds the turn's fold slot while a sent message waits for its run, so the live "Working for"
+ * row replaces it in place instead of being inserted.
+ */
+export interface PendingFoldFeedEntry {
+  readonly type: "pending-fold";
+  readonly id: string;
+  readonly createdAt: string;
+  readonly messageId: string;
+}
+
+/** A row of the thread feed's list. */
+export type ThreadFeedRow = PendingThreadFeedEntry | PendingFoldFeedEntry;
+
+export type GroupedThreadFeedRow = ThreadFeedRow & {
   readonly userMessageGrouping: ReturnType<typeof resolveUserMessageGrouping>;
 };
 
 export function createThreadFeedGrouping() {
-  const rows = new WeakMap<PendingThreadFeedEntry, GroupedThreadFeedRow>();
+  const rows = new WeakMap<ThreadFeedRow, GroupedThreadFeedRow>();
   const ungrouped = resolveUserMessageGrouping(undefined, undefined, undefined);
   return (
-    feed: ReadonlyArray<PendingThreadFeedEntry>,
+    feed: ReadonlyArray<ThreadFeedRow>,
     options: { readonly workflowOpeningMessageId?: string; readonly setupAnchorIndex?: number },
   ): ReadonlyArray<GroupedThreadFeedRow> => {
     const groupingMessage = (index: number) => {
@@ -155,6 +173,58 @@ export function appendAcceptedThreadMessages(
   return appendPendingThreadMessages(feed, feed, accepted).map((entry) =>
     entry.pendingMessage ? { ...entry, acknowledged: true } : entry,
   );
+}
+
+/**
+ * Ends the feed with the rows a starting run will fill, while its last row is a sent message no
+ * run has picked up: the fold slot and the live activity row, under the activity row's own key.
+ * The run's rows then replace them in place instead of being inserted.
+ */
+export function createPendingTurnAppender() {
+  let fold: PendingFoldFeedEntry | null = null;
+  let activity: Extract<ThreadFeedEntry, { readonly type: "thinking" }> | null = null;
+  return (
+    feed: ReadonlyArray<PendingThreadFeedEntry>,
+    options: { readonly zen: boolean },
+  ): ReadonlyArray<PendingThreadFeedEntry | PendingFoldFeedEntry> => {
+    const last = feed.at(-1);
+    if (
+      last?.type !== "message" ||
+      last.message.role !== "user" ||
+      last.pendingMessage === undefined ||
+      last.pendingMessage.creation !== undefined ||
+      // A held message waits for the user and shows its own "Not sent" line.
+      last.pendingMessage.failure !== undefined ||
+      isCompactionCommandMessage(last.message) ||
+      feed.some(
+        (entry) =>
+          (entry.type === "run-fold" && entry.workingSince !== undefined) ||
+          entry.type === "thinking",
+      )
+    ) {
+      return feed;
+    }
+    const label = last.acknowledged ? "Starting…" : "Sending…";
+    if (activity?.createdAt !== last.createdAt || activity.label !== label) {
+      activity = {
+        type: "thinking",
+        id: LIVE_ACTIVITY_ROW_ID,
+        createdAt: last.createdAt,
+        runId: null,
+        label,
+      };
+    }
+    if (options.zen) return [...feed, activity];
+    if (fold?.messageId !== last.id) {
+      fold = {
+        type: "pending-fold",
+        id: `pending-fold:${last.id}`,
+        createdAt: last.createdAt,
+        messageId: last.id,
+      };
+    }
+    return [...feed, fold, activity];
+  };
 }
 
 export function isCompactionCommandFeedEntry(entry: PendingThreadFeedEntry): boolean {
