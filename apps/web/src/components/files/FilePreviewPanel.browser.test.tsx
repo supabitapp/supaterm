@@ -223,6 +223,18 @@ describe("source file focus", () => {
       isMacPlatform(navigator.platform) ? "{Meta>}f{/Meta}" : "{Control>}f{/Control}",
     );
     await vi.waitFor(() => expect(deepActiveElement()).toBeInstanceOf(HTMLInputElement));
+
+    const findField = deepActiveElement() as HTMLInputElement;
+    await userEvent.keyboard("server");
+    findField.blur();
+    expect(focus.focus("panel", false)).toBe(true);
+    await vi.waitFor(editorHasFocus);
+    const editor = deepActiveElement() as HTMLElement;
+    await userEvent.keyboard("ab");
+    // @pierre/diffs 1.6.1 leaves the find match selected in the file, so typing replaces it.
+    await vi.waitFor(() => expect(editor.textContent).toContain("xconst ab = 1;"));
+    expect(findField.value).toBe("server");
+    editorHasFocus();
   });
 
   it("focuses the editor when a file row is clicked or activated with Enter", async () => {
