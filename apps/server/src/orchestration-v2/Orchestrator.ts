@@ -1761,10 +1761,9 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
 
   /** Includes tombstones, which still reserve their id. */
   const findThread = (threadId: ThreadId) =>
-    projectionStore.getThread(threadId).pipe(
-      Effect.catchTags({ ProjectionStoreThreadNotFoundError: () => Effect.succeed(null) }),
-      Effect.mapError((cause) => new OrchestratorProjectionError({ threadId, cause })),
-    );
+    projectionStore
+      .findThread(threadId)
+      .pipe(Effect.mapError((cause) => new OrchestratorProjectionError({ threadId, cause })));
 
   /** Side chats live inside their parent, so deleting the parent deletes them too. */
   const liveSideChatIds = Effect.fn("Orchestrator.liveSideChatIds")(
@@ -1779,11 +1778,7 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
       const sideChatIds: Array<ThreadId> = [];
       for (const transfer of contextTransfers) {
         if (transfer.type !== "fork" || transfer.sourceThreadId !== threadId) continue;
-        const child = yield* projectionStore
-          .getThread(transfer.targetThreadId)
-          .pipe(
-            Effect.catchTags({ ProjectionStoreThreadNotFoundError: () => Effect.succeed(null) }),
-          );
+        const child = yield* projectionStore.findThread(transfer.targetThreadId);
         if (child?.lineage.sideChat === true && child.deletedAt === null) {
           sideChatIds.push(child.id);
         }
@@ -3691,12 +3686,7 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
       "orchestration_v2.driver": command.modelSelection.instanceId,
     });
 
-    const existing = yield* projectionStore.getThread(command.threadId).pipe(
-      Effect.catchTags({ ProjectionStoreThreadNotFoundError: () => Effect.succeed(null) }),
-      Effect.mapError(
-        (cause) => new OrchestratorProjectionError({ threadId: command.threadId, cause }),
-      ),
-    );
+    const existing = yield* findThread(command.threadId);
     if (existing !== null) {
       return yield* new OrchestratorThreadAlreadyExistsError({
         commandId: command.commandId,
