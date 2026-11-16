@@ -349,16 +349,22 @@ describe("ssh tunnel scripts", () => {
   const tarNeedsGzip = NodeChildProcess.spawnSync("tar", ["--version"], {
     encoding: "utf8",
   }).stdout.includes("GNU tar");
-  it.runIf(tarNeedsGzip)(
-    "names gzip when a host with tar but no gzip cannot unpack the release archive",
-    () => {
+  // sha256sum and shasum escape a newline in a file name they print, so the home path has one.
+  const checksumTools =
+    NodeChildProcess.spawnSync("sh", ["-c", 'command -v "$1"', "sh", "shasum"]).status === 0
+      ? ["sha256sum", "shasum"]
+      : ["sha256sum"];
+  it.runIf(tarNeedsGzip).each(checksumTools)(
+    "names missing gzip after verifying with %s",
+    (checksum) => {
       const root = NodeFS.mkdtempSync(NodePath.join(NodeOS.tmpdir(), "supaterm-ssh-runner-"));
       try {
         const bin = NodePath.join(root, "bin");
         const release = NodePath.join(root, "release");
+        const home = NodePath.join(root, "home\ncache");
         const archive = `supaterm-${ARCHIVE.archiveVersion}-linux-x64.tar.gz`;
         NodeFS.mkdirSync(bin);
-        NodeFS.mkdirSync(NodePath.join(root, "home"));
+        NodeFS.mkdirSync(home);
         NodeFS.mkdirSync(NodePath.join(release, "supaterm"), { recursive: true });
         NodeFS.writeFileSync(
           NodePath.join(release, "supaterm", "supaterm"),
@@ -379,7 +385,7 @@ describe("ssh tunnel scripts", () => {
           "rm",
           "grep",
           "cut",
-          "sha256sum",
+          checksum,
           "tar",
           "mv",
         ]) {
@@ -404,7 +410,7 @@ describe("ssh tunnel scripts", () => {
         NodeFS.writeFileSync(runner, SshTunnel.buildRemoteSupatermRunnerScript(ARCHIVE));
         const result = NodeChildProcess.spawnSync(NodePath.join(bin, "sh"), [runner, "--version"], {
           encoding: "utf8",
-          env: { HOME: NodePath.join(root, "home"), PATH: bin },
+          env: { HOME: home, PATH: bin },
         });
         assert.notEqual(result.status, 0);
         assert.match(result.stderr, /(missing|needs) gzip/);
