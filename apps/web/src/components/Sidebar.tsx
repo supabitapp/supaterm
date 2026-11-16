@@ -76,7 +76,10 @@ import {
 } from "@supaterm/contracts";
 import { PlusIcon } from "@supaterm/icons";
 import { withoutOfflineEnvironmentThreads } from "@supaterm/client-runtime/state/presentation";
-import type { OlderDoneScope } from "@supaterm/client-runtime/state/threads";
+import {
+  resolveListedAncestorThreadRef,
+  type OlderDoneScope,
+} from "@supaterm/client-runtime/state/threads";
 import {
   useEffect,
   useEffectEvent,
@@ -193,7 +196,6 @@ import {
   resolveSidebarDropVerb,
   resolveSidebarReorderableThreadKeys,
   resolveSidebarThreadSection,
-  resolveSidebarRowThreadId,
   type SidebarSweepAction,
   shouldNavigateAfterThreadPark,
   isSidebarGroupId,
@@ -1086,16 +1088,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
   const routeRowThreadKey =
     routeThreadRef === null
       ? null
-      : scopedThreadKey(
-          scopeThreadRef(
-            routeThreadRef.environmentId,
-            resolveSidebarRowThreadId(
-              routeThreadRef.threadId,
-              routeThreadRef.environmentId,
-              threads,
-            ),
-          ),
-        );
+      : scopedThreadKey(resolveListedAncestorThreadRef(routeThreadRef, threads));
   // Only a hidden environment's open row is kept, so other navigation leaves the partition memoized.
   const keptThreadKey =
     routeThreadRef !== null && hiddenEnvironmentIds.has(routeThreadRef.environmentId)
