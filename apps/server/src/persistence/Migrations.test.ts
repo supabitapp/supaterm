@@ -41,13 +41,18 @@ const history = Effect.gen(function* () {
 });
 
 describe("runMigrations", () => {
-  it.effect("creates a fresh database from the whole manifest once", () =>
+  it.effect("creates a fresh database once, then rechecks it read-only", () =>
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient;
       assert.deepStrictEqual(yield* runMigrations(), migrationManifest);
       assert.deepStrictEqual(yield* history, migrationManifest);
       assert.lengthOf(yield* failedErrorIndex, 1);
       assert.deepStrictEqual(yield* runMigrations(), []);
+
+      // query_only rejects BEGIN IMMEDIATE, which CLI startup would otherwise take on the live database.
+      yield* sql`PRAGMA query_only = ON`;
+      assert.deepStrictEqual(yield* runMigrations(), []);
+      assert.deepStrictEqual(yield* history, migrationManifest);
       const metadata = yield* sql<{ readonly last_sequence: number }>`
         SELECT last_sequence FROM orchestration_v2_projection_metadata
         WHERE projection_name = 'thread-projections'
