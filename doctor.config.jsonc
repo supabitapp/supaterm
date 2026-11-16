@@ -33,9 +33,6 @@
     "react-doctor/no-loading-flag-reset-outside-finally": "off",
     // Base UI `render={<a />}` receives its children at runtime.
     "react-doctor/anchor-has-content": "off",
-    // Does not follow cleanup returned from ref callbacks, timers held in refs or re-armed in
-    // callbacks, unsubscribe lists, or terminated workers.
-    "react-doctor/effect-needs-cleanup": "off",
     // Screens pad the end of their scroll content by the safe-area inset, or by the bar, composer
     // or keyboard that covers it. Trailing padding moves no rows, and contentInset is iOS only.
     "react-doctor/rn-scrollview-dynamic-padding": "off",
