@@ -17,6 +17,8 @@ import { pullRequestStackAtom } from "./pullRequests";
 import { useEnvironmentQuery } from "./query";
 import { environmentThreadShells } from "./threads";
 
+const NOT_ANSWERED = Atom.make(false);
+
 const sameLinks = Schema.toEquivalence(Schema.Array(ThreadPullRequestLink));
 
 // Shell pushes recreate link arrays; reuse equal lists so streaming does not re-render the stack.
@@ -41,7 +43,14 @@ export function usePullRequestStack(
   const query = useEnvironmentQuery(
     reference === null ? null : pullRequestStackAtom({ environmentId, input: reference }),
   );
-  return { ...query, ...pullRequestStackView(query, saved) };
+  const answered = useAtomValue(
+    reference === null
+      ? NOT_ANSWERED
+      : pullRequestStackAtom.answered({ environmentId, input: reference }),
+  );
+  const view = pullRequestStackView(query, saved);
+  // A saved answer paints; merging waits for this session's own host answer.
+  return { ...query, ...view, isFresh: view.isFresh && answered };
 }
 
 function pullRequestStackReference(
