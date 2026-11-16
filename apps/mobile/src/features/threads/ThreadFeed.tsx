@@ -3513,18 +3513,32 @@ export const ThreadFeed = memo(function ThreadFeed(props: ThreadFeedProps) {
   // current overlay height before the scroll integration's next reaction;
   // on Android the declarative contentInset floor covers this same window.
   const listMountKey = `${feedThreadKey}:${presentedFeed.some((entry) => entry.type !== "thinking") ? "filled" : "empty"}`;
-  const { loading: feedLoading, onListLoaded } = useThreadFeedLoading({
+  const {
+    loading: feedLoading,
+    listLoaded,
+    onListLoaded,
+    onListLanded,
+  } = useThreadFeedLoading({
     listMountKey,
     contentKind: props.contentPresentation.kind,
     hasContent: presentedFeed.length > 0,
     hasLocalMessages: props.creatingThread || props.queuedMessages.length > 0,
   });
-  const handleMetricsChange = () => {
+  const reportMetrics = (ready: boolean) => {
     const state = listRef.current?.getState();
+    if (!state) return;
+    if (
+      feedLoading &&
+      ready &&
+      (state.distanceFromEnd <= 2 || !state.isFollowingEnd || props.messageJump)
+    ) {
+      onListLanded();
+    }
     // Offset 0 before the first positioning, and the gaps while rows measure in, are not the
     // user leaving the end; only a scroll away stops end following.
-    if (state) onIsAtEndChange?.(feedLoading || state.isAtEnd || state.isFollowingEnd);
+    onIsAtEndChange?.(feedLoading || state.isAtEnd || state.isFollowingEnd);
   };
+  const handleMetricsChange = () => reportMetrics(listLoaded);
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- subscribes to the list's end state to report it to the parent
   useLayoutEffect(() => {
     const state = listRef.current?.getState();
@@ -4044,7 +4058,7 @@ export const ThreadFeed = memo(function ThreadFeed(props: ThreadFeedProps) {
             initialScrollAtEnd
             onReady={() => {
               onListLoaded();
-              handleMetricsChange();
+              reportMetrics(true);
             }}
             onLayout={handleMetricsChange}
             onItemSizeChanged={handleItemSizeChanged}
