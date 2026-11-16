@@ -335,9 +335,10 @@ function SidebarTrigger({ className, onClick, ...props }: React.ComponentProps<t
           <path d={PanelLeft.stroke} />
         </clipPath>
         <g clipPath={`url(#${paneClipId})`}>
-          {/* Fills the pane left of the divider, which PanelLeft draws at x=9. */}
+          {/* Spans the pane PanelLeft draws from its left edge at x=3 to its divider at x=9. */}
           <rect
-            width="9"
+            x="3"
+            width="6"
             height="24"
             fill="currentColor"
             stroke="none"
