@@ -1,6 +1,7 @@
 import { useActiveNewTask } from "../../state/active-new-task";
 import { ThreadUndoNotice } from "../home/ThreadUndoNotice";
 import { useThreadListV2 } from "./useThreadListV2";
+import { useSidebarRowThreadKey } from "./useSidebarRowThreadKey";
 import { useAndroidControlSizing } from "../../components/ui/useAndroidControlSizing";
 import { pickableProjectGroups } from "@supaterm/client-runtime/state/project-grouping";
 import {
@@ -132,6 +133,7 @@ function ThreadNavigationSidebarPane(props: ThreadNavigationSidebarProps) {
   const { fabClearance, fabSize } = useAndroidControlSizing();
   const projects = useProjects();
   const threads = useAtomValue(steadyNavigationThreadShellsAtom);
+  const selectedThreadKey = useSidebarRowThreadKey(props.selectedThreadKey);
   const { environments: workspaceEnvironments, state: catalogState } = useWorkspaceState();
   const { savedConnectionsById } = useSavedRemoteConnections();
   const openSwipeableRef = useRef<SwipeableMethods | null>(null);
@@ -302,7 +304,7 @@ function ThreadNavigationSidebarPane(props: ThreadNavigationSidebarProps) {
     collapsedGroups,
     snoozedShelfExpanded,
     doneShelfExpanded,
-    selectedThreadKey: props.selectedThreadKey ?? null,
+    selectedThreadKey,
   });
 
   const handleSwipeableWillOpen = (methods: SwipeableMethods) => {
@@ -357,7 +359,7 @@ function ThreadNavigationSidebarPane(props: ThreadNavigationSidebarProps) {
   // the items, so a tick re-renders only rows whose text moved.
   const listExtraData = {
     activeNewTask,
-    selectedThreadKey: props.selectedThreadKey ?? "",
+    selectedThreadKey: selectedThreadKey ?? "",
     projectByKey,
     projectScopes,
     projectTitleByProjectKey,
@@ -391,7 +393,7 @@ function ThreadNavigationSidebarPane(props: ThreadNavigationSidebarProps) {
                 scopedThreadKey(
                   item.pendingTask.environmentId,
                   item.pendingTask.message.threadId,
-                ) === props.selectedThreadKey)
+                ) === selectedThreadKey)
             }
             project={projectByKey.get(pendingScopeKey) ?? null}
             environmentLabel={
@@ -453,7 +455,7 @@ function ThreadNavigationSidebarPane(props: ThreadNavigationSidebarProps) {
             pane="sidebar"
             selected={
               !activeNewTask &&
-              scopedThreadKey(thread.environmentId, thread.id) === props.selectedThreadKey
+              scopedThreadKey(thread.environmentId, thread.id) === selectedThreadKey
             }
             fullSwipeWidth={props.width - 20}
             onSelectThread={handleSelectThread}
