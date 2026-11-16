@@ -3122,6 +3122,7 @@ describe("PiAdapterV2", () => {
         const cases = [
           {
             toolName: "read",
+            args: { path: "/workspace/screens/shot.png" },
             result: { content, structuredContent: { ...image, note } },
             expected: { content },
           },
@@ -3178,6 +3179,7 @@ describe("PiAdapterV2", () => {
               type: `tool_execution_${phase}`,
               toolCallId: `image-${index}`,
               toolName: test.toolName,
+              ...("args" in test ? { args: test.args } : {}),
               ...(phase === "end" ? { result: test.result } : { partialResult: test.result }),
               isError: false,
             });
@@ -3195,7 +3197,10 @@ describe("PiAdapterV2", () => {
                 ? [{ mimeType: "image/png", data: image.data }]
                 : [],
             );
-            if (index === 0) assert.equal(turnItemOutputText(event.turnItem), note);
+            if (index === 0) {
+              assert.equal(turnItemOutputText(event.turnItem), note);
+              assert.equal(event.turnItem.viewedImagePath, "/workspace/screens/shot.png");
+            }
             if (index === 5) assert.equal(turnItemOutputText(event.turnItem), "first\nsecond");
             if (index === 2) {
               assert.deepEqual(compactDynamicToolOutput(event.turnItem.output), {

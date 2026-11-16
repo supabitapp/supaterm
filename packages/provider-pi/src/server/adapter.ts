@@ -3,6 +3,7 @@ import * as NodeUtil from "node:util";
 import { AgentScope } from "@supaterm/shared/AgentScope";
 import { getModelSelectionStringOptionValue } from "@supaterm/shared/model";
 import { readToolOutputImage } from "@supaterm/shared/toolOutput";
+import { isWorkspaceImagePreviewPath } from "@supaterm/shared/filePreview";
 import * as Predicate from "effect/Predicate";
 import {
   ProviderDriverKind,
@@ -1422,6 +1423,17 @@ export const makePiAdapterV2 = Effect.fn("makePiAdapterV2")(function* (
           }
         }
         const output = piToolOutput(resultRecord, toolName);
+        const readPath =
+          toolName === "read"
+            ? (recordString(args, "path") ?? recordString(args, "file_path"))?.trim()
+            : undefined;
+        const viewedImagePath =
+          readPath &&
+          readPath.length <= 4096 &&
+          !/[\r\n]/.test(readPath) &&
+          isWorkspaceImagePreviewPath(readPath)
+            ? readPath
+            : undefined;
         yield* emit({
           type: "turn_item.updated",
           driver: PI_PROVIDER,
@@ -1433,6 +1445,7 @@ export const makePiAdapterV2 = Effect.fn("makePiAdapterV2")(function* (
             toolName,
             input: args ?? {},
             ...(output === undefined ? {} : { output }),
+            ...(viewedImagePath === undefined ? {} : { viewedImagePath }),
           },
         });
         if (toolName === "subagent") {
