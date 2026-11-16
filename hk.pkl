@@ -29,9 +29,10 @@ steps {
       "packages/client-runtime/**/*.{ts,tsx}",
       "packages/icons/**/*.{ts,tsx}"
     )
-    // Flags, not doctor.config.jsonc, keep the hook offline: it must not upload findings
-    // even when the config is stashed or missing.
-    check = "react-doctor {{files}} --blocking warning --no-score --no-supply-chain"
+    // --scope changed against HEAD reports only what this commit introduces. Not --staged:
+    // that mode scans a copy outside the project and loses React Compiler detection. The
+    // offline flags sit here because hk stashes an uncommitted doctor.config.jsonc.
+    check = "react-doctor --scope changed --base HEAD --blocking warning --no-score --no-supply-chain"
   }
 }
 
