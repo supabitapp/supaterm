@@ -1,6 +1,7 @@
 import { ArrowUpIcon, BookmarkIcon, FileIcon, FileTextIcon, XIcon } from "@supaterm/icons";
 import { memo, useEffect, useRef, useState, type RefObject } from "react";
 import { assistantCitationsToPlainText } from "@supaterm/shared/assistantCitations";
+import { replaceComposerContextReferences } from "@supaterm/shared/composerContextReferences";
 
 import { useInlineConfirm } from "~/hooks/useInlineConfirm";
 import { RelativeTime } from "../RelativeTime";
@@ -19,7 +20,11 @@ function missingImageCount(entry: PromptStashEntry): number {
 }
 
 export function stashEntrySnippet(entry: PromptStashEntry): string {
-  const trimmed = assistantCitationsToPlainText(entry.prompt).trim().replace(/\s+/g, " ");
+  const trimmed = assistantCitationsToPlainText(
+    replaceComposerContextReferences(entry.prompt, (reference) => reference.label),
+  )
+    .trim()
+    .replace(/\s+/g, " ");
   if (trimmed.length > 0) {
     if (trimmed.length <= SNIPPET_MAX_CHARS) return trimmed;
     // Never end on a lone high surrogate, the first half of an emoji.
