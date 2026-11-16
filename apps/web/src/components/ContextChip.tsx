@@ -30,7 +30,8 @@ const contextChipVariants = cva(
         thread: "[--context-chip-accent:var(--context-chip-thread)]",
         model: "[--context-chip-accent:var(--context-chip-model)]",
         citation: "[--context-chip-accent:var(--context-chip-citation)]",
-        "doc-pdf": "[--context-chip-accent:var(--context-chip-doc-pdf)]",
+        // PDF red reads as the invalid state, so only the icon carries it.
+        "doc-pdf": "[--context-chip-accent:var(--foreground)]",
         "doc-word": "[--context-chip-accent:var(--context-chip-doc-word)]",
         "doc-spreadsheet": "[--context-chip-accent:var(--context-chip-doc-spreadsheet)]",
         "doc-slides": "[--context-chip-accent:var(--context-chip-doc-slides)]",
@@ -73,13 +74,18 @@ const contextChipVariants = cva(
           "doc-epub",
         ],
         className:
-          "[--context-chip-border:color-mix(in_oklab,var(--context-chip-accent)_34%,var(--contrast-border))] [--context-chip-border-hover:color-mix(in_oklab,var(--context-chip-accent)_48%,var(--contrast-border))] [--context-chip-ink:var(--context-chip-accent)] [--document-icon-stroke:var(--context-chip-ink)] border-(--context-chip-border) bg-(--context-chip-accent)/11 text-(--context-chip-ink) [button:enabled&,a&]:hover:border-(--context-chip-border-hover) [button:enabled&,a&]:hover:bg-(--context-chip-accent)/17",
+          "[--context-chip-border:color-mix(in_oklab,var(--context-chip-accent)_34%,var(--contrast-border))] [--context-chip-border-hover:color-mix(in_oklab,var(--context-chip-accent)_48%,var(--contrast-border))] [--context-chip-ink:var(--context-chip-message-ink,var(--context-chip-accent))] [--document-icon-stroke:var(--context-chip-ink)] border-(--context-chip-border) bg-(--context-chip-accent)/11 text-(--context-chip-ink) [button:enabled&,a&]:hover:border-(--context-chip-border-hover) [button:enabled&,a&]:hover:bg-(--context-chip-accent)/17",
+      },
+      {
+        kind: "doc-pdf",
+        className:
+          "[--document-icon-stroke:var(--context-chip-message-ink,var(--context-chip-doc-pdf))]",
       },
       { state: "unresolved", className: "text-foreground" },
       {
         state: "invalid",
         className:
-          "[--context-chip-ink:var(--context-chip-accent)] border-destructive/35 bg-destructive/8 text-(--context-chip-ink)",
+          "[--context-chip-ink:var(--context-chip-message-ink,var(--context-chip-accent))] border-destructive/35 bg-destructive/8 text-(--context-chip-ink)",
       },
     ],
   },
