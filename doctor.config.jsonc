@@ -32,7 +32,8 @@
     "react-doctor/no-loading-flag-reset-outside-finally": "off",
     // Base UI `render={<a />}` receives its children at runtime.
     "react-doctor/anchor-has-content": "off",
-    // Does not follow unsubscribe lists, cleanup arrays, or terminated workers.
+    // Does not follow cleanup returned from ref callbacks, timers held in refs or re-armed in
+    // callbacks, unsubscribe lists, or terminated workers.
     "react-doctor/effect-needs-cleanup": "off",
     // Every screen pads its scroll content by the safe-area insets.
     "react-doctor/rn-scrollview-dynamic-padding": "off",

@@ -60,19 +60,20 @@ export function McpAppFullscreenScreen({ route }: McpAppFullscreenScreenProps) {
   const insets = useSafeAreaInsets();
 
   const focused = useIsFocused();
-  const exitPending = useRef(false);
+  const stopAwaitingFocus = useRef<(() => void) | null>(null);
   const onClose = () => {
     if (navigation.isFocused()) {
       navigation.goBack();
       return;
     }
-    if (exitPending.current) return;
-    exitPending.current = true;
-    const unsubscribe = navigation.addListener("focus", () => {
-      unsubscribe();
+    if (stopAwaitingFocus.current) return;
+    stopAwaitingFocus.current = navigation.addListener("focus", () => {
+      stopAwaitingFocus.current?.();
       navigation.goBack();
     });
   };
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- removes the navigator focus listener when the screen is removed before it regains focus
+  useEffect(() => () => stopAwaitingFocus.current?.(), []);
   const [size, setSize] = useState({ width: 0, height: 0 });
   const params = route.params;
   const environmentId = EnvironmentId.make(params.environmentId);
@@ -105,7 +106,7 @@ export function McpAppFullscreenScreen({ route }: McpAppFullscreenScreenProps) {
   // A request for the user is server state with no local handler to react in.
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- closes the focused screen through the navigator when the server asks the user for input or approval
   useEffect(() => {
-    if (awaitingUser && focused && !exitPending.current) navigation.goBack();
+    if (awaitingUser && focused && !stopAwaitingFocus.current) navigation.goBack();
   }, [awaitingUser, focused, navigation]);
 
   return (
