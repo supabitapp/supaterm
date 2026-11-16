@@ -1,3 +1,4 @@
+import { ASSISTANT_CITATION_MAX_TEXT_LENGTH } from "@supaterm/contracts";
 import { describe, expect, it } from "vite-plus/test";
 
 import {
@@ -5,6 +6,7 @@ import {
   injectHtmlRenderBootstrap,
   readHtmlRenderImageRequest,
   readHtmlRenderLinkRequest,
+  readHtmlRenderSelection,
 } from "./htmlRender.ts";
 import { SUPATERM_DARK_THEME_COLORS, SUPATERM_LIGHT_THEME_COLORS } from "./themePalettes.ts";
 import { htmlRenderFromToolItem } from "./toolOutput.ts";
@@ -140,6 +142,50 @@ describe("readHtmlRenderImageRequest", () => {
     expect(readHtmlRenderImageRequest(image({ src: "javascript:alert(1)" }))).toBeUndefined();
     expect(readHtmlRenderImageRequest(image({ src: "data:text/html,<p>" }))).toBeUndefined();
     expect(readHtmlRenderImageRequest(image({ src: "blob:null/1" }))).toBeUndefined();
+  });
+});
+
+describe("readHtmlRenderSelection", () => {
+  const selection = (params: unknown, method = "supaterm/notifications/selection-changed") => ({
+    jsonrpc: "2.0",
+    method,
+    params,
+  });
+  const rect = { left: 8, top: 20, right: 120, bottom: 38 };
+  const bounds = { left: 8, top: 0, right: 300, bottom: 38 };
+
+  it("reads a selection with its boxes, a clear, and nothing else", () => {
+    expect(readHtmlRenderSelection(selection({ text: " Quoted\nwords ", rect, bounds }))).toEqual({
+      text: " Quoted\nwords ",
+      rect,
+      bounds,
+    });
+    expect(readHtmlRenderSelection(selection({ text: "" }))).toBeNull();
+    expect(readHtmlRenderSelection(selection({ text: " \n ", rect, bounds }))).toBeNull();
+    for (const params of [
+      { text: "Quoted", bounds },
+      { text: "Quoted", rect },
+      { text: "Quoted", rect: { ...rect, top: Number.NaN }, bounds },
+      { text: "Quoted", rect: { ...rect, right: 0 }, bounds },
+      { text: "Quoted", rect, bounds: { ...bounds, bottom: Number.POSITIVE_INFINITY } },
+      { text: "Quoted", rect, bounds: { ...bounds, top: 40 } },
+      { text: 1, rect, bounds },
+      { text: ["Quoted"], rect, bounds },
+    ]) {
+      expect(readHtmlRenderSelection(selection(params))).toBeUndefined();
+    }
+    expect(
+      readHtmlRenderSelection(
+        selection({ text: "Quoted", rect, bounds }, "supaterm/notifications/open-image"),
+      ),
+    ).toBeUndefined();
+  });
+
+  it("keeps a page's oversized text one character past the citation limit", () => {
+    const text = "a".repeat(ASSISTANT_CITATION_MAX_TEXT_LENGTH * 3);
+    expect(readHtmlRenderSelection(selection({ text, rect, bounds }))?.text).toHaveLength(
+      ASSISTANT_CITATION_MAX_TEXT_LENGTH + 1,
+    );
   });
 });
 

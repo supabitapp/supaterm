@@ -8,6 +8,7 @@ import {
   THREAD_JUMP_KEYBINDING_COMMANDS,
 } from "@supaterm/contracts";
 import {
+  type HtmlRenderSelection,
   type HtmlRenderShortcut,
   htmlRenderShortcutsMessage,
   htmlRenderThemeFragment,
@@ -17,6 +18,7 @@ import {
   readHtmlRenderImageRequest,
   readHtmlRenderKeyDown,
   readHtmlRenderLinkRequest,
+  readHtmlRenderSelection,
 } from "@supaterm/shared/htmlRender";
 import {
   isMacPlatform,
@@ -183,6 +185,10 @@ export function HtmlRenderDocument(props: {
   readonly className?: string;
   readonly threadRef?: ScopedThreadRef | undefined;
   readonly onContentHeight?: (height: number) => void;
+  /** The page's settled text selection, in the frame's own coordinates, or null once it clears. */
+  readonly onSelection?:
+    | ((frame: HTMLIFrameElement, selection: HtmlRenderSelection | null) => void)
+    | undefined;
   /** Reports fullscreen changes so virtualized rows can stay mounted. */
   readonly onFullscreenChange?: ((fullscreen: boolean) => void) | undefined;
 }) {
@@ -283,6 +289,15 @@ export function HtmlRenderDocument(props: {
     const height = readHtmlRenderContentHeight(event.data);
     if (height !== undefined) {
       props.onContentHeight?.(height);
+      return;
+    }
+    // A selection only offers an action the reader still has to click, and a long drag or a
+    // touch selection outlasts transient activation, so it needs frame focus alone.
+    const selection = readHtmlRenderSelection(event.data);
+    if (selection !== undefined) {
+      if (selection === null || document.activeElement === frame) {
+        props.onSelection?.(frame, selection);
+      }
       return;
     }
     if (document.activeElement !== frame || navigator.userActivation?.isActive === false) return;

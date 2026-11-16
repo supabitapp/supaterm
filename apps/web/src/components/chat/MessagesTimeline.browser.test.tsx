@@ -1,6 +1,6 @@
 import { flushSync } from "react-dom";
 import { AudioPreview } from "../files/AudioPreview";
-import { cdp } from "vite-plus/test/browser";
+import { cdp, page, userEvent } from "vite-plus/test/browser";
 import {
   ComposerContextId,
   EnvironmentId,
@@ -33,6 +33,7 @@ import "~/index.css";
 import { environmentThreadDetails } from "../../state/threads";
 import { act, fakeTimers, render, stubGlobal } from "../../../test/render";
 import { ChangedFilesCard } from "./ChangedFilesTree";
+import { HTML_RENDER_SELECTION_EVENT, type HtmlRenderSelectionReport } from "./HtmlRenderFrame";
 import { MessagesTimeline } from "./MessagesTimeline";
 import { makeStreamingTimelineFixture } from "../../test-fixtures";
 import { deriveTimelineEntriesFromVisibleTurnItems } from "../../session-logic";
@@ -77,6 +78,14 @@ vi.mock(import("~/assets/assetUrls"), async (original) => {
         : actual.useAssetUrlState(...args)) as typeof actual.useAssetUrlState,
   };
 });
+
+vi.mock(import("~/assets/longLivedAssetUrls"), () => ({
+  useLongLivedAssetUrl: () => ({
+    _tag: "Success",
+    url: "about:blank",
+    expiresAt: Date.now() + 60 * 60_000,
+  }),
+}));
 
 const ENVIRONMENT_ID = EnvironmentId.make("environment-local");
 const CREATED_AT = "2026-03-17T19:12:28.000Z";
@@ -833,6 +842,47 @@ describe("MessagesTimeline citations", () => {
     );
     await expect.element(screen.getByText("the cited answer")).toBeVisible();
     expect(toast).not.toHaveBeenCalled();
+  });
+
+  it("quotes the selection an HTML render's page reports, citing the render's row", async () => {
+    const onCiteAssistantText = vi.fn(() => true);
+    const collapse = vi.fn();
+    const htmlRender: Entry = {
+      id: "render",
+      kind: "html-render",
+      createdAt: CREATED_AT,
+      runId: null,
+      htmlRender: { attachmentId: "page.html", title: "Report", height: 200 },
+    };
+    await using screen = await renderTimeline(
+      [message("Show a report", {}, "question"), htmlRender],
+      { onCiteAssistantText, liveFollowEnabled: false },
+    );
+    const frame = (await screen.getByTitle("Report").findElement()) as HTMLIFrameElement;
+    const box = { left: 8, top: 8, right: 120, bottom: 28 };
+
+    frame.focus();
+    frame.parentElement?.dispatchEvent(
+      new CustomEvent<HtmlRenderSelectionReport>(HTML_RENDER_SELECTION_EVENT, {
+        bubbles: true,
+        detail: { frame, selection: { text: " Quoted words\n", rect: box, bounds: box }, collapse },
+      }),
+    );
+    await userEvent.click(page.getByRole("button", { name: "Add annotation in composer" }));
+
+    expect(onCiteAssistantText).toHaveBeenCalledWith(
+      expect.objectContaining({
+        messageId: "render",
+        text: "Quoted words",
+        start: 0,
+        end: "Quoted words".length,
+        prefix: "",
+        suffix: "",
+      }),
+      undefined,
+    );
+    // The expanded view covers the composer, so quoting from it closes it.
+    expect(collapse).toHaveBeenCalledTimes(1);
   });
 });
 

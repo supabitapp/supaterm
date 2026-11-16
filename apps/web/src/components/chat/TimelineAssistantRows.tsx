@@ -2,7 +2,7 @@ import { type TimelineRow, TimelineRowCtx, TimelineRowActivityCtx } from "./time
 import { MessageAuthorHeading, MESSAGE_HEADING_LEVEL } from "./TimelineRowParts";
 import { resolveAssistantMessageCopyState } from "./MessagesTimeline.logic";
 import { shouldPreserveAssistantLineBreaks } from "@supaterm/shared/markdownPipeline";
-import type { RunId } from "@supaterm/contracts";
+import { MessageId, type RunId } from "@supaterm/contracts";
 import { canForkProjectedAssistantItem } from "@supaterm/client-runtime/state/thread-workflows";
 import { use, useState, memo } from "react";
 import type { ChatMessage, TurnDiffSummary } from "../../types";
@@ -259,14 +259,23 @@ export function HtmlRenderTimelineRow({
 
   return (
     <div className="min-w-0 px-1">
-      <HtmlRenderFrame
-        key={row.htmlRender.attachmentId}
-        environmentId={ctx.activeThreadEnvironmentId}
-        htmlRender={row.htmlRender}
-        threadRef={ctx.threadRef ?? undefined}
-        onOpen={ctx.onFileOpen}
-        onFullscreenChange={onFullscreenChange}
-      />
+      <AssistantCitationSource
+        messageId={MessageId.make(row.id)}
+        {...(ctx.threadRef ? { threadRef: ctx.threadRef } : {})}
+        itemKey={row.id}
+        request={ctx.citationRequest}
+        listRef={ctx.listRef}
+        opaque
+      >
+        <HtmlRenderFrame
+          key={row.htmlRender.attachmentId}
+          environmentId={ctx.activeThreadEnvironmentId}
+          htmlRender={row.htmlRender}
+          threadRef={ctx.threadRef ?? undefined}
+          onOpen={ctx.onFileOpen}
+          onFullscreenChange={onFullscreenChange}
+        />
+      </AssistantCitationSource>
     </div>
   );
 }

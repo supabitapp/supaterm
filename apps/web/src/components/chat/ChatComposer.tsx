@@ -334,7 +334,7 @@ export interface ChatComposerHandle {
   pasteTextAtEnd: (text: string, options?: { bypassAutoAttachment?: boolean }) => boolean;
   citeAssistantText: (
     citation: AssistantCitation,
-    sourceAnchor: AssistantCitationSourceAnchor,
+    sourceAnchor: AssistantCitationSourceAnchor | undefined,
   ) => boolean;
   openModelPicker: () => void;
   stepReasoningEffort: (direction: 1 | -1) => void;
@@ -1837,7 +1837,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
       focusEditorAfterReplace?: boolean;
       citationComment?: {
         start: number;
-        sourceAnchor: AssistantCitationSourceAnchor;
+        sourceAnchor: AssistantCitationSourceAnchor | undefined;
         insertedSpaces: ComposerCitationCommentRequest["insertedSpaces"];
       };
     },
@@ -2801,7 +2801,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     position: "cursor" | "end",
     options?: {
       ensureLeadingBoundary?: boolean;
-      citationCommentAnchor?: AssistantCitationSourceAnchor;
+      citationComment?: { sourceAnchor: AssistantCitationSourceAnchor | undefined };
       clipboardData?: DataTransfer;
     },
   ): boolean => {
@@ -2810,7 +2810,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
       activePendingIsResponding ||
       (pendingUserInputs.length > 0 && !activePendingProgress?.activeQuestion) ||
       projectSelectionRequired ||
-      (options?.citationCommentAnchor && !composerEditorRef.current)
+      (options?.citationComment && !composerEditorRef.current)
     ) {
       return false;
     }
@@ -2828,11 +2828,11 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
       cursor,
       rangeEnd,
       needsLeadingSpace ? ` ${text}` : text,
-      options?.citationCommentAnchor
+      options?.citationComment
         ? {
             citationComment: {
               start: cursor + (needsLeadingSpace ? 1 : 0),
-              sourceAnchor: options.citationCommentAnchor,
+              sourceAnchor: options.citationComment.sourceAnchor,
               insertedSpaces: { before: needsLeadingSpace, after: rangeEnd === cursor },
             },
             focusEditorAfterReplace: false,
@@ -3278,7 +3278,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
         insertComposerTextStable(
           formatAssistantCitationForComposer(citation, citation.comment),
           "cursor",
-          { ensureLeadingBoundary: true, citationCommentAnchor: sourceAnchor },
+          { ensureLeadingBoundary: true, citationComment: { sourceAnchor } },
         ),
       openModelPicker: openModelPickerStable,
       stepReasoningEffort: (direction) => {

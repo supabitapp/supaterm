@@ -4,9 +4,10 @@ import {
   htmlRenderFileName,
   htmlRenderFrameHeight,
   type HtmlRenderReference,
+  type HtmlRenderSelection,
 } from "@supaterm/shared/htmlRender";
 import { ExpandIcon, PanelRightIcon } from "@supaterm/icons";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import type { ChatFileAttachment } from "~/types";
 import { useAssetUrlRefresh } from "~/assets/assetUrls";
@@ -21,6 +22,19 @@ import { observeResize } from "~/lib/observeResize";
 
 const MIN_URL_LIFE_MS = 5 * 60_000;
 
+/**
+ * Bubbles from a render's row when its page reports or clears a text selection. The expanded
+ * view sits in a portal, so both views report through the row.
+ */
+export const HTML_RENDER_SELECTION_EVENT = "supaterm:html-render-selection";
+
+export interface HtmlRenderSelectionReport {
+  readonly frame: HTMLIFrameElement;
+  readonly selection: HtmlRenderSelection | null;
+  /** Closes the expanded view, which covers the composer a quote lands in. */
+  readonly collapse?: () => void;
+}
+
 export function HtmlRenderFrame(props: {
   readonly environmentId: EnvironmentId;
   readonly htmlRender: HtmlRenderReference;
@@ -30,7 +44,9 @@ export function HtmlRenderFrame(props: {
 }) {
   const { attachmentId, title } = props.htmlRender;
   const [width, setWidth] = useState(HTML_RENDER_COLUMN_WIDTH);
+  const boxRef = useRef<HTMLDivElement | null>(null);
   const observeBox = (box: HTMLDivElement) => {
+    boxRef.current = box;
     setWidth(box.clientWidth);
     return observeResize(box, ([entry]) => {
       if (entry) setWidth(entry.contentRect.width);
@@ -58,6 +74,11 @@ export function HtmlRenderFrame(props: {
   const refresh = useAssetUrlRefresh(props.environmentId, resource);
   const [expandedSrc, setExpandedSrc] = useState<string | null>(null);
   const { onFullscreenChange } = props;
+  const reportSelection = (report: HtmlRenderSelectionReport) => {
+    boxRef.current?.dispatchEvent(
+      new CustomEvent(HTML_RENDER_SELECTION_EVENT, { bubbles: true, detail: report }),
+    );
+  };
   // Tied to the viewer's lifetime: unmounting while expanded must still release
   // the timeline's follow pin, which a close handler alone never reaches.
   const expanded = expandedSrc !== null;
@@ -78,6 +99,7 @@ export function HtmlRenderFrame(props: {
             threadRef={props.threadRef}
             className="block size-full"
             onContentHeight={setContentHeight}
+            onSelection={(frame, selection) => reportSelection({ frame, selection })}
             onFullscreenChange={onFullscreenChange}
           />
           <div className="absolute end-2 top-2 flex gap-1 opacity-0 transition-opacity duration-150 focus-within:opacity-100 group-hover/html-render:opacity-100 pointer-coarse:opacity-100">
@@ -139,12 +161,15 @@ export function HtmlRenderFrame(props: {
               src={expandedSrc}
               title={title}
               threadRef={props.threadRef}
+              onSelection={(frame, selection) =>
+                reportSelection({ frame, selection, collapse: () => setExpandedSrc(null) })
+              }
               onClose={() => setExpandedSrc(null)}
             />
           ) : null}
         </>
       ) : failed ? (
-        <p className="flex size-full items-center justify-center text-muted-foreground text-xs">
+        <p className="flex size-full select-none items-center justify-center text-muted-foreground text-xs">
           Unable to load {title}
         </p>
       ) : null}
