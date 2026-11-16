@@ -4,6 +4,7 @@ import { refineUnknownRemoteProvider } from "@supaterm/source-control-core/serve
 import { processOutput } from "@supaterm/source-control-testing/TestSourceControlHost";
 import { assert, it } from "@effect/vitest";
 import * as Effect from "effect/Effect";
+import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import { ChildProcessSpawner } from "effect/process";
@@ -332,14 +333,23 @@ it.effect.each([
             "--raw-field",
             "title=Fix remote flow",
             "--field",
-            "description=@/tmp/body.md",
+            "description=@-",
           ]);
+          assert.strictEqual(input.stdin, "Body");
           return Effect.succeed(processOutput("{}"));
         },
       },
     });
     const provider = yield* GitLabSourceControlProvider.make.pipe(
-      Effect.provide(Layer.merge(host, GitLabCli.layer.pipe(Layer.provide(host)))),
+      Effect.provide(
+        Layer.merge(
+          host,
+          GitLabCli.layer.pipe(
+            Layer.provide(host),
+            Layer.provide(FileSystem.layerNoop({ readFileString: () => Effect.succeed("Body") })),
+          ),
+        ),
+      ),
     );
     yield* provider.createChangeRequest({
       cwd: "/repo",
