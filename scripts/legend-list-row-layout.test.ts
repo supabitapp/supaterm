@@ -12,6 +12,10 @@ function createMeasurements(bundle: string, initialHeight: number) {
     source.indexOf("function measureContainersInLayoutEffect("),
     source.indexOf("var typedForwardRef ="),
   );
+  const layoutSize = source.slice(
+    source.indexOf("function measureContainerLayoutSize("),
+    source.indexOf("// src/core/containerItemMetadata.ts"),
+  );
   const observe = source.slice(
     source.indexOf("var globalResizeObserver ="),
     source.indexOf("// src/hooks/useContainerMeasurement.tsx"),
@@ -46,7 +50,7 @@ function createMeasurements(bundle: string, initialHeight: number) {
   const useRef = <T>(current: T) => ({ current });
   const useCallback = <T>(callback: T) => callback;
   const api = NodeVM.runInNewContext(
-    `${measure}\n${observe}\n({ observe: useOnLayoutSync, measure: measureContainersInLayoutEffect })`,
+    `${layoutSize}\n${measure}\n${observe}\n({ observe: useOnLayoutSync, measure: measureContainersInLayoutEffect })`,
     {
       HTMLElement: Element,
       React3: { useCallback, useLayoutEffect, useRef },
