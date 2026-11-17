@@ -41,6 +41,17 @@ export const orchestrationEffectQueueWait = Metric.timer(
   },
 );
 
+// A failed batch (transport errors and 408/429/500/502/503/504 after 3 retries) is dropped with
+// every push for the next 60 s, logged only at Debug. Incremental exports it as a monotonic counter.
+export const otlpExportAttemptFailuresTotal = Metric.counter(
+  "supaterm_otlp_export_attempt_failures_total",
+  {
+    description:
+      "Failed OTLP export attempts by signal and reason. Retries count too, so a dropped batch counts up to four.",
+    incremental: true,
+  },
+);
+
 // OTLP carries the unit, and Prometheus names the series by it: a unitless gauge gains `_ratio`.
 export const serverResidentBytes = Metric.gauge("supaterm_server_resident_bytes", {
   description: "Resident memory of the server process.",
