@@ -45,6 +45,10 @@ import * as SourceControlRateLimit from "@supaterm/source-control-core/server/So
 import * as SourceControlProvider from "@supaterm/source-control-core/server/SourceControlProvider";
 import * as SourceControlHost from "@supaterm/source-control-core/server/SourceControlHost";
 import {
+  parseGitRemoteHost,
+  unknownRemoteProvider,
+} from "@supaterm/source-control-core/shared/definition";
+import {
   PullRequestByNumber,
   PullRequestNode,
   PullRequestsByHead,
@@ -85,6 +89,30 @@ class GitHubFailure extends Data.TaggedError("GitHubFailure")<{
 }> {}
 
 const failure = (detail: string, cause?: unknown) => new GitHubFailure({ detail, cause });
+
+// A gh login confirms a GitHub Enterprise Server whose hostname does not identify its provider.
+const refineRepositoryIdentity: NonNullable<
+  SourceControlProvider.SourceControlProvider["Service"]["refineRepositoryIdentity"]
+> = Effect.fn("GitHubSourceControlProvider.refineRepositoryIdentity")(function* ({
+  identity,
+  resolveContext,
+}) {
+  if (!identity.rootPath || (identity.provider !== undefined && identity.provider !== "unknown"))
+    return identity;
+  const remote = parseGitRemoteHost(identity.locator.remoteUrl);
+  if (remote === null) return identity;
+  const context = yield* resolveContext({
+    cwd: identity.rootPath,
+    context: {
+      provider: unknownRemoteProvider(remote),
+      remoteName: identity.locator.remoteName,
+      remoteUrl: identity.locator.remoteUrl,
+    },
+  });
+  return context?.provider.kind === "github"
+    ? { ...identity, provider: SourceControlProviderKind.make("github") }
+    : identity;
+});
 
 const PULL_REQUEST_NOT_FOUND = "Pull request not found. Check the PR number or URL and try again.";
 const REPOSITORY_NOT_FOUND = "Repository not found. Check the owner and name and try again.";
@@ -725,6 +753,7 @@ export const make = Effect.gen(function* () {
 
   return SourceControlProvider.SourceControlProvider.of({
     kind: SourceControlProviderKind.make("github"),
+    refineRepositoryIdentity,
     resolveRemoteWebHost: Effect.fn("GitHubSourceControlProvider.resolveRemoteWebHost")(
       ({ context }) => Effect.succeed(gitHubApiHostForRemote(context.remoteUrl)),
     ),
