@@ -558,6 +558,78 @@ it.effect("command reads seek the rows they keep, not every row of the thread", 
   }).pipe(Effect.provide(layerTest)),
 );
 
+it.effect("a latest-run read keeps the newest runs and older runs its statuses match", () =>
+  Effect.gen(function* () {
+    const store = yield* ProjectionStore.ProjectionStoreV2;
+    const sql = yield* SqlClient.SqlClient;
+    // Its run 1 is rolled back.
+    const threadId = yield* addRolledBackRecoveryCandidate("latest-runs");
+    const now = yield* DateTime.now;
+    const nodeId = NodeId.make("node:latest-runs");
+    for (const [ordinal, status] of [
+      [2, "completed"],
+      [3, "completed"],
+      [4, "failed"],
+      [5, "cancelled"],
+    ] as const) {
+      const runId = RunId.make(`run:latest-runs:${ordinal}`);
+      yield* store.apply({
+        id: EventId.make(`event:latest-runs:run-${ordinal}`),
+        type: "run.created",
+        threadId,
+        runId,
+        nodeId,
+        driver,
+        providerInstanceId,
+        occurredAt: now,
+        payload: {
+          id: runId,
+          threadId,
+          ordinal,
+          providerInstanceId,
+          modelSelection,
+          providerThreadId: null,
+          userMessageId: MessageId.make(`message:latest-runs:${ordinal}`),
+          rootNodeId: nodeId,
+          activeAttemptId: null,
+          status,
+          requestedAt: now,
+          startedAt: status === "cancelled" ? null : now,
+          completedAt: now,
+          checkpointId: null,
+          contextHandoffId: null,
+        },
+      });
+    }
+    assert.equal(yield* store.getRunCount(threadId), 5);
+    // The newest runs by ordinal, whatever their status, plus older runs the statuses match.
+    for (const [filter, expected] of [
+      [{ latestRunLimit: 2 }, [4, 5]],
+      [{ latestRunLimit: 2, runStatuses: ["rolled_back"] as const }, [1, 4, 5]],
+    ] as const) {
+      const traced = traceSqlStatements();
+      const recent = yield* store
+        .getThreadRecords(threadId, ["runs"], filter)
+        .pipe(Effect.withTracer(traced.tracer));
+      assert.deepEqual(
+        recent.runs.map((run) => run.ordinal),
+        [...expected],
+      );
+      const recentQuery = traced.statements.find((statement) =>
+        statement.includes("FROM orchestration_v2_projection_runs"),
+      );
+      assert.isDefined(recentQuery);
+      // Fetches the chosen runs by key instead of walking every run of the thread.
+      assert.match(
+        (yield* sql.unsafe<{ readonly detail: string }>(`EXPLAIN QUERY PLAN ${recentQuery}`))
+          .map((row) => row.detail)
+          .join("\n"),
+        /^SEARCH orchestration_v2_projection_runs USING INDEX \w+ \(run_id=\?\)/,
+      );
+    }
+  }).pipe(Effect.provide(layerTest)),
+);
+
 // One thread holds every way a run can still matter after a compaction. A run is requested at
 // its ordinal in minutes and ends 30 seconds later, unless the table says otherwise.
 it.effect("a compacted thread reads every run, and run records only for its recent runs", () =>
