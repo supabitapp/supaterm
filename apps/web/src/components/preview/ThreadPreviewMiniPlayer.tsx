@@ -302,6 +302,7 @@ function BrowserMiniPlayer({ threadRef, tabId, miniPlayer }: Props & { readonly 
       webviewRect={webviewRect}
       label="Floating browser preview"
       recording={recording}
+      onClose={() => usePreviewMiniPlayerStore.getState().close(threadRef)}
       onOpenInPanel={openInPanel}
       openInPanelShortcut={togglePreviewShortcut}
       pillActions={
@@ -394,6 +395,11 @@ function DeviceMiniPlayer({
   const cornerRadius = (player: PreviewMiniPlayerSize) =>
     resolveDeviceMiniPlayerCornerRadius(source.platform, player);
 
+  const dismiss = () => {
+    usePreviewMiniPlayerStore.getState().close(threadRef);
+    useRightPanelStore.getState().dismissDevice(threadRef, source);
+  };
+
   const openInPanel = () => {
     usePreviewMiniPlayerStore.getState().close(threadRef);
     useRightPanelStore.getState().openDevice(threadRef, {
@@ -410,6 +416,7 @@ function DeviceMiniPlayer({
       miniPlayer={miniPlayer}
       sourceSize={sourceSize}
       label="Floating device preview"
+      onClose={dismiss}
       onOpenInPanel={openInPanel}
       cornerRadius={cornerRadius}
     >
@@ -440,6 +447,7 @@ function MiniPlayerShell({
   miniPlayer,
   sourceSize,
   label,
+  onClose,
   onOpenInPanel,
   openInPanelShortcut,
   pillActions,
@@ -454,6 +462,7 @@ function MiniPlayerShell({
   readonly sourceSize: PreviewMiniPlayerSize;
   readonly webviewRect?: BrowserSurfaceRect | null;
   readonly label: string;
+  readonly onClose: () => void;
   readonly onOpenInPanel: () => void;
   /** Only the browser source docks the way the preview toggle shortcut does. */
   readonly openInPanelShortcut?: string | null;
@@ -500,10 +509,6 @@ function MiniPlayerShell({
 
   const radius = frame ? cornerRadius(frame) : PREVIEW_MINI_PLAYER_CORNER_RADIUS;
   const pillInset = Math.max(8, Math.round(radius * 0.55));
-
-  const close = () => {
-    usePreviewMiniPlayerStore.getState().close(threadRef);
-  };
 
   /** Every way a gesture stops comes through here; returns the gesture it ended. */
   const finishGesture = () => {
@@ -689,7 +694,7 @@ function MiniPlayerShell({
                   size="icon-xs"
                   aria-label="Close floating preview"
                   onPointerDown={(event) => event.stopPropagation()}
-                  onClick={close}
+                  onClick={onClose}
                 />
               }
             >

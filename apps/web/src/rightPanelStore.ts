@@ -136,6 +136,11 @@ interface RightPanelStoreState {
     kind: Exclude<RightPanelKind, "file" | "terminal" | "pull-request">,
   ) => void;
   openDevice: (ref: ScopedThreadRef, target: DeviceTabTarget, origin?: PanelOpenOrigin) => void;
+  /** Records that the user closed a device's view outside the panel, so agents leave it closed. */
+  dismissDevice: (
+    ref: ScopedThreadRef,
+    target: Pick<DeviceTabTarget, "hostId" | "deviceId">,
+  ) => void;
   renameDevice: (ref: ScopedThreadRef, surfaceId: string, title: string) => void;
   openBrowser: (
     ref: ScopedThreadRef,
@@ -533,6 +538,18 @@ export const useRightPanelStore = create<RightPanelStoreState>()(
               return upsertSurface(current, existing ?? browserSurface(null));
             }
             return upsertSurface(current, singletonSurface(kind));
+          }),
+        ),
+      dismissDevice: (ref, target) =>
+        set((state) =>
+          automaticUpdate(state, scopedThreadKey(ref), (current) => {
+            const id = deviceSurfaceId(target);
+            return current.dismissedDeviceSurfaceIds?.includes(id)
+              ? current
+              : {
+                  ...current,
+                  dismissedDeviceSurfaceIds: [...(current.dismissedDeviceSurfaceIds ?? []), id],
+                };
           }),
         ),
       openDevice: (ref, target, origin = "user") =>

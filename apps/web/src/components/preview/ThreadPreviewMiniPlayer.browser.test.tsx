@@ -13,11 +13,13 @@ import {
   selectThreadPreviewMiniPlayer,
   usePreviewMiniPlayerStore,
 } from "../../previewMiniPlayerStore";
+import { useRightPanelStore } from "../../rightPanelStore";
 import { appAtomRegistry } from "../../rpc/atomRegistry";
 import { deviceEnvironment } from "../../state/device";
 import { ChatCanvas } from "../chat/ChatCanvas";
 import { createChatCanvasStore } from "../chat/canvasStore";
 import { deviceStreamScreenAtom } from "../device/deviceStreamSession";
+import { applyDeviceSnapshot, resetDeviceSessionBaselinesForTests } from "./agentOpenedPreviews";
 import { ThreadPreviewMiniPlayer, useThreadPreviewCanvasSource } from "./ThreadPreviewMiniPlayer";
 
 vi.mock(import("../device/DeviceStreamView"), () => ({
@@ -118,4 +120,78 @@ it("holds its frame through a source change and stops when the gesture is interr
   await act(() => window.dispatchEvent(new Event("blur")));
   await point(handle("west"), "pointermove", landscape.left - 100, landscape.top + 10, 1);
   expect(rect()).toEqual(landscape);
+});
+
+it("keeps a floating device closed when the agent opens that device again", async () => {
+  using _state = vi
+    .spyOn(deviceEnvironment, "state")
+    .mockReturnValue(Atom.make<AsyncResult.AsyncResult<DeviceServiceState>>(AsyncResult.initial()));
+  using _stores = {
+    [Symbol.dispose]: () => {
+      usePreviewMiniPlayerStore.getState().removeThread(threadRef);
+      useRightPanelStore.getState().removeThread(threadRef);
+      resetDeviceSessionBaselinesForTests();
+    },
+  };
+  resetDeviceSessionBaselinesForTests();
+  usePreviewMiniPlayerStore.getState().open(threadRef, phone);
+  const container = document.createElement("div");
+  container.style.cssText = "display:flex;position:fixed;inset:0;width:1200px;height:800px";
+  await using screen = await render(
+    <RegistryContext.Provider value={appAtomRegistry}>
+      <Harness />
+    </RegistryContext.Provider>,
+    { container },
+  );
+  const floating = () =>
+    selectThreadPreviewMiniPlayer(usePreviewMiniPlayerStore.getState().byThreadKey, threadRef);
+
+  await act(() =>
+    screen.container
+      .querySelector<HTMLElement>('button[aria-label="Close floating preview"]')!
+      .click(),
+  );
+  expect(floating()).toBeNull();
+
+  const snapshot = (openedAt: string | null) =>
+    ({
+      hosts: [],
+      hostStatus: "ready",
+      hostStatuses: {},
+      devices: [
+        {
+          hostId: phone.hostId,
+          id: phone.deviceId,
+          platform: phone.platform,
+          name: phone.name,
+          version: "18",
+          booted: true,
+          physical: false,
+        },
+      ],
+      sessions:
+        openedAt === null
+          ? []
+          : [
+              {
+                threadId: threadRef.threadId,
+                hostId: phone.hostId,
+                deviceId: phone.deviceId,
+                platform: phone.platform,
+                openedAt,
+              },
+            ],
+      onboardingCompleted: true,
+      agentAccessEnabled: true,
+      hubBasePath: "/api/device-hub",
+      revision: 0,
+    }) as unknown as DeviceServiceState;
+  const floatingTarget = { sheetLayout: false, openTarget: "floating" } as const;
+  applyDeviceSnapshot(threadRef.environmentId, snapshot(null), floatingTarget);
+  applyDeviceSnapshot(
+    threadRef.environmentId,
+    snapshot("2026-01-01T00:05:00.000Z"),
+    floatingTarget,
+  );
+  expect(floating()).toBeNull();
 });
