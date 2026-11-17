@@ -22,6 +22,7 @@ import {
   type ConnectionTarget,
   ConnectionTransientError,
   type NetworkStatus,
+  NO_REFUSED_ROUTES,
   type PreparedConnection,
   type SupervisorConnectionState,
 } from "./model.ts";
@@ -91,6 +92,21 @@ type SupervisorSignal =
       readonly afterLongBackground?: boolean;
     }
   | { readonly _tag: "BetterRouteAvailable"; readonly preflight: ConnectionDriver.PreparedRoute };
+
+type ConnectedLease = ConnectionDriver.EnvironmentConnectionLease & {
+  readonly generation: number;
+};
+
+function mergeRefusedRoutes(
+  known: ReadonlyArray<string>,
+  refused: ReadonlyArray<string>,
+  keep: (routeId: string) => boolean,
+): ReadonlyArray<string> {
+  const next = [...new Set([...known, ...refused])].filter(keep);
+  return next.length === known.length && next.every((id, index) => id === known[index])
+    ? known
+    : next;
+}
 
 type AttemptOutcome =
   | {
@@ -172,6 +188,7 @@ function availableState(intent: SupervisorIntent, generation: number): Superviso
     generation,
     lastFailure: null,
     retryAt: null,
+    refusedRouteIds: NO_REFUSED_ROUTES,
   };
 }
 
@@ -190,6 +207,7 @@ function offlineState(
     generation,
     lastFailure,
     retryAt: null,
+    refusedRouteIds: NO_REFUSED_ROUTES,
   };
 }
 
@@ -209,6 +227,7 @@ function connectingState(
     generation,
     lastFailure,
     retryAt: null,
+    refusedRouteIds: NO_REFUSED_ROUTES,
   };
 }
 
@@ -306,6 +325,8 @@ export const make = Effect.fn("EnvironmentSupervisor.make")(function* (
   const answeredRoute = yield* Ref.make(Option.none<ConnectionDriver.AnsweredRoute>());
   const replacement = yield* makeReplacementSlot(driver.connect);
   const routeCooldowns = yield* Ref.make<ReadonlyMap<string, bigint>>(new Map());
+  // Outlives sessions so a reconnect shows a refusal seen earlier; a route leaves once it connects.
+  const refusedRoutes = yield* Ref.make(NO_REFUSED_ROUTES);
   // The generation keeps a check that started before a reset from recording
   // its stale failures after it.
   const silentRoutes = yield* Ref.make({
@@ -351,9 +372,7 @@ export const make = Effect.fn("EnvironmentSupervisor.make")(function* (
    * that would connect. Routes without a cheap check (SSH) never
    * pass, so they are fallbacks, not destinations.
    */
-  const checkBetterRoutes = Effect.fnUntraced(function* (
-    lease: ConnectionDriver.EnvironmentConnectionLease,
-  ) {
+  const checkBetterRoutes = Effect.fnUntraced(function* (lease: ConnectedLease) {
     if ((yield* Ref.get(intent)).backgrounded) return;
     const latest = yield* Ref.get(currentEntry);
     const current = yield* routeIndex(lease);
@@ -382,10 +401,25 @@ export const make = Effect.fn("EnvironmentSupervisor.make")(function* (
       }
       return { generation: previous.generation, routes };
     });
-    const preflight = results.find((result) => typeof result !== "string");
-    if (preflight === undefined) return;
     const live = yield* SubscriptionRef.get(session);
     if (Option.isNone(live) || live.value !== lease.session) return;
+    const refused = better
+      .filter((_route, position) => results[position] === "refused")
+      .map((route) => connectionRouteId(route.target));
+    if (refused.length > 0) {
+      const known = yield* Ref.updateAndGet(refusedRoutes, (current) =>
+        mergeRefusedRoutes(current, refused, () => true),
+      );
+      yield* SubscriptionRef.updateSome(state, (current) =>
+        current.phase === "connected" &&
+        current.generation === lease.generation &&
+        current.refusedRouteIds !== known
+          ? Option.some({ ...current, refusedRouteIds: known })
+          : Option.none(),
+      );
+    }
+    const preflight = results.find((result) => typeof result !== "string");
+    if (preflight === undefined) return;
     yield* signal({
       _tag: "BetterRouteAvailable",
       preflight,
@@ -393,8 +427,8 @@ export const make = Effect.fn("EnvironmentSupervisor.make")(function* (
   });
 
   // Run one check at a time and retain at most one pending trigger.
-  const betterRouteChecks = yield* Queue.dropping<ConnectionDriver.EnvironmentConnectionLease>(1);
-  const requestBetterRouteCheck = (lease: ConnectionDriver.EnvironmentConnectionLease) =>
+  const betterRouteChecks = yield* Queue.dropping<ConnectedLease>(1);
+  const requestBetterRouteCheck = (lease: ConnectedLease) =>
     routeIndex(lease).pipe(
       Effect.flatMap((index) =>
         index > 0 ? Queue.offer(betterRouteChecks, lease).pipe(Effect.asVoid) : Effect.void,
@@ -673,9 +707,7 @@ export const make = Effect.fn("EnvironmentSupervisor.make")(function* (
     return yield* Effect.race(hostAnswersWhileSilent, frameArrives);
   });
 
-  const monitorConnectedLease = Effect.fnUntraced(function* (
-    lease: ConnectionDriver.EnvironmentConnectionLease,
-  ) {
+  const monitorConnectedLease = Effect.fnUntraced(function* (lease: ConnectedLease) {
     // A probe answers an explicit retry here, so the retry must not also reset
     // the backoff of a later, unrelated failure.
     const takeSignal = Queue.take(signals).pipe(
@@ -863,9 +895,7 @@ export const make = Effect.fn("EnvironmentSupervisor.make")(function* (
     }
   });
 
-  const learnRoutesFrom = Effect.fnUntraced(function* (
-    lease: ConnectionDriver.EnvironmentConnectionLease,
-  ) {
+  const learnRoutesFrom = Effect.fnUntraced(function* (lease: ConnectedLease) {
     if (options?.learnRoutes === undefined) return;
     const learn = options.learnRoutes;
     yield* lease.session.configChanges.pipe(
@@ -1047,10 +1077,22 @@ export const make = Effect.fn("EnvironmentSupervisor.make")(function* (
       } satisfies AttemptOutcome;
     }
 
+    const latestRoutes = yield* currentRoutes;
+    const activeRouteId = connectionRouteId(lease.prepared.target);
+    const connectedLease: ConnectedLease = { ...lease, generation };
+    const refusedRouteIds = yield* Ref.updateAndGet(refusedRoutes, (known) =>
+      mergeRefusedRoutes(
+        known,
+        lease.refusedRouteIds,
+        (id) =>
+          id !== activeRouteId &&
+          latestRoutes.some((route) => connectionRouteId(route.target) === id),
+      ),
+    );
     const connectedAt = yield* Clock.currentTimeMillis;
     yield* SubscriptionRef.set(prepared, Option.some(lease.prepared));
     yield* SubscriptionRef.set(session, Option.some(lease.session));
-    yield* learnRoutesFrom(lease).pipe(Effect.forkScoped);
+    yield* learnRoutesFrom(connectedLease).pipe(Effect.forkScoped);
     yield* setState({
       desired: true,
       network: currentIntent.network,
@@ -1060,11 +1102,12 @@ export const make = Effect.fn("EnvironmentSupervisor.make")(function* (
       generation,
       lastFailure: null,
       retryAt: null,
+      refusedRouteIds,
     });
 
     const connectedExit = yield* Effect.raceFirst(
       lease.session.closed,
-      monitorConnectedLease(lease),
+      monitorConnectedLease(connectedLease),
     ).pipe(exitUnlessInterrupted);
     const connectedForMs = (yield* Clock.currentTimeMillis) - connectedAt;
     if (Exit.isSuccess(connectedExit)) {
@@ -1232,6 +1275,7 @@ export const make = Effect.fn("EnvironmentSupervisor.make")(function* (
           generation,
           lastFailure: error,
           retryAt: null,
+          refusedRouteIds: NO_REFUSED_ROUTES,
         });
         const applicationActivated = yield* waitForSignal;
         if (applicationActivated !== null) {
@@ -1264,6 +1308,7 @@ export const make = Effect.fn("EnvironmentSupervisor.make")(function* (
         generation,
         lastFailure: latestFailure,
         retryAt: (yield* Clock.currentTimeMillis) + delayMs,
+        refusedRouteIds: NO_REFUSED_ROUTES,
       });
       const applicationActivated = yield* waitForRetrySignal(delayMs);
       if (applicationActivated !== null) {

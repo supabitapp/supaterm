@@ -18,9 +18,11 @@ import type {
   PreparedConnection,
 } from "./model.ts";
 import { ConnectionTransientError } from "./model.ts";
+import { isHostCredentialRefusal } from "./errors.ts";
 import * as ConnectionResolver from "./resolver.ts";
 import {
   connectionRouteKind,
+  connectionRouteId,
   connectionRoutes,
   routeEntry,
   routeHttpBaseUrl,
@@ -51,9 +53,14 @@ export type ConnectionDriverProgress =
 type ReportProgress = (progress: ConnectionDriverProgress) => Effect.Effect<void>;
 const ignoreProgress: ReportProgress = () => Effect.void;
 
-export interface EnvironmentConnectionLease {
+export interface RouteConnection {
   readonly prepared: PreparedConnection;
   readonly session: RpcSession.RpcSession;
+}
+
+export interface EnvironmentConnectionLease extends RouteConnection {
+  /** Saved routes whose host refused this device's credential before another route connected. */
+  readonly refusedRouteIds: ReadonlyArray<string>;
 }
 
 export interface PreparedRoute {
@@ -78,8 +85,11 @@ export interface ConnectOptions {
  * cheap check, so they are "unchecked".
  */
 export type RouteCheck = "answered" | "silent" | "unchecked";
-/** A prepared route, or why there is none: "unprepared" answered its check but failed to prepare. */
-export type RoutePreflight = PreparedRoute | "unprepared" | "silent" | "unchecked";
+/**
+ * A prepared route, or why there is none: "unprepared" answered its check but failed to prepare,
+ * and "refused" means its host refused this device's credential.
+ */
+export type RoutePreflight = PreparedRoute | "refused" | "unprepared" | "silent" | "unchecked";
 
 /** How long a route has to answer before it counts as unreachable from here. */
 export const ROUTE_CHECK_TIMEOUT_MS = 2_500;
@@ -158,7 +168,7 @@ type CheckRoute = (route: ConnectionRoute) => Effect.Effect<RouteCheck, never, S
 /** Resolves once the route's session is open; the driver then waits for its first snapshot. */
 type ConnectRoute<R> = (
   route: ConnectionRoute,
-) => Effect.Effect<EnvironmentConnectionLease, ConnectionAttemptError, R | Scope.Scope>;
+) => Effect.Effect<RouteConnection, ConnectionAttemptError, R | Scope.Scope>;
 
 export const connectOverRoutes = Effect.fn("ConnectionDriver.connectOverRoutes")(function* <R>(
   entry: ConnectionCatalogEntry,
@@ -210,6 +220,7 @@ const selectAndConnect = Effect.fnUntraced(function* <R>(
     ),
   );
   let failure: ConnectionAttemptError | undefined;
+  const refusedRouteIds: Array<string> = [];
   // Each route gets its own scope so a half-open session closes before the next try.
   const attempt = Effect.fnUntraced(function* (route: ConnectionRoute) {
     const routeScope = yield* Scope.fork(connectionScope);
@@ -248,9 +259,11 @@ const selectAndConnect = Effect.fnUntraced(function* <R>(
       Effect.onExit((exit) => (Exit.isSuccess(exit) ? Effect.void : Scope.close(routeScope, exit))),
       Effect.result,
     );
-    if (result._tag === "Success") return Option.some(result.success);
+    if (result._tag === "Success") return Option.some({ ...result.success, refusedRouteIds });
     // An incompatible server is the same server on every route.
     if (result.failure.reason === "unsupported") return yield* result.failure;
+    if (isHostCredentialRefusal(result.failure))
+      refusedRouteIds.push(connectionRouteId(route.target));
     if (failure === undefined || failureRank(result.failure) > failureRank(failure))
       failure = result.failure;
     // The failed route may have opened its socket; the next route starts over.
@@ -301,6 +314,29 @@ const selectAndConnect = Effect.fnUntraced(function* <R>(
       })
   );
 });
+
+export const preflightRoute = <R>(
+  route: ConnectionRoute,
+  check: Effect.Effect<RouteCheck, never, R>,
+  prepare: Effect.Effect<PreparedConnection, ConnectionAttemptError>,
+): Effect.Effect<RoutePreflight, never, R> =>
+  check.pipe(
+    Effect.filterOrElse(
+      (check): check is Exclude<RouteCheck, "answered"> => check !== "answered",
+      () =>
+        Effect.gen(function* () {
+          const expiresAtNanos = (yield* Clock.monotonicTimeNanos) + PREFLIGHT_VALIDITY_NANOS;
+          const prepared = yield* prepare;
+          return { route, prepared, expiresAtNanos } satisfies PreparedRoute;
+        }).pipe(
+          Effect.catch((error) =>
+            Effect.succeed<RoutePreflight>(
+              isHostCredentialRefusal(error) ? "refused" : "unprepared",
+            ),
+          ),
+        ),
+    ),
+  );
 
 /** @public */
 export const make = Effect.gen(function* () {
@@ -415,29 +451,20 @@ export const make = Effect.gen(function* () {
         yield* reportProgress({ stage: "opening", prepared });
         const session = yield* sessions.connect(prepared);
         yield* reportProgress({ stage: "synchronizing", prepared });
-        return { prepared, session } satisfies EnvironmentConnectionLease;
+        return { prepared, session } satisfies RouteConnection;
       }),
       reportProgress,
     );
   });
 
   const preflight = (entry: ConnectionCatalogEntry, route: ConnectionRoute) =>
-    (sendsTokenInClear(connectionRoutes(entry), route)
-      ? Effect.succeed("silent" as const)
-      : checkRoute(entry, route, ROUTE_CHECK_TIMEOUT_MS)
-    ).pipe(
-      Effect.filterOrElse(
-        (check): check is Exclude<RouteCheck, "answered"> => check !== "answered",
-        () =>
-          Effect.gen(function* () {
-            const expiresAtNanos = (yield* Clock.monotonicTimeNanos) + PREFLIGHT_VALIDITY_NANOS;
-            const prepared = yield* resolver.prepare(routeEntry(entry, route));
-            return { route, prepared, expiresAtNanos } satisfies PreparedRoute;
-          }).pipe(Effect.orElseSucceed((): RoutePreflight => "unprepared")),
-      ),
-      Effect.scoped,
-      Effect.withSpan("ConnectionDriver.preflight"),
-    );
+    preflightRoute(
+      route,
+      sendsTokenInClear(connectionRoutes(entry), route)
+        ? Effect.succeed("silent" as const)
+        : checkRoute(entry, route, ROUTE_CHECK_TIMEOUT_MS),
+      resolver.prepare(routeEntry(entry, route)),
+    ).pipe(Effect.scoped, Effect.withSpan("ConnectionDriver.preflight"));
 
   return ConnectionDriver.of({
     connect,
