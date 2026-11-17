@@ -69,12 +69,12 @@ back from the device after a change.
 
 ## Agents and devices
 
-When an agent opens a device, web and desktop clients connected to the thread
-open it as a right-panel tab, the same way an agent-driven browser does. Under
-**Settings → Browser**, set **Show agent browsers and devices in** to
-**Floating preview** to float it over the chat instead, or to **In the
-background** to add the tab without opening the panel. In a narrow window the
-tab is added without opening the panel. In the mobile app, open the agent's thread and tap the
+When an agent opens a device, it floats over the chat in web and desktop clients
+connected to the thread, the same way an agent-driven browser does. Under
+**Settings → Browser**, set **Show agent browsers and devices in** to **Right
+panel** to open a right-panel tab instead, or to **In the background** to add
+the tab without opening the panel. In a narrow window the device gets a tab
+without opening the panel. In the mobile app, open the agent's thread and tap the
 device button above the composer to watch the live screen and control it.
 On iOS layouts with an inspector, the device opens beside the thread. Maximize
 it to fill the screen; closing the full-screen view returns to the inspector.

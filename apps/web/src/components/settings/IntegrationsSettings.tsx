@@ -1060,8 +1060,8 @@ function DeviceIntegrationControls({
 }
 
 const AGENT_OPEN_TARGET_LABELS: Readonly<Record<BrowserAgentOpenTarget, string>> = {
-  panel: "Right panel",
   floating: "Floating preview",
+  panel: "Right panel",
   background: "In the background",
 };
 

@@ -294,7 +294,7 @@ export type DefaultThemePreference = typeof DefaultThemePreference.Type;
 export const DEFAULT_BROWSER_VIEWPORT: PreviewViewportSetting = FILL_PREVIEW_VIEWPORT;
 export const BrowserAgentOpenTarget = Schema.Literals(["panel", "floating", "background"]);
 export type BrowserAgentOpenTarget = typeof BrowserAgentOpenTarget.Type;
-export const DEFAULT_BROWSER_AGENT_OPEN_TARGET: BrowserAgentOpenTarget = "panel";
+export const DEFAULT_BROWSER_AGENT_OPEN_TARGET: BrowserAgentOpenTarget = "floating";
 export {
   BROWSER_RECORDING_FRAME_RATES,
   BrowserRecordingFrameRate,

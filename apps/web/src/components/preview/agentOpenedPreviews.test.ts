@@ -373,14 +373,14 @@ describe("startAgentOpenedPreviews", () => {
       .byThreadKey[threadKeyToRead]?.surfaces.filter((surface) => surface.kind === "preview")
       .map((surface) => surface.id) ?? [];
 
-  it("treats the first list as a baseline and opens the panel on tabs opened later", () => {
+  it("treats the first list as a baseline and floats tabs opened later", () => {
     using _following = following();
     reconcilePreviewServerSessions(ref, {
       sessions: [serverTab({ tabId: "tab_restored" })],
       serverEpoch,
       revision: 1,
     });
-    expect(panel().isOpen).toBe(false);
+    expect(floatingTabId()).toBeNull();
     expect(browserTabs()).toEqual(["browser:tab_restored"]);
 
     const opened = serverTab({ tabId: "tab_agent" });
@@ -393,7 +393,8 @@ describe("startAgentOpenedPreviews", () => {
       serverEpoch,
       revision: 2,
     });
-    expect(panel()).toMatchObject({ isOpen: true, activeSurfaceId: "browser:tab_agent" });
+    expect(floatingTabId()).toBe("tab_agent");
+    expect(panel().isOpen).toBe(false);
   });
 
   it("reveals an existing tab only for a new reveal request", () => {
@@ -403,6 +404,7 @@ describe("startAgentOpenedPreviews", () => {
 
     navigated(2, { ...tab, updatedAt: "2026-01-01T00:00:01.000Z" });
     expect(panel().isOpen).toBe(false);
+    expect(floatingTabId()).toBeNull();
 
     navigated(3, {
       ...tab,
@@ -423,9 +425,10 @@ describe("startAgentOpenedPreviews", () => {
     beginPreviewSessionClose(ref, tab.tabId);
     cancelPreviewSessionClose(ref, tab, tab.tabId);
     expect(panel().isOpen).toBe(false);
+    expect(floatingTabId()).toBeNull();
   });
 
-  it("follows background threads and drops the tab when its session ends", () => {
+  it("follows background threads and closes the floating browser when its session ends", () => {
     using _following = following();
     const other = scopeThreadRef("env-1" as EnvironmentId, ThreadId.make("thread-2"));
     reconcilePreviewServerSessions(other, {
@@ -446,7 +449,7 @@ describe("startAgentOpenedPreviews", () => {
       serverEpoch,
       revision: 2,
     });
-    expect(panel()).toMatchObject({ isOpen: true, activeSurfaceId: "browser:tab_a" });
+    expect(floatingTabId()).toBe("tab_a");
     applyPreviewServerEvent(ref, {
       type: "closed",
       threadId: "thread-1",
@@ -456,5 +459,6 @@ describe("startAgentOpenedPreviews", () => {
       revision: 3,
     });
     expect(browserTabs()).toEqual([]);
+    expect(floatingTabId()).toBeNull();
   });
 });

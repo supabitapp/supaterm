@@ -27,7 +27,7 @@ const clientSettings: ClientSettings = {
   browserDefaultAppearance: "dark",
   browserRecordingFrameRate: 60,
   browserLinkTarget: "app",
-  browserAgentOpenTarget: "floating",
+  browserAgentOpenTarget: "panel",
   browserProfiles: [{ id: "work", name: "Work", kind: "persistent" }],
   browserDefaultProfileId: "work",
   confirmThreadArchive: true,
