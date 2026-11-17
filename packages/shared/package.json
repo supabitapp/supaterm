@@ -7,6 +7,10 @@
       "types": "./src/markdownImageEmbeds.ts",
       "import": "./src/markdownImageEmbeds.ts"
     },
+    "./pullRequestAnchor": {
+      "types": "./src/pullRequestAnchor.ts",
+      "import": "./src/pullRequestAnchor.ts"
+    },
     "./changedFileKind": {
       "types": "./src/changedFileKind.ts",
       "import": "./src/changedFileKind.ts"

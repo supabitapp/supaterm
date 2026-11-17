@@ -850,8 +850,8 @@ importers:
         specifier: 1.2.0-beta.15
         version: 1.2.0-beta.15(patch_hash=f1e680afec85f650699ea756f91f469844ec4c976f4f168492a45c6b3f67d651)
       playwright-core:
-        specifier: 1.60.0
-        version: 1.60.0
+        specifier: 1.64.1
+        version: 1.64.1
       proper-lockfile:
         specifier: 4.1.2
         version: 4.1.2
@@ -1296,6 +1296,9 @@ importers:
       three:
         specifier: 0.180.0
         version: 0.180.0
+      unbash:
+        specifier: ^5.0.0
+        version: 5.0.0
     devDependencies:
       '@effect/vitest':
         specifier: 4.1.2
@@ -2205,14 +2208,14 @@ importers:
         specifier: 6.0.5
         version: 6.0.5
       agent-device:
-        specifier: 0.21.32
-        version: 0.21.32
+        specifier: 0.21.36
+        version: 0.21.36
       effect:
         specifier: 4.1.2
         version: 4.1.2
       playwright-core:
-        specifier: 1.60.0
-        version: 1.60.0
+        specifier: 1.64.1
+        version: 1.64.1
       plist:
         specifier: 3.1.0
         version: 3.1.0
@@ -6885,8 +6888,8 @@ packages:
     engines: {node: '>=18.18'}
     hasBin: true
 
-  agent-device@0.21.32:
-    resolution: {integrity: sha512-gfpNs+qeCHKKLY3mqD/NpC7Et7wh5qxNvM9A2cPOhOpzX21e9UHSkO7zOMBpUK7NGtOOkbtz67jco5SVmZOPog==}
+  agent-device@0.21.36:
+    resolution: {integrity: sha512-aG88WlEHjFc/OEBQC7AJg+2LfNoVT/ogxnnzIUYUEgafdiTvBaA+X6uQ2wNmpp2ZrHLy8QIXoEOyc3NEZgJCpQ==}
     engines: {node: '>=22.12'}
     hasBin: true
     peerDependencies:
@@ -9797,6 +9800,11 @@ packages:
   playwright-core@1.60.0:
     resolution: {integrity: sha512-9bW6zvX/m0lEbgTKJ6YppOKx8H3VOPBMOCFh2irXFOT4BbHgrx5hPjwJYLT40Lu+4qtD36qKc/Hn56StUW57IA==}
     engines: {node: '>=18'}
+    hasBin: true
+
+  playwright-core@1.64.1:
+    resolution: {integrity: sha512-BC4s8y6SEVA6Q1rSxZTto8hI1KUI3xXlHGZgvGqP4IqPdI/a6FX9H29IDNz7vKo9l21b6LfYosScPL6M3xxyDQ==}
+    engines: {node: '>=20'}
     hasBin: true
 
   playwright@1.60.0:
@@ -16035,7 +16043,7 @@ snapshots:
 
   agent-cli-detector@0.1.7: {}
 
-  agent-device@0.21.32: {}
+  agent-device@0.21.36: {}
 
   agent-install@0.0.5:
     dependencies:
@@ -19825,6 +19833,8 @@ snapshots:
       tslib: 2.8.1
 
   playwright-core@1.60.0: {}
+
+  playwright-core@1.64.1: {}
 
   playwright@1.60.0:
     dependencies:

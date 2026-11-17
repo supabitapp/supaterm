@@ -175,6 +175,9 @@ text so copying keeps working. Change it in **Settings → Keybindings**.
 `thread.sideChat` opens an empty side chat beside the focused thread. It has no
 default shortcut; assign one in **Settings → Keybindings**.
 
+`thread.regenerateTitle` generates a new title for the focused thread, like
+**Regenerate title** in the thread menu. It has no default shortcut.
+
 `thread.undo` (`mod+z` by default) reverses the actions shown in the notice at the
 bottom of the sidebar, such as unpin, mark as Done, snooze, archive, or discarding a
 draft. Consecutive

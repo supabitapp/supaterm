@@ -41,6 +41,7 @@ import {
   ThreadId,
   type TurnItemId,
   isOrchestrationV2RunInProgress,
+  OrchestrationV2RunStatus,
   isOrchestrationV2RunSettled,
   type OrchestrationV2SettledRunStatus,
 } from "@supaterm/contracts";
@@ -473,6 +474,10 @@ function latestRestartContinuation(
   }
   return current;
 }
+
+export const ACTIVE_RUN_STATUSES = OrchestrationV2RunStatus.literals.filter(
+  isOrchestrationV2RunInProgress,
+);
 
 export function latestActiveRun(
   projection: Pick<OrchestrationV2ThreadProjection, "runs">,

@@ -1,3 +1,4 @@
+import { expandHomePath } from "@supaterm/provider-core/server/pathExpansion";
 import * as NodePath from "@effect/platform-node/NodePath";
 import {
   EDITORS,
@@ -520,20 +521,21 @@ const resolveEditorLaunch = Effect.fn("resolveEditorLaunch")(function* (
     return yield* new ExternalLauncherUnsupportedEditorError({ editor: input.editor });
   }
 
+  const target = expandHomePath(input.cwd, yield* HostProcess.HomeDirectory);
   if (input.reveal === true) {
-    return yield* resolveFileManagerRevealLaunch(input.cwd, platform, env, command);
+    return yield* resolveFileManagerRevealLaunch(target, platform, env, command);
   }
 
   return {
     editor: editorDef.id,
-    target: input.cwd,
+    target,
     command,
     args:
       command === "explorer.exe" && env.WSL_DISTRO_NAME !== undefined
-        ? [resolveWslFileManagerPath(input.cwd, env.WSL_DISTRO_NAME)]
+        ? [resolveWslFileManagerPath(target, env.WSL_DISTRO_NAME)]
         : platform === "win32"
-          ? [normalizeWindowsFileManagerPath(input.cwd)]
-          : [input.cwd],
+          ? [normalizeWindowsFileManagerPath(target)]
+          : [target],
   };
 });
 

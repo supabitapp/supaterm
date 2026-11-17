@@ -100,6 +100,7 @@ const THREAD_KEYBINDING_COMMANDS = [
   "thread.sideChat",
   "thread.mark-done",
   "thread.pin",
+  "thread.regenerateTitle",
   "thread.undo",
   ...THREAD_JUMP_KEYBINDING_COMMANDS,
 ] as const;
