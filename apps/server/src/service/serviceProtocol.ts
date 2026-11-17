@@ -32,11 +32,18 @@ const unquoteSystemdValue = (raw: string) =>
 const unescapeXmlText = (value: string) =>
   value.replaceAll("&lt;", "<").replaceAll("&gt;", ">").replaceAll("&amp;", "&");
 
-export function serviceUnitBaseDirOf(contents: string): string | undefined {
-  const systemd = /^Environment=SUPATERM_HOME=(.*)$/m.exec(contents)?.[1];
+export function serviceUnitEnvironmentValueOf(
+  contents: string,
+  name: "SUPATERM_HOME" | "SUPATERM_INSTALL_BIN_DIR",
+): string | undefined {
+  const systemd = new RegExp(`^Environment=${name}=(.*)$`, "m").exec(contents)?.[1];
   if (systemd !== undefined) return unquoteSystemdValue(systemd.trim());
-  const plist = /<key>SUPATERM_HOME<\/key>\s*<string>([^<]*)<\/string>/.exec(contents)?.[1];
+  const plist = new RegExp(`<key>${name}</key>\\s*<string>([^<]*)</string>`).exec(contents)?.[1];
   return plist === undefined ? undefined : unescapeXmlText(plist);
+}
+
+export function serviceUnitBaseDirOf(contents: string): string | undefined {
+  return serviceUnitEnvironmentValueOf(contents, "SUPATERM_HOME");
 }
 
 /** The executable an installed unit or plist starts: the launcher's runtime. */

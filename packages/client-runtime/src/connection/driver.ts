@@ -20,6 +20,7 @@ import type {
 import { ConnectionTransientError } from "./model.ts";
 import * as ConnectionResolver from "./resolver.ts";
 import {
+  connectionRouteKind,
   connectionRoutes,
   routeEntry,
   routeHttpBaseUrl,
@@ -222,8 +223,13 @@ const selectAndConnect = Effect.fnUntraced(function* <R>(
             }),
           ),
       });
-    const result = yield* connectRoute(route).pipe(
-      timeout(ROUTE_SETUP_TIMEOUT_MS),
+    // The desktop bounds SSH preparation, which may download a server
+    // release; the supervisor times the rest of an SSH route.
+    const setup =
+      connectionRouteKind(route) === "ssh"
+        ? connectRoute(route)
+        : connectRoute(route).pipe(timeout(ROUTE_SETUP_TIMEOUT_MS));
+    const result = yield* setup.pipe(
       Effect.tap((lease) =>
         lease.session.opened.pipe(
           Effect.andThen(

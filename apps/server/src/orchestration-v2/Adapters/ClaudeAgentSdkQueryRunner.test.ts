@@ -252,6 +252,7 @@ it.effect("reopens a stalled MCP registration before delivering the resumed prom
         if (typeof prompt === "string") throw new Error("Expected streaming input");
         prompts.push(prompt);
         return {
+          initializationResult: async () => ({}),
           setMcpServers: prompts.length === 1 ? firstRegistration : secondRegistration,
           close: prompts.length === 1 ? firstClose : secondClose,
           [Symbol.asyncDispose]: async () => {
@@ -358,6 +359,7 @@ it.effect.each([true, false])("only retries after confirmed process exit: %s", (
           cleanupProgress.resolve("retry");
         }
         return {
+          initializationResult: async () => ({}),
           setMcpServers: () => {
             registrationStarted.resolve();
             return first
@@ -408,6 +410,7 @@ it.effect("stops retrying MCP registration after two timeouts and reports the ca
       const querySpy = vi.spyOn(ClaudeSdk, "query").mockImplementation(() => {
         const started = querySpy.mock.calls.length === 1 ? firstRegistration : secondRegistration;
         return {
+          initializationResult: async () => ({}),
           setMcpServers: () => {
             started.resolve();
             return new Promise<ClaudeSdk.McpSetServersResult>(() => {});
@@ -448,6 +451,7 @@ it.effect("cancels a stalled registration without retrying or retaining its prom
       const querySpy = vi.spyOn(ClaudeSdk, "query").mockImplementation(
         () =>
           ({
+            initializationResult: async () => ({}),
             setMcpServers: () => {
               registrationStarted.resolve();
               return new Promise<ClaudeSdk.McpSetServersResult>(() => {});
@@ -478,6 +482,7 @@ it.effect("does not reuse a fresh session ID after MCP registration times out", 
       const querySpy = vi.spyOn(ClaudeSdk, "query").mockImplementation(
         () =>
           ({
+            initializationResult: async () => ({}),
             setMcpServers: () => {
               registrationStarted.resolve();
               return new Promise<ClaudeSdk.McpSetServersResult>(() => {});
@@ -575,6 +580,55 @@ it.effect.each([
   ),
 );
 
+it.effect.each([
+  ["opens after a slow CLI boot", "120 seconds", true],
+  ["times out a CLI that never boots", "5 minutes", false],
+] as const)("%s", ([, bootWait, boots]) =>
+  Effect.scoped(
+    Effect.gen(function* () {
+      const waiting = Promise.withResolvers<void>();
+      const booted = Promise.withResolvers<void>();
+      const querySpy = vi.spyOn(ClaudeSdk, "query").mockImplementation(
+        () =>
+          ({
+            initializationResult: () => {
+              waiting.resolve();
+              return booted.promise;
+            },
+            // The CLI answers control requests only after it has booted.
+            setMcpServers: async () => {
+              waiting.resolve();
+              await booted.promise;
+              return { added: ["supaterm"], removed: [], errors: {} };
+            },
+            close: vi.fn(),
+            [Symbol.asyncDispose]: async () => {},
+          }) as unknown as ClaudeSdk.Query,
+      );
+      yield* Effect.addFinalizer(() => Effect.sync(() => querySpy.mockRestore()));
+      const runner = yield* ClaudeAgentSdkQueryRunner;
+      const { resume, ...options } = resumedMcpQueryInput.options;
+      const opening = yield* runner
+        .open({ ...resumedMcpQueryInput, options: { ...options, sessionId: resume } })
+        .pipe(Effect.result, Effect.forkChild);
+      yield* Effect.promise(() => waiting.promise);
+      yield* TestClock.adjust(bootWait);
+      if (boots) booted.resolve();
+      const result = yield* Fiber.join(opening);
+
+      assert.equal(result._tag, boots ? "Success" : "Failure");
+      if (result._tag === "Success") yield* result.success.close;
+      else
+        assert.equal(
+          makeProviderFailure({
+            cause: { _tag: "ProviderAdapterTurnStartError", cause: result.failure },
+          }).message,
+          "Claude timed out while starting up. Retry the turn; if it keeps failing, check Claude and the server logs.",
+        );
+    }).pipe(Effect.provide(realQueryRunner)),
+  ),
+);
+
 function fakeClaudeCli(script: string): string {
   const dir = NodeFS.mkdtempSync(NodePath.join(NodeOS.tmpdir(), "supaterm-claude-cli-"));
   const cli = NodePath.join(dir, "claude");
@@ -633,6 +687,69 @@ describe.skipIf(HostProcess.Platform.defaultValue() === "win32")("Claude CLI pro
       yield* session.close;
       yield* Effect.promise(() => leftoverStopped);
     }).pipe(Effect.provide(realQueryRunner)),
+  );
+
+  // The default AgentScope is what macOS gets: no systemd scope to catch a job outside the CLI's group.
+  it.effect("stops a job the CLI started in its own process group when the session closes", () =>
+    Effect.gen(function* () {
+      const cli = fakeClaudeCli(
+        [
+          'dir=$(dirname "$0")',
+          `perl -e 'setpgrp(0, 0); exec @ARGV' sleep 600 > "$dir/alive" &`,
+          'echo $! > "$dir/leftover.pid"',
+          "cat > /dev/null",
+        ].join("\n"),
+      );
+      const dir = NodePath.dirname(cli);
+      NodeChildProcess.execFileSync("mkfifo", [NodePath.join(dir, "alive")]);
+      yield* Effect.addFinalizer(() =>
+        Effect.sync(() => {
+          try {
+            process.kill(Number(NodeFS.readFileSync(NodePath.join(dir, "leftover.pid"), "utf8")));
+          } catch {}
+          NodeFS.rmSync(dir, { recursive: true, force: true });
+        }),
+      );
+      const alive = NodeFS.createReadStream(NodePath.join(dir, "alive"));
+      const leftoverStarted = new Promise<void>((resolve) => alive.once("open", () => resolve()));
+      const leftoverStopped = new Promise<void>((resolve) => alive.once("close", () => resolve()));
+      alive.resume();
+
+      const session = yield* openFakeCli(cli).pipe(Effect.provide(realQueryRunner));
+      yield* Effect.promise(() => leftoverStarted);
+      yield* session.close;
+      yield* Effect.promise(() => leftoverStopped);
+    }),
+  );
+
+  // Live clock: the job is found by polling while the CLI runs, and the CLI exits on its own.
+  it.live("stops a job the CLI started in its own process group when the CLI exits", () =>
+    Effect.gen(function* () {
+      const cli = fakeClaudeCli(
+        [
+          'dir=$(dirname "$0")',
+          `perl -e 'setpgrp(0, 0); exec @ARGV' sleep 600 > "$dir/alive" &`,
+          'echo $! > "$dir/leftover.pid"',
+          "sleep 3",
+        ].join("\n"),
+      );
+      const dir = NodePath.dirname(cli);
+      NodeChildProcess.execFileSync("mkfifo", [NodePath.join(dir, "alive")]);
+      yield* Effect.addFinalizer(() =>
+        Effect.sync(() => {
+          try {
+            process.kill(Number(NodeFS.readFileSync(NodePath.join(dir, "leftover.pid"), "utf8")));
+          } catch {}
+          NodeFS.rmSync(dir, { recursive: true, force: true });
+        }),
+      );
+      const alive = NodeFS.createReadStream(NodePath.join(dir, "alive"));
+      const leftoverStopped = new Promise<void>((resolve) => alive.once("close", () => resolve()));
+      alive.resume();
+
+      yield* openFakeCli(cli).pipe(Effect.provide(realQueryRunner));
+      yield* Effect.promise(() => leftoverStopped);
+    }),
   );
 
   const rootRefusal =
