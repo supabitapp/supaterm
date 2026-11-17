@@ -16,6 +16,7 @@ import { PullRequestDetailTitleRow } from "./PullRequestDetailLayout";
 import { PullRequestEditButton } from "./PullRequestEditButton";
 import { readableFailure } from "./pullRequestDetail.logic";
 import { canEditPullRequestChangeRequest } from "@supaterm/client-runtime/pull-request-editing";
+import { isImeComposing } from "~/lib/imeComposition";
 
 /** The pull request title, which the reader can rename in place when the host allows it. */
 export function PullRequestTitleEditor({
@@ -98,7 +99,7 @@ export function PullRequestTitleEditor({
         aria-label={`${capitalizeTerm(sourceControlClients.get(detail.provider).changeRequest.singular)} title`}
         onChange={(event) => setTitleScope({ pullRequestKey, text: event.target.value })}
         onKeyDown={(event) => {
-          if (event.nativeEvent.isComposing || event.keyCode === 229) return;
+          if (isImeComposing(event)) return;
           if (event.key === "Enter") {
             event.preventDefault();
             void saveTitle(titleDraft);

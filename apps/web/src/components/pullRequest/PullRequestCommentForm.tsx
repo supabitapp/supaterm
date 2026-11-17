@@ -16,6 +16,7 @@ import {
   PullRequestMarkdownTextarea,
   pullRequestCompletionScope,
 } from "./PullRequestMarkdownTextarea";
+import { isImeComposing } from "~/lib/imeComposition";
 
 export function PullRequestCommentForm({
   environmentId,
@@ -103,7 +104,7 @@ export function PullRequestCommentForm({
         aria-label={`Comment on this ${sourceControlClients.get(detail.provider).changeRequest.singular}`}
         onValueChange={setBody}
         onKeyDown={(event) => {
-          if (event.nativeEvent.isComposing || event.keyCode === 229) return;
+          if (isImeComposing(event)) return;
           if (
             event.key === "Enter" &&
             (event.metaKey || event.ctrlKey) &&

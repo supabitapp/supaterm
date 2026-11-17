@@ -1,5 +1,6 @@
 import type { LegendListRef } from "@legendapp/list/react";
-import { useEffect, useEffectEvent, useRef, type RefObject } from "react";
+import { useEffect, useRef, type RefObject } from "react";
+import { useStableCallback } from "../../hooks/useStableCallback";
 import type { ThreadFindMatch } from "./threadFind";
 import { useThreadFindHighlights } from "./threadFindHighlights";
 
@@ -212,7 +213,7 @@ export function useThreadFindNavigation({
     revealedMatch: null,
     positionedEntries: null,
   });
-  const readInputs = useEffectEvent((): RevealInputs => ({
+  const readInputs = useStableCallback((): RevealInputs => ({
     matchKey,
     rowIndex,
     entries,
@@ -246,7 +247,7 @@ export function useThreadFindNavigation({
     };
     container.addEventListener("scroll", onScroll, { passive: true });
     return () => container.removeEventListener("scroll", onScroll);
-  }, [container]);
+  }, [container, readInputs]);
   const requestedPagesRef = useRef<{ key: string | null; pages: Set<string> }>({
     key: null,
     pages: new Set(),
@@ -270,7 +271,7 @@ export function useThreadFindNavigation({
 
     historyControls.onLoadEarlier(match.entryId);
   }, [entries, historyControls, listReady, match, matchKey, rowIndex]);
-  const reveal = useEffectEvent((range: Range | null, inputs: RevealInputs) =>
+  const reveal = useStableCallback((range: Range | null, inputs: RevealInputs) =>
     revealThreadFindMatch(range, inputs, { state: stateRef.current, listRef, readInputs }),
   );
 
@@ -305,5 +306,6 @@ export function useThreadFindNavigation({
     historyLoading,
     historyError,
     contentInsetEndAdjustment,
+    reveal,
   ]);
 }

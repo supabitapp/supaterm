@@ -31,10 +31,10 @@ function completed(transaction: IDBTransaction) {
 
 async function withStore<A>(
   mode: IDBTransactionMode,
-  use: (store: IDBObjectStore) => IDBRequest<A> | void,
+  run: (store: IDBObjectStore) => IDBRequest<A> | void,
 ) {
   const transaction = await beginTransaction(STORE_NAME, mode);
-  const request = use(transaction.objectStore(STORE_NAME));
+  const request = run(transaction.objectStore(STORE_NAME));
   await completed(transaction);
   return request?.result;
 }

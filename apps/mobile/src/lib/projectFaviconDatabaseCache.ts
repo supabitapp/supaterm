@@ -20,10 +20,10 @@ export function attachProjectFaviconDatabase(service: MobileDatabase.MobileDatab
 }
 
 const runDatabase = <A, E>(
-  use: (database: MobileDatabase.MobileDatabase["Service"]) => Effect.Effect<A, E>,
+  run: (database: MobileDatabase.MobileDatabase["Service"]) => Effect.Effect<A, E>,
 ) =>
   database
-    ? Effect.runPromise(use(database))
+    ? Effect.runPromise(run(database))
     : Promise.reject(new Error("Project icon storage is not attached."));
 
 /** expo-image encodes only through disk cache; remove the temporary frame after reading bytes. */
