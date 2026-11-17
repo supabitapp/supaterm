@@ -534,6 +534,12 @@ export const SETTINGS_SEARCH_ITEMS = [
     searchTerms: ["ask before thread chat history"],
   },
   {
+    id: "terminal-close-confirmation",
+    title: "Terminal close confirmation",
+    to: "/settings/general",
+    searchTerms: ["ask before delete stop process shell console history"],
+  },
+  {
     id: "time-format",
     title: "Time format",
     to: "/settings/general",
