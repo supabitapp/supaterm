@@ -1,6 +1,3 @@
-// Each rule is in the plugin's recommended presets, has no native oxlint equivalent, and can
-// fire on our dependencies. Recommended rules that stay off repeat a rule we already enforce or
-// report code that is deliberate here, such as a command that resolves with a tagged result.
 const CLIENT_RULES = [
   "anchor-target-exists",
   "auth-token-in-web-storage",
@@ -267,8 +264,6 @@ const THREE_RULES = [
 const asErrors = (names: ReadonlyArray<string>) =>
   Object.fromEntries(names.map((name) => [`react-doctor/${name}`, "error" as const]));
 
-// Rules read these to decide whether they apply; without them every rule assumes every stack.
-// Pass them through `lint.settings`: oxlint drops `settings` from a config reached by `extends`.
 export const reactDoctorSettings = {
   capabilities: [
     "react",
@@ -292,7 +287,6 @@ export const reactDoctorSettings = {
     "react-native",
     "reanimated",
     "reanimated:4",
-    // Gates the IME composition rule: people type Chinese, Japanese and Korean into our inputs.
     "i18n",
   ],
 };
@@ -316,7 +310,6 @@ export const reactDoctorOverrides = [
     rules: asErrors(REACT_NATIVE_RULES),
   },
   {
-    // Only client-runtime imports three.js, and these rules add a second of lint on every client file.
     files: ["packages/client-runtime/src/**"],
     excludeFiles: TEST_FILES,
     rules: asErrors(THREE_RULES),
