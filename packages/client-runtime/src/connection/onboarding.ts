@@ -404,7 +404,9 @@ const registerSshConnection = Effect.fn(
 )(function* (input: SshConnectionInput) {
   const registration = yield* prepareSshRegistration(input);
   const registry = yield* EnvironmentRegistry.EnvironmentRegistry;
-  yield* registry.register(registration);
+  yield* registry.register(registration, {
+    knownAddressOnly: input.expectedEnvironmentId === undefined,
+  });
   return registration.target.environmentId;
 });
 
