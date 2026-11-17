@@ -1,10 +1,11 @@
+import { ASSISTANT_CITATION_MAX_TEXT_LENGTH } from "@supaterm/contracts";
+
 import {
   SUPATERM_DARK_THEME_COLORS,
   SUPATERM_LIGHT_THEME_COLORS,
   type ThemeAppearance,
   type ThemeColors,
 } from "./themePalettes.ts";
-import { ASSISTANT_CITATION_MAX_TEXT_LENGTH } from "@supaterm/contracts";
 import { EVENT_CODE_SHORTCUT_KEYS } from "./keybindings.ts";
 
 export const HTML_RENDER_TOOL_NAME = "html_render";

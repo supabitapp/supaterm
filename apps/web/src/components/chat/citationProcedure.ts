@@ -84,6 +84,11 @@ export async function loadCitedHistory(input: {
   }
 }
 
+/** A response is cited by its message id, an HTML render by its item id. */
+const isCited = (candidate: TimelineEntry | MessagesTimelineRow, messageId: string) =>
+  (candidate.kind === "message" && candidate.message.id === messageId) ||
+  (candidate.kind === "html-render" && candidate.id === messageId);
+
 /** Where the citation stands for the rows the timeline currently shows. */
 export function resolveCitationPhase(input: {
   readonly history: CitedHistory;
@@ -92,19 +97,11 @@ export function resolveCitationPhase(input: {
   readonly rows: ReadonlyArray<MessagesTimelineRow>;
 }): CitationPhase {
   if (input.history._tag === "failed") return { _tag: "failed" };
-  const source = input.entries.find(
-    (entry) =>
-      (entry.kind === "message" && entry.message.id === input.messageId) ||
-      (entry.kind === "html-render" && entry.id === input.messageId),
-  );
+  const source = input.entries.find((entry) => isCited(entry, input.messageId));
   // The history store can hold the message a render before the entries do.
   if (!source) return { _tag: "loading" };
   if (source.kind === "message" && source.message.role !== "assistant") return { _tag: "failed" };
-  const row = input.rows.find(
-    (candidate) =>
-      (candidate.kind === "message" && candidate.message.id === input.messageId) ||
-      (candidate.kind === "html-render" && candidate.id === input.messageId),
-  );
+  const row = input.rows.find((candidate) => isCited(candidate, input.messageId));
   if (row) return { _tag: "ready", rowId: row.id };
   return { _tag: "expanding" };
 }
