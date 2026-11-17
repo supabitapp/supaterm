@@ -85,7 +85,7 @@ describe("dialog initial focus", () => {
       <Dialog>
         <DialogTrigger>Open installer</DialogTrigger>
         <DialogPopup>
-          <DialogTitle>Install relay client</DialogTitle>
+          <DialogTitle>Install update</DialogTitle>
           <DialogClose>Cancel</DialogClose>
           <DialogAction>Install</DialogAction>
         </DialogPopup>

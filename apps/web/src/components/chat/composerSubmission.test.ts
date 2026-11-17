@@ -217,7 +217,6 @@ describe("isComposerSubmissionBlocked", () => {
     environmentUnavailable: false,
   };
 
-  // regression: #9318
   it("lets a pending answer through while provider-turn sends are blocked", () => {
     expect(
       isComposerSubmissionBlocked({ ...sendBlocked, submissionTarget: "pending-user-input" }),

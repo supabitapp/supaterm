@@ -287,6 +287,7 @@ describe("root reopen shortcut", () => {
       expect.objectContaining({ command: "rightPanel.toggle" }),
       ...PANE_FOCUS_KEYBINDING_COMMANDS.map((command) => expect.objectContaining({ command })),
       expect.objectContaining({ command: "preview.focusUrl" }),
+      expect.objectContaining({ command: "preview.find" }),
     ]);
   });
 });

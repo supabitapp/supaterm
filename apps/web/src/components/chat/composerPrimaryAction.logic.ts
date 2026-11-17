@@ -41,8 +41,8 @@ export interface ComposerStopState {
   readonly phase: ComposerStopPhase;
 }
 
-export const COMPOSER_STOP_PENDING_MAX_MS = 10_000;
-export const COMPOSER_STOP_LANDED_CLICK_GUARD_MS = 500;
+const COMPOSER_STOP_PENDING_MAX_MS = 10_000;
+const COMPOSER_STOP_LANDED_CLICK_GUARD_MS = 500;
 
 /** Returns `state` itself when nothing changes, so it can run on every render. */
 export function stepComposerStop(
