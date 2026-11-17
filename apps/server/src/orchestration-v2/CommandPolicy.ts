@@ -110,10 +110,7 @@ export function resolveMessageDispatchIntent(
     target === undefined || !isRunInProgress(target)
       ? undefined
       : providerTurnCapabilities(projection, target);
-  return turns !== undefined &&
-    !turns.supportsActiveSteering &&
-    !(turns.supportsInterrupt && turns.supportsSteeringByInterruptRestart) &&
-    turns.supportsQueuedMessages
+  return turns !== undefined && !turns.supportsActiveSteering && providerSwitchWaitsForTurn(turns)
     ? { type: "queue_after_active" }
     : mode;
 }
@@ -133,7 +130,17 @@ export function followUpOwnerRun(
   );
 }
 
-function providerTurnCapabilities(
+/** A provider that cannot restart its turn for new input runs a provider switch after the turn. */
+export function providerSwitchWaitsForTurn(
+  turns: OrchestrationV2ProviderCapabilities["turns"],
+): boolean {
+  return (
+    turns.supportsQueuedMessages &&
+    !(turns.supportsInterrupt && turns.supportsSteeringByInterruptRestart)
+  );
+}
+
+export function providerTurnCapabilities(
   projection: OrchestrationV2ThreadProjection,
   run: OrchestrationV2Run,
 ) {
