@@ -484,6 +484,7 @@ export const fakeDriver = {
         target: entry.target,
       },
       session,
+      refusedRouteIds: [],
     }),
   checkRoute: () => Effect.succeed("answered" as const),
   preflight: () => Effect.succeedNone,
