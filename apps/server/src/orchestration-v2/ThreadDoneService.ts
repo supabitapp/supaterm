@@ -722,14 +722,14 @@ export const make = Effect.gen(function* () {
   const cleanUpDoneThread = Effect.fn("ThreadDoneServiceV2.cleanUpDoneThread")(
     function* (threadId: ThreadId) {
       const done = yield* projections.getThread(threadId);
-      if (done.doneOverride !== "done") return;
+      if (done.deletedAt !== null || done.doneOverride !== "done") return;
       yield* terminals.closeOnDone({ threadId });
       const worktreePath = done.worktreePath;
       if (worktreePath === null || !(yield* fileSystem.exists(worktreePath))) return;
-      // Closing and the worktree check wait on I/O. A thread re-engaged
-      // meanwhile is working again, so its worktree is no place for cleanup.
+      // Closing and the worktree check wait on I/O. A thread re-engaged or
+      // deleted meanwhile is no place for cleanup.
       const thread = yield* projections.getThread(threadId);
-      if (thread.doneOverride !== "done") return;
+      if (thread.deletedAt !== null || thread.doneOverride !== "done") return;
       const doneAtMs = toMillis(thread.doneAt);
       if (doneAtMs === null || doneActionRunAt.get(threadId) === doneAtMs) return;
       // The parent's worktree belongs to the parent; shared-worktree children
