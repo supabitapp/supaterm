@@ -438,7 +438,8 @@ const collect = Effect.fn("GitHubPullRequestApi.collect")(function* <Item, E>(
 
 const PULL_REQUEST_FALLBACK_MAX_ROWS = 1_000;
 
-const DIFF_FILES_PAGE_SIZE = 100;
+// Larger pages make GitHub drop patches and report those files as 0/0.
+const DIFF_FILES_PAGE_SIZE = 30;
 const FILES_VIEWED_MAX_PAGES = 5;
 /** Files cleared or restored per request; a reader rarely ticks more than a page of them at once. */
 const FILES_VIEWED_PER_REQUEST = 100;
