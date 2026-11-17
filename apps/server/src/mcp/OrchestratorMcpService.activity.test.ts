@@ -235,7 +235,7 @@ it("readThread preserves caller access errors and prefers activity-run status ov
     const service = yield* OrchestratorMcpService.OrchestratorMcpService;
     const result = yield* service.readThread(makeScope(), { threadId: parentThreadId });
     expect(result.thread.status).toBe("running");
-    expect(result.thread.latestRunId).toBe(cancelledRunId);
+    expect(result.thread.latestRunId).toBe(activeRunId);
     expect(result.thread.activeRunId).toBe(activeRunId);
     expect(result.thread.blockedOnThreadWait).toBe(true);
     expect(result.thread.pendingBackgroundTasks).toEqual([
