@@ -72,13 +72,20 @@ it.layer(NodeServices.layer)("supaterm install", (it) => {
       // Another supaterm earlier on PATH still runs first, so `supaterm` would not run this one.
       const otherBin = path.join(root, "other-bin");
       yield* fs.makeDirectory(otherBin);
-      yield* fs.writeFileString(path.join(otherBin, "supaterm"), "");
+      yield* fs.writeFileString(path.join(otherBin, "supaterm"), "", { mode: 0o755 });
       const shadowed = yield* provide(installCli(), {
         PATH: `${otherBin}:${path.join(root, "bin")}`,
       });
       assert.isFalse(shadowed.onPath);
       assert.equal(shadowed.shadowedBy, path.join(otherBin, "supaterm"));
       assert.isUndefined(shadowed.pathCommand);
+      yield* fs.remove(path.join(otherBin, "supaterm"));
+      yield* fs.makeDirectory(path.join(otherBin, "supaterm"));
+      const directory = yield* provide(installCli(), {
+        PATH: `${otherBin}:${path.join(root, "bin")}`,
+      });
+      assert.isTrue(directory.onPath);
+      assert.isUndefined(directory.shadowedBy);
       const recorded = yield* fs.readFileString(path.join(runtimeDir, "launchers"));
       assert.equal(recorded, `\n${yield* fs.realPath(path.join(root, "bin"))}/supaterm\n`);
 
