@@ -428,7 +428,9 @@ it.effect.each([
       const fs = yield* FileSystem.FileSystem;
       const path = yield* Path.Path;
       const driver = yield* GitVcsDriver.makeVcsDriverShape();
-      const parent = yield* fs.makeTempDirectoryScoped({ prefix: "supaterm-checkpoint-crlf-ignore-" });
+      const parent = yield* fs.makeTempDirectoryScoped({
+        prefix: "supaterm-checkpoint-crlf-ignore-",
+      });
       const { git, checkpointRef } = yield* makeCheckpointFixture(driver, parent);
       yield* fs.writeFileString(path.join(parent, ".gitignore"), "a.txt\r\n\r\nb.txt\r\n");
       const cwd = path.join(parent, subdirectory);
