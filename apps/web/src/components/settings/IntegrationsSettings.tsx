@@ -1065,7 +1065,7 @@ const AGENT_OPEN_TARGET_LABELS: Readonly<Record<BrowserAgentOpenTarget, string>>
   background: "In the background",
 };
 
-function BrowserAgentOpenTargetSetting({ disabled }: { readonly disabled: boolean }) {
+function BrowserAgentOpenTargetSetting() {
   const openTarget = useClientSettings((settings) => settings.browserAgentOpenTarget);
   const updateSettings = useUpdatePrimarySettings();
 
@@ -1074,7 +1074,7 @@ function BrowserAgentOpenTargetSetting({ disabled }: { readonly disabled: boolea
       {...searchableSetting("browser-agent-open-target")}
       description="Where a browser or device an agent opens shows up. In the background adds its tab without opening the right panel."
       resetAction={
-        !disabled && openTarget !== DEFAULT_BROWSER_AGENT_OPEN_TARGET ? (
+        openTarget !== DEFAULT_BROWSER_AGENT_OPEN_TARGET ? (
           <SettingResetButton
             label="agent browsers and devices"
             onClick={() =>
@@ -1085,7 +1085,6 @@ function BrowserAgentOpenTargetSetting({ disabled }: { readonly disabled: boolea
       }
       control={
         <Select
-          disabled={disabled}
           value={openTarget}
           onValueChange={(value) => {
             if (value === "panel" || value === "floating" || value === "background") {
@@ -1618,11 +1617,11 @@ export function BrowserSettingsPanel() {
         <SettingsUnavailableGroup message={desktopOnlyMessage}>
           <BrowserProfilesSetting disabled={desktopOnly} />
           <BrowserLinkTargetSetting disabled={desktopOnly} />
-          <BrowserAgentOpenTargetSetting disabled={desktopOnly} />
           <BrowserViewportSetting disabled={desktopOnly} />
           <BrowserZoomSetting disabled={desktopOnly} />
           <BrowserAppearanceSetting disabled={desktopOnly} />
         </SettingsUnavailableGroup>
+        <BrowserAgentOpenTargetSetting />
         <BrowserSearchEngineSetting />
       </SettingsSection>
       <SettingsSection id="browser-recordings" title="Recordings">
