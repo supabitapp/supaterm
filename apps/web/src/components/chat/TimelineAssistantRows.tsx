@@ -254,13 +254,14 @@ export function HtmlRenderTimelineRow({
   row: Extract<TimelineRow, { kind: "html-render" }>;
 }) {
   const ctx = use(TimelineRowCtx);
-  const { onAppFullscreenChange } = ctx;
+  const { onAppFullscreenChange, onHtmlRenderSelection } = ctx;
   const onFullscreenChange = (fullscreen: boolean) => onAppFullscreenChange(row.id, fullscreen);
+  const messageId = MessageId.make(row.id);
 
   return (
     <div className="min-w-0 px-1">
       <AssistantCitationSource
-        messageId={MessageId.make(row.id)}
+        messageId={messageId}
         {...(ctx.threadRef ? { threadRef: ctx.threadRef } : {})}
         itemKey={row.id}
         request={ctx.citationRequest}
@@ -273,6 +274,7 @@ export function HtmlRenderTimelineRow({
           htmlRender={row.htmlRender}
           threadRef={ctx.threadRef ?? undefined}
           onOpen={ctx.onFileOpen}
+          onSelection={(report) => onHtmlRenderSelection(messageId, report)}
           onFullscreenChange={onFullscreenChange}
         />
       </AssistantCitationSource>

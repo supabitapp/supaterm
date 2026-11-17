@@ -116,7 +116,10 @@ import {
   timelineContentOverflowsViewport,
   rememberTimelinePosition,
 } from "./timelineScrollAnchoring";
-import { AssistantSelectionToolbar } from "./AssistantSelectionToolbar";
+import {
+  AssistantSelectionToolbar,
+  type AssistantSelectionToolbarHandle,
+} from "./AssistantSelectionToolbar";
 import type { AssistantCitationSourceAnchor } from "~/lib/assistantTextSelection";
 import type { AssistantCitationRequest } from "./AssistantCitationSource";
 import { useAssistantCitationTarget } from "./useAssistantCitationTarget";
@@ -911,6 +914,11 @@ const ConversationTimeline = memo(function ConversationTimeline({
   const onAppFullscreenChange = (rowId: string, fullscreen: boolean) => {
     setFullscreenAppRowId((current) => (fullscreen ? rowId : current === rowId ? null : current));
   };
+  const selectionToolbarRef = useRef<AssistantSelectionToolbarHandle>(null);
+  const onHtmlRenderSelection: TimelineRowSharedState["onHtmlRenderSelection"] = (
+    messageId,
+    report,
+  ) => selectionToolbarRef.current?.reportRenderSelection(messageId, report);
   const alwaysRenderIndices = restoringAlwaysRender?.indices ?? [];
   // Screen readers can only reach headings in the DOM. Keeping the first and
   // last messages mounted lets heading navigation wrap to either end.
@@ -1124,6 +1132,7 @@ const ConversationTimeline = memo(function ConversationTimeline({
     onUseArtifactTemplate,
     onSendAppMessage,
     onAppFullscreenChange,
+    onHtmlRenderSelection,
     onFileDownload,
     openPullRequest,
     onOpenToolDiff,
@@ -1434,6 +1443,7 @@ const ConversationTimeline = memo(function ConversationTimeline({
             >
               {onCiteAssistantText && citationThreadRef ? (
                 <AssistantSelectionToolbar
+                  ref={selectionToolbarRef}
                   viewport={timelineViewportElement}
                   threadRef={citationThreadRef}
                   onCite={onCiteAssistantText}

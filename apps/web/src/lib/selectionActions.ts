@@ -192,6 +192,8 @@ export function observeSelectionActions({
       pointer = null;
       schedule(0);
     },
+    /** A scroller outside `element`, such as a dialog, moved the selection. */
+    scrolled: onScroll,
     dispose() {
       cancel();
       document.removeEventListener("pointerdown", onPointerDown, true);

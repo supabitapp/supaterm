@@ -33,7 +33,6 @@ import "~/index.css";
 import { environmentThreadDetails } from "../../state/threads";
 import { act, fakeTimers, render, stubGlobal } from "../../../test/render";
 import { ChangedFilesCard } from "./ChangedFilesTree";
-import { HTML_RENDER_SELECTION_EVENT, type HtmlRenderSelectionReport } from "./HtmlRenderFrame";
 import { MessagesTimeline } from "./MessagesTimeline";
 import { makeStreamingTimelineFixture } from "../../test-fixtures";
 import { deriveTimelineEntriesFromVisibleTurnItems } from "../../session-logic";
@@ -49,6 +48,7 @@ import {
   decodeComposerContextFragment,
 } from "@supaterm/shared/composerContextClipboard";
 import { collectComposerContextReferences } from "@supaterm/shared/composerContextReferences";
+import { injectHtmlRenderBootstrap } from "@supaterm/shared/htmlRender";
 
 const environmentQuery = vi.hoisted(() => ({
   error: "Pull request not found",
@@ -79,10 +79,11 @@ vi.mock(import("~/assets/assetUrls"), async (original) => {
   };
 });
 
+const renderAsset = vi.hoisted(() => ({ url: "about:blank" }));
 vi.mock(import("~/assets/longLivedAssetUrls"), () => ({
   useLongLivedAssetUrl: () => ({
     _tag: "Success",
-    url: "about:blank",
+    url: renderAsset.url,
     expiresAt: Date.now() + 60 * 60_000,
   }),
 }));
@@ -844,9 +845,15 @@ describe("MessagesTimeline citations", () => {
     expect(toast).not.toHaveBeenCalled();
   });
 
-  it("quotes the selection an HTML render's page reports, citing the render's row", async () => {
+  it("annotates text selected in an HTML render, inline and from its expanded view", async () => {
+    const html = injectHtmlRenderBootstrap(`<!doctype html><p>Quoted words</p>`);
+    const src = URL.createObjectURL(new Blob([html], { type: "text/html" }));
+    using _url = { [Symbol.dispose]: () => URL.revokeObjectURL(src) };
+    renderAsset.url = src;
+    onTestFinished(() => {
+      renderAsset.url = "about:blank";
+    });
     const onCiteAssistantText = vi.fn(() => true);
-    const collapse = vi.fn();
     const htmlRender: Entry = {
       id: "render",
       kind: "html-render",
@@ -858,19 +865,8 @@ describe("MessagesTimeline citations", () => {
       [message("Show a report", {}, "question"), htmlRender],
       { onCiteAssistantText, liveFollowEnabled: false },
     );
-    const frame = (await screen.getByTitle("Report").findElement()) as HTMLIFrameElement;
-    const box = { left: 8, top: 8, right: 120, bottom: 28 };
-
-    frame.focus();
-    frame.parentElement?.dispatchEvent(
-      new CustomEvent<HtmlRenderSelectionReport>(HTML_RENDER_SELECTION_EVENT, {
-        bubbles: true,
-        detail: { frame, selection: { text: " Quoted words\n", rect: box, bounds: box }, collapse },
-      }),
-    );
-    await userEvent.click(page.getByRole("button", { name: "Add annotation in composer" }));
-
-    expect(onCiteAssistantText).toHaveBeenCalledWith(
+    const annotate = page.getByRole("button", { name: "Add annotation in composer" });
+    const quoteFromRow = [
       expect.objectContaining({
         messageId: "render",
         text: "Quoted words",
@@ -880,9 +876,28 @@ describe("MessagesTimeline citations", () => {
         suffix: "",
       }),
       undefined,
-    );
+    ];
+    const select = async (frame: ReturnType<typeof screen.getByTitle>) => {
+      const quote = page.frameLocator(frame).getByText("Quoted words");
+      await userEvent.dragAndDrop(quote, quote, {
+        sourcePosition: { x: 0, y: 5 },
+        targetPosition: { x: 250, y: 5 },
+      });
+    };
+
+    await select(screen.getByTitle("Report"));
+    await userEvent.click(annotate);
+    expect(onCiteAssistantText).toHaveBeenLastCalledWith(...quoteFromRow);
+    await expect.element(annotate).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "Open full screen" }));
+    const expanded = page.getByRole("dialog");
+    await select(expanded.getByTitle("Report"));
+    await userEvent.click(annotate);
+    expect(onCiteAssistantText).toHaveBeenCalledTimes(2);
+    expect(onCiteAssistantText).toHaveBeenLastCalledWith(...quoteFromRow);
     // The expanded view covers the composer, so quoting from it closes it.
-    expect(collapse).toHaveBeenCalledTimes(1);
+    await expect.element(expanded).not.toBeInTheDocument();
   });
 });
 
