@@ -805,10 +805,8 @@ const make = Effect.gen(function* () {
       await page.evaluate((name) => {
         const target = globalThis as unknown as {
           addEventListener: (type: string, listener: () => void) => void;
-        };
-        target.addEventListener("pagehide", () =>
-          Reflect.apply(Reflect.get(target, name), target, []),
-        );
+        } & Record<string, () => void>;
+        target.addEventListener("pagehide", () => target[name]?.());
       }, binding);
       await page.close({ runBeforeUnload: true });
     })().catch(unloaded.resolve);

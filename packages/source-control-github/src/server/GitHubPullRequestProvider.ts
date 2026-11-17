@@ -216,14 +216,18 @@ function withUnfinishedWorkflowRuns(
   }
   return [
     ...checks,
-    ...runs
-      .filter((run) => !runningRunIds.has(run.id))
-      .map((run): PullRequestCheck => ({
-        name: run.name,
-        status: "pending",
-        description: "This workflow run has not finished.",
-        url: run.url,
-      })),
+    ...runs.flatMap((run): ReadonlyArray<PullRequestCheck> =>
+      runningRunIds.has(run.id)
+        ? []
+        : [
+            {
+              name: run.name,
+              status: "pending",
+              description: "This workflow run has not finished.",
+              url: run.url,
+            },
+          ],
+    ),
   ];
 }
 
