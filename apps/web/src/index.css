@@ -1401,6 +1401,11 @@ body {
   padding: 0;
 }
 
+input,
+textarea {
+  font-variant-ligatures: no-contextual;
+}
+
 [data-preview-url-input] {
   font-variant-ligatures: none;
 }
