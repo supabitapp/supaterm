@@ -252,7 +252,9 @@ const SHORTCUTS_METHOD = "supaterm/notifications/shortcuts";
 const KEY_DOWN_METHOD = "supaterm/notifications/keydown";
 const OPEN_IMAGE_METHOD = "supaterm/notifications/open-image";
 const SELECTION_CHANGED_METHOD = "supaterm/notifications/selection-changed";
+const FOCUS_SELECTION_ACTION_METHOD = "supaterm/notifications/focus-selection-action";
 const CLEAR_SELECTION_METHOD = "supaterm/notifications/clear-selection";
+const SELECTION_ACTION_METHOD = "supaterm/notifications/selection-action";
 // One past the limit, so the host can tell an oversized selection from one that fits.
 const MAX_REPORTED_SELECTION_LENGTH = ASSISTANT_CITATION_MAX_TEXT_LENGTH + 1;
 
@@ -331,26 +333,45 @@ function readHtmlRenderBox(value: unknown): HtmlRenderBox | undefined {
     : undefined;
 }
 
+/** What a page says about its text selection. */
+export type HtmlRenderSelectionEvent =
+  | { readonly _tag: "selected"; readonly selection: HtmlRenderSelection }
+  | { readonly _tag: "cleared" }
+  /** Tab was pressed while the host offers an action for the selection. */
+  | { readonly _tag: "focus-action" };
+
 /**
- * Null clears the page's reported selection. A page can report any text, so it is trimmed and
- * then capped here: a text at the cap is oversized, never a shorter one that lost its end.
+ * A page can report any text, so it is trimmed and then capped here: a text at the cap is
+ * oversized, never a shorter one that lost its end.
  */
-export function readHtmlRenderSelection(data: unknown): HtmlRenderSelection | null | undefined {
+export function readHtmlRenderSelectionEvent(data: unknown): HtmlRenderSelectionEvent | undefined {
   if (typeof data !== "object" || data === null) return undefined;
   const { jsonrpc, method, params } = data as Record<string, unknown>;
-  if (jsonrpc !== "2.0" || method !== SELECTION_CHANGED_METHOD) return undefined;
+  if (jsonrpc !== "2.0") return undefined;
+  if (method === FOCUS_SELECTION_ACTION_METHOD) return { _tag: "focus-action" };
+  if (method !== SELECTION_CHANGED_METHOD) return undefined;
   if (typeof params !== "object" || params === null) return undefined;
   const { text, rect, bounds } = params as Record<string, unknown>;
   if (typeof text !== "string") return undefined;
   const quote = text.trim().slice(0, MAX_REPORTED_SELECTION_LENGTH);
-  if (quote.length === 0) return null;
+  if (quote.length === 0) return { _tag: "cleared" };
   const line = readHtmlRenderBox(rect);
   const box = readHtmlRenderBox(bounds);
-  return line && box ? { text: quote, rect: line, bounds: box } : undefined;
+  return line && box
+    ? { _tag: "selected", selection: { text: quote, rect: line, bounds: box } }
+    : undefined;
 }
 
 export function htmlRenderClearSelectionMessage() {
   return { jsonrpc: "2.0", method: CLEAR_SELECTION_METHOD } as const;
+}
+
+/**
+ * Tells the page whether the host offers an action for its selection. Only then does the page
+ * hand Tab to the host, so Tab keeps moving through the page wherever no action is offered.
+ */
+export function htmlRenderSelectionActionMessage(offered: boolean) {
+  return { jsonrpc: "2.0", method: SELECTION_ACTION_METHOD, params: { offered } } as const;
 }
 
 export function readHtmlRenderKeyDown(data: unknown):
@@ -435,9 +456,11 @@ function rootRule(theme: HtmlRenderTheme): string {
 // Reports a selection once it settles, never while it is being dragged, so the host hears of it
 // once. Clears go out at once: on collapse, on blur, and when a scroll moves the selection.
 // The text is trimmed before it is capped, so a capped length always means an oversized selection.
+// Tab goes to the host only while it offers an action for the reported selection.
 const SELECTION_BRIDGE_SCRIPT = `(function () {
   var dragging = false;
   var reported = false;
+  var actionOffered = false;
   var settleTimer = 0;
   function post(params) {
     window.parent.postMessage(
@@ -449,6 +472,7 @@ const SELECTION_BRIDGE_SCRIPT = `(function () {
     return { left: rect.left, top: rect.top, right: rect.right, bottom: rect.bottom };
   }
   function clearReported() {
+    actionOffered = false;
     if (!reported) return;
     reported = false;
     post({ text: "" });
@@ -524,13 +548,24 @@ const SELECTION_BRIDGE_SCRIPT = `(function () {
   );
   window.addEventListener("message", function (event) {
     var data = event.data;
-    var clear =
-      event.source === window.parent &&
-      data &&
-      data.jsonrpc === "2.0" &&
-      data.method === ${JSON.stringify(CLEAR_SELECTION_METHOD)};
-    var selection = clear ? getSelection() : null;
-    if (selection) selection.removeAllRanges();
+    if (event.source !== window.parent || !data || data.jsonrpc !== "2.0") return;
+    if (data.method === ${JSON.stringify(CLEAR_SELECTION_METHOD)}) {
+      var selection = getSelection();
+      if (selection) selection.removeAllRanges();
+    } else if (data.method === ${JSON.stringify(SELECTION_ACTION_METHOD)}) {
+      actionOffered = reported && !!data.params && data.params.offered === true;
+    }
+  });
+  window.addEventListener("keydown", function (event) {
+    var plainTab =
+      event.key === "Tab" && !event.shiftKey && !event.altKey && !event.ctrlKey && !event.metaKey;
+    if (!actionOffered || !plainTab || !event.isTrusted || event.isComposing) return;
+    if (event.defaultPrevented) return;
+    event.preventDefault();
+    window.parent.postMessage(
+      { jsonrpc: "2.0", method: ${JSON.stringify(FOCUS_SELECTION_ACTION_METHOD)} },
+      "*"
+    );
   });
 })();`;
 

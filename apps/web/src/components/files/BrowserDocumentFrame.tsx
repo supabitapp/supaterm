@@ -8,7 +8,7 @@ import {
   THREAD_JUMP_KEYBINDING_COMMANDS,
 } from "@supaterm/contracts";
 import {
-  type HtmlRenderSelection,
+  type HtmlRenderSelectionEvent,
   type HtmlRenderShortcut,
   htmlRenderShortcutsMessage,
   htmlRenderThemeFragment,
@@ -18,7 +18,7 @@ import {
   readHtmlRenderImageRequest,
   readHtmlRenderKeyDown,
   readHtmlRenderLinkRequest,
-  readHtmlRenderSelection,
+  readHtmlRenderSelectionEvent,
 } from "@supaterm/shared/htmlRender";
 import {
   isMacPlatform,
@@ -185,9 +185,9 @@ export function HtmlRenderDocument(props: {
   readonly className?: string;
   readonly threadRef?: ScopedThreadRef | undefined;
   readonly onContentHeight?: (height: number) => void;
-  /** The page's settled text selection, in the frame's own coordinates, or null once it clears. */
+  /** What the page says about its text selection. Boxes are in the frame's own coordinates. */
   readonly onSelection?:
-    | ((frame: HTMLIFrameElement, selection: HtmlRenderSelection | null) => void)
+    | ((frame: HTMLIFrameElement, event: HtmlRenderSelectionEvent) => void)
     | undefined;
   /** Reports fullscreen changes so virtualized rows can stay mounted. */
   readonly onFullscreenChange?: ((fullscreen: boolean) => void) | undefined;
@@ -291,11 +291,11 @@ export function HtmlRenderDocument(props: {
       props.onContentHeight?.(height);
       return;
     }
-    // A selection only offers an action the reader still has to click, and a long drag or a
+    // A selection only offers an action the reader still has to take, and a long drag or a
     // touch selection outlasts transient activation, so it needs frame focus alone.
-    const selection = readHtmlRenderSelection(event.data);
+    const selection = readHtmlRenderSelectionEvent(event.data);
     if (selection !== undefined) {
-      if (selection === null || document.activeElement === frame) {
+      if (selection._tag === "cleared" || document.activeElement === frame) {
         props.onSelection?.(frame, selection);
       }
       return;

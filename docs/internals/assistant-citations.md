@@ -31,7 +31,10 @@ resolves, so the wire shape is unchanged. The host cannot read a selection insid
 page. On web the page's [bootstrap](../../packages/shared/src/htmlRender.ts) reports a settled
 selection, and the host accepts it only from the focused frame, as plain text capped at the
 citation limit. The bootstrap is written into the page at publish, so a render published before
-the bridge existed never reports. Mobile needs no page script: the WebView's selection menu
+the bridge existed never reports. The host tells the page while it offers an action, and only
+then does the page hand Tab to the host, so Tab stays the page's own everywhere else. Focus
+returning from the frame is a window focus for the host, so the action is exempt from the rule
+that returns focus to the composer. Mobile needs no page script: the WebView's selection menu
 carries the action through a [library patch](../../patches/react-native-webview@14.0.1.patch),
 which adds custom items to the platform menu where upstream replaces it. Navigation reveals the
 render's row and stops there, because nothing outside the frame can find or highlight its text.

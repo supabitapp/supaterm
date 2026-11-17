@@ -6,7 +6,7 @@ import {
   injectHtmlRenderBootstrap,
   readHtmlRenderImageRequest,
   readHtmlRenderLinkRequest,
-  readHtmlRenderSelection,
+  readHtmlRenderSelectionEvent,
 } from "./htmlRender.ts";
 import { SUPATERM_DARK_THEME_COLORS, SUPATERM_LIGHT_THEME_COLORS } from "./themePalettes.ts";
 import { htmlRenderFromToolItem } from "./toolOutput.ts";
@@ -145,7 +145,7 @@ describe("readHtmlRenderImageRequest", () => {
   });
 });
 
-describe("readHtmlRenderSelection", () => {
+describe("readHtmlRenderSelectionEvent", () => {
   const selection = (params: unknown, method = "supaterm/notifications/selection-changed") => ({
     jsonrpc: "2.0",
     method,
@@ -154,14 +154,20 @@ describe("readHtmlRenderSelection", () => {
   const rect = { left: 8, top: 20, right: 120, bottom: 38 };
   const bounds = { left: 8, top: 0, right: 300, bottom: 38 };
 
-  it("reads a trimmed selection with its boxes, a clear, and nothing else", () => {
-    expect(readHtmlRenderSelection(selection({ text: " Quoted\nwords ", rect, bounds }))).toEqual({
-      text: "Quoted\nwords",
-      rect,
-      bounds,
-    });
-    expect(readHtmlRenderSelection(selection({ text: "" }))).toBeNull();
-    expect(readHtmlRenderSelection(selection({ text: " \n ", rect, bounds }))).toBeNull();
+  it("reads a trimmed selection with its boxes, a clear, a Tab hand-off, and nothing else", () => {
+    expect(
+      readHtmlRenderSelectionEvent(selection({ text: " Quoted\nwords ", rect, bounds })),
+    ).toEqual({ _tag: "selected", selection: { text: "Quoted\nwords", rect, bounds } });
+    const cleared = { _tag: "cleared" };
+    expect(readHtmlRenderSelectionEvent(selection({ text: "" }))).toEqual(cleared);
+    expect(readHtmlRenderSelectionEvent(selection({ text: " \n ", rect, bounds }))).toEqual(
+      cleared,
+    );
+    expect(
+      readHtmlRenderSelectionEvent(
+        selection(undefined, "supaterm/notifications/focus-selection-action"),
+      ),
+    ).toEqual({ _tag: "focus-action" });
     for (const params of [
       { text: "Quoted", bounds },
       { text: "Quoted", rect },
@@ -172,10 +178,10 @@ describe("readHtmlRenderSelection", () => {
       { text: 1, rect, bounds },
       { text: ["Quoted"], rect, bounds },
     ]) {
-      expect(readHtmlRenderSelection(selection(params))).toBeUndefined();
+      expect(readHtmlRenderSelectionEvent(selection(params))).toBeUndefined();
     }
     expect(
-      readHtmlRenderSelection(
+      readHtmlRenderSelectionEvent(
         selection({ text: "Quoted", rect, bounds }, "supaterm/notifications/open-image"),
       ),
     ).toBeUndefined();
@@ -183,7 +189,10 @@ describe("readHtmlRenderSelection", () => {
 
   it("keeps oversized text one character past the citation limit, however it is padded", () => {
     const limit = ASSISTANT_CITATION_MAX_TEXT_LENGTH;
-    const read = (text: string) => readHtmlRenderSelection(selection({ text, rect, bounds }))?.text;
+    const read = (text: string) => {
+      const event = readHtmlRenderSelectionEvent(selection({ text, rect, bounds }));
+      return event?._tag === "selected" ? event.selection.text : undefined;
+    };
     expect(read("a".repeat(limit * 3))).toHaveLength(limit + 1);
     // Padding must not hide the overflow: trimming after the cut would leave a quote at the limit.
     expect(read(` ${"a".repeat(limit)}TAIL`)).toHaveLength(limit + 1);

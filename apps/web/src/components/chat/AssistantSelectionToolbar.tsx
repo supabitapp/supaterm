@@ -7,6 +7,7 @@ import {
 import { QuoteIcon } from "@supaterm/icons";
 import {
   htmlRenderClearSelectionMessage,
+  htmlRenderSelectionActionMessage,
   type HtmlRenderBox,
   type HtmlRenderSelection,
 } from "@supaterm/shared/htmlRender";
@@ -30,7 +31,7 @@ import { EASE_DRAWER, EASE_IN, prefersReducedMotion } from "~/lib/motion";
 import { cn } from "~/lib/utils";
 
 export interface AssistantSelectionToolbarHandle {
-  /** An HTML render's page reported its text selection, or cleared it with a null selection. */
+  /** An HTML render's page reported its text selection, cleared it, or asked for the action. */
   reportRenderSelection: (messageId: MessageId, report: HtmlRenderSelectionReport) => void;
 }
 
@@ -105,19 +106,42 @@ export function AssistantSelectionToolbar({
   useImperativeHandle(
     ref,
     () => ({
-      reportRenderSelection(messageId, { frame, selection: reported, collapse }) {
+      reportRenderSelection(messageId, { frame, event, collapse }) {
         const actions = actionsRef.current;
-        if (reported && actions) {
-          renderReportRef.current = { messageId, frame, selection: reported, collapse };
+        const toolbar = toolbarRef.current;
+        if (event._tag === "selected") {
+          if (!actions) return;
+          renderReportRef.current = { messageId, frame, selection: event.selection, collapse };
           actions.selectionReported();
-        } else if (renderReportRef.current?.frame === frame) {
-          renderReportRef.current = null;
-          setSelection(null);
+          return;
         }
+        if (renderReportRef.current?.frame !== frame) return;
+        if (event._tag === "focus-action") {
+          if (toolbar && !toolbar.disabled && !toolbar.inert)
+            toolbar.focus({ preventScroll: true });
+          return;
+        }
+        // Focus moving to the action blurs the page, which clears its report. The quote stands.
+        if (document.activeElement === toolbar) return;
+        renderReportRef.current = null;
+        setSelection(null);
       },
     }),
     [],
   );
+
+  const offeredFrame =
+    selection?.source._tag === "render" &&
+    selection.citation.text.length <= ASSISTANT_CITATION_MAX_TEXT_LENGTH
+      ? selection.source.frame
+      : null;
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- tells the render's sandboxed page while an action is offered for its selection, so Tab pressed in the page can reach the button
+  useEffect(() => {
+    const page = offeredFrame?.contentWindow;
+    if (!page) return;
+    page.postMessage(htmlRenderSelectionActionMessage(true), "*");
+    return () => page.postMessage(htmlRenderSelectionActionMessage(false), "*");
+  }, [offeredFrame]);
 
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- measures the toolbar DOM node and clamps its position inside the window before paint
   useLayoutEffect(() => {
@@ -354,6 +378,7 @@ export function AssistantSelectionToolbar({
       disabled={tooLong}
       inert={presence.exiting}
       aria-label={tooLong ? "Selection is too long to annotate" : "Add annotation in composer"}
+      data-selection-action=""
       // The expanded view of a render is a media dialog, which sits above the timeline's layer.
       className={cn("fixed max-w-[calc(100vw-1rem)] origin-top-left", expanded ? "z-[70]" : "z-50")}
       style={{ left: shownSelection.position.x, top: shownSelection.position.y }}

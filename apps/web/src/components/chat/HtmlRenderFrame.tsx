@@ -4,7 +4,7 @@ import {
   htmlRenderFileName,
   htmlRenderFrameHeight,
   type HtmlRenderReference,
-  type HtmlRenderSelection,
+  type HtmlRenderSelectionEvent,
 } from "@supaterm/shared/htmlRender";
 import { ExpandIcon, PanelRightIcon } from "@supaterm/icons";
 import { useEffect, useState } from "react";
@@ -22,10 +22,10 @@ import { observeResize } from "~/lib/observeResize";
 
 const MIN_URL_LIFE_MS = 5 * 60_000;
 
-/** A page's settled text selection, or a null selection once it clears. */
+/** What a render's page says about its text selection, and which of its views said it. */
 export interface HtmlRenderSelectionReport {
   readonly frame: HTMLIFrameElement;
-  readonly selection: HtmlRenderSelection | null;
+  readonly event: HtmlRenderSelectionEvent;
   /** Closes the expanded view the selection is in. Absent for the inline render. */
   readonly collapse?: (() => void) | undefined;
 }
@@ -88,7 +88,7 @@ export function HtmlRenderFrame(props: {
             threadRef={props.threadRef}
             className="block size-full"
             onContentHeight={setContentHeight}
-            onSelection={onSelection && ((frame, selection) => onSelection({ frame, selection }))}
+            onSelection={onSelection && ((frame, event) => onSelection({ frame, event }))}
             onFullscreenChange={onFullscreenChange}
           />
           <div className="absolute end-2 top-2 flex gap-1 opacity-0 transition-opacity duration-150 focus-within:opacity-100 group-hover/html-render:opacity-100 pointer-coarse:opacity-100">
@@ -152,8 +152,8 @@ export function HtmlRenderFrame(props: {
               threadRef={props.threadRef}
               onSelection={
                 onSelection &&
-                ((frame, selection) =>
-                  onSelection({ frame, selection, collapse: () => setExpandedSrc(null) }))
+                ((frame, event) =>
+                  onSelection({ frame, event, collapse: () => setExpandedSrc(null) }))
               }
               onClose={() => setExpandedSrc(null)}
             />

@@ -34,6 +34,7 @@ import { environmentThreadDetails } from "../../state/threads";
 import { act, fakeTimers, render, stubGlobal } from "../../../test/render";
 import { ChangedFilesCard } from "./ChangedFilesTree";
 import { MessagesTimeline } from "./MessagesTimeline";
+import { shouldRefocusComposerOnWindowFocus } from "../ChatView.logic";
 import { makeStreamingTimelineFixture } from "../../test-fixtures";
 import { deriveTimelineEntriesFromVisibleTurnItems } from "../../session-logic";
 import { remarkThoughtPreview } from "./TimelineWorkEntryRow.logic";
@@ -885,8 +886,14 @@ describe("MessagesTimeline citations", () => {
       });
     };
 
+    // From inside the page, Tab reaches the button as it does from the host's own text.
     await select(screen.getByTitle("Report"));
-    await userEvent.click(annotate);
+    await expect.element(annotate).toBeVisible();
+    await userEvent.keyboard("{Tab}");
+    await expect.element(annotate).toHaveFocus();
+    // Focus leaving the frame is a window focus for the host, which must not hand it on.
+    expect(shouldRefocusComposerOnWindowFocus(document.activeElement)).toBe(false);
+    await userEvent.keyboard("{Enter}");
     expect(onCiteAssistantText).toHaveBeenLastCalledWith(...quoteFromRow);
     await expect.element(annotate).not.toBeInTheDocument();
 
