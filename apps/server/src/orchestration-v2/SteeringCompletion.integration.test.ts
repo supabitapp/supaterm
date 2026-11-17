@@ -1924,7 +1924,7 @@ it.effect.each([
     Effect.scoped(
       Effect.gen(function* () {
         const { events, started, steered, layer, startFirstTurn } = yield* nextTurnSelectionHarness(
-          `restart-after-${status}-${runSettled ? "settled" : "reopened"}`,
+          `restart-after-${status}-${runSettled ? "settled" : "unsettled"}`,
         );
         yield* Effect.gen(function* () {
           const orchestrator = yield* Orchestrator.OrchestratorV2;
@@ -2021,7 +2021,7 @@ it.effect("queues a restart sent into a provider turn that failed before its run
   Effect.scoped(
     Effect.gen(function* () {
       const { events, started, steered, layer, startFirstTurn } = yield* nextTurnSelectionHarness(
-        "restart-after-failed-reopened",
+        "restart-after-failed-unsettled",
       );
       yield* Effect.gen(function* () {
         const orchestrator = yield* Orchestrator.OrchestratorV2;
