@@ -61,18 +61,21 @@ describe("waitForDisclosureSettle", () => {
     expect(onSettled).toHaveBeenCalledOnce();
   });
 
-  it("holds while a height transition runs inside the row", () => {
-    const onSettled = vi.fn();
-    let running = ["height", "opacity"];
-    const element = rowElement(() => running);
-    waitForDisclosureSettle(() => ({ size: 40, element }), onSettled);
+  it.each(["height", "grid-template-rows"])(
+    "holds while a %s transition runs inside the row",
+    (property) => {
+      const onSettled = vi.fn();
+      let running = [property, "opacity"];
+      const element = rowElement(() => running);
+      waitForDisclosureSettle(() => ({ size: 40, element }), onSettled);
 
-    for (let index = 0; index < 5; index += 1) runFrame();
-    expect(onSettled).not.toHaveBeenCalled();
-    running = ["opacity"];
-    runFrame();
-    expect(onSettled).toHaveBeenCalledOnce();
-  });
+      for (let index = 0; index < 5; index += 1) runFrame();
+      expect(onSettled).not.toHaveBeenCalled();
+      running = ["opacity"];
+      runFrame();
+      expect(onSettled).toHaveBeenCalledOnce();
+    },
+  );
 
   it("holds while a scripted height animation runs inside the row", () => {
     class TestKeyframeEffect {

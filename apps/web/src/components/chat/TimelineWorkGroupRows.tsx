@@ -53,6 +53,7 @@ import { TimelineRowExit } from "./TimelineRowExit";
 import { WorktreeSetupCard } from "./WorktreeSetupCard";
 import { cn } from "~/lib/utils";
 import type { TimestampFormat } from "@supaterm/contracts/settings";
+import { WORK_GROUP_CLOSE_MS, WORK_GROUP_OPEN_MS } from "./workGroupDisclosure";
 
 export const WorkGroupSection = memo(function WorkGroupSection({
   anchorKey,
@@ -514,9 +515,10 @@ export function LiveWorkEntryTimelineRow({
 
   const failed = workEntryDisplayIndicatesToolFailure(row.entry);
 
-  const thoughtLine = row.thought && !row.expanded ? liveThoughtLine(row.thought.detail ?? "") : "";
+  const thoughtLine = row.thought ? liveThoughtLine(row.thought.detail ?? "") : "";
+  const thoughtShown = thoughtLine !== "" && !row.expanded;
 
-  const thoughtIsStatus = thoughtLine !== "" && row.entry === row.thought;
+  const thoughtIsStatus = thoughtShown && row.entry === row.thought;
 
   return (
     <button
@@ -527,37 +529,52 @@ export function LiveWorkEntryTimelineRow({
       )}
       aria-label={
         failed
-          ? `${thoughtLine ? `${thoughtLine} ` : ""}${threadLabel?.text ?? label}, tool call failed`
+          ? `${thoughtShown ? `${thoughtLine} ` : ""}${threadLabel?.text ?? label}, tool call failed`
           : undefined
       }
       aria-expanded={row.expanded}
       onClick={() => ctx.onToggleWorkGroup(row.groupId, row.id)}
     >
       {thoughtLine ? (
-        <WorkLogRow
-          icon={
-            <span className="flex size-4 items-center justify-center text-icon-muted">
-              <ToolActivityIconView
-                icon={undefined}
-                fallbackName="brain"
-                className="block size-4 shrink-0 stroke-2"
-                muted
-              />
-            </span>
-          }
-          label={
-            <span className="line-clamp-4">
-              <ChatMarkdown
-                inline
-                text={thoughtLine}
-                cwd={ctx.markdownCwd}
-                parseRawHtml={false}
-                extraRemarkPlugins={THOUGHT_PREVIEW_PLUGINS}
-              />
-            </span>
-          }
-          wrapLabel
-        />
+        // Stays mounted while the group is open, so it slides against the group's entries.
+        <div
+          inert={row.expanded}
+          aria-hidden={row.expanded}
+          style={{
+            transitionDuration: `${row.expanded ? WORK_GROUP_OPEN_MS : WORK_GROUP_CLOSE_MS}ms`,
+          }}
+          className={cn(
+            "grid w-full transition-[grid-template-rows] ease-drawer motion-reduce:transition-none",
+            row.expanded ? "grid-rows-[0fr]" : "grid-rows-[1fr]",
+          )}
+        >
+          <div className="min-h-0 min-w-0 overflow-clip">
+            <WorkLogRow
+              icon={
+                <span className="flex size-4 items-center justify-center text-icon-muted">
+                  <ToolActivityIconView
+                    icon={undefined}
+                    fallbackName="brain"
+                    className="block size-4 shrink-0 stroke-2"
+                    muted
+                  />
+                </span>
+              }
+              label={
+                <span className="line-clamp-4">
+                  <ChatMarkdown
+                    inline
+                    text={thoughtLine}
+                    cwd={ctx.markdownCwd}
+                    parseRawHtml={false}
+                    extraRemarkPlugins={THOUGHT_PREVIEW_PLUGINS}
+                  />
+                </span>
+              }
+              wrapLabel
+            />
+          </div>
+        </div>
       ) : null}
       <LiveActivityRow
         label={
