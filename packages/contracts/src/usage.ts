@@ -157,6 +157,8 @@ export const UsageSummaryInput = Schema.Struct({
   untilTime: Schema.optional(TrimmedNonEmptyString),
 
   awaitRefresh: Schema.optional(Schema.Boolean),
+  /** Accept an immediate answer from the last scan; its sources are marked refreshing. */
+  provisional: Schema.optional(Schema.Boolean),
   modelFilter: Schema.optional(UsageModelFilter),
 });
 export type UsageSummaryInput = typeof UsageSummaryInput.Type;

@@ -24,9 +24,11 @@ import {
   entryWithRoutes,
   insertRoute,
   isLearned,
+  isNearbyAddress,
   mergeLearnedRoutes,
   pairingFallbackRoutes,
   pendingRouteOrder,
+  routeKeepsItsHost,
   routesAfterRemoving,
   routeHttpBaseUrl,
   sendsTokenInClear,
@@ -102,6 +104,34 @@ describe("connection routes", () => {
       "learned:environment-routes:http://192.168.1.20:4389@bearer:environment-routes",
       "learned:environment-routes:http://100.100.10.2:4389@bearer:environment-routes",
     ]);
+  });
+
+  it("knows which addresses reach the same machine on every network", () => {
+    const tailnetIp = route("http://100.101.102.103:3773/", "ts-ip");
+    const profile = Option.getOrThrow(tailnetIp.profile) as BearerConnectionProfile;
+    const marked = {
+      target: tailnetIp.target,
+      profile: Option.some(new BearerConnectionProfile({ ...profile, network: "tailscale" })),
+    };
+    expect(routeKeepsItsHost(route("https://desk.example.com/", "public"))).toBe(true);
+    expect(routeKeepsItsHost(route("https://desk.tail1234.ts.net/", "ts-tls"))).toBe(true);
+    expect(routeKeepsItsHost(route("http://127.0.0.1:3773/", "lo"))).toBe(true);
+    // With Tailscale down, a plain http tailnet address can reach another host:
+    // carrier networks use 100.64.0.0/10 too, and nothing proves who answers.
+    expect(routeKeepsItsHost(route("http://desk.tail1234.ts.net:3773/", "ts"))).toBe(false);
+    expect(routeKeepsItsHost(marked)).toBe(false);
+    expect(routeKeepsItsHost(tailnetIp)).toBe(false);
+    expect(routeKeepsItsHost(route("http://192.168.1.10:3773/", "lan"))).toBe(false);
+    expect(routeKeepsItsHost(route("http://desk.example.com/", "http"))).toBe(false);
+  });
+
+  it("treats only loopback and LAN addresses as nearby", () => {
+    expect(isNearbyAddress("http://127.0.0.1:3773/")).toBe(true);
+    expect(isNearbyAddress("http://192.168.1.10:3773/")).toBe(true);
+    expect(isNearbyAddress("http://100.101.102.103:3773/")).toBe(false);
+    expect(isNearbyAddress("https://desk.tail1234.ts.net/")).toBe(false);
+    expect(isNearbyAddress("https://desk.example.com/")).toBe(false);
+    expect(isNearbyAddress("not a url")).toBe(false);
   });
 
   it.each([true, false])(

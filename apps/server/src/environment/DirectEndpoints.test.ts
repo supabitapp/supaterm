@@ -1,4 +1,5 @@
 import * as NodeServices from "@effect/platform-node/NodeServices";
+import { EnvironmentId } from "@supaterm/contracts";
 import { it as effectIt } from "@effect/vitest";
 import type * as NodeOS from "node:os";
 import { ORCHESTRATION_PROTOCOL_VERSION } from "@supaterm/contracts";
@@ -17,6 +18,7 @@ import { describe, expect, it } from "vite-plus/test";
 
 import * as ServerConfig from "../config.ts";
 import * as DirectEndpoints from "./DirectEndpoints.ts";
+import * as ServerEnvironment from "./ServerEnvironment.ts";
 import { resolveBoundEndpoints } from "./DirectEndpoints.ts";
 
 const INTERFACES: ReturnType<typeof NodeOS.networkInterfaces> = {
@@ -264,6 +266,12 @@ const layerServeConfig = (host = "127.0.0.1") =>
   ).pipe(
     Layer.provide(ServerConfig.layerTest(process.cwd(), { prefix: "supaterm-direct-" })),
     Layer.provide(NodeServices.layer),
+    Layer.merge(
+      Layer.succeed(ServerEnvironment.ServerEnvironment, {
+        getEnvironmentId: Effect.succeed(EnvironmentId.make("serve-test")),
+        getDescriptor: Effect.die("unused"),
+      }),
+    ),
   );
 
 const resolveWithServe = (probeStatus: number) =>

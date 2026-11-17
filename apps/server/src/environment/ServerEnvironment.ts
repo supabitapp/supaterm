@@ -240,6 +240,8 @@ export const make = Effect.gen(function* () {
         : {}),
       ...(desktopAppUpdate ? { desktopAppUpdate: true, desktopAppChannelSwitch: true } : {}),
       mcpApprovalCodes: true,
+      shellThreadFamilies: true,
+      shellOlderDone: true,
     },
   };
 

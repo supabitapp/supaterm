@@ -145,6 +145,36 @@ export const ACP_PROTOCOL = "acp.ndjson-jsonrpc" as const;
  * wake.
  */
 const ACP_DEFERRED_FINALIZE_DEBOUNCE: Duration.Input = "3000 millis";
+const ACP_BUSY_PROMPT_RETRY_INTERVAL: Duration.Input = "1 second";
+
+// pi-agent-core agents (oh-my-pi) end a turn while background work runs and reject
+// prompts until it finishes; the prompt is resent rather than failing the turn.
+function isAgentBusyPromptError(error: EffectAcpErrors.AcpError): boolean {
+  return (
+    error._tag === "AcpRequestError" && error.errorMessage.startsWith("Agent is already processing")
+  );
+}
+
+function sendPromptWhenIdle<A>(
+  turn: { readonly interrupted: boolean; readonly finalized: boolean },
+  prompt: () => Effect.Effect<A, EffectAcpErrors.AcpError>,
+): Effect.Effect<A, EffectAcpErrors.AcpError> {
+  // A Stop can land during the wait, so the flags are rechecked before each resend.
+  const stopped = () => turn.interrupted || turn.finalized;
+  return prompt().pipe(
+    Effect.catchIf(
+      (error) => isAgentBusyPromptError(error) && !stopped(),
+      (error) =>
+        Effect.sleep(ACP_BUSY_PROMPT_RETRY_INTERVAL).pipe(
+          Effect.andThen(
+            Effect.suspend(() =>
+              stopped() ? Effect.fail(error) : sendPromptWhenIdle(turn, prompt),
+            ),
+          ),
+        ),
+    ),
+  );
+}
 
 /**
  * A segment's first chunk and close emit at once; later chunks inside this window
@@ -332,6 +362,7 @@ export interface AcpAdapterV2Flavor {
   ) => Effect.Effect<string, never, ChildProcessSpawner.ChildProcessSpawner>;
   readonly driver: ProviderDriverKind;
   readonly capabilities: OrchestrationV2ProviderCapabilities;
+  readonly supportsNativeGoals?: Effect.Effect<boolean>;
   readonly clientCapabilitiesMeta?: NonNullable<
     EffectAcpSchema.InitializeRequest["clientCapabilities"]
   >["_meta"];
@@ -377,6 +408,10 @@ export interface AcpAdapterV2Flavor {
     ChildProcessSpawner.ChildProcessSpawner | SecureRandom.SecureRandom | Scope.Scope
   >;
   readonly customModels?: ReadonlyArray<string>;
+  /** The agent may run another model than session/new reports, so the model is always written. */
+  readonly alwaysSetModel?: boolean;
+  /** Values the client shows for options a new session's selection leaves unset. */
+  readonly unsetOptionDefaults?: Effect.Effect<NonNullable<ModelSelection["options"]>>;
   readonly resolveModelId?: (selection: ModelSelection) => string | undefined;
   /**
    * The agent advertises its model option only after `session/new` returns
@@ -1748,11 +1783,22 @@ export const makeAcpAdapterV2 = Effect.fn("makeAcpAdapterV2")(function* (
   const postSettleContinuationEnabled =
     flavor.enablePostSettleContinuation === true && continuationRequests !== undefined;
 
+  const readCapabilities = Effect.gen(function* () {
+    if (flavor.supportsNativeGoals === undefined) return flavor.capabilities;
+    return {
+      ...flavor.capabilities,
+      turns: {
+        ...flavor.capabilities.turns,
+        supportsNativeGoals: yield* flavor.supportsNativeGoals,
+      },
+    };
+  });
+
   return ProviderAdapter.ProviderAdapterV2.of({
     instanceId: options.instanceId,
     driver,
-    getCapabilities: Effect.fn("AcpAdapter.getCapabilities")(function () {
-      return Effect.succeed(flavor.capabilities);
+    getCapabilities: Effect.fn("AcpAdapter.getCapabilities")(function* () {
+      return yield* readCapabilities;
     }),
     planSelectionTransition: Effect.fn("AcpAdapter.planSelectionTransition")(function (input) {
       return Effect.succeed(acpSelectionTransition(input));
@@ -7224,6 +7270,8 @@ export const makeAcpAdapterV2 = Effect.fn("makeAcpAdapterV2")(function* (
           },
         );
 
+        // Read before the session exists: its own config updates replace what the client showed.
+        const unsetOptionDefaults = yield* flavor.unsetOptionDefaults ?? Effect.succeed([]);
         const initialStart = yield* Effect.result(
           startAcpRuntime(input.threadId, input.initialNativeThreadId),
         );
@@ -7250,8 +7298,9 @@ export const makeAcpAdapterV2 = Effect.fn("makeAcpAdapterV2")(function* (
         yield* Ref.set(activeSessionId, started.sessionId);
         yield* setActiveSessionSetup(started);
         rememberTerminalEnvironment(started.sessionId, yield* readMcpContext(input.threadId));
+        yield* runtime.drainEvents;
         const capabilities = negotiatedCapabilities(
-          flavor.capabilities,
+          yield* readCapabilities,
           started,
           flavor.modelOptionArrivesLate === true,
           flavor.forkFromTurn?.supported(started.initializeResult) === true,
@@ -7322,6 +7371,7 @@ export const makeAcpAdapterV2 = Effect.fn("makeAcpAdapterV2")(function* (
           startResult: AcpSessionRuntime.AcpSessionRuntimeStartResult,
           modelSelection: ModelSelection,
           runtimePolicy: ProviderAdapter.ProviderAdapterV2RuntimePolicy,
+          unsetOptionDefaults: NonNullable<ModelSelection["options"]> = [],
         ) {
           yield* Ref.set(activeSelection, null);
           yield* validateModelSelection(modelSelection);
@@ -7357,7 +7407,9 @@ export const makeAcpAdapterV2 = Effect.fn("makeAcpAdapterV2")(function* (
                 )
               ) {
                 yield* runtime
-                  .setConfigOption(modelOption.id, requestedModel)
+                  .setConfigOption(modelOption.id, requestedModel, {
+                    resendCurrentValue: flavor.alwaysSetModel === true,
+                  })
                   .pipe(Effect.mapError(rejectedModel));
                 appliedModel = requestedModel;
               }
@@ -7391,13 +7443,21 @@ export const makeAcpAdapterV2 = Effect.fn("makeAcpAdapterV2")(function* (
               };
             });
           }
-          const optionSelections = (modelSelection.options ?? []).flatMap((selection) => {
-            if (flavor.ownedModelOptionIds?.includes(selection.id) === true) return [];
-            return [
-              selection.value === ACP_EMPTY_OPTION_VALUE ? { ...selection, value: "" } : selection,
-            ];
-          });
           const configOptions = yield* runtime.getConfigOptions;
+          const explicitSelections = modelSelection.options ?? [];
+          const implicitSelections = unsetOptionDefaults.filter(
+            (implicit) => !explicitSelections.some((selection) => selection.id === implicit.id),
+          );
+          const optionSelections = [...explicitSelections, ...implicitSelections].flatMap(
+            (selection) => {
+              if (flavor.ownedModelOptionIds?.includes(selection.id) === true) return [];
+              return [
+                selection.value === ACP_EMPTY_OPTION_VALUE
+                  ? { ...selection, value: "" }
+                  : selection,
+              ];
+            },
+          );
           const availableConfigIds = new Set(configOptions.map((option) => option.id));
           const hasNativeConfigWithSyntheticModeId = availableConfigIds.has(
             ACP_SESSION_MODE_OPTION_ID,
@@ -7554,7 +7614,12 @@ export const makeAcpAdapterV2 = Effect.fn("makeAcpAdapterV2")(function* (
           );
         });
 
-        yield* configureSession(started, input.modelSelection, input.runtimePolicy);
+        yield* configureSession(
+          started,
+          input.modelSelection,
+          input.runtimePolicy,
+          started.sessionId !== input.initialNativeThreadId ? unsetOptionDefaults : [],
+        );
         yield* Ref.set(activeSelection, input.modelSelection);
         yield* Ref.set(activeInteractionMode, input.runtimePolicy.interactionMode);
         const createdAt = yield* DateTime.now;
@@ -8446,7 +8511,9 @@ export const makeAcpAdapterV2 = Effect.fn("makeAcpAdapterV2")(function* (
               : undefined;
             yield* (
               compactSession === undefined
-                ? runtime.prompt({ prompt: promptParts!.prompt }, promptOptions)
+                ? sendPromptWhenIdle(context, () =>
+                    runtime.prompt({ prompt: promptParts!.prompt }, promptOptions),
+                  )
                 : Deferred.succeed(context.promptDispatched, undefined).pipe(
                     Effect.andThen(compactSession(runtime, requestedSessionId)),
                     Effect.as({ stopReason: "end_turn" } satisfies EffectAcpSchema.PromptResponse),

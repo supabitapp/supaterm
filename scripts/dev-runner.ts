@@ -66,6 +66,13 @@ export function isProxiableBindHost(host: string): boolean {
   );
 }
 
+function sharedBackendTargetHost(host: string | undefined): string {
+  const normalized = host?.trim() ?? "";
+  if (normalized === "::1" || normalized === "[::1]") return "[::1]";
+  if (normalized === "localhost") return "localhost";
+  return "127.0.0.1";
+}
+
 export const DEFAULT_SUPATERM_HOME = Effect.map(Effect.service(Path.Path), (path) =>
   resolveDefaultSupatermHome(NodeOS.homedir(), path.join),
 );
@@ -804,12 +811,13 @@ export const runDevRunnerWithInput = Effect.fn("dev-runner.runDevRunnerWithInput
         shareDevServer({
           webPort: sharedWebPort,
           // The backend binds 127.0.0.1 unless --host changes it. A wildcard
-          // still answers there; `--host ::1` binds only the IPv6 loopback.
+          // still answers there; `--host ::1` binds only the IPv6 loopback, and
+          // `localhost` binds whichever loopback Node resolves first.
           ...(input.built
             ? {
                 localTarget: {
                   port: Number(env.SUPATERM_PORT),
-                  host: ["::1", "[::1]"].includes(input.host?.trim() ?? "") ? "[::1]" : "127.0.0.1",
+                  host: sharedBackendTargetHost(input.host),
                 },
               }
             : {}),
@@ -1008,6 +1016,9 @@ const cliRuntimeLayer = Layer.mergeAll(
 );
 
 if (import.meta.main) {
+  // runMain interrupts (running finalizers such as the --share unmapping) only
+  // on SIGINT/SIGTERM; a closed terminal or dropped SSH session sends SIGHUP.
+  process.on("SIGHUP", () => process.kill(process.pid, "SIGTERM"));
   Command.run(devRunnerCli, { version: "0.0.0" }).pipe(
     Effect.scoped,
     Effect.provide(cliRuntimeLayer),

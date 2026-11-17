@@ -47,9 +47,11 @@ jobs:
   # triggering commit. Manual stable releases build the commit of the latest
   # published nightly, so stable only ever ships a build that nightly users
   # have already run. Automatic runs also check for new commits here.
+  # The PAUSE_NIGHTLY repository variable skips scheduled runs only; every later
+  # job needs this one, so a skip here skips the whole run.
   resolve_commit:
     name: Resolve release commit
-    if: github.repository == 'supabitapp/supaterm'
+    if: github.repository == 'supabitapp/supaterm' && (github.event_name != 'schedule' || vars.PAUSE_NIGHTLY != 'true')
     runs-on: depot-ubuntu-24.04-8
     timeout-minutes: 5
     outputs:

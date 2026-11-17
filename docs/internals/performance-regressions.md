@@ -56,7 +56,10 @@ The v2 checks pin these invariants:
   query, and transcript message bodies stay in thread detail regardless of message size.
 - Shell resume sends deltas plus compact repository-enrichment metadata, not another full project
   and thread snapshot. It finds changed aggregates with one grouped query over a covering index,
-  never by decoding the event payloads in the gap.
+  never by decoding the event payloads in the gap. A cursor at the head sequence always resumes,
+  so a client that just loaded the HTTP snapshot never downloads it again over the socket. That
+  client also names the snapshot's project identities, and a server whose identities did not
+  change since resends only the roots that resolved to no identity.
 - Auto, steer, and restart sends resolve delivery from authoritative state inside the
   server's per-thread dispatch lock. Model selection also dispatches without first fetching a
   full thread projection when the server advertises support. Older servers retain
@@ -78,11 +81,13 @@ bounded snapshot and one older page) and after it finishes (the deferred cold op
 over the socket alone, and the first page of its deferred work). It caps the socket bytes of three
 resumes that must not send a snapshot: a thread after one ordinary turn, an idle thread, and a
 shell cursor the server cannot replay. It caps the cold-connect shell for a sidebar of done
-threads and idle subagents, and the subscription a client opens from that snapshot. It also caps
-the bytes and the node, subagent, plan, provider turn and checkpoint counts of the bounded
-snapshot for a thread of 40 finished runs behind one working run, so finished runs cannot ride
-along with a window. The working run has a ready context handoff, so its history cannot ride along
-either.
+threads and idle subagents, and the subscription a client opens from that snapshot with its
+project identities. It caps both answers of the HTTP shell route to a client that holds rows and
+names their cursor: the few bytes that keep them, and the snapshot that replaces rows the server
+cannot replay. It also caps the bytes and the node, subagent, plan, provider turn and checkpoint
+counts of the bounded snapshot for a thread of 40 finished runs behind one working run, so
+finished runs cannot ride along with a window. The working run has a ready context handoff, so its
+history cannot ride along either.
 
 CI prints every row in the job summary. The pull request comment compares the budgeted rows with
 `main`, lists the rows that changed or failed, and names each ceiling a pull request raises. A row

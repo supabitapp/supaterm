@@ -28,6 +28,7 @@ import { withUntracedRequests } from "./http.ts";
 import * as ServerHttp from "./http.ts";
 import {
   guardHttpResponseWriteErrors,
+  keepIdleConnections,
   rejectRequestsUntilServing,
 } from "./httpResponseErrorGuard.ts";
 import { fixPath } from "./os-jank.ts";
@@ -170,7 +171,7 @@ import * as NetService from "@supaterm/shared/Net";
 import {
   disableTailscaleServe,
   ensureTailscaleServe,
-  readTailscaleServeRootHolders,
+  readTailscaleServeRootHolder,
   readTailscaleServeRoutesTo,
   readTailscaleStatus,
 } from "@supaterm/tailscale";
@@ -270,7 +271,7 @@ const layerResourceDiagnostics = Layer.mergeAll(
 const layerHttpServer = Layer.unwrap(
   Effect.gen(function* () {
     const config = yield* ServerConfig.ServerConfig;
-    const server = guardHttpResponseWriteErrors(NodeHttp.createServer());
+    const server = keepIdleConnections(guardHttpResponseWriteErrors(NodeHttp.createServer()));
     return NodeHttpServer.layer(() => rejectRequestsUntilServing(server), {
       host: config.host ?? "127.0.0.1",
       port: config.port,
@@ -596,7 +597,9 @@ const layerRuntimeCoreDependenciesBase = Layer.mergeAll(
   Layer.provideMerge(layerPortScanner),
   Layer.provideMerge(
     Layer.mergeAll(
-      AntigravityInstallation.AntigravityInstallation.layer,
+      AntigravityInstallation.AntigravityInstallation.layer.pipe(
+        Layer.provide(layerServerSettings),
+      ),
       CodexInstallation.CodexInstallation.layer,
     ),
   ),
@@ -646,7 +649,7 @@ const layerRuntimeDependencies = layerRuntimeCoreDependencies.pipe(
   Layer.provideMerge(TriageService.layer.pipe(Layer.provide(GitVcsDriver.layer))),
   Layer.provideMerge(ExternalLauncher.layer),
   Layer.provideMerge(RemoteOpenTargets.layer),
-  Layer.provideMerge(DirectEndpoints.layer),
+  Layer.provideMerge(DirectEndpoints.layer.pipe(Layer.provide(layerServerEnvironment))),
   Layer.provideMerge(ServerLifecycleEvents.layer),
   Layer.provide(NetService.layer),
 );
@@ -761,22 +764,8 @@ const layerMakeServer = Layer.unwrap(
           );
       }),
     );
-    // Who holds the Serve port's root: nobody, this server, only dead loopback ports (an unclean
-    // exit leaves one), or another live server or app, whose route is left alone.
-    const tailscaleServeRootHolder = Effect.fn("server.tailscaleServeRootHolder")(
-      function* (target: { readonly host: string; readonly port: number }) {
-        const net = yield* NetService.NetService;
-        const holders = yield* readTailscaleServeRootHolders(config.tailscaleServePort, target);
-        if (holders.length === 0) return "none" as const;
-        if (holders.some((holder) => holder.ours)) return "ours" as const;
-        const live = yield* Effect.forEach(holders, (holder) =>
-          holder.ours || holder.loopback === undefined
-            ? Effect.succeed(true)
-            : net.hasListenerOnHost(holder.loopback.port, holder.loopback.host),
-        );
-        return live.includes(true) ? ("other" as const) : ("dead" as const);
-      },
-    );
+    const tailscaleServeRootHolder = (target: { readonly host: string; readonly port: number }) =>
+      readTailscaleServeRootHolder(config.tailscaleServePort, target);
     const layerTailscaleServe = config.tailscaleServeEnabled
       ? Layer.effectDiscard(
           Effect.acquireRelease(
@@ -823,11 +812,13 @@ const layerMakeServer = Layer.unwrap(
                   }),
                 ),
                 Effect.catch((cause) =>
-                  Effect.logWarning("Failed to configure Tailscale Serve", {
-                    cause,
-                    localPort,
-                    servePort: config.tailscaleServePort,
-                  }).pipe(Effect.as(null)),
+                  Effect.logWarning(
+                    cause._tag === "TailscaleCommandExitError" &&
+                      cause.stderrDiagnostic === "unsupported-target"
+                      ? `Tailscale Serve left off; this Tailscale install can only proxy to localhost, not ${localHost}. Bind --host 127.0.0.1 or 0.0.0.0 instead`
+                      : "Failed to configure Tailscale Serve",
+                    { cause, localPort, servePort: config.tailscaleServePort },
+                  ).pipe(Effect.as(null)),
                 ),
               );
             }).pipe(Effect.ensuring(Deferred.succeed(tailscaleSettled, undefined))),

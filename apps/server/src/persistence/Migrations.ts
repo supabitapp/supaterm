@@ -41,11 +41,14 @@ const migrationEntries = [
 
 export const migrationManifest = migrationEntries.map(([id, name]) => [id, name] as const);
 
-const loader = Migrator.fromRecord(
-  Object.fromEntries(
-    migrationEntries.map(([id, name, migration]) => [`${id}_${name}`, migration] as const),
-  ),
-);
+const loaderThrough = (lastId: number) =>
+  Migrator.fromRecord(
+    Object.fromEntries(
+      migrationEntries.flatMap(([id, name, migration]) =>
+        id <= lastId ? [[`${id}_${name}`, migration] as const] : [],
+      ),
+    ),
+  );
 
 export function skippedMigrations(
   recorded: ReadonlyArray<{ readonly id: number; readonly name: string }>,
@@ -167,7 +170,32 @@ const run = Migrator.make({});
  */
 export const runMigrations = Effect.fn("runMigrations")(function* () {
   yield* assertKnownMigrationHistory();
-  const executedMigrations = yield* run({ loader });
+  const sql = yield* SqlClient.SqlClient;
+  const ledger = yield* sql`
+    SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'effect_sql_migrations'
+  `;
+  const [latest] =
+    ledger.length === 0
+      ? []
+      : yield* sql<{
+          readonly id: number | null;
+        }>`SELECT MAX(migration_id) AS id FROM effect_sql_migrations`;
+  const latestRecordedId = latest?.id ?? 0;
+  const pending = migrationEntries.filter(([id]) => id > latestRecordedId);
+  // One transaction per migration: an index build on a large database can take minutes, and a
+  // restart then resumes after the last finished migration instead of rolling all of them back.
+  const executedMigrations: Array<readonly [id: number, name: string]> = [];
+  for (const [index, [id, name]] of pending.entries()) {
+    if (latestRecordedId > 0) {
+      yield* Effect.log("Upgrading database").pipe(
+        Effect.annotateLogs({
+          migration: `${id}_${name}`,
+          progress: `${index + 1} of ${pending.length}`,
+        }),
+      );
+    }
+    executedMigrations.push(...(yield* run({ loader: loaderThrough(id) })));
+  }
   const migrations = executedMigrations.map(([id, name]) => `${id}_${name}`);
   yield* migrations.length === 0
     ? Effect.logDebug("Database schema is current")
