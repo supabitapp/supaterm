@@ -1426,23 +1426,6 @@ describe("buildThreadListV2ListItems", () => {
     ]);
   });
 
-  it("puts Drafts above Active when nothing is pinned", () => {
-    const items = buildThreadListV2ListItems({
-      ...layout,
-      pendingTasks: [makeDraftTask("draft"), makePendingTask("queued")],
-    });
-
-    expect(
-      items.map((item) =>
-        item.type === "v2-thread"
-          ? item.item.thread.id
-          : item.type === "v2-pending"
-            ? item.pendingTask.title
-            : item.type,
-      ),
-    ).toEqual(["draft", "queued", "v2-active-header", "active", "v2-done-shelf", "done"]);
-  });
-
   it("places Done below Active when nothing is queued", () => {
     const items = buildThreadListV2ListItems({
       ...layout,

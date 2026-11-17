@@ -361,7 +361,6 @@ export interface ThreadListV2PendingListItem {
   readonly type: "v2-pending";
   readonly key: string;
   readonly pendingTask: PendingNewTask;
-  /** The first draft or queued row draws its section's divider. */
   readonly showPendingDivider: boolean;
   readonly showTrailingDivider: boolean;
 }
