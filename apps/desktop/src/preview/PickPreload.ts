@@ -128,6 +128,8 @@ interface SelectedElement {
   outline: HTMLDivElement;
   label: HTMLDivElement;
   baselineStyles: Map<string, string>;
+  // Last rect measured while connected; a detached node reports 0x0.
+  rect: PreviewAnnotationRect;
 }
 
 interface AnnotationSession {
@@ -394,6 +396,7 @@ function updateSelectedVisual(target: SelectedElement): void {
     target.label.style.display = "none";
     return;
   }
+  target.rect = rectFromDomRect(target.element.getBoundingClientRect());
   const rect = visibleElementRect(target.element);
   positionBox(target.outline, rect);
   if (rect.width === 0 || rect.height === 0) {
@@ -715,6 +718,7 @@ function startAnnotation(sendEnabled: boolean): void {
       outline: createBox(PRIMARY, PRIMARY_FILL),
       label: createLabel(),
       baselineStyles: new Map(),
+      rect: rectFromDomRect(element.getBoundingClientRect()),
     };
     selected.set(element, target);
     root.append(target.outline, target.label);
@@ -1141,6 +1145,13 @@ function startAnnotation(sendEnabled: boolean): void {
     for (const target of selected.values()) updateSelectedVisual(target);
     queueEditorLayout();
   };
+  const onScroll = (): void => {
+    // A detached element's last rect no longer matches what is on screen once the page scrolls.
+    for (const target of selected.values()) {
+      if (!target.element.isConnected) target.rect = { x: 0, y: 0, width: 0, height: 0 };
+    }
+    repaint();
+  };
   // A scrollbar appearing narrows the viewport without a window resize.
   const rootResizeObserver = new ResizeObserver(repaint);
 
@@ -1368,7 +1379,7 @@ function startAnnotation(sendEnabled: boolean): void {
     window.removeEventListener("click", onClick, true);
     window.removeEventListener("blur", onWindowBlur);
     window.removeEventListener("keydown", onKeyDown, true);
-    window.removeEventListener("scroll", repaint, true);
+    window.removeEventListener("scroll", onScroll, true);
     window.removeEventListener("resize", repaint);
     dragHandle.removeEventListener("pointerdown", onEditorPointerDown);
     dragHandle.removeEventListener("pointermove", onEditorPointerMove);
@@ -1428,7 +1439,9 @@ function startAnnotation(sendEnabled: boolean): void {
         return {
           id: target.id,
           element,
-          rect: rectFromDomRect(target.element.getBoundingClientRect()),
+          rect: target.element.isConnected
+            ? rectFromDomRect(target.element.getBoundingClientRect())
+            : target.rect,
         };
       }),
     )
@@ -1487,7 +1500,7 @@ function startAnnotation(sendEnabled: boolean): void {
   window.addEventListener("click", onClick, { capture: true, passive: false });
   window.addEventListener("blur", onWindowBlur);
   window.addEventListener("keydown", onKeyDown, { capture: true });
-  window.addEventListener("scroll", repaint, { capture: true, passive: true });
+  window.addEventListener("scroll", onScroll, { capture: true, passive: true });
   window.addEventListener("resize", repaint, { passive: true });
   // Bubble phase, so the overlay's own handlers still see these events.
   for (const type of PAGE_ISOLATED_EVENTS)
