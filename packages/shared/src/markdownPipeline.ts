@@ -547,6 +547,7 @@ export function remarkAssistantInsights(this: Processor) {
       return output;
     });
     if (starts.size === 0) return;
+    // oxlint-disable-next-line no-this-in-exported-function -- unified binds the processor when installing plugins.
     const parsed = this.parse(lines.join("")) as Root;
     const restorePosition = (node: RootContent | PhrasingContent) => {
       if (node.position) {

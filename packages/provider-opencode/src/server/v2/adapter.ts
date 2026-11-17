@@ -3609,15 +3609,19 @@ export const make = Effect.fn("OpenCode2Adapter.make")(function* (instanceId: Pr
     yield* Effect.gen(function* () {
       const snapshots = yield* lock.withPermit(
         Effect.sync(() =>
-          [...shells]
-            .filter(([, shell]) => shell.running)
-            .map(([id, shell]) => ({
-              id,
-              shell,
-              cursor: shell.cursor,
-              output: shell.output,
-              directory: shell.state.directory,
-            })),
+          [...shells].flatMap(([id, shell]) =>
+            shell.running
+              ? [
+                  {
+                    id,
+                    shell,
+                    cursor: shell.cursor,
+                    output: shell.output,
+                    directory: shell.state.directory,
+                  },
+                ]
+              : [],
+          ),
         ),
       );
       yield* Effect.forEach(
