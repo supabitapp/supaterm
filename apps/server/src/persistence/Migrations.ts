@@ -1,6 +1,11 @@
 import * as Migrator from "effect/sql/Migrator";
 import * as Effect from "effect/Effect";
 import * as SqlClient from "effect/sql/SqlClient";
+import {
+  DATABASE_MIGRATION_PROGRESS_MESSAGE,
+  DATABASE_MIGRATIONS_FINISHED_MESSAGE,
+  DATABASE_MIGRATIONS_STARTED_MESSAGE,
+} from "@supaterm/shared/databaseMigrationLog";
 
 import Migration0001 from "./Migrations/001_Baseline.ts";
 import Migration0002 from "./Migrations/002_ThreadMessageSearch.ts";
@@ -17,6 +22,7 @@ import Migration0012 from "./Migrations/012_CommandReadIndexes.ts";
 import Migration0013 from "./Migrations/013_LastExecutedRunIndex.ts";
 import Migration0014 from "./Migrations/014_TurnItemCounts.ts";
 import Migration0015 from "./Migrations/015_QueuedTurnInputIndex.ts";
+import Migration0016 from "./Migrations/016_ProjectionProjectsCustomTitle.ts";
 
 /**
  * Add a schema change as a new entry with the next id. Never edit, renumber, or
@@ -39,6 +45,7 @@ const migrationEntries = [
   [13, "LastExecutedRunIndex", Migration0013],
   [14, "TurnItemCounts", Migration0014],
   [15, "QueuedTurnInputIndex", Migration0015],
+  [16, "ProjectionProjectsCustomTitle", Migration0016],
 ] as const;
 
 export const migrationManifest = migrationEntries.map(([id, name]) => [id, name] as const);
@@ -172,6 +179,8 @@ const run = Migrator.make({});
  */
 export const runMigrations = Effect.fn("runMigrations")(function* () {
   yield* assertKnownMigrationHistory();
+  // The desktop waits past its readiness budget until the finished line follows this one.
+  if (yield* hasPendingMigrations()) yield* Effect.log(DATABASE_MIGRATIONS_STARTED_MESSAGE);
   const sql = yield* SqlClient.SqlClient;
   const ledger = yield* sql`
     SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'effect_sql_migrations'
@@ -189,7 +198,7 @@ export const runMigrations = Effect.fn("runMigrations")(function* () {
   const executedMigrations: Array<readonly [id: number, name: string]> = [];
   for (const [index, [id, name]] of pending.entries()) {
     if (latestRecordedId > 0) {
-      yield* Effect.log("Upgrading database").pipe(
+      yield* Effect.log(DATABASE_MIGRATION_PROGRESS_MESSAGE).pipe(
         Effect.annotateLogs({
           migration: `${id}_${name}`,
           progress: `${index + 1} of ${pending.length}`,
@@ -201,7 +210,7 @@ export const runMigrations = Effect.fn("runMigrations")(function* () {
   const migrations = executedMigrations.map(([id, name]) => `${id}_${name}`);
   yield* migrations.length === 0
     ? Effect.logDebug("Database schema is current")
-    : Effect.log("Migrations ran successfully").pipe(Effect.annotateLogs({ migrations }));
+    : Effect.log(DATABASE_MIGRATIONS_FINISHED_MESSAGE).pipe(Effect.annotateLogs({ migrations }));
   yield* ensureUnrecordedSchema();
   return executedMigrations;
 });

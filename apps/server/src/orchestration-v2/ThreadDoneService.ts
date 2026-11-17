@@ -1,5 +1,6 @@
 import {
   backgroundWorkHoldsCompletion,
+  isWatchTaskId,
   turnItemUpdateCanEndBackgroundWork,
 } from "@supaterm/shared/orchestrationV2PendingBackgroundWork";
 import { resolveProjectSettings } from "@supaterm/shared/projectSettings";
@@ -160,7 +161,10 @@ export function isAutoMarkDoneCandidate(
   // Blocked-on-you work must never park behind a done override.
   if (thread.pendingRuntimeRequest !== null) return false;
   if (thread.activityRunStatus != null) return false;
-  if (backgroundWorkHoldsCompletion(thread.pendingBackgroundTasks ?? [])) return false;
+  const pendingTasks = thread.pendingBackgroundTasks ?? [];
+  if (backgroundWorkHoldsCompletion(pendingTasks)) return false;
+  // Marking done ends a watch, which would silently drop a reviewer's later comments.
+  if (pendingTasks.some((task) => isWatchTaskId(task.taskId))) return false;
   if (threadHasQueuedTurnStart(thread, nowMs)) return false;
 
   return !isSnoozed(thread, nowMs);
