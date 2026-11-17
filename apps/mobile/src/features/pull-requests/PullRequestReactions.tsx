@@ -1,6 +1,7 @@
 import { useNavigation } from "@react-navigation/native";
 import {
   applyPendingPullRequestReactions,
+  type PendingPullRequestReaction,
   PULL_REQUEST_REACTION_ORDER,
   pullRequestReactionEmoji,
   pullRequestReactionName,
@@ -28,7 +29,8 @@ import { usePullRequestPermissions } from "./usePullRequestPermissions";
 import { playOutcomeHaptic } from "../../lib/outcomeHaptic";
 import * as Haptics from "expo-haptics";
 
-const EMPTY_PENDING: ReadonlyMap<PullRequestReactionContent, boolean> = new Map();
+const EMPTY_PENDING: ReadonlyMap<PullRequestReactionContent, PendingPullRequestReaction> =
+  new Map();
 const PILL = "min-h-8 flex-row items-center gap-1 rounded-full border px-2.5 active:opacity-70";
 
 function ReactionPills(props: {
@@ -48,7 +50,8 @@ function ReactionPills(props: {
   const shown = applyPendingPullRequestReactions(props.reactions, values);
   const toggle = async (content: PullRequestReactionContent, reacted: boolean) => {
     void Haptics.selectionAsync();
-    setPending({ signature, values: new Map([...values, [content, reacted]]) });
+    const entry: PendingPullRequestReaction = { reacted };
+    setPending({ signature, values: new Map([...values, [content, entry]]) });
     const result = await setReaction({
       ...target,
       input: {
@@ -60,6 +63,7 @@ function ReactionPills(props: {
     });
     if (AsyncResult.isFailure(result)) {
       setPending((current) => {
+        if (current.values.get(content) !== entry) return current;
         const next = new Map(current.values);
         next.delete(content);
         return { signature: current.signature, values: next };
