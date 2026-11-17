@@ -3,7 +3,6 @@ import type { RepositoryIdentity } from "@supaterm/contracts";
 import * as Deferred from "effect/Deferred";
 import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
-import * as Fiber from "effect/Fiber";
 import * as Layer from "effect/Layer";
 import * as PubSub from "effect/PubSub";
 import * as Ref from "effect/Ref";
@@ -315,22 +314,17 @@ it.effect(
     }),
 );
 
-it.effect("does not let a lookup invalidated mid-flight replace a newer last identity", () =>
+it.effect("does not let a lookup invalidated mid-flight record its identity", () =>
   Effect.gen(function* () {
     const firstStarted = yield* Deferred.make<void>();
     const releaseFirst = yield* Deferred.make<void>();
-    const resolveCalls = yield* Ref.make(0);
     const layerMetadata = Layer.merge(
       Layer.succeed(RepositoryIdentityResolver.RepositoryIdentityResolver, {
         resolve: (workspaceRoot) =>
-          Effect.gen(function* () {
-            const call = yield* Ref.updateAndGet(resolveCalls, (count) => count + 1);
-            if (call === 1) {
-              yield* Deferred.succeed(firstStarted, undefined);
-              yield* Deferred.await(releaseFirst);
-            }
-            return identity(workspaceRoot, call);
-          }),
+          Deferred.succeed(firstStarted, undefined).pipe(
+            Effect.andThen(Deferred.await(releaseFirst)),
+            Effect.as(identity(workspaceRoot)),
+          ),
       }),
       Layer.succeed(ProjectFaviconResolver.ProjectFaviconResolver, {
         invalidate: () => Effect.void,
@@ -340,18 +334,16 @@ it.effect("does not let a lookup invalidated mid-flight replace a newer last ide
 
     yield* Effect.gen(function* () {
       const service = yield* ProjectEnrichment.ProjectEnrichmentService;
-      const firstLookup = yield* Effect.forkChild(service.readRepositoryIdentity("/widgets"));
+      const changes = yield* service.subscribeChanges;
+      yield* service.request("/widgets");
       yield* Deferred.await(firstStarted);
       yield* service.invalidate(["/widgets"]);
-      const newer = yield* service.readRepositoryIdentity("/widgets");
-      assert.equal(newer?.canonicalKey, "example.test/v2/widgets");
-
       yield* Deferred.succeed(releaseFirst, undefined);
-      yield* Fiber.join(firstLookup);
+      yield* PubSub.take(changes);
       yield* TestClock.adjust(Duration.seconds(61));
 
       const expired = yield* service.peek("/widgets");
-      assert.equal(expired.repositoryIdentity?.canonicalKey, "example.test/v2/widgets");
+      assert.isNull(expired.repositoryIdentity);
     }).pipe(Effect.provide(layer(layerMetadata)));
   }),
 );
@@ -376,11 +368,12 @@ it.effect("keeps a lookup's identity when another root is invalidated mid-flight
 
     yield* Effect.gen(function* () {
       const service = yield* ProjectEnrichment.ProjectEnrichmentService;
-      const lookup = yield* Effect.forkChild(service.readRepositoryIdentity("/widgets"));
+      const changes = yield* service.subscribeChanges;
+      yield* service.request("/widgets");
       yield* Deferred.await(started);
       yield* service.invalidate(["/other"]);
       yield* Deferred.succeed(release, undefined);
-      yield* Fiber.join(lookup);
+      yield* PubSub.take(changes);
       yield* TestClock.adjust(Duration.seconds(61));
 
       const expired = yield* service.peek("/widgets");
