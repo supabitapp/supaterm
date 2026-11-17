@@ -5,6 +5,7 @@ import {
   CameraIcon,
   ExternalLinkIcon,
   MousePointerClickIcon,
+  PictureInPictureIcon,
 } from "@supaterm/icons";
 import {
   type FormEvent,
@@ -38,6 +39,9 @@ interface Props {
   onCapture?: ((record: boolean) => void) | undefined;
   captureDisabled?: boolean | undefined;
   recording?: boolean | undefined;
+  onToggleFloating?: (() => void) | undefined;
+  floating?: boolean | undefined;
+  floatingDisabled?: boolean | undefined;
   onPickElement?: (() => void) | undefined;
   pickActive?: boolean | undefined;
   pickDisabled?: boolean | undefined;
@@ -64,6 +68,9 @@ export function PreviewChromeRow({
   onCapture,
   captureDisabled,
   recording,
+  onToggleFloating,
+  floating,
+  floatingDisabled,
   onPickElement,
   pickActive,
   pickDisabled,
@@ -256,6 +263,28 @@ export function PreviewChromeRow({
             </TooltipTrigger>
             <TooltipPopup>
               {recording ? "Stop recording" : "Screenshot · Shift-click to record"}
+            </TooltipPopup>
+          </Tooltip>
+        ) : null}
+        {onToggleFloating ? (
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <Button
+                  variant={floating ? "secondary" : "ghost"}
+                  size="icon-xs"
+                  onClick={onToggleFloating}
+                  aria-label={floating ? "Close floating preview" : "Float preview over chat"}
+                  aria-pressed={floating ? "true" : "false"}
+                  type="button"
+                  disabled={floatingDisabled}
+                />
+              }
+            >
+              <PictureInPictureIcon className={cn(floating && "text-primary")} />
+            </TooltipTrigger>
+            <TooltipPopup>
+              {floating ? "Close floating preview" : "Float preview over chat"}
             </TooltipPopup>
           </Tooltip>
         ) : null}

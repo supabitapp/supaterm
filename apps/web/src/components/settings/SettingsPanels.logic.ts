@@ -99,7 +99,7 @@ export type BrowserDefaultSettings = Pick<
   | "browserLinkTarget"
   | "browserSearchEngine"
   | "browserCustomSearchUrl"
-  | "browserAutoOpenPanel"
+  | "browserAgentOpenTarget"
   | "pullRequestLinksOpenInApp"
 >;
 
@@ -141,8 +141,8 @@ export function getChangedBrowserSettingLabels(settings: BrowserDefaultSettings)
     settings.browserCustomSearchUrl !== DEFAULT_UNIFIED_SETTINGS.browserCustomSearchUrl
       ? ["Search engine"]
       : []),
-    ...(settings.browserAutoOpenPanel !== DEFAULT_UNIFIED_SETTINGS.browserAutoOpenPanel
-      ? ["Auto-open right panel"]
+    ...(settings.browserAgentOpenTarget !== DEFAULT_UNIFIED_SETTINGS.browserAgentOpenTarget
+      ? ["Show agent browsers and devices in"]
       : []),
     ...(settings.pullRequestLinksOpenInApp !== DEFAULT_UNIFIED_SETTINGS.pullRequestLinksOpenInApp
       ? ["Open pull requests in Supaterm"]

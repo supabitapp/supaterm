@@ -53,16 +53,14 @@ import {
 import { previewEnvironment } from "~/state/preview";
 import { usePreviewStreamAccess } from "~/state/previewStream";
 import { useAtomCommand } from "~/state/use-atom-command";
+import { useServerPictureInPicture } from "~/browser/serverPictureInPicture";
 import {
-  closeServerPictureInPicture,
-  openServerPictureInPicture,
-  serverPictureInPictureKey,
-  supportsServerPictureInPicture,
-  useServerPictureInPictureKey,
-} from "~/browser/serverPictureInPicture";
+  browserMiniPlayerSource,
+  selectThreadPreviewMiniPlayerTabId,
+  usePreviewMiniPlayerStore,
+} from "~/previewMiniPlayerStore";
 import { readEnvironmentScope, useEnvironmentScope } from "~/state/session";
 import { useRightPanelStore } from "~/rightPanelStore";
-import { useStableCallback } from "~/hooks/useStableCallback";
 
 import { previewBridge } from "./previewBridge";
 import { subscribePreviewAction } from "./previewActionBus";
@@ -165,6 +163,9 @@ export function PreviewView({
   const recentHistoryEntries = useThreadRecentHistory(
     threadRef,
     BROWSER_HISTORY_MAX_ENTRIES_PER_PROJECT,
+  );
+  const miniPlayerTabId = usePreviewMiniPlayerStore((state) =>
+    selectThreadPreviewMiniPlayerTabId(state.byThreadKey, threadRef),
   );
   const addPreviewAnnotation = useComposerDraftStore((store) => store.addPreviewAnnotation);
   const addImage = useComposerDraftStore((store) => store.addImage);
@@ -433,31 +434,23 @@ export function PreviewView({
     await closePreviewSession({ closePreview, snapshot, tabId, threadRef });
   };
 
-  const serverPictureInPictureOpen =
-    useServerPictureInPictureKey() ===
-    (tabId ? serverPictureInPictureKey(threadRef.threadId, tabId) : null);
-  const serverPdfUrl =
-    navStatus._tag === "Success" ? previewPdfAssetUrl(url, environmentHttpBaseUrl) : null;
-  const canPopOutServerTab =
-    isServerTab &&
-    (serverPictureInPictureOpen || (serverPdfUrl === null && supportsServerPictureInPicture()));
-  const toggleServerPictureInPicture = useStableCallback(() => {
+  const toggleFloatingPreview = () => {
     if (!tabId) return;
-    if (serverPictureInPictureOpen) {
-      closeServerPictureInPicture();
+    if (miniPlayerTabId === tabId) {
+      usePreviewMiniPlayerStore.getState().close(threadRef);
       return;
     }
-    void openServerPictureInPicture({
-      ...threadRef,
-      tabId,
-      seed: serverSurfaceRef.current?.canvas() ?? null,
-    }).catch((error) => {
-      toastManager.add({
-        type: "error",
-        title: "Unable to pop out preview",
-        description: error instanceof Error ? error.message : "An error occurred.",
-      });
-    });
+    usePreviewMiniPlayerStore.getState().open(threadRef, browserMiniPlayerSource(tabId));
+    useRightPanelStore.getState().close(threadRef);
+  };
+
+  const serverPdfUrl =
+    navStatus._tag === "Success" ? previewPdfAssetUrl(url, environmentHttpBaseUrl) : null;
+  const serverPictureInPicture = useServerPictureInPicture({
+    threadRef,
+    tabId: tabId || null,
+    pdfUrl: serverPdfUrl,
+    surfaceRef: serverSurfaceRef,
   });
 
   const desktopCall = (op: ((tabId: string) => Promise<void>) | undefined) => () => {
@@ -478,8 +471,8 @@ export function PreviewView({
               toggleNativePictureInPicture: () => handleNativePictureInPicture(),
             }
           : {}),
-        ...(canPopOutServerTab
-          ? { toggleNativePictureInPicture: toggleServerPictureInPicture }
+        ...(isServerTab && serverPictureInPicture.available
+          ? { toggleNativePictureInPicture: serverPictureInPicture.toggle }
           : {}),
       }
     : previewBridge
@@ -926,6 +919,11 @@ export function PreviewView({
         onCapture={previewBridge && tabId && !isServerTab ? handleCapture : undefined}
         captureDisabled={!desktopOverlay || isUnreachable}
         recording={recordingRuntimeTabId !== null}
+        onToggleFloating={
+          tabId && (isServerTab || previewBridge) ? toggleFloatingPreview : undefined
+        }
+        floating={miniPlayerTabId === tabId}
+        floatingDisabled={isUnreachable || (!isServerTab && !desktopOverlay?.hasWebContents)}
         onPickElement={previewBridge && tabId && !isServerTab ? handlePickElement : undefined}
         pickActive={pickActive}
         pickDisabled={!tabId || isUnreachable}
@@ -966,7 +964,7 @@ export function PreviewView({
               onToggleDeviceToolbar={handleToggleDeviceToolbar}
               nativePictureInPicture={
                 isServerTab
-                  ? serverPictureInPictureOpen
+                  ? serverPictureInPicture.open
                   : (desktopOverlay?.pictureInPicture ?? false)
               }
             />
@@ -1009,7 +1007,7 @@ export function PreviewView({
                 onControl={(control) =>
                   setServerControlledTabId(control?.controller === "you" ? runtimeTabId : null)
                 }
-                onPopup={(popupTabId) => showPreviewPopup(threadRef, popupTabId)}
+                onPopup={(popupTabId) => showPreviewPopup(threadRef, popupTabId, "panel")}
                 // Stays connected under the empty state so a URL picked there reaches the page.
                 className={cn(
                   "absolute inset-0 h-full w-full",

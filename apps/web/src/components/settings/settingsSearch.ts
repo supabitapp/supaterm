@@ -909,10 +909,12 @@ export const SETTINGS_SEARCH_ITEMS = [
     ],
   },
   {
-    id: "browser-auto-open-panel",
-    title: "Auto-open right panel",
+    id: "browser-agent-open-target",
+    title: "Show agent browsers and devices in",
     to: "/settings/browser",
-    searchTerms: ["agent opens browser device simulator emulator sidebar right panel show hide"],
+    searchTerms: [
+      "agent opens browser device simulator emulator sidebar right panel floating preview picture in picture pip background show hide",
+    ],
   },
   {
     id: "automatic-pull",

@@ -16,7 +16,6 @@ const withDefaultProfile = (browserDefaultProfileId: string) => {
     browserDefaultViewport: { _tag: "fill" },
     browserDefaultZoomFactor: 1,
     browserDefaultAppearance: "system",
-    browserAutoOpenPanel: true,
     browserProfiles: [{ id: "work", name: "Work", kind: "persistent" }],
     browserDefaultProfileId,
   };

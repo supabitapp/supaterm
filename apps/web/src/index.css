@@ -101,7 +101,8 @@ html[data-mobile-composer-route-transition="true"]::view-transition-new(supaterm
   --command-content-inset: 1rem;
   --floating-content-inset: 0.75rem;
   /* App layer order: the bottom terminal drawer (45, above the timeline minimap),
-     docked sheets, then dialogs and popovers (50 and up). */
+     docked sheets, then the floating preview player (47–49, see
+     previewMiniPlayerLayout.ts), then dialogs and popovers (50 and up). */
   --z-sheet: 46;
   --glass-blur: 12px;
   --glass-opacity: 80%;
@@ -2261,4 +2262,8 @@ code,
 [data-workspace-keyboard-focus]:focus {
   outline: 2px solid var(--ring);
   outline-offset: -2px;
+}
+
+[data-preview-mini-player-gesture] webview {
+  pointer-events: none;
 }

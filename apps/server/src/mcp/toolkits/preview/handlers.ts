@@ -37,7 +37,7 @@ import { PreviewSnapshotToolkit, PreviewStandardToolkit, PreviewToolkit } from "
 
 /**
  * Defaults tab reuse but leaves an unstated `open` unstated: that is the user's desktop-local
- * `browserAutoOpenPanel` preference, which filling in `true` here would override.
+ * `browserAgentOpenTarget` preference, which filling in `true` here would override.
  */
 function normalizePreviewOpenInput(input: PreviewAutomationOpenInput): PreviewAutomationOpenInput {
   return {

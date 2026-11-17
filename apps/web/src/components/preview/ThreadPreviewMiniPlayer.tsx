@@ -1,0 +1,767 @@
+import { FILL_PREVIEW_VIEWPORT, type ScopedThreadRef } from "@supaterm/contracts";
+import { shouldShowFloatingBrowser } from "@supaterm/client-runtime/preview/floating-browser";
+import { previewPdfAssetUrl } from "@supaterm/shared/preview";
+import { useEnvironmentHttpBaseUrl } from "~/state/environments";
+import { PanelRightIcon, PictureInPictureIcon, XIcon } from "@supaterm/icons";
+import {
+  type PointerEvent as ReactPointerEvent,
+  type ReactNode,
+  use,
+  useEffect,
+  useEffectEvent,
+  useRef,
+  useState,
+} from "react";
+import { createPortal } from "react-dom";
+import { create } from "zustand";
+import { useAtomValue } from "@effect/atom-react";
+import { scopedThreadKey } from "@supaterm/client-runtime/environment";
+
+import { BackgroundThreadContext } from "../chat/backgroundThread";
+import { useChatCanvas } from "../chat/ChatCanvasContext";
+import type { ChatCanvasPreview } from "../chat/chatCanvasLayout";
+import { BrowserSurfaceSlot } from "~/browser/BrowserSurfaceSlot";
+import {
+  findActiveBrowserRecordingRuntimeTabId,
+  useActiveBrowserRecordingTabIds,
+} from "~/browser/browserRecording";
+import { type BrowserSurfaceRect, useBrowserSurfaceStore } from "~/browser/browserSurfaceStore";
+import type { BrowserViewportResizeDirection } from "~/browser/browserViewportLayout";
+import { previewRuntimeTabId } from "~/browser/previewRuntimeTabId";
+import { rendersServerTabNatively } from "~/browser/previewRuntime";
+import { primaryEnvironmentIdAtom } from "~/state/primaryEnvironment";
+import { type ServerBrowserHandle, ServerBrowserSurface } from "~/browser/ServerBrowserSurface";
+import { useServerPictureInPicture } from "~/browser/serverPictureInPicture";
+import { useBrowserLayoutZoomFactor } from "~/browser/useBrowserLayoutZoomFactor";
+import { Button } from "~/components/ui/button";
+import { toastManager } from "~/components/ui/toast";
+import { Tooltip, TooltipPopup, TooltipTrigger } from "~/components/ui/tooltip";
+import { useShortcutLabel } from "~/hooks/useShortcutLabel";
+import { cn } from "~/lib/utils";
+import { useThreadPreviewState } from "~/previewStateStore";
+import {
+  type PreviewMiniPlayerSize,
+  type PreviewMiniPlayerSource,
+  type PreviewMiniPlayerState,
+  browserMiniPlayerSource,
+  previewMiniPlayerSourceKey,
+  usePreviewMiniPlayerStore,
+} from "~/previewMiniPlayerStore";
+import { useRightPanelStore } from "~/rightPanelStore";
+import { useDeviceState } from "~/state/device";
+
+import { DeviceStreamView } from "../device/DeviceStreamView";
+import type { DeviceScreenSize } from "@supaterm/client-runtime/device/stream";
+import { Atom } from "effect/reactivity";
+import { deviceScreenKey, deviceStreamScreenAtom } from "../device/deviceStreamSession";
+import { previewBridge } from "./previewBridge";
+import { showPreviewPopup } from "./showPreviewPopup";
+import {
+  forgetStream,
+  recordStreamFrame,
+  recordStreamViewport,
+  selectPreviewMiniPlayerStream,
+  usePreviewMiniPlayerStreams,
+} from "./previewMiniPlayerStreams";
+import {
+  type PreviewMiniPlayerGesture,
+  settlePreviewMiniPlayerResize,
+  stepPreviewMiniPlayerGesture,
+} from "./previewMiniPlayerGesture";
+import {
+  PREVIEW_MINI_PLAYER_CORNER_RADIUS,
+  PREVIEW_MINI_PLAYER_WEBVIEW_Z_INDEX,
+  type PreviewMiniPlayerFrame,
+  resolveDeviceMiniPlayerCornerRadius,
+  resolveDeviceMiniPlayerSourceSize,
+  resolvePreviewMiniPlayerFrame,
+  resolvePreviewMiniPlayerSourceSize,
+} from "./previewMiniPlayerLayout";
+
+const GESTURE_ATTRIBUTE = "data-preview-mini-player-gesture";
+let activeGestureCount = 0;
+
+interface Props {
+  readonly threadRef: ScopedThreadRef;
+  readonly miniPlayer: PreviewMiniPlayerState;
+}
+
+const frameCornerRadius = () => PREVIEW_MINI_PLAYER_CORNER_RADIUS;
+
+const RESIZE_HANDLES: ReadonlyArray<{
+  readonly direction: BrowserViewportResizeDirection;
+  readonly className: string;
+}> = [
+  { direction: "north", className: "inset-x-0 -top-1 h-2 cursor-ns-resize" },
+  { direction: "south", className: "inset-x-0 -bottom-1 h-2 cursor-ns-resize" },
+  { direction: "west", className: "inset-y-0 -left-1 w-2 cursor-ew-resize" },
+  { direction: "east", className: "inset-y-0 -right-1 w-2 cursor-ew-resize" },
+  { direction: "northwest", className: "-left-2 -top-2 size-4 cursor-nwse-resize" },
+  { direction: "northeast", className: "-right-2 -top-2 size-4 cursor-nesw-resize" },
+  { direction: "southwest", className: "-bottom-2 -left-2 size-4 cursor-nesw-resize" },
+  { direction: "southeast", className: "-bottom-2 -right-2 size-4 cursor-nwse-resize" },
+];
+
+const NO_DEVICE_SCREEN_ATOM = Atom.make<DeviceScreenSize | null>(null).pipe(
+  Atom.withLabel("device-stream-screen:none"),
+);
+
+// The source size a resize in progress lays the frame out from, so a source that changes shape
+// under a held handle cannot resize the player by itself. One slot: one pointer resizes one player.
+const useHeldSourceSize = create<{
+  readonly key: string;
+  readonly source: PreviewMiniPlayerSize;
+} | null>(() => null);
+
+const streamedSourceKey = (threadRef: ScopedThreadRef, sourceKey: string) =>
+  `${scopedThreadKey(threadRef)}\u0000${sourceKey}`;
+
+// The mini player's device stream view, named so the canvas can read the
+// screen size that view reports.
+const miniPlayerDeviceViewId = (
+  threadRef: ScopedThreadRef,
+  source: Extract<PreviewMiniPlayerSource, { kind: "device" }>,
+) =>
+  `preview-mini-player\u0000${scopedThreadKey(threadRef)}\u0000${deviceScreenKey(threadRef.environmentId, source.hostId, source.deviceId)}`;
+
+function useBrowserMiniPlayerSource(threadRef: ScopedThreadRef | null, tabId: string | null) {
+  const previewState = useThreadPreviewState(threadRef);
+  const snapshot = tabId === null ? null : (previewState.sessions[tabId] ?? null);
+  const runtimeTabId =
+    threadRef && tabId !== null
+      ? previewRuntimeTabId(threadRef, previewState.serverEpoch, tabId)
+      : null;
+  const desktopOverlay = tabId === null ? null : (previewState.desktopByTabId[tabId] ?? null);
+  const layoutZoomFactor = useBrowserLayoutZoomFactor(desktopOverlay?.zoomFactor ?? 1);
+  const fittedSourceContent = useBrowserSurfaceStore((state) =>
+    runtimeTabId === null ? null : (state.byTabId[runtimeTabId]?.fittedSourceContent ?? null),
+  );
+  const primaryEnvironmentId = useAtomValue(primaryEnvironmentIdAtom);
+  const serverTab =
+    threadRef !== null &&
+    snapshot?.runtime === "server" &&
+    !rendersServerTabNatively(threadRef.environmentId, primaryEnvironmentId, snapshot);
+  const streamKey =
+    threadRef && tabId !== null
+      ? streamedSourceKey(threadRef, previewMiniPlayerSourceKey(browserMiniPlayerSource(tabId)))
+      : null;
+  const [visibleStreamKey, setVisibleStreamKey] = useState<string | null>(null);
+  const pageVisible =
+    streamKey !== null &&
+    shouldShowFloatingBrowser(snapshot?.navStatus ?? null, visibleStreamKey === streamKey);
+  const nextVisibleStreamKey = pageVisible ? streamKey : null;
+  if (nextVisibleStreamKey !== visibleStreamKey) setVisibleStreamKey(nextVisibleStreamKey);
+  const stream = usePreviewMiniPlayerStreams((streams) =>
+    selectPreviewMiniPlayerStream(streams, streamKey),
+  );
+  const streamViewport = stream?.viewport ?? null;
+  const sourceSize: PreviewMiniPlayerSize =
+    serverTab && streamViewport
+      ? streamViewport
+      : resolvePreviewMiniPlayerSourceSize(
+          snapshot?.viewport ?? FILL_PREVIEW_VIEWPORT,
+          fittedSourceContent,
+          layoutZoomFactor,
+        );
+  // Streamed tabs stay hidden, and reserve no chat space, until their first frame paints.
+  const visible =
+    pageVisible && (!serverTab || (runtimeTabId !== null && stream?.frameTabId === runtimeTabId));
+  return {
+    serverEpoch: previewState.serverEpoch,
+    snapshot,
+    desktopOverlay,
+    serverTab,
+    sourceSize,
+    pageVisible,
+    visible,
+  };
+}
+
+/** The mini player as the chat canvas lays it out; null when no player renders. */
+export function useThreadPreviewCanvasSource(
+  threadRef: ScopedThreadRef | null,
+  miniPlayer: PreviewMiniPlayerState | null,
+): ChatCanvasPreview | null {
+  const source = miniPlayer?.source ?? null;
+  const browser = useBrowserMiniPlayerSource(
+    threadRef,
+    source?.kind === "browser" ? source.tabId : null,
+  );
+  const sourceKey = source ? previewMiniPlayerSourceKey(source) : null;
+  const screen = useAtomValue(
+    threadRef && source?.kind === "device"
+      ? deviceStreamScreenAtom(miniPlayerDeviceViewId(threadRef, source))
+      : NO_DEVICE_SCREEN_ATOM,
+  );
+  const heldSource = useHeldSourceSize((state) =>
+    threadRef && sourceKey !== null && state?.key === streamedSourceKey(threadRef, sourceKey)
+      ? state.source
+      : null,
+  );
+  if (!miniPlayer || !source || sourceKey === null) return null;
+  if (source.kind === "browser" && !browser.visible) return null;
+  return {
+    key: sourceKey,
+    width: miniPlayer.width,
+    position: miniPlayer.position,
+    lastInteraction: miniPlayer.lastInteraction,
+    source:
+      heldSource ??
+      (source.kind === "browser"
+        ? browser.sourceSize
+        : resolveDeviceMiniPlayerSourceSize(source.platform, screen)),
+  };
+}
+
+export function ThreadPreviewMiniPlayer({ threadRef, miniPlayer }: Props) {
+  const { source } = miniPlayer;
+  return source.kind === "browser" ? (
+    <BrowserMiniPlayer
+      key={`${threadRef.environmentId}:${threadRef.threadId}:${source.tabId}`}
+      threadRef={threadRef}
+      tabId={source.tabId}
+      miniPlayer={miniPlayer}
+    />
+  ) : (
+    <DeviceMiniPlayer
+      key={previewMiniPlayerSourceKey(source)}
+      threadRef={threadRef}
+      source={source}
+      miniPlayer={miniPlayer}
+    />
+  );
+}
+
+function BrowserMiniPlayer({ threadRef, tabId, miniPlayer }: Props & { readonly tabId: string }) {
+  const httpBaseUrl = useEnvironmentHttpBaseUrl(threadRef.environmentId);
+  const { serverEpoch, snapshot, desktopOverlay, serverTab, sourceSize, pageVisible, visible } =
+    useBrowserMiniPlayerSource(threadRef, tabId);
+  const runtimeTabId = previewRuntimeTabId(threadRef, serverEpoch, tabId);
+  const recordingTabIds = useActiveBrowserRecordingTabIds();
+  const recording =
+    recordingTabIds.has(runtimeTabId) ||
+    findActiveBrowserRecordingRuntimeTabId(threadRef, tabId) !== null;
+  const webviewRect = useBrowserSurfaceStore((state) => {
+    const surface = state.byTabId[runtimeTabId];
+    return !serverTab && surface?.visible ? surface.rect : null;
+  });
+  const serverSurfaceRef = useRef<ServerBrowserHandle | null>(null);
+  const pdfUrl =
+    snapshot?.navStatus._tag === "Success"
+      ? previewPdfAssetUrl(snapshot.navStatus.url, httpBaseUrl)
+      : null;
+  const serverPictureInPicture = useServerPictureInPicture({
+    threadRef,
+    tabId,
+    pdfUrl,
+    surfaceRef: serverSurfaceRef,
+  });
+  const togglePreviewShortcut = useShortcutLabel("preview.toggle");
+  const viewportKey = streamedSourceKey(
+    threadRef,
+    previewMiniPlayerSourceKey(browserMiniPlayerSource(tabId)),
+  );
+  // Hiding the page unmounts its stream, so the next reveal waits for a fresh first frame.
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- clears this stream's entry in the shared streamed-source store when the page hides or the source changes
+  useEffect(() => {
+    if (!pageVisible) return;
+    return () => forgetStream(viewportKey);
+  }, [pageVisible, viewportKey]);
+
+  const openInPanel = () => {
+    usePreviewMiniPlayerStore.getState().close(threadRef);
+    useRightPanelStore.getState().openBrowser(threadRef, tabId);
+  };
+
+  const toggleDesktopPictureInPicture = () => {
+    if (!previewBridge) return;
+    const operation = desktopOverlay?.pictureInPicture
+      ? previewBridge.pictureInPicture.close
+      : previewBridge.pictureInPicture.open;
+    void operation(runtimeTabId).catch((error: unknown) => {
+      toastManager.add({
+        type: "error",
+        title: "Unable to update popped-out preview",
+        description: error instanceof Error ? error.message : "An error occurred.",
+      });
+    });
+  };
+
+  if (!snapshot || !pageVisible) return null;
+  const poppedOut = serverTab
+    ? serverPictureInPicture.open
+    : Boolean(desktopOverlay?.pictureInPicture);
+  const canPopOut = serverTab ? serverPictureInPicture.available : true;
+
+  return (
+    <MiniPlayerShell
+      threadRef={threadRef}
+      miniPlayer={miniPlayer}
+      visible={visible}
+      sourceSize={sourceSize}
+      webviewRect={webviewRect}
+      label="Floating browser preview"
+      recording={recording}
+      onClose={() => usePreviewMiniPlayerStore.getState().close(threadRef)}
+      onOpenInPanel={openInPanel}
+      openInPanelShortcut={togglePreviewShortcut}
+      pillActions={
+        canPopOut ? (
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <Button
+                  variant={poppedOut ? "secondary" : "ghost"}
+                  size="icon-xs"
+                  aria-label={
+                    poppedOut ? "Close popped-out preview" : "Pop preview into separate window"
+                  }
+                  disabled={!serverTab && !desktopOverlay?.hasWebContents}
+                  onPointerDown={(event) => event.stopPropagation()}
+                  onClick={
+                    serverTab ? serverPictureInPicture.toggle : toggleDesktopPictureInPicture
+                  }
+                />
+              }
+            >
+              <PictureInPictureIcon />
+            </TooltipTrigger>
+            <TooltipPopup side="top">
+              {poppedOut ? "Close separate window" : "Pop into separate window"}
+            </TooltipPopup>
+          </Tooltip>
+        ) : null
+      }
+    >
+      {(frame) =>
+        serverTab ? (
+          <div
+            className="pointer-events-auto absolute inset-0 overflow-hidden rounded-[inherit]"
+            style={{ zIndex: PREVIEW_MINI_PLAYER_WEBVIEW_Z_INDEX }}
+          >
+            <ServerBrowserSurface
+              key={runtimeTabId}
+              ref={serverSurfaceRef}
+              environmentId={threadRef.environmentId}
+              threadId={threadRef.threadId}
+              tabId={tabId}
+              pdfUrl={pdfUrl}
+              visible
+              followSize={false}
+              controlPosition="bottom"
+              onFirstFrame={() => recordStreamFrame(viewportKey, runtimeTabId)}
+              onViewport={(viewport) => recordStreamViewport(viewportKey, viewport)}
+              onPopup={(popupTabId) => showPreviewPopup(threadRef, popupTabId, "floating")}
+              className="size-full"
+            />
+          </div>
+        ) : (
+          <>
+            <BrowserSurfaceSlot
+              tabId={runtimeTabId}
+              visible={Boolean(desktopOverlay?.hasWebContents)}
+              cornerRadius={PREVIEW_MINI_PLAYER_CORNER_RADIUS}
+              zIndex={PREVIEW_MINI_PLAYER_WEBVIEW_Z_INDEX}
+              fitSourceContent
+              layoutVersion={`${frame.x}:${frame.y}`}
+              className="absolute inset-0"
+            />
+            {!desktopOverlay?.hasWebContents ? (
+              <div className="pointer-events-none absolute inset-0 z-[49] flex items-center justify-center rounded-[inherit] bg-muted text-xs text-muted-foreground">
+                Reconnecting preview…
+              </div>
+            ) : null}
+          </>
+        )
+      }
+    </MiniPlayerShell>
+  );
+}
+
+function DeviceMiniPlayer({
+  threadRef,
+  source,
+  miniPlayer,
+}: Props & { readonly source: Extract<PreviewMiniPlayerSource, { kind: "device" }> }) {
+  const { state: deviceState } = useDeviceState(threadRef.environmentId);
+  const viewId = miniPlayerDeviceViewId(threadRef, source);
+  const screen = useAtomValue(deviceStreamScreenAtom(viewId));
+  const sourceSize = resolveDeviceMiniPlayerSourceSize(source.platform, screen);
+  const device = deviceState.devices.find(
+    (entry) => entry.hostId === source.hostId && entry.id === source.deviceId,
+  );
+  const hostLabel =
+    deviceState.hosts.find((host) => host.id === source.hostId)?.label ?? "Device host";
+  const cornerRadius = (player: PreviewMiniPlayerSize) =>
+    resolveDeviceMiniPlayerCornerRadius(source.platform, player);
+
+  const dismiss = () => {
+    usePreviewMiniPlayerStore.getState().close(threadRef);
+    useRightPanelStore.getState().dismissDevice(threadRef, source);
+  };
+
+  const openInPanel = () => {
+    usePreviewMiniPlayerStore.getState().close(threadRef);
+    useRightPanelStore.getState().openDevice(threadRef, {
+      hostId: source.hostId,
+      deviceId: source.deviceId,
+      platform: source.platform,
+      name: source.name,
+    });
+  };
+
+  return (
+    <MiniPlayerShell
+      threadRef={threadRef}
+      miniPlayer={miniPlayer}
+      sourceSize={sourceSize}
+      label="Floating device preview"
+      onClose={dismiss}
+      onOpenInPanel={openInPanel}
+      cornerRadius={cornerRadius}
+    >
+      {() => (
+        <div
+          className="pointer-events-auto absolute inset-0 overflow-hidden rounded-[inherit]"
+          style={{ zIndex: PREVIEW_MINI_PLAYER_WEBVIEW_Z_INDEX }}
+        >
+          <DeviceStreamView
+            environmentId={threadRef.environmentId}
+            platform={source.platform}
+            deviceId={source.deviceId}
+            hostId={source.hostId}
+            deviceName={device?.name ?? source.name}
+            deviceDescription={`${hostLabel} · ${device?.version ?? source.platform}`}
+            visible
+            viewId={viewId}
+          />
+        </div>
+      )}
+    </MiniPlayerShell>
+  );
+}
+
+/** Match native clipping and DOM radii to align their separately composited edges. */
+function MiniPlayerShell({
+  threadRef,
+  miniPlayer,
+  sourceSize,
+  label,
+  onClose,
+  onOpenInPanel,
+  openInPanelShortcut,
+  pillActions,
+  recording = false,
+  visible = true,
+  webviewRect,
+  cornerRadius = frameCornerRadius,
+  children,
+}: {
+  readonly threadRef: ScopedThreadRef;
+  readonly miniPlayer: PreviewMiniPlayerState;
+  readonly sourceSize: PreviewMiniPlayerSize;
+  readonly webviewRect?: BrowserSurfaceRect | null;
+  readonly label: string;
+  readonly onClose: () => void;
+  readonly onOpenInPanel: () => void;
+  /** Only the browser source docks the way the preview toggle shortcut does. */
+  readonly openInPanelShortcut?: string | null;
+  readonly pillActions?: ReactNode;
+  readonly recording?: boolean;
+  /** Keep the stream measurable before its first frame without showing a floating card. */
+  readonly visible?: boolean;
+  readonly cornerRadius?: (frame: PreviewMiniPlayerSize) => number;
+  readonly children: (frame: PreviewMiniPlayerFrame) => ReactNode;
+}) {
+  const canvas = useChatCanvas();
+  const gestureRef = useRef<PreviewMiniPlayerGesture | null>(null);
+  const captureRef = useRef<HTMLElement | null>(null);
+  // Touch toggles the pill after the tap's click so that click cannot land on the newly opened pill.
+  const [pillOpen, setPillOpen] = useState(false);
+  const handleTappedRef = useRef(false);
+  const handleRef = useRef<HTMLDivElement | null>(null);
+  const [gesturing, setGesturing] = useState(false);
+  const background = use(BackgroundThreadContext);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- document pointerdown listener closes the open pill on an outside press
+  useEffect(() => {
+    if (!pillOpen) return;
+    const dismiss = (event: PointerEvent) => {
+      if (event.target instanceof Node && handleRef.current?.contains(event.target)) return;
+      setPillOpen(false);
+    };
+    document.addEventListener("pointerdown", dismiss, true);
+    return () => document.removeEventListener("pointerdown", dismiss, true);
+  }, [pillOpen]);
+  const container = canvas?.container ?? null;
+  const sourceKey = previewMiniPlayerSourceKey(miniPlayer.source);
+  const heldSourceKey = streamedSourceKey(threadRef, sourceKey);
+  const frame =
+    canvas?.previewKey === sourceKey
+      ? canvas.layout.frame
+      : container && container.width > 0 && container.height > 0
+        ? resolvePreviewMiniPlayerFrame({
+            container,
+            width: miniPlayer.width,
+            position: miniPlayer.position,
+            source: sourceSize,
+          })
+        : null;
+
+  const radius = frame ? cornerRadius(frame) : PREVIEW_MINI_PLAYER_CORNER_RADIUS;
+  const pillInset = Math.max(8, Math.round(radius * 0.55));
+
+  /** Every way a gesture stops comes through here; returns the gesture it ended. */
+  const finishGesture = () => {
+    const gesture = gestureRef.current;
+    if (!gesture) return null;
+    gestureRef.current = null;
+    setGesturing(false);
+    handleTappedRef.current = false;
+    const handle = captureRef.current;
+    captureRef.current = null;
+    if (handle?.hasPointerCapture(gesture.pointerId)) {
+      handle.releasePointerCapture(gesture.pointerId);
+    }
+    if (gesture.direction === null) return gesture;
+    useHeldSourceSize.setState((state) => (state?.key === heldSourceKey ? null : state), true);
+    const settled =
+      frame && container
+        ? settlePreviewMiniPlayerResize({
+            frame,
+            direction: gesture.direction,
+            held: gesture.source,
+            source: sourceSize,
+            container,
+          })
+        : null;
+    if (settled) {
+      usePreviewMiniPlayerStore
+        .getState()
+        .resize(threadRef, sourceKey, settled.width, { x: settled.x, y: settled.y });
+    }
+    return gesture;
+  };
+  const endReleasedGesture = useEffectEvent((event: PointerEvent) => {
+    if (gestureRef.current?.pointerId === event.pointerId) finishGesture();
+  });
+  const endInterruptedGesture = useEffectEvent(() => {
+    finishGesture();
+  });
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- marks the document so desktop webviews stop taking the pointer moves of a drag or resize that crosses them, and ends a gesture whose release went to a remounted control or another window
+  useEffect(() => {
+    if (!gesturing) return;
+    const root = document.documentElement;
+    activeGestureCount += 1;
+    root.setAttribute(GESTURE_ATTRIBUTE, "");
+    window.addEventListener("pointerup", endReleasedGesture);
+    window.addEventListener("pointercancel", endReleasedGesture);
+    window.addEventListener("blur", endInterruptedGesture);
+    return () => {
+      window.removeEventListener("pointerup", endReleasedGesture);
+      window.removeEventListener("pointercancel", endReleasedGesture);
+      window.removeEventListener("blur", endInterruptedGesture);
+      activeGestureCount -= 1;
+      if (activeGestureCount === 0) root.removeAttribute(GESTURE_ATTRIBUTE);
+      useHeldSourceSize.setState((state) => (state?.key === heldSourceKey ? null : state), true);
+    };
+  }, [gesturing, heldSourceKey]);
+
+  const beginGesture = (
+    event: ReactPointerEvent<HTMLElement>,
+    direction: BrowserViewportResizeDirection | null,
+  ) => {
+    if (event.button !== 0 || !frame) return;
+    finishGesture();
+    gestureRef.current = {
+      pointerId: event.pointerId,
+      pointerType: event.pointerType,
+      pointerX: event.clientX,
+      pointerY: event.clientY,
+      frame,
+      direction,
+      source: sourceSize,
+      moved: false,
+    };
+    captureRef.current = event.currentTarget;
+    if (direction !== null) {
+      useHeldSourceSize.setState({ key: heldSourceKey, source: sourceSize }, true);
+    }
+    setGesturing(true);
+    event.currentTarget.setPointerCapture(event.pointerId);
+    event.preventDefault();
+    event.stopPropagation();
+  };
+
+  const handlePointerMove = (event: ReactPointerEvent<HTMLElement>) => {
+    const gesture = gestureRef.current;
+    if (!gesture || !container) return;
+    const step = stepPreviewMiniPlayerGesture(gesture, event, container);
+    if (step.kind === "ignore") return;
+    if (step.kind === "end") {
+      finishGesture();
+      return;
+    }
+    if (!gesture.moved) gestureRef.current = { ...gesture, moved: true };
+    const store = usePreviewMiniPlayerStore.getState();
+    if (step.kind === "move") {
+      store.move(threadRef, sourceKey, step.position);
+      return;
+    }
+    store.resize(threadRef, sourceKey, step.frame.width, { x: step.frame.x, y: step.frame.y });
+  };
+
+  const endGesture = (event: ReactPointerEvent<HTMLElement>) => {
+    if (gestureRef.current?.pointerId !== event.pointerId) return;
+    const gesture = finishGesture();
+    handleTappedRef.current =
+      event.type === "pointerup" &&
+      gesture?.direction === null &&
+      gesture.pointerType === "touch" &&
+      !gesture.moved;
+  };
+
+  // Capture can go without a release or cancel: the handle is replaced, or the platform takes it.
+  const handleLostCapture = (event: ReactPointerEvent<HTMLElement>) => {
+    if (
+      gestureRef.current?.pointerId === event.pointerId &&
+      captureRef.current === event.currentTarget
+    ) {
+      finishGesture();
+    }
+  };
+
+  const controls = (
+    <>
+      <div
+        ref={handleRef}
+        data-pill-open={pillOpen ? "" : undefined}
+        className="group pointer-events-auto absolute z-[49] size-3 touch-none cursor-grab active:cursor-grabbing pointer-coarse:-m-2.5 pointer-coarse:size-8"
+        style={{ right: pillInset, top: pillInset }}
+        onPointerDown={(event) => beginGesture(event, null)}
+        onPointerMove={handlePointerMove}
+        onPointerUp={endGesture}
+        onPointerCancel={endGesture}
+        onLostPointerCapture={handleLostCapture}
+        onClick={() => {
+          if (!handleTappedRef.current) return;
+          handleTappedRef.current = false;
+          setPillOpen((open) => !open);
+        }}
+      >
+        <div
+          role={recording ? "status" : undefined}
+          aria-label={recording ? "Recording preview" : undefined}
+          aria-hidden={!recording}
+          className="absolute right-0 top-0 size-2 transition-opacity group-hover:opacity-0 group-focus-within:opacity-0 group-data-pill-open:opacity-0 pointer-coarse:right-2.5 pointer-coarse:top-2.5"
+        >
+          <span
+            className={cn(
+              "block size-2 rounded-full shadow-sm ring-1 ring-background/70",
+              recording ? "bg-destructive motion-safe:animate-status-pulse" : "bg-foreground/25",
+            )}
+          />
+        </div>
+        <div className="pointer-events-none absolute right-0 top-0 flex h-8 cursor-grab items-center gap-0.5 rounded-lg border border-border/80 bg-popover/92 p-0.5 opacity-0 shadow-lg/20 backdrop-blur-xl transition-opacity group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100 group-data-pill-open:pointer-events-auto group-data-pill-open:opacity-100 active:cursor-grabbing pointer-coarse:right-2.5 pointer-coarse:top-2.5">
+          {recording ? (
+            <span aria-hidden className="flex size-6 shrink-0 items-center justify-center">
+              <span className="size-2 rounded-full bg-destructive motion-safe:animate-status-pulse" />
+            </span>
+          ) : null}
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <Button
+                  variant="ghost"
+                  size="icon-xs"
+                  aria-label="Open preview in right panel"
+                  onPointerDown={(event) => event.stopPropagation()}
+                  onClick={onOpenInPanel}
+                />
+              }
+            >
+              <PanelRightIcon />
+            </TooltipTrigger>
+            <TooltipPopup side="top" shortcut={openInPanelShortcut}>
+              Open in right panel
+            </TooltipPopup>
+          </Tooltip>
+          {pillActions}
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <Button
+                  variant="ghost"
+                  size="icon-xs"
+                  aria-label="Close floating preview"
+                  onPointerDown={(event) => event.stopPropagation()}
+                  onClick={onClose}
+                />
+              }
+            >
+              <XIcon />
+            </TooltipTrigger>
+            <TooltipPopup side="top">Close floating preview</TooltipPopup>
+          </Tooltip>
+        </div>
+      </div>
+      <div className="pointer-events-none absolute inset-0 z-[49] rounded-[inherit] ring-1 ring-inset ring-border/80" />
+      {RESIZE_HANDLES.map(({ direction, className }) => (
+        <div
+          key={direction}
+          role="presentation"
+          data-preview-mini-player-resize={direction}
+          className={cn("pointer-events-auto absolute z-[49] touch-none", className)}
+          onPointerDown={(event) => beginGesture(event, direction)}
+          onPointerMove={handlePointerMove}
+          onPointerUp={endGesture}
+          onPointerCancel={endGesture}
+          onLostPointerCapture={handleLostCapture}
+        />
+      ))}
+    </>
+  );
+
+  return (
+    <div className="pointer-events-none absolute inset-0">
+      {frame ? (
+        <section
+          aria-label={label}
+          aria-hidden={!visible}
+          inert={!visible}
+          data-preview-mini-player={sourceKey}
+          className="pointer-events-none absolute select-none"
+          style={{
+            left: frame.x,
+            top: frame.y,
+            width: frame.width,
+            height: frame.height,
+            borderRadius: radius,
+            opacity: visible ? undefined : 0,
+          }}
+        >
+          <div className="absolute inset-0 z-[47] rounded-[inherit] bg-muted shadow-2xl/35" />
+          {children(frame)}
+          {webviewRect
+            ? createPortal(
+                <div
+                  inert={background}
+                  className="pointer-events-none fixed select-none"
+                  style={{
+                    left: webviewRect.x,
+                    top: webviewRect.y,
+                    width: webviewRect.width,
+                    height: webviewRect.height,
+                    borderRadius: radius,
+                    zIndex: PREVIEW_MINI_PLAYER_WEBVIEW_Z_INDEX + 1,
+                  }}
+                >
+                  {controls}
+                </div>,
+                document.body,
+              )
+            : controls}
+        </section>
+      ) : null}
+    </div>
+  );
+}

@@ -28,9 +28,9 @@ vi.mock(import("./presentation"), async (original) => ({
   },
 }));
 vi.mock(import("../hooks/useSettings"), () => ({
-  getClientSettings: (() => ({ browserAutoOpenPanel: true })) as never,
-  useClientSettings: ((select: (settings: { browserAutoOpenPanel: boolean }) => unknown) =>
-    select({ browserAutoOpenPanel: true })) as never,
+  getClientSettings: (() => ({ browserAgentOpenTarget: "panel" })) as never,
+  useClientSettings: ((select: (settings: { browserAgentOpenTarget: "panel" }) => unknown) =>
+    select({ browserAgentOpenTarget: "panel" })) as never,
 }));
 vi.mock(import("./use-atom-command"), () => {
   const run = () => Promise.resolve({ _tag: "Success", value: {} });

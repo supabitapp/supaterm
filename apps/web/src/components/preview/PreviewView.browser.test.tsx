@@ -153,6 +153,7 @@ vi.mock(import("~/browser/browserViewportActions"), { spy: true });
 import { useComposerDraftStore } from "~/composerDraftStore";
 import { useBrowserPointerStore } from "~/browser/browserPointerStore";
 import { previewRuntimeTabId } from "~/browser/previewRuntimeTabId";
+import { usePreviewMiniPlayerStore } from "~/previewMiniPlayerStore";
 import { dispatchPreviewAction } from "./previewActionBus";
 import { PreviewView } from "./PreviewView";
 import { ToastProvider } from "~/components/ui/toast";
@@ -208,6 +209,7 @@ function setup() {
     addPreviewAnnotation: mocks.addPreviewAnnotation,
     addImage: mocks.addImage,
   });
+  usePreviewMiniPlayerStore.setState({ byThreadKey: {} });
   useBrowserPointerStore.setState({ byTabId: {} });
 }
 

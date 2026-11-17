@@ -3,11 +3,13 @@ import {
   createPreviewStreamClient,
   type PreviewStreamClient,
 } from "@supaterm/client-runtime/preview/server-browser-stream";
-import type { EnvironmentId, ThreadId } from "@supaterm/contracts";
+import type { EnvironmentId, ScopedThreadRef, ThreadId } from "@supaterm/contracts";
 import { scopedThreadKey } from "@supaterm/client-runtime/environment";
 import { previewPdfAssetUrl } from "@supaterm/shared/preview";
-import { useSyncExternalStore } from "react";
+import { type RefObject, useSyncExternalStore } from "react";
 
+import { toastManager } from "~/components/ui/toast";
+import { useStableCallback } from "~/hooks/useStableCallback";
 import { readPreviewStreamAccess } from "~/state/previewStream";
 import { previewStateAtom, type ThreadPreviewState } from "~/previewStateStore";
 import { appAtomRegistry } from "~/rpc/atomRegistry";
@@ -35,10 +37,10 @@ const subscribe = (listener: () => void) => {
   return () => listeners.delete(listener);
 };
 
-export const serverPictureInPictureKey = (threadId: string, tabId: string) =>
+const serverPictureInPictureKey = (threadId: string, tabId: string) =>
   JSON.stringify([threadId, tabId]);
 
-export function supportsServerPictureInPicture(): boolean {
+function supportsServerPictureInPicture(): boolean {
   if (typeof document === "undefined") return false;
   if (typeof HTMLCanvasElement.prototype.captureStream !== "function") return false;
   const video = HTMLVideoElement.prototype as HTMLVideoElement & WebKitVideo;
@@ -48,7 +50,7 @@ export function supportsServerPictureInPicture(): boolean {
   );
 }
 
-export function useServerPictureInPictureKey(): string | null {
+function useServerPictureInPictureKey(): string | null {
   return useSyncExternalStore(
     subscribe,
     () => active?.key ?? null,
@@ -56,7 +58,7 @@ export function useServerPictureInPictureKey(): string | null {
   );
 }
 
-export function closeServerPictureInPicture(): void {
+function closeServerPictureInPicture(): void {
   const current = active;
   active = null;
   current?.stop();
@@ -64,7 +66,7 @@ export function closeServerPictureInPicture(): void {
 }
 
 /** Open during user activation, seeding the video with the currently visible frame. */
-export async function openServerPictureInPicture(input: {
+async function openServerPictureInPicture(input: {
   readonly environmentId: EnvironmentId;
   readonly threadId: ThreadId;
   readonly tabId: string;
@@ -194,4 +196,42 @@ export async function openServerPictureInPicture(input: {
     closeForPdf(appAtomRegistry.get(atom));
     if (active === current) void connect(false);
   }
+}
+
+/**
+ * One server tab's separate OS window, as the control that toggles it reads it. A PDF
+ * renders from its asset URL and has no stream to pop out.
+ */
+export function useServerPictureInPicture(input: {
+  readonly threadRef: ScopedThreadRef;
+  readonly tabId: string | null;
+  readonly pdfUrl: string | null;
+  readonly surfaceRef: RefObject<{ readonly canvas: () => HTMLCanvasElement | null } | null>;
+}): { readonly open: boolean; readonly available: boolean; readonly toggle: () => void } {
+  const { threadRef, tabId, pdfUrl, surfaceRef } = input;
+  const activeKey = useServerPictureInPictureKey();
+  const open = tabId !== null && activeKey === serverPictureInPictureKey(threadRef.threadId, tabId);
+  const toggle = useStableCallback(() => {
+    if (tabId === null) return;
+    if (open) {
+      closeServerPictureInPicture();
+      return;
+    }
+    void openServerPictureInPicture({
+      ...threadRef,
+      tabId,
+      seed: surfaceRef.current?.canvas() ?? null,
+    }).catch((error: unknown) => {
+      toastManager.add({
+        type: "error",
+        title: "Unable to pop out preview",
+        description: error instanceof Error ? error.message : "An error occurred.",
+      });
+    });
+  });
+  return {
+    open,
+    available: open || (pdfUrl === null && supportsServerPictureInPicture()),
+    toggle,
+  };
 }

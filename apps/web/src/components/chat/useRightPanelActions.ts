@@ -5,6 +5,7 @@ import { formatFilePathForClipboard } from "@supaterm/client-runtime/media-actio
 import { resolvePathLinkTarget } from "@supaterm/shared/fileLinks";
 import { resolveExplicitDiffOpenOnActivate } from "../ChatView.logic";
 import { useStableCallback } from "../../hooks/useStableCallback";
+import { getClientSettings } from "../../hooks/useSettings";
 import { type ScopedThreadRef, type RunId } from "@supaterm/contracts";
 import { scopedThreadKey } from "@supaterm/client-runtime/environment";
 import { useEffect } from "react";
@@ -27,6 +28,8 @@ import { BrowserSettingsReadError } from "../../browser/openFileInPreview";
 import { addBrowserSurface } from "../preview/addBrowserSurface";
 import { focusActivePanelTerminal, focusTerminal } from "../../lib/terminalFocus";
 import { subscribePreviewAction } from "../preview/previewActionBus";
+import { floatDeviceSurface } from "../preview/agentOpenedPreviews";
+import { browserMiniPlayerSource, usePreviewMiniPlayerStore } from "../../previewMiniPlayerStore";
 import type { threadPullRequestPanelTarget } from "../pullRequest/pullRequestDetail.logic";
 import type { useDeviceState } from "../../state/device";
 import { stackedThreadToast, toastManager } from "../ui/toast";
@@ -42,6 +45,7 @@ interface RightPanelActionsInput {
   readonly activeRightPanelSurface: RightPanelSurface | null;
   readonly activePreviewState: ThreadPreviewState;
   readonly deviceState: ReturnType<typeof useDeviceState>["state"];
+  readonly deviceStateLoaded: boolean;
   readonly pullRequestPanelTarget: ReturnType<typeof threadPullRequestPanelTarget> | null;
   readonly threadPanelPresentation: ThreadPanelPresentation;
   readonly isServerThread: boolean;
@@ -74,6 +78,7 @@ export function useRightPanelActions(input: RightPanelActionsInput) {
     activeRightPanelSurface,
     activePreviewState,
     deviceState,
+    deviceStateLoaded,
     pullRequestPanelTarget,
     threadPanelPresentation,
     isServerThread,
@@ -167,10 +172,26 @@ export function useRightPanelActions(input: RightPanelActionsInput) {
   };
   const openFileSurfaceStable = useStableCallback(openFileSurface);
 
-  const closePreviewPanel = () => {
-    if (activeThreadRef) {
-      useRightPanelStore.getState().close(activeThreadRef);
+  const floatActiveSurface = (threadRef: ScopedThreadRef) => {
+    if (activeRightPanelSurface?.kind === "preview" && activeRightPanelSurface.resourceId) {
+      usePreviewMiniPlayerStore
+        .getState()
+        .open(threadRef, browserMiniPlayerSource(activeRightPanelSurface.resourceId));
+    } else if (activeRightPanelSurface?.kind === "device" && activeRightPanelSurface.target) {
+      floatDeviceSurface(
+        threadRef,
+        { kind: "device", ...activeRightPanelSurface.target },
+        deviceStateLoaded ? deviceState : null,
+      );
     }
+  };
+
+  const closePreviewPanel = () => {
+    if (!activeThreadRef) return;
+    if (getClientSettings().browserAgentOpenTarget === "floating") {
+      floatActiveSurface(activeThreadRef);
+    }
+    useRightPanelStore.getState().close(activeThreadRef);
   };
   const closePreviewPanelStable = useStableCallback(closePreviewPanel);
   const togglePreviewPanel = () => {

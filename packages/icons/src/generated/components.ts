@@ -424,6 +424,8 @@ import { PencilLineIcon as PenLineSource } from "@phosphor-icons/react/dist/csr/
 export const PenLineIcon = /* @__PURE__ */ withIconDefaults(PenLineSource);
 import { PencilIcon as PencilSource } from "@phosphor-icons/react/dist/csr/Pencil";
 export const PencilIcon = /* @__PURE__ */ withIconDefaults(PencilSource);
+import { PictureInPictureIcon as PictureInPictureSource } from "@phosphor-icons/react/dist/csr/PictureInPicture";
+export const PictureInPictureIcon = /* @__PURE__ */ withIconDefaults(PictureInPictureSource);
 import { ParagraphIcon as PilcrowSource } from "@phosphor-icons/react/dist/csr/Paragraph";
 export const PilcrowIcon = /* @__PURE__ */ withIconDefaults(PilcrowSource);
 import { PushPinIcon as PinSource } from "@phosphor-icons/react/dist/csr/PushPin";

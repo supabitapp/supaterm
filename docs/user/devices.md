@@ -19,6 +19,10 @@ device to boot it. The panel shows when you or an agent starts a device.
 Each device opens in its own tab. Use **+ → Device** to open another, and
 double-click a tab name or choose **Rename** from its context menu to rename it.
 Only the visible tab streams video; switching tabs keeps both devices running.
+Choose **Float device over chat** under **More device actions** to keep watching
+and tapping the device in a small window while the right panel shows something
+else; drag the window by its handle, resize it from any edge, and use **Open
+preview in right panel** to bring it back.
 Turn off the device hub in **Settings → Devices** to stop the
 helper processes; simulators and emulators keep running until you power them
 off.
@@ -65,10 +69,12 @@ back from the device after a change.
 
 ## Agents and devices
 
-When an agent opens a device, web and desktop clients connected to the thread
-open it as a right-panel tab, the same way an agent-driven browser does. Turn
-off **Auto-open right panel** in **Settings → Browser** to add the tab without
-opening the panel. In a narrow window the tab is added without opening the panel. In the mobile app, open the agent's thread and tap the
+When an agent opens a device, it floats over the chat in web and desktop clients
+connected to the thread, the same way an agent-driven browser does. Under
+**Settings → Browser**, set **Show agent browsers and devices in** to **Right
+panel** to open a right-panel tab instead, or to **In the background** to add
+the tab without opening the panel. In a narrow window the device gets a tab
+without opening the panel. In the mobile app, open the agent's thread and tap the
 device button above the composer to watch the live screen and control it.
 On iOS layouts with an inspector, the device opens beside the thread. Maximize
 it to fill the screen; closing the full-screen view returns to the inspector.

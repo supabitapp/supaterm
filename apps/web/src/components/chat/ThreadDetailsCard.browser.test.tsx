@@ -63,10 +63,12 @@ function Card({
         value={{
           container,
           lane: { padding: 48, minChatWidth: 640 },
-          layout: resolveChatCanvasLayout({ container }),
+          layout: resolveChatCanvasLayout({ container, preview: null }),
+          previewKey: null,
           registerTimeline: () => {},
           measureDetailsCard: () => {},
           detailsPopoverSideOffset: 0,
+          preferredDetailsCard: placement,
           detailsCardPlacement: inline ? placement : null,
         }}
       >
