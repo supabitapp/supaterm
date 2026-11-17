@@ -106,8 +106,8 @@ function ProjectIconPickerBody({
   readonly onClose: () => void;
   readonly onSelect: (icon: ProjectIconOverride) => void;
 }) {
-  const [mode, setMode] = useState<PickerMode>(initialMode(current));
-  const [iconName, setIconName] = useState<string>(initialIconName(current));
+  const [mode, setMode] = useState<PickerMode>(() => initialMode(current));
+  const [iconName, setIconName] = useState<string>(() => initialIconName(current));
   const [color, setColor] = useState<ProjectIconColor>(
     current && current.kind !== "emoji" ? current.color : automatic.color,
   );

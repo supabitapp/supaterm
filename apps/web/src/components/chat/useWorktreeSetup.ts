@@ -127,10 +127,10 @@ export function useWorktreeSetup(input: {
       serverProjection?.turnItems ?? [],
     ),
   ].join("\n");
-  const [retryableRunIds, setRetryableRunIds] = useState({
+  const [retryableRunIds, setRetryableRunIds] = useState(() => ({
     key: retryableRunIdsKey,
     ids: new Set(retryableRunIdsKey === "" ? [] : (retryableRunIdsKey.split("\n") as RunId[])),
-  });
+  }));
   if (retryableRunIds.key !== retryableRunIdsKey) {
     setRetryableRunIds({
       key: retryableRunIdsKey,

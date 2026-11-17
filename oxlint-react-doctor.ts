@@ -1,5 +1,6 @@
 // Each rule is in the plugin's recommended presets, has no native oxlint equivalent, and can
-// fire on our dependencies. Rules that already had hits when the plugin was added stay off.
+// fire on our dependencies. Recommended rules that stay off repeat a rule we already enforce or
+// report code that is deliberate here, such as a command that resolves with a tagged result.
 const CLIENT_RULES = [
   "anchor-target-exists",
   "auth-token-in-web-storage",
@@ -39,12 +40,14 @@ const CLIENT_RULES = [
   "no-collapsed-literal-or-chain-as-value",
   "no-controlled-input-value-without-state-update",
   "no-create-object-url-in-render",
+  "no-create-ref-in-function-component",
   "no-create-store-in-render",
   "no-default-props",
   "no-deprecated-keyboard-event-keycode-which",
   "no-direct-state-mutation",
   "no-document-start-view-transition",
   "no-dynamic-import-path",
+  "no-eager-new-in-use-state-initializer",
   "no-effect-chain",
   "no-effect-event-in-deps",
   "no-effect-wrapper-discards-callback-cleanup-return",
@@ -98,6 +101,7 @@ const CLIENT_RULES = [
   "no-uncontrolled-input",
   "no-unescaped-dynamic-string-in-regexp",
   "no-unguarded-numeric-input-parse",
+  "no-unguarded-throwing-parse-call",
   "no-uninformative-aria-label",
   "no-unthrottled-scroll-mutation",
   "no-whole-object-default-losing-per-key-defaults",
@@ -110,6 +114,8 @@ const CLIENT_RULES = [
   "rendering-conditional-render",
   "rerender-defer-reads-hook",
   "rerender-derived-state-from-hook",
+  "rerender-functional-setstate",
+  "rerender-lazy-state-init",
   "rerender-memo-before-early-return",
   "rerender-transitions-scroll",
   "role-button-requires-complete-keyboard-activation",

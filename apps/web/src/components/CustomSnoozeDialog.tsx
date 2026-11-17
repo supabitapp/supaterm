@@ -63,7 +63,7 @@ function CustomSnoozeDialog() {
   const [mode, setMode] = useState<CustomSnoozeInput["mode"]>("date");
   const [date, setDate] = useState(initial);
   const [calendarOpen, setCalendarOpen] = useState(false);
-  const [time, setTime] = useState(localSnoozeTime(initial));
+  const [time, setTime] = useState(() => localSnoozeTime(initial));
   const [amount, setAmount] = useState("2");
   const [unit, setUnit] = useState<"minutes" | "hours" | "days">("hours");
   const [error, setError] = useState<string | null>(null);
