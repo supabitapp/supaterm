@@ -31,6 +31,9 @@ import { remoteStateKey } from "./command.ts";
 import { SshCommandError, SshPasswordPromptError, SshReadinessError } from "./errors.ts";
 import * as SshTunnel from "./tunnel.ts";
 
+const isSshCommandError = (error: unknown): error is SshCommandError =>
+  error instanceof SshCommandError;
+
 const makeSuccessfulProcess = (stdout: string) => {
   const stdoutStream = Stream.make(new TextEncoder().encode(stdout));
   return ChildProcessSpawner.makeHandle({
@@ -443,7 +446,9 @@ describe("ssh tunnel scripts", () => {
               },
               stdin: {
                 stream: Stream.make(
-                  new TextEncoder().encode('printf "%s:%s" "${Supaterm_SSH_LOGIN_ENV:-missing}" "$1"'),
+                  new TextEncoder().encode(
+                    'printf "%s:%s" "${Supaterm_SSH_LOGIN_ENV:-missing}" "$1"',
+                  ),
                 ),
                 endOnDone: true,
               },
