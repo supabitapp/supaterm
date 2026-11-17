@@ -4448,23 +4448,22 @@ it.layer(layerTest)("GitVcsDriver core integration", (it) => {
           let cwd = source;
           if (layout === "bare-backed worktree") {
             const container = yield* makeTmpDir("git-vcs-driver-bare-");
+            // The driver resolves each command's repository from its cwd, which refuses a bare
+            // repository, so this setup runs Git directly.
             const gitDirArgs = ["--git-dir", path.join(container, "repo.git")];
+            const bareGit = (args: ReadonlyArray<string>) =>
+              Effect.flatMap(ChildProcessSpawner.ChildProcessSpawner, (spawner) =>
+                spawner.string(
+                  ChildProcess.make("git", [...gitDirArgs, ...args], { cwd: container }),
+                ),
+              );
             cwd = path.join(container, "trunk");
             yield* git(container, ["init", "--bare", "repo.git"]);
-            yield* git(container, [...gitDirArgs, "config", "user.email", "test@test.com"]);
-            yield* git(container, [...gitDirArgs, "config", "user.name", "Test"]);
-            yield* git(container, [...gitDirArgs, "remote", "add", "github", remote]);
-            yield* git(container, [...gitDirArgs, "fetch", "github"]);
-            yield* git(container, [
-              ...gitDirArgs,
-              "worktree",
-              "add",
-              "--track",
-              "-b",
-              "trunk",
-              cwd,
-              "github/trunk",
-            ]);
+            yield* bareGit(["config", "user.email", "test@test.com"]);
+            yield* bareGit(["config", "user.name", "Test"]);
+            yield* bareGit(["remote", "add", "github", remote]);
+            yield* bareGit(["fetch", "github"]);
+            yield* bareGit(["worktree", "add", "--track", "-b", "trunk", cwd, "github/trunk"]);
           }
           yield* git(cwd, [
             "symbolic-ref",
