@@ -154,9 +154,9 @@ describe("readHtmlRenderSelection", () => {
   const rect = { left: 8, top: 20, right: 120, bottom: 38 };
   const bounds = { left: 8, top: 0, right: 300, bottom: 38 };
 
-  it("reads a selection with its boxes, a clear, and nothing else", () => {
+  it("reads a trimmed selection with its boxes, a clear, and nothing else", () => {
     expect(readHtmlRenderSelection(selection({ text: " Quoted\nwords ", rect, bounds }))).toEqual({
-      text: " Quoted\nwords ",
+      text: "Quoted\nwords",
       rect,
       bounds,
     });
@@ -181,11 +181,13 @@ describe("readHtmlRenderSelection", () => {
     ).toBeUndefined();
   });
 
-  it("keeps a page's oversized text one character past the citation limit", () => {
-    const text = "a".repeat(ASSISTANT_CITATION_MAX_TEXT_LENGTH * 3);
-    expect(readHtmlRenderSelection(selection({ text, rect, bounds }))?.text).toHaveLength(
-      ASSISTANT_CITATION_MAX_TEXT_LENGTH + 1,
-    );
+  it("keeps oversized text one character past the citation limit, however it is padded", () => {
+    const limit = ASSISTANT_CITATION_MAX_TEXT_LENGTH;
+    const read = (text: string) => readHtmlRenderSelection(selection({ text, rect, bounds }))?.text;
+    expect(read("a".repeat(limit * 3))).toHaveLength(limit + 1);
+    // Padding must not hide the overflow: trimming after the cut would leave a quote at the limit.
+    expect(read(` ${"a".repeat(limit)}TAIL`)).toHaveLength(limit + 1);
+    expect(read(` ${"a".repeat(limit)} `)).toHaveLength(limit);
   });
 });
 
