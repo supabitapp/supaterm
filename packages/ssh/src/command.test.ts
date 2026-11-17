@@ -5,7 +5,6 @@ import * as HostProcess from "@supaterm/shared/HostProcess";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Result from "effect/Result";
-import * as Schema from "effect/Schema";
 import * as Sink from "effect/Sink";
 import * as Stream from "effect/Stream";
 import { ChildProcess, ChildProcessSpawner } from "effect/process";
@@ -14,7 +13,7 @@ import { parseSshResolveOutput, remoteStateKey, runSshCommand } from "./command.
 import { SshCommandError } from "./errors.ts";
 
 const encoder = new TextEncoder();
-const isSshCommandError = Schema.is(SshCommandError);
+const isSshCommandError = (error: unknown) => error instanceof SshCommandError;
 
 const makeFailedProcess = (input: { readonly stdout: string; readonly stderr?: string }) => {
   const stdoutStream = Stream.make(encoder.encode(input.stdout));
