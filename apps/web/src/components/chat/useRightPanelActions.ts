@@ -172,23 +172,26 @@ export function useRightPanelActions(input: RightPanelActionsInput) {
   };
   const openFileSurfaceStable = useStableCallback(openFileSurface);
 
-  const closePreviewPanel = () => {
-    if (activeThreadRef) {
-      if (getClientSettings().browserAgentOpenTarget === "floating") {
-        if (activeRightPanelSurface?.kind === "preview" && activeRightPanelSurface.resourceId) {
-          usePreviewMiniPlayerStore
-            .getState()
-            .open(activeThreadRef, browserMiniPlayerSource(activeRightPanelSurface.resourceId));
-        } else if (activeRightPanelSurface?.kind === "device" && activeRightPanelSurface.target) {
-          floatDeviceSurface(
-            activeThreadRef,
-            { kind: "device", ...activeRightPanelSurface.target },
-            deviceStateLoaded ? deviceState : null,
-          );
-        }
-      }
-      useRightPanelStore.getState().close(activeThreadRef);
+  const floatActiveSurface = (threadRef: ScopedThreadRef) => {
+    if (activeRightPanelSurface?.kind === "preview" && activeRightPanelSurface.resourceId) {
+      usePreviewMiniPlayerStore
+        .getState()
+        .open(threadRef, browserMiniPlayerSource(activeRightPanelSurface.resourceId));
+    } else if (activeRightPanelSurface?.kind === "device" && activeRightPanelSurface.target) {
+      floatDeviceSurface(
+        threadRef,
+        { kind: "device", ...activeRightPanelSurface.target },
+        deviceStateLoaded ? deviceState : null,
+      );
     }
+  };
+
+  const closePreviewPanel = () => {
+    if (!activeThreadRef) return;
+    if (getClientSettings().browserAgentOpenTarget === "floating") {
+      floatActiveSurface(activeThreadRef);
+    }
+    useRightPanelStore.getState().close(activeThreadRef);
   };
   const closePreviewPanelStable = useStableCallback(closePreviewPanel);
   const togglePreviewPanel = () => {
