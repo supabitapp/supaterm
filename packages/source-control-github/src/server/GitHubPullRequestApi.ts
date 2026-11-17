@@ -332,6 +332,11 @@ const isGraphQlClientError = (error: unknown): error is GraphQLClientError.Graph
 
 const { isNotFoundOnly } = GitHubGraphQlClient;
 
+const isGitHubApiResponseError = Schema.is(GitHubRequestPolicy.GitHubApiResponseError);
+
+const isGitHubServerError = (error: unknown): boolean =>
+  isGitHubApiResponseError(error) && error.status >= 500;
+
 const isMissingPullRef = ({ path, type }: GraphQLClientError.GraphQLError): boolean =>
   type === "NOT_FOUND" && path?.join(".") === "repository.pullRequest.baseRef.compare";
 
@@ -2036,15 +2041,16 @@ export const make = Effect.gen(function* () {
             });
           }),
         );
-      // GitHub does not index every repository for search, and one it will not search answers
-      // with no rows rather than with an error — so an empty listing is read again from the
-      // repository's own list.
-      const hasQuery = (input.query?.trim().length ?? 0) > 0;
+      // Unindexed repositories silently return no search rows, and search can fail while the
+      // listing answers. The listing cannot apply a text query or an `updated:<=` cursor.
+      const listingServes = input.cursor === undefined && (input.query?.trim().length ?? 0) === 0;
       const listed = read(true).pipe(
-        Effect.filterOrElse(
-          (batch) => batch.items.length > 0 || input.cursor !== undefined || hasQuery,
-          () => read(false),
-        ),
+        Effect.matchEffect({
+          onSuccess: (batch) =>
+            batch.items.length > 0 || !listingServes ? Effect.succeed(batch) : read(false),
+          onFailure: (error) =>
+            listingServes && isGitHubServerError(error) ? read(false) : Effect.fail(error),
+        }),
         // Match the search query's host support, and enrich only rows that survived paging.
         Effect.filterOrElse(
           (batch) => !stacks || batch.items.length === 0,
