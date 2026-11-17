@@ -15,6 +15,7 @@ import { vi } from "vite-plus/test";
 import * as CursorSdk from "./CursorSdk.ts";
 
 const cursorSdkUrl = new URL("./CursorSdk.ts", import.meta.url).href;
+const packageDirectory = new URL("../..", import.meta.url);
 
 // The vitest worker already has its own unhandledRejection listener, which
 // would hide the process-exit behavior.
@@ -136,8 +137,9 @@ function runProbe(mode: string): Promise<{ code: number | null; stdout: string; 
         probeProgram,
         mode,
       ],
+      // The package directory resolves the probe's imports however the suite is run.
       // A hung probe is killed so it cannot outlive the test.
-      { stdio: ["ignore", "pipe", "pipe"], timeout: 5_000 },
+      { cwd: packageDirectory, stdio: ["ignore", "pipe", "pipe"], timeout: 5_000 },
     );
     let stdout = "";
     let stderr = "";
