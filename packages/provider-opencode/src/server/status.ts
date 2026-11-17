@@ -9,6 +9,7 @@ import * as Cause from "effect/Cause";
 import * as Data from "effect/Data";
 import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
+import * as Option from "effect/Option";
 import * as Schedule from "effect/Schedule";
 
 import { createModelCapabilities } from "@supaterm/shared/model";
@@ -325,27 +326,43 @@ const catalogFingerprint = (models: ReadonlyArray<OpenCode2Model>) =>
     .toSorted()
     .join("\n");
 
+/** A cold server can list a partial catalog; two agreeing reads reduce that startup race. */
+const settleOpenCode2Catalog = <E>(list: Effect.Effect<ReadonlyArray<OpenCode2Model>, E>) =>
+  Effect.suspend(() => {
+    let previous: string | undefined;
+    return list.pipe(
+      Effect.repeat({
+        until: (models) => {
+          const fingerprint = models.length > 0 ? catalogFingerprint(models) : undefined;
+          const settled = fingerprint !== undefined && fingerprint === previous;
+          previous = fingerprint;
+          return settled;
+        },
+        schedule: Schedule.spaced("250 millis"),
+      }),
+    );
+  });
+
+const OPENCODE_2_CATALOG_SETTLE_TIMEOUT = "5 seconds";
+
 export const makeOpenCode2ModelLoader = <E>(
   list: Effect.Effect<ReadonlyArray<OpenCode2Model>, E>,
 ) =>
   Effect.sync(() => {
     let lastLoaded: ReadonlyArray<OpenCode2Model> = [];
     return Effect.suspend(() => {
-      let previous: string | undefined;
       let latest: ReadonlyArray<OpenCode2Model> = [];
-      return list.pipe(
-        Effect.repeat({
-          until: (models) => {
-            if (models.length > 0) latest = models;
-            const fingerprint = models.length > 0 ? catalogFingerprint(models) : undefined;
-            const settled = fingerprint !== undefined && fingerprint === previous;
-            previous = fingerprint;
-            return settled;
-          },
-          schedule: Schedule.spaced("250 millis"),
-        }),
+      return settleOpenCode2Catalog(
+        list.pipe(
+          Effect.tap((models) =>
+            Effect.sync(() => {
+              if (models.length > 0) latest = models;
+            }),
+          ),
+        ),
+      ).pipe(
         Effect.catch((error) => (latest.length > 0 ? Effect.succeed(latest) : Effect.fail(error))),
-        Effect.timeoutOption("5 seconds"),
+        Effect.timeoutOption(OPENCODE_2_CATALOG_SETTLE_TIMEOUT),
         Effect.map((loaded) => {
           if (loaded._tag === "Some") lastLoaded = loaded.value;
           else if (latest.length > 0) lastLoaded = latest;
@@ -354,6 +371,15 @@ export const makeOpenCode2ModelLoader = <E>(
       );
     });
   });
+
+/** None when the reads fail or never agree, so a partial catalog never passes for a settled one. */
+export const readSettledOpenCode2Catalog = <E>(
+  list: Effect.Effect<ReadonlyArray<OpenCode2Model>, E>,
+) =>
+  settleOpenCode2Catalog(list).pipe(
+    Effect.timeoutOption(OPENCODE_2_CATALOG_SETTLE_TIMEOUT),
+    Effect.orElseSucceed(() => Option.none<ReadonlyArray<OpenCode2Model>>()),
+  );
 
 export interface OpenCode2Workspace {
   readonly skills: ReadonlyArray<{
@@ -450,6 +476,31 @@ function openCode2ModelCapabilities(model: OpenCode2Model): ModelCapabilities {
   });
 }
 
+export function openCode2ProviderModels(
+  settings: Pick<OpenCodeSettings, "customModels">,
+  catalog: ReadonlyArray<OpenCode2Model>,
+): ReadonlyArray<ServerProviderModel> {
+  return providerModelsFromSettings(
+    markOpenCodeLegacy(
+      catalog.map((model) => {
+        const subProvider = subProviderLabelFor(model);
+        return {
+          model: {
+            slug: `${model.providerID}/${model.id}`,
+            name: model.name,
+            ...(subProvider ? { subProvider } : {}),
+            isCustom: false,
+            capabilities: openCode2ModelCapabilities(model),
+          },
+          release: model,
+        };
+      }),
+    ).toSorted((left, right) => left.name.localeCompare(right.name)),
+    settings.customModels,
+    DEFAULT_OPENCODE_MODEL_CAPABILITIES,
+  );
+}
+
 const checkOpenCode2 = Effect.fn("checkOpenCode2")(function* (
   settings: OpenCodeSettings,
   version: string,
@@ -491,30 +542,11 @@ const checkOpenCode2 = Effect.fn("checkOpenCode2")(function* (
       version,
     });
   }
-  const models = providerModelsFromSettings(
-    markOpenCodeLegacy(
-      result.value.map((model) => {
-        const subProvider = subProviderLabelFor(model);
-        return {
-          model: {
-            slug: `${model.providerID}/${model.id}`,
-            name: model.name,
-            ...(subProvider ? { subProvider } : {}),
-            isCustom: false,
-            capabilities: openCode2ModelCapabilities(model),
-          },
-          release: model,
-        };
-      }),
-    ).toSorted((left, right) => left.name.localeCompare(right.name)),
-    settings.customModels,
-    DEFAULT_OPENCODE_MODEL_CAPABILITIES,
-  );
   return buildServerProvider({
     presentation: OPENCODE_2_PRESENTATION,
     enabled: true,
     checkedAt,
-    models,
+    models: openCode2ProviderModels(settings, result.value),
     slashCommands: [COMPACT_SLASH_COMMAND],
     probe:
       result.value.length > 0

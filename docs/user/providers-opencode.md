@@ -75,5 +75,9 @@ an open OpenCode session counts as use. Refresh again once it has stopped to rel
 the files. An external server may need its own reload or restart before Supaterm can
 see configuration changes.
 
+Models defined in a project's own `opencode.json` appear only in that project's
+model picker, after Supaterm reads the project's catalog the first time the picker
+opens there.
+
 Existing threads keep their selected model and options even when it disappears
 from the catalog. If OpenCode rejects that model, select an available one and retry.

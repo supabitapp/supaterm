@@ -1,10 +1,10 @@
 import {
   OrchestrationV2AppThread,
   OrchestrationV2TurnItem,
-  orchestrationV2WorktreePending,
   type OrchestrationV2ThreadProjection,
   type ScopedThreadRef,
 } from "@supaterm/contracts";
+import { orchestrationV2WorktreePending } from "@supaterm/shared/orchestrationV2ThreadError";
 import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
 import { AsyncResult, Atom } from "effect/reactivity";

@@ -9,6 +9,7 @@ import {
   environmentThemeFileHasColors,
 } from "@supaterm/contracts";
 import { BUILT_IN_THEME_IDS, UNPUBLISHABLE_THEME_IDS } from "@supaterm/shared/themePalettes";
+import * as Config from "effect/Config";
 import * as Console from "effect/Console";
 import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
@@ -24,6 +25,7 @@ import {
   readThemeFileGuarded,
 } from "../environmentTheme.ts";
 import { expandHomePath } from "../os-jank.ts";
+import { isProcessAlive, readPersistedServerRuntimeState } from "../serverRuntimeState.ts";
 import { baseDirFlag } from "./config.ts";
 import { editSettingsObject, readSettingsObject, resolveSettingsPaths } from "./settingsFile.ts";
 
@@ -116,8 +118,25 @@ export class ThemeTargetMissingError extends Schema.TaggedError<ThemeTargetMissi
   }
 }
 
+const hasLiveServer = (statePath: string) =>
+  readPersistedServerRuntimeState(statePath).pipe(
+    Effect.map((state) => Option.isSome(state) && isProcessAlive(state.value.pid)),
+    Effect.orElseSucceed(() => false),
+  );
+
 const resolveThemePaths = Effect.fnUntraced(function* (explicitBaseDir: Option.Option<string>) {
-  const paths = yield* resolveSettingsPaths(explicitBaseDir);
+  const envHome = Option.filter(
+    yield* Config.String("SUPATERM_HOME").pipe(Config.option),
+    (value) => value.trim().length > 0,
+  );
+  const configuredBaseDir = Option.orElse(explicitBaseDir, () => envHome);
+  // A dev server with an implicit home keeps its state in `dev`; follow it unless a
+  // `userdata` server is running too, the same order `supaterm pair` checks.
+  let paths = yield* resolveSettingsPaths(configuredBaseDir);
+  if (Option.isNone(configuredBaseDir) && !(yield* hasLiveServer(paths.serverRuntimeStatePath))) {
+    const devPaths = yield* resolveSettingsPaths(Option.none(), true);
+    if (yield* hasLiveServer(devPaths.serverRuntimeStatePath)) paths = devPaths;
+  }
   return { settingsPath: paths.settingsPath, themesDir: paths.environmentThemesDir };
 });
 

@@ -31,6 +31,15 @@ describe("normalizeGitRemoteUrl", () => {
     expect(normalizeGitRemoteUrl("ssh://git@github.com/supabitapp/supaterm")).toBe(
       "github.com/supabitapp/supaterm",
     );
+    expect(normalizeGitRemoteUrl("https://github.com/SupabitApp/Supaterm.git?view=compact")).toBe(
+      "github.com/supabitapp/supaterm",
+    );
+    expect(normalizeGitRemoteUrl("https://github.com/SupabitApp/Supaterm.git#section")).toBe(
+      "github.com/supabitapp/supaterm",
+    );
+    expect(normalizeGitRemoteUrl("ssh://git@code.example.test/owner/repo.git.git")).toBe(
+      normalizeGitRemoteUrl("git@code.example.test:owner/repo.git.git"),
+    );
   });
 
   it("preserves nested group paths for providers like GitLab", () => {

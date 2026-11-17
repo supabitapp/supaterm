@@ -672,6 +672,7 @@ type ServerProviderEntry = ServerConfig["providers"][number];
 const snapshotBasis = (provider: ServerProviderEntry | undefined) =>
   provider && {
     enabled: provider.enabled,
+    models: provider.models,
     slashCommands: provider.slashCommands,
     skills: provider.skills,
   };
@@ -1467,8 +1468,6 @@ export function createServerEnvironmentAtoms<R, E>(
     updateProvider: createEnvironmentRpcCommand(runtime, {
       label: "environment-data:server:update-provider",
       tag: WS_METHODS.serverUpdateProvider,
-      scheduler: configScheduler,
-      concurrency: configConcurrency,
     }),
     updateServer,
     upsertKeybinding: createEnvironmentRpcCommand(runtime, {

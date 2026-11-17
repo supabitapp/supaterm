@@ -38,7 +38,6 @@ import {
   type OrchestratorMcpListScheduledTasksInput,
   type ProjectId,
   type OrchestratorMcpThreadDetail,
-  type OrchestratorMcpThreadPullRequest,
   type OrchestratorMcpThreadInterruptInput,
   type OrchestratorMcpThreadInterruptResult,
   type OrchestratorMcpThreadListInput,
@@ -74,6 +73,7 @@ import {
   SECRET_REQUEST_UNSAVED_NOTE,
 } from "@supaterm/contracts";
 import { getProviderOptionCurrentValue, withLegacyUltracodeEffort } from "@supaterm/shared/model";
+import { backgroundWorkHoldsCompletion } from "@supaterm/shared/orchestrationV2PendingBackgroundWork";
 import { latestUnheldRun, runRanAfter } from "@supaterm/shared/orchestrationV2ThreadError";
 import { formatThreadLink } from "@supaterm/shared/threadLinks";
 import {
@@ -915,15 +915,33 @@ function threadSnooze(
 
 function threadPullRequests(
   links: OrchestrationV2ThreadShell["pullRequests"],
-): OrchestratorMcpThreadPullRequest[] {
-  return visibleThreadPullRequests(links ?? []).map((link) => ({
-    host: normalizeThreadPullRequestKey(link).host,
-    repository: link.repository,
-    number: link.number,
-    url: link.url,
-    source: link.source,
-    state: link.snapshot?.state ?? null,
-  }));
+  includeLinks = true,
+): Pick<OrchestratorMcpThreadListItem, "pullRequests" | "pullRequestCount"> {
+  const visible = visibleThreadPullRequests(links ?? []);
+  if (!includeLinks) return { pullRequestCount: visible.length };
+  return {
+    pullRequests: visible
+      .filter((link) => link.snapshot?.state !== "merged" && link.snapshot?.state !== "closed")
+      .map((link) => ({
+        host: normalizeThreadPullRequestKey(link).host,
+        repository: link.repository,
+        number: link.number,
+        url: link.url,
+        source: link.source,
+        state: link.snapshot?.state ?? null,
+        watching: link.watch !== undefined,
+        watchStartedAt: link.watch?.startedAt ?? null,
+      })),
+    pullRequestCount: visible.length,
+  };
+}
+
+// Awaited background work keeps a thread live after its turn ends, as auto-mark-done and the sidebar treat it.
+function listedThreadStatus(shell: OrchestrationV2ThreadShell) {
+  if (shell.activityRunStatus != null) return shell.activityRunStatus;
+  return backgroundWorkHoldsCompletion(shell.pendingBackgroundTasks ?? [])
+    ? "waiting"
+    : shell.status;
 }
 
 function listItemFromShell(
@@ -938,14 +956,14 @@ function listItemFromShell(
     link: threadLinkFor(scope, shell.id, shell.title),
     createdBy: shell.createdBy,
     creationSource: shell.creationSource,
-    status: shell.activityRunStatus ?? shell.status,
+    status: listedThreadStatus(shell),
     latestRunId: shell.latestRunId,
     providerInstanceId: shell.modelSelection.instanceId,
     model: shell.modelSelection.model,
     runtimeMode: shell.runtimeMode,
     interactionMode: shell.interactionMode,
     linkedPullRequest: shell.linkedPullRequest ?? null,
-    pullRequests: threadPullRequests(shell.pullRequests),
+    ...threadPullRequests(shell.pullRequests),
     ...threadDone(shell),
     ...threadSnooze(shell, nowMs),
     parentThreadId: shell.lineage.parentThreadId,
@@ -962,6 +980,7 @@ function threadDetail(
   itemCount: number,
   shell: OrchestrationV2ThreadShell,
   nowMs: number,
+  firstPage: boolean,
 ): OrchestratorMcpThreadDetail {
   const latest = latestUnheldRun(projection.runs);
   const active = ThreadManagementService.latestActiveRun(projection);
@@ -980,7 +999,7 @@ function threadDetail(
     runtimeMode: projection.thread.runtimeMode,
     interactionMode: projection.thread.interactionMode,
     linkedPullRequest: projection.thread.linkedPullRequest ?? null,
-    pullRequests: threadPullRequests(projection.thread.pullRequests),
+    ...threadPullRequests(projection.thread.pullRequests, firstPage),
     titleRegeneration:
       projection.thread.titleRegeneration === undefined ||
       projection.thread.titleRegeneration === null
@@ -2905,6 +2924,9 @@ const make = Effect.gen(function* () {
             input.projectId,
             "Pass projectId, or allProjects: true for every project. This MCP client is not running inside a Supaterm thread.",
           );
+      if (!input.allProjects && input.projectId !== undefined) {
+        yield* requireProject(input.projectId);
+      }
       const projectThreads = yield* threadManagement
         .listProjectThreads({
           projectId: projectId ?? undefined,
@@ -2923,9 +2945,7 @@ const make = Effect.gen(function* () {
           : new Set(input.statuses);
       const titleContains = input.titleContains?.toLocaleLowerCase();
       const filtered = projectThreads
-        .filter(
-          (thread) => statuses === null || statuses.has(thread.activityRunStatus ?? thread.status),
-        )
+        .filter((thread) => statuses === null || statuses.has(listedThreadStatus(thread)))
         .filter((thread) => input.done === undefined || threadDone(thread).done === input.done)
         .filter(
           (thread) => input.snoozed === undefined || isSnoozed(thread, nowMs) === input.snoozed,
@@ -3039,6 +3059,7 @@ const make = Effect.gen(function* () {
           timeline.totalItems,
           shell,
           yield* Clock.currentTimeMillis,
+          input.afterPosition === undefined && input.itemId === undefined,
         ),
         recentRuns: target.runs
           .toSorted((left, right) => right.ordinal - left.ordinal)
@@ -3118,6 +3139,7 @@ const make = Effect.gen(function* () {
             MAX_WAIT_TIMEOUT_MS,
             Math.max(1, input.timeoutMs ?? DEFAULT_WAIT_TIMEOUT_MS),
           ),
+          ...(input.untilDelegatedWorkSettled === true ? { untilDelegatedWorkSettled: true } : {}),
         })
         .pipe(Effect.mapError(threadManagementFailure));
       const status = result.run === null ? "idle" : runOutcome(result.run);
@@ -3149,6 +3171,11 @@ const make = Effect.gen(function* () {
         status,
         timedOut: result.timedOut,
         ...(wakesCaller ? { next: ORCHESTRATOR_MCP_RUNNING_TASK_NEXT } : {}),
+        ...(result.resultRun === undefined
+          ? {}
+          : {
+              resultRun: { runId: result.resultRun.id, status: runOutcome(result.resultRun) },
+            }),
       } satisfies OrchestratorMcpThreadWaitResult;
     }),
     interruptThread: Effect.fn("OrchestratorMcpService.interruptThread")(function* (scope, input) {
