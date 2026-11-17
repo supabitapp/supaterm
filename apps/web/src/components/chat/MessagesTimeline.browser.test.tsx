@@ -886,21 +886,22 @@ describe("MessagesTimeline citations", () => {
       });
     };
 
-    // From inside the page, Tab reaches the button as it does from the host's own text.
     await select(screen.getByTitle("Report"));
+    await userEvent.click(annotate);
+    expect(onCiteAssistantText).toHaveBeenLastCalledWith(...quoteFromRow);
+    await expect.element(annotate).not.toBeInTheDocument();
+
+    // From inside the page, Tab reaches the button as it does from the host's own text. The
+    // expanded view is the strict case: the button sits outside the dialog that traps focus.
+    await userEvent.click(screen.getByRole("button", { name: "Open full screen" }));
+    const expanded = page.getByRole("dialog");
+    await select(expanded.getByTitle("Report"));
     await expect.element(annotate).toBeVisible();
     await userEvent.keyboard("{Tab}");
     await expect.element(annotate).toHaveFocus();
     // Focus leaving the frame is a window focus for the host, which must not hand it on.
     expect(shouldRefocusComposerOnWindowFocus(document.activeElement)).toBe(false);
     await userEvent.keyboard("{Enter}");
-    expect(onCiteAssistantText).toHaveBeenLastCalledWith(...quoteFromRow);
-    await expect.element(annotate).not.toBeInTheDocument();
-
-    await userEvent.click(screen.getByRole("button", { name: "Open full screen" }));
-    const expanded = page.getByRole("dialog");
-    await select(expanded.getByTitle("Report"));
-    await userEvent.click(annotate);
     expect(onCiteAssistantText).toHaveBeenCalledTimes(2);
     expect(onCiteAssistantText).toHaveBeenLastCalledWith(...quoteFromRow);
     // The expanded view covers the composer, so quoting from it closes it.
