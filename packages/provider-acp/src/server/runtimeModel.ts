@@ -1173,8 +1173,8 @@ export function extractMcpToolCallIdentity(
   // args; a read of the same path only fetches the tool's docs.
   const devicePath = typeof rawInput?.path === "string" ? rawInput.path : "";
   if (devicePath.startsWith("xd://") && typeof rawInput?.content === "string") {
-    const deviceTool = Supaterm_MCP_TITLE_CALL.exec(devicePath.slice("xd://".length))?.groups?.tool;
-    if (deviceTool !== undefined && Supaterm_MCP_TOOL_NAMES.has(deviceTool)) {
+    const deviceTool = SUPATERM_MCP_TITLE_CALL.exec(devicePath.slice("xd://".length))?.groups?.tool;
+    if (deviceTool !== undefined && SUPATERM_MCP_TOOL_NAMES.has(deviceTool)) {
       const input = acpMcpFallbackInput(rawInput.content);
       return { server: "supaterm", tool: deviceTool, ...(input === undefined ? {} : { input }) };
     }
