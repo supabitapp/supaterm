@@ -111,8 +111,11 @@ it.effect("warns how long reclaiming can take and reports each step with its ela
     assert.match(description, /hour/, "the repair must warn it can take over an hour");
     const progress = output
       .slice(paused + 1, resumed)
-      .filter((line) => line.trim() !== "" && !line.trim().startsWith("Done"))
-      .map((line) => /\[(\d+:\d{2})\]/.exec(line)?.[1] ?? `unprefixed: ${line}`);
+      .flatMap((line) =>
+        line.trim() === "" || line.trim().startsWith("Done")
+          ? []
+          : [/\[(\d+:\d{2})\]/.exec(line)?.[1] ?? `unprefixed: ${line}`],
+      );
     assert.deepEqual(
       progress,
       ["0:00", "1:05", "12:46", "12:47"],

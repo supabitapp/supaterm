@@ -1316,7 +1316,7 @@ describe("VcsStatusBroadcaster", () => {
         yield* Deferred.await(checkedOut);
 
         assert.deepStrictEqual(
-          clientStates.filter((status) => status.refName === "repro").map((status) => status.pr),
+          clientStates.flatMap((status) => (status.refName === "repro" ? [status.pr] : [])),
           [null],
         );
         // A checkout must not trigger a network fetch.
@@ -1407,7 +1407,9 @@ describe("VcsStatusBroadcaster", () => {
         state.failLocalStatus = false;
         yield* TestClock.adjust(Duration.seconds(30));
         yield* Deferred.await(checkedOut);
-        assert.strictEqual(state.localStatusCalls, failedCalls + 1);
+        // macOS can report the rename as two HEAD events, so a second read may follow the retry.
+        assert.isAbove(state.localStatusCalls, failedCalls);
+        assert.strictEqual(state.remoteStatusCalls, 0);
       }).pipe(Effect.provide(layerTestFor(state)), Effect.scoped);
     }).pipe(Effect.provide(NodeServices.layer), Effect.scoped),
   );
