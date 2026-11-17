@@ -292,7 +292,9 @@ export const DefaultThemePreference = Schema.String.check(Schema.isMaxLength(64)
 export type DefaultThemePreference = typeof DefaultThemePreference.Type;
 
 export const DEFAULT_BROWSER_VIEWPORT: PreviewViewportSetting = FILL_PREVIEW_VIEWPORT;
-export const DEFAULT_BROWSER_AUTO_OPEN_PANEL = true;
+export const BrowserAgentOpenTarget = Schema.Literals(["panel", "floating", "background"]);
+export type BrowserAgentOpenTarget = typeof BrowserAgentOpenTarget.Type;
+export const DEFAULT_BROWSER_AGENT_OPEN_TARGET: BrowserAgentOpenTarget = "panel";
 export {
   BROWSER_RECORDING_FRAME_RATES,
   BrowserRecordingFrameRate,
@@ -388,8 +390,8 @@ export const ClientSettingsSchema = Schema.Struct({
   browserCustomSearchUrl: BrowserCustomSearchUrl.pipe(
     Schema.withDecodingDefault(Effect.succeed("")),
   ),
-  browserAutoOpenPanel: Schema.Boolean.pipe(
-    Schema.withDecodingDefault(Effect.succeed(DEFAULT_BROWSER_AUTO_OPEN_PANEL)),
+  browserAgentOpenTarget: BrowserAgentOpenTarget.pipe(
+    Schema.withDecodingDefault(Effect.succeed(DEFAULT_BROWSER_AGENT_OPEN_TARGET)),
   ),
 
   browserProfiles: Schema.Array(BrowserProfile).pipe(

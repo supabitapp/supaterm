@@ -60,6 +60,11 @@ import {
   supportsServerPictureInPicture,
   useServerPictureInPictureKey,
 } from "~/browser/serverPictureInPicture";
+import {
+  browserMiniPlayerSource,
+  selectThreadPreviewMiniPlayerTabId,
+  usePreviewMiniPlayerStore,
+} from "~/previewMiniPlayerStore";
 import { readEnvironmentScope, useEnvironmentScope } from "~/state/session";
 import { useRightPanelStore } from "~/rightPanelStore";
 import { useStableCallback } from "~/hooks/useStableCallback";
@@ -165,6 +170,9 @@ export function PreviewView({
   const recentHistoryEntries = useThreadRecentHistory(
     threadRef,
     BROWSER_HISTORY_MAX_ENTRIES_PER_PROJECT,
+  );
+  const miniPlayerTabId = usePreviewMiniPlayerStore((state) =>
+    selectThreadPreviewMiniPlayerTabId(state.byThreadKey, threadRef),
   );
   const addPreviewAnnotation = useComposerDraftStore((store) => store.addPreviewAnnotation);
   const addImage = useComposerDraftStore((store) => store.addImage);
@@ -431,6 +439,16 @@ export function PreviewView({
     }
     useRightPanelStore.getState().openBrowser(threadRef, result.value.tabId);
     await closePreviewSession({ closePreview, snapshot, tabId, threadRef });
+  };
+
+  const handlePictureInPicture = () => {
+    if (!tabId) return;
+    if (miniPlayerTabId === tabId) {
+      usePreviewMiniPlayerStore.getState().close(threadRef);
+      return;
+    }
+    usePreviewMiniPlayerStore.getState().open(threadRef, browserMiniPlayerSource(tabId));
+    useRightPanelStore.getState().close(threadRef);
   };
 
   const serverPictureInPictureOpen =
@@ -926,6 +944,13 @@ export function PreviewView({
         onCapture={previewBridge && tabId && !isServerTab ? handleCapture : undefined}
         captureDisabled={!desktopOverlay || isUnreachable}
         recording={recordingRuntimeTabId !== null}
+        onPictureInPicture={
+          tabId && (isServerTab || previewBridge) ? handlePictureInPicture : undefined
+        }
+        pictureInPicture={miniPlayerTabId === tabId}
+        pictureInPictureDisabled={
+          isUnreachable || (!isServerTab && !desktopOverlay?.hasWebContents)
+        }
         onPickElement={previewBridge && tabId && !isServerTab ? handlePickElement : undefined}
         pickActive={pickActive}
         pickDisabled={!tabId || isUnreachable}
@@ -1009,7 +1034,7 @@ export function PreviewView({
                 onControl={(control) =>
                   setServerControlledTabId(control?.controller === "you" ? runtimeTabId : null)
                 }
-                onPopup={(popupTabId) => showPreviewPopup(threadRef, popupTabId)}
+                onPopup={(popupTabId) => showPreviewPopup(threadRef, popupTabId, "panel")}
                 // Stays connected under the empty state so a URL picked there reaches the page.
                 className={cn(
                   "absolute inset-0 h-full w-full",

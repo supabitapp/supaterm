@@ -6,6 +6,7 @@ import { DeviceHostsSettings } from "./DeviceHostsSettings";
 import { EasDeviceHostsSettings } from "./EasDeviceHostsSettings";
 import {
   AuthSettingsWriteScope,
+  type BrowserAgentOpenTarget,
   BrowserImportFailureReason,
   BROWSER_PROFILE_MAX_COUNT,
   type BrowserLinkTarget,
@@ -15,7 +16,7 @@ import {
   type EnvironmentId,
   BROWSER_PROFILE_NAME_MAX_LENGTH,
   BROWSER_RECORDING_FRAME_RATES,
-  DEFAULT_BROWSER_AUTO_OPEN_PANEL,
+  DEFAULT_BROWSER_AGENT_OPEN_TARGET,
   DEFAULT_BROWSER_PROFILE_ID,
   DEFAULT_BROWSER_LINK_TARGET,
   DEFAULT_BROWSER_RECORDING_FRAME_RATE,
@@ -1058,33 +1059,57 @@ function DeviceIntegrationControls({
   );
 }
 
-function BrowserAutoOpenPanelSetting({ disabled }: { readonly disabled: boolean }) {
-  const autoOpen = useClientSettings((settings) => settings.browserAutoOpenPanel);
+const AGENT_OPEN_TARGET_LABELS: Readonly<Record<BrowserAgentOpenTarget, string>> = {
+  panel: "Right panel",
+  floating: "Floating preview",
+  background: "In the background",
+};
+
+function BrowserAgentOpenTargetSetting({ disabled }: { readonly disabled: boolean }) {
+  const openTarget = useClientSettings((settings) => settings.browserAgentOpenTarget);
   const updateSettings = useUpdatePrimarySettings();
 
   return (
     <SettingsRow
-      {...searchableSetting("browser-auto-open-panel")}
-      description="Open the right panel when an agent opens a browser or device. When off, the tab is added without opening the panel."
+      {...searchableSetting("browser-agent-open-target")}
+      description="Where a browser or device an agent opens shows up. In the background adds its tab without opening the right panel."
       resetAction={
-        !disabled && autoOpen !== DEFAULT_BROWSER_AUTO_OPEN_PANEL ? (
+        !disabled && openTarget !== DEFAULT_BROWSER_AGENT_OPEN_TARGET ? (
           <SettingResetButton
-            label="auto-open right panel"
+            label="agent browsers and devices"
             onClick={() =>
-              updateSettings({
-                browserAutoOpenPanel: DEFAULT_BROWSER_AUTO_OPEN_PANEL,
-              })
+              updateSettings({ browserAgentOpenTarget: DEFAULT_BROWSER_AGENT_OPEN_TARGET })
             }
           />
         ) : null
       }
       control={
-        <Switch
+        <Select
           disabled={disabled}
-          checked={autoOpen}
-          onCheckedChange={(checked) => updateSettings({ browserAutoOpenPanel: Boolean(checked) })}
-          aria-label="Auto-open right panel"
-        />
+          value={openTarget}
+          onValueChange={(value) => {
+            if (value === "panel" || value === "floating" || value === "background") {
+              updateSettings({ browserAgentOpenTarget: value });
+            }
+          }}
+        >
+          <SelectTrigger
+            size="sm"
+            className="w-full sm:w-40"
+            aria-label="Show agent browsers and devices in"
+          >
+            <SelectValue>{AGENT_OPEN_TARGET_LABELS[openTarget]}</SelectValue>
+          </SelectTrigger>
+          <SelectPopup align="end" alignItemWithTrigger={false}>
+            {(Object.keys(AGENT_OPEN_TARGET_LABELS) as ReadonlyArray<BrowserAgentOpenTarget>).map(
+              (target) => (
+                <SelectItem hideIndicator key={target} value={target}>
+                  {AGENT_OPEN_TARGET_LABELS[target]}
+                </SelectItem>
+              ),
+            )}
+          </SelectPopup>
+        </Select>
       }
     />
   );
@@ -1593,7 +1618,7 @@ export function BrowserSettingsPanel() {
         <SettingsUnavailableGroup message={desktopOnlyMessage}>
           <BrowserProfilesSetting disabled={desktopOnly} />
           <BrowserLinkTargetSetting disabled={desktopOnly} />
-          <BrowserAutoOpenPanelSetting disabled={desktopOnly} />
+          <BrowserAgentOpenTargetSetting disabled={desktopOnly} />
           <BrowserViewportSetting disabled={desktopOnly} />
           <BrowserZoomSetting disabled={desktopOnly} />
           <BrowserAppearanceSetting disabled={desktopOnly} />

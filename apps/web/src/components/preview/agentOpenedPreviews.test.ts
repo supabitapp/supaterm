@@ -7,6 +7,7 @@ import {
 } from "@supaterm/contracts";
 import { describe, expect, it, vi } from "vite-plus/test";
 
+import { browserMiniPlayerSource, usePreviewMiniPlayerStore } from "../../previewMiniPlayerStore";
 import {
   __testing as previewStateTesting,
   applyPreviewServerEvent,
@@ -19,6 +20,7 @@ import {
 import { selectThreadRightPanelState, useRightPanelStore } from "../../rightPanelStore";
 import {
   applyDeviceSnapshot,
+  floatDeviceSurface,
   followPreviewSessions,
   resetDeviceSessionBaselinesForTests,
   revealServerTabs,
@@ -68,15 +70,25 @@ const deviceState = (input: {
     revision: 0,
   }) as unknown as DeviceServiceState;
 
-const autoOpen = { sheetLayout: false, autoOpenPanel: true };
-const quiet = { sheetLayout: false, autoOpenPanel: false };
-const sheet = { sheetLayout: true, autoOpenPanel: true };
+const autoOpen = { sheetLayout: false, openTarget: "panel" } as const;
+const quiet = { sheetLayout: false, openTarget: "background" } as const;
+const sheet = { sheetLayout: true, openTarget: "panel" } as const;
+const floating = { sheetLayout: false, openTarget: "floating" } as const;
+const floatingSheet = { sheetLayout: true, openTarget: "floating" } as const;
 
 function setup() {
   resetPreviewStateForTests();
   resetDeviceSessionBaselinesForTests();
+  usePreviewMiniPlayerStore.setState({ byThreadKey: {} });
   useRightPanelStore.setState({ byThreadKey: {} });
 }
+
+const miniPlayerSource = (threadRef = ref) =>
+  usePreviewMiniPlayerStore.getState().byThreadKey[scopedThreadKey(threadRef)]?.source;
+const floatingTabId = () => {
+  const source = miniPlayerSource();
+  return source?.kind === "browser" ? source.tabId : null;
+};
 
 const panel = (threadRef = ref) =>
   selectThreadRightPanelState(useRightPanelStore.getState().byThreadKey, threadRef);
@@ -116,9 +128,34 @@ describe("applyDeviceSnapshot", () => {
     ]);
   });
 
+  it("floats a session instead of opening the panel when agent opens float", () => {
+    setup();
+    applyDeviceSnapshot(ref.environmentId, deviceState({}), floating);
+    applyDeviceSnapshot(ref.environmentId, deviceState({ sessions: [session] }), floating);
+    expect(miniPlayerSource()).toMatchObject({ kind: "device", deviceId: "pixel" });
+    expect(panel()).toMatchObject({ isOpen: false, surfaces: [] });
+  });
+
+  it("closes a floating device when its session ends, even before a baseline", () => {
+    setup();
+    usePreviewMiniPlayerStore.getState().open(ref, {
+      kind: "device",
+      hostId: "local",
+      deviceId: "pixel",
+      platform: "android",
+      name: "Pixel 8",
+    });
+    applyDeviceSnapshot(ref.environmentId, deviceState({ sessions: [session] }), autoOpen);
+    expect(miniPlayerSource()).toMatchObject({ kind: "device" });
+
+    applyDeviceSnapshot(ref.environmentId, deviceState({ sessions: [] }), autoOpen);
+    expect(miniPlayerSource()).toBeUndefined();
+  });
+
   it.each([
-    ["auto-open is off", quiet],
+    ["agent opens stay in the background", quiet],
     ["the panel is a sheet", sheet],
+    ["agent opens float but the panel is a sheet", floatingSheet],
   ])("adds the tab without opening the panel when %s", (_case, options) => {
     setup();
     applyDeviceSnapshot(ref.environmentId, deviceState({}), options);
@@ -127,6 +164,7 @@ describe("applyDeviceSnapshot", () => {
     applyDeviceSnapshot(ref.environmentId, deviceState({ sessions: [session] }), options);
     expect(deviceTabs()).toEqual([PIXEL_TAB]);
     expect(panel()).toMatchObject({ isOpen: false, activeSurfaceId: null });
+    expect(miniPlayerSource()).toBeUndefined();
   });
 
   it("does not reopen a device tab the user closed", () => {
@@ -164,6 +202,32 @@ describe("applyDeviceSnapshot", () => {
   });
 });
 
+describe("floatDeviceSurface", () => {
+  const source = {
+    kind: "device",
+    hostId: "local",
+    deviceId: "pixel",
+    platform: "android",
+    name: "Pixel 8",
+  } as const;
+
+  it("floats a device with a live session, or before device state loads", () => {
+    setup();
+    floatDeviceSurface(ref, source, deviceState({ sessions: [session] }));
+    expect(miniPlayerSource()).toMatchObject({ kind: "device", deviceId: "pixel" });
+
+    setup();
+    floatDeviceSurface(ref, source, null);
+    expect(miniPlayerSource()).toMatchObject({ kind: "device", deviceId: "pixel" });
+  });
+
+  it("does not float a device whose session ended", () => {
+    setup();
+    floatDeviceSurface(ref, source, deviceState({ sessions: [] }));
+    expect(miniPlayerSource()).toBeUndefined();
+  });
+});
+
 describe("revealServerTabs", () => {
   const tab = (tabId: string, force?: boolean): PreviewSessionSnapshot => ({
     threadId: "thread-1",
@@ -177,12 +241,32 @@ describe("revealServerTabs", () => {
     ...(force === undefined ? {} : { revealRequest: { id: "r1", force } }),
   });
 
-  it("opens the panel on revealed tabs, and only on forced ones when auto-open is off", () => {
+  it("opens the panel only on forced reveals when agent opens stay in the background", () => {
     setup();
     revealServerTabs(ref, [tab("tab_plain")], quiet);
     expect(panel()).toMatchObject({ isOpen: false, surfaces: [] });
     revealServerTabs(ref, [tab("tab_forced", true)], quiet);
     expect(panel()).toMatchObject({ isOpen: true, activeSurfaceId: "browser:tab_forced" });
+    expect(floatingTabId()).toBeNull();
+  });
+
+  it("floats a revealed tab that has no panel tab yet when agent opens float", () => {
+    setup();
+    revealServerTabs(ref, [tab("tab_plain")], floating);
+    expect(floatingTabId()).toBe("tab_plain");
+    expect(panel()).toMatchObject({ isOpen: false, surfaces: [] });
+  });
+
+  it("focuses a tab already in the panel instead of floating it when forced", () => {
+    setup();
+    useRightPanelStore.getState().openBrowser(ref, "tab_a");
+    useRightPanelStore.getState().open(ref, "diff");
+
+    revealServerTabs(ref, [tab("tab_a", false)], floating);
+    expect(panel().activeSurfaceId).not.toBe("browser:tab_a");
+    revealServerTabs(ref, [tab("tab_a", true)], floating);
+    expect(panel().activeSurfaceId).toBe("browser:tab_a");
+    expect(floatingTabId()).toBeNull();
   });
 
   it("opens a sheet only for a forced reveal", () => {
@@ -238,11 +322,14 @@ describe("followPreviewSessions", () => {
   it("waits for the first server list before treating missing sessions as closed", () => {
     setup();
     useRightPanelStore.getState().openBrowser(ref, "tab_a");
+    usePreviewMiniPlayerStore.getState().open(ref, browserMiniPlayerSource("tab_a"));
     followPreviewSessions(ref, previewState([], false));
     expect(browserTabs()).toEqual(["browser:tab_a"]);
+    expect(floatingTabId()).toBe("tab_a");
 
     followPreviewSessions(ref, previewState([]));
     expect(browserTabs()).toEqual([]);
+    expect(floatingTabId()).toBeNull();
   });
 });
 
