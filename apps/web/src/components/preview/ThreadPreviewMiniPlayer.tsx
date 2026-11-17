@@ -60,9 +60,15 @@ import { DeviceStreamView } from "../device/DeviceStreamView";
 import type { DeviceScreenSize } from "@supaterm/client-runtime/device/stream";
 import { Atom } from "effect/reactivity";
 import { deviceScreenKey, deviceStreamScreenAtom } from "../device/deviceStreamSession";
-import type { PreviewStreamViewport } from "@supaterm/client-runtime/preview/server-browser-stream";
 import { previewBridge } from "./previewBridge";
 import { showPreviewPopup } from "./showPreviewPopup";
+import {
+  forgetStream,
+  recordStreamFrame,
+  recordStreamViewport,
+  selectPreviewMiniPlayerStream,
+  usePreviewMiniPlayerStreams,
+} from "./previewMiniPlayerStreams";
 import {
   type PreviewMiniPlayerGesture,
   settlePreviewMiniPlayerResize,
@@ -102,45 +108,12 @@ const RESIZE_HANDLES: ReadonlyArray<{
   { direction: "southeast", className: "-bottom-2 -right-2 size-4 cursor-nwse-resize" },
 ];
 
-// What the stream reports about its source: its size and the runtime tab whose first
-// frame painted. It lives outside the player so the chat canvas lays out the frame from
-// the same state the player uses. One slot is enough, since only the shown thread
-// renders a player, and it keeps the store from collecting an entry per streamed tab.
-const useStreamedSource = create<{
-  readonly key: string;
-  readonly viewport: PreviewStreamViewport | null;
-  readonly frameTabId: string | null;
-} | null>(() => null);
-
-const recordStreamViewport = (key: string, viewport: PreviewStreamViewport) =>
-  useStreamedSource.setState(
-    (state) =>
-      state?.key === key &&
-      state.viewport?.width === viewport.width &&
-      state.viewport.height === viewport.height
-        ? state
-        : { key, viewport, frameTabId: state?.key === key ? state.frameTabId : null },
-    true,
-  );
-
-const recordStreamFrame = (key: string, frameTabId: string) =>
-  useStreamedSource.setState(
-    (state) =>
-      state?.key === key && state.frameTabId === frameTabId
-        ? state
-        : { key, viewport: state?.key === key ? state.viewport : null, frameTabId },
-    true,
-  );
-
-const forgetStream = (key: string) =>
-  useStreamedSource.setState((state) => (state?.key === key ? null : state), true);
-
 const NO_DEVICE_SCREEN_ATOM = Atom.make<DeviceScreenSize | null>(null).pipe(
   Atom.withLabel("device-stream-screen:none"),
 );
 
 // The source size a resize in progress lays the frame out from, so a source that changes shape
-// under a held handle cannot resize the player by itself. Same single slot as above.
+// under a held handle cannot resize the player by itself. One slot: one pointer resizes one player.
 const useHeldSourceSize = create<{
   readonly key: string;
   readonly source: PreviewMiniPlayerSize;
@@ -184,8 +157,8 @@ function useBrowserMiniPlayerSource(threadRef: ScopedThreadRef | null, tabId: st
     shouldShowFloatingBrowser(snapshot?.navStatus ?? null, visibleStreamKey === streamKey);
   const nextVisibleStreamKey = pageVisible ? streamKey : null;
   if (nextVisibleStreamKey !== visibleStreamKey) setVisibleStreamKey(nextVisibleStreamKey);
-  const stream = useStreamedSource((state) =>
-    streamKey !== null && state?.key === streamKey ? state : null,
+  const stream = usePreviewMiniPlayerStreams((streams) =>
+    selectPreviewMiniPlayerStream(streams, streamKey),
   );
   const streamViewport = stream?.viewport ?? null;
   const sourceSize: PreviewMiniPlayerSize =
