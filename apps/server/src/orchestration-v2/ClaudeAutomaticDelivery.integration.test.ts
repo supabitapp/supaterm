@@ -578,7 +578,7 @@ it.effect("applies an effort change to the running Claude query without waiting 
         yield* worker.drain();
 
         assert.deepEqual(flagSettings, [
-          { effortLevel: "medium", fastMode: null, ultracode: null },
+          { effortLevel: "medium", fastMode: false, ultracode: null },
         ]);
       }).pipe(
         Effect.provide(
