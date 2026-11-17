@@ -16,9 +16,13 @@ import { afterEach, vi } from "vite-plus/test";
 
 import packageJson from "../../package.json" with { type: "json" };
 import * as BootService from "../service/bootService.ts";
-import { pinnedRuntimePaths, prunePinnedRuntimes } from "../service/pinnedRuntime.ts";
+import {
+  pinnedRuntimePaths,
+  prunePinnedRuntimes,
+  resolveLauncherPath,
+} from "../service/pinnedRuntime.ts";
 import * as ProcessRunner from "../processRunner.ts";
-import { repointLauncher, resolveLauncherPath, resolveNewestVersion, runUpdate } from "./update.ts";
+import { repointLauncher, resolveNewestVersion, runUpdate } from "./update.ts";
 
 // lsof listing one process, so prune sees a process list in which no runtime is running.
 const unrelatedLsof = ProcessRunner.ProcessRunner.of({
@@ -279,7 +283,7 @@ it.layer(NodeServices.layer)("supaterm update launcher", (it) => {
       const root = yield* fs.makeTempDirectoryScoped({ prefix: "supaterm-update-" });
       const launcher = path.join(root, "bin/supaterm");
       yield* fs.makeDirectory(path.dirname(launcher), { recursive: true });
-      yield* fs.writeFileString(launcher, "");
+      yield* fs.writeFileString(launcher, "", { mode: 0o755 });
 
       const bare = yield* resolveLauncherPath.pipe(
         Effect.provideService(HostProcess.InvokedAs, "supaterm"),

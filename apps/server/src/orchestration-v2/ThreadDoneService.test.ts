@@ -647,6 +647,18 @@ function makeMergedPullRequestLink(): ThreadPullRequestLink {
   };
 }
 
+// GitManager rereads git state on request, and by default whenever its
+// remembered answer is merged or closed.
+function readsFreshGitState(
+  options: Parameters<GitManager.GitManager["Service"]["branchPullRequest"]>[1],
+): boolean {
+  return (
+    options?.refresh === true ||
+    options?.freshGitState === true ||
+    options?.confirmTerminal !== false
+  );
+}
+
 interface HarnessOptions {
   readonly snapshot: SettlementSnapshot;
   readonly settings?: ContractServerSettings;
@@ -1931,6 +1943,81 @@ describe("ThreadDoneServiceV2 worker", () => {
             );
             assert.deepStrictEqual(yield* Ref.get(fixture.invalidatedCwds), ["/workspace/project"]);
             yield* reactor.drain;
+          }).pipe(Effect.provide(fixture.layer));
+        }),
+      ),
+  );
+
+  it.effect("a merged branch PR that cannot mark its thread done rereads no git state", () =>
+    Effect.scoped(
+      Effect.gen(function* () {
+        yield* TestClock.setTime(Date.parse(NOW));
+        const freshReads = yield* Ref.make(0);
+        const fixture = yield* makeHarness({
+          snapshot: makeSnapshot([
+            makeThread("worked-after-merge", {
+              branch: "merged-feature",
+              latestUserAuthoredMessageAt: DateTime.makeUnsafe("2026-08-28T06:00:00.000Z"),
+            }),
+          ]),
+          settings: { ...DEFAULT_SERVER_SETTINGS, sidebarAutoMarkDoneAfterDays: null },
+          branchPullRequest: (_input, lookupOptions) =>
+            Ref.update(
+              freshReads,
+              (count) => count + (readsFreshGitState(lookupOptions) ? 1 : 0),
+            ).pipe(
+              Effect.as({
+                ...makeBranchPullRequest("merged"),
+                mergedAt: "2026-08-27T00:00:00.000Z",
+              }),
+            ),
+        });
+
+        yield* Effect.gen(function* () {
+          const reactor = yield* ThreadDoneService.ThreadDoneServiceV2;
+          yield* startHarness(reactor, fixture.activation, fixture.snapshotReads);
+          yield* TestClock.adjust("1 minute");
+          yield* Queue.take(fixture.snapshotReads);
+          yield* reactor.drain;
+
+          assert.strictEqual((yield* Ref.get(fixture.branchCalls)).length, 2);
+          assert.strictEqual(yield* Ref.get(freshReads), 0);
+          assert.deepStrictEqual(yield* Ref.get(fixture.commands), []);
+        }).pipe(Effect.provide(fixture.layer));
+      }),
+    ),
+  );
+
+  it.effect(
+    "a remembered merged branch PR marks its thread done only after fresh git state agrees",
+    () =>
+      Effect.scoped(
+        Effect.gen(function* () {
+          yield* TestClock.setTime(Date.parse(NOW));
+          const freshState = yield* Ref.make<"open" | "merged">("open");
+          const fixture = yield* makeHarness({
+            snapshot: makeSnapshot([makeThread("merged-branch", { branch: "merged-feature" })]),
+            settings: { ...DEFAULT_SERVER_SETTINGS, sidebarAutoMarkDoneAfterDays: null },
+            branchPullRequest: (_input, lookupOptions) =>
+              readsFreshGitState(lookupOptions)
+                ? Ref.get(freshState).pipe(Effect.map(makeBranchPullRequest))
+                : Effect.succeed(makeBranchPullRequest("merged")),
+          });
+
+          yield* Effect.gen(function* () {
+            const reactor = yield* ThreadDoneService.ThreadDoneServiceV2;
+            yield* startHarness(reactor, fixture.activation, fixture.snapshotReads);
+            assert.deepStrictEqual(yield* Ref.get(fixture.commands), []);
+
+            yield* Ref.set(freshState, "merged");
+            yield* TestClock.adjust("1 minute");
+            yield* Queue.take(fixture.snapshotReads);
+            yield* reactor.drain;
+
+            assert.deepStrictEqual(
+              (yield* Ref.get(fixture.commands)).map((command) => command.threadId),
+              [ThreadId.make("merged-branch")],
+            );
           }).pipe(Effect.provide(fixture.layer));
         }),
       ),

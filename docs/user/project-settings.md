@@ -113,7 +113,8 @@ project crumb.
 The Project category holds the project's name, icon, actions, checkouts and removal. Open it and
 choose a project to manage. Actions belong to a project: editing them creates the project's own list
 on each selected environment, and reset returns to the environment's shared list. A project's
-`supaterm.json` actions can be imported there.
+`supaterm.json` actions can be imported there. When a project has several checkouts on one environment,
+choose one in the scope line at the top to see or change only that checkout's settings.
 
 Settings a repository can also declare in `supaterm.json`, such as the workspace for new threads,
 resolve in one order: a project override, then the environment setting, then `supaterm.json`, then the

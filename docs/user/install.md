@@ -200,6 +200,47 @@ For provider-specific setup and accounts, see [Codex](./providers-codex.md),
 [Antigravity](./providers-antigravity.md), [Kiro](./providers-kiro.md),
 [Pi](./providers-pi.md), [Muse Code](./providers-muse.md), and [fx](./providers-fx.md).
 
+### Provider check timeouts
+
+If a provider works in its CLI but Supaterm reports a timeout while checking it,
+allow more time in the Supaterm server's environment. For example, give Codex and
+Claude readiness checks 60 seconds:
+
+```bash
+SUPATERM_CODEX_PROBE_TIMEOUT_MS=60000 SUPATERM_CLAUDE_PROBE_TIMEOUT_MS=60000 supaterm serve
+```
+
+For a remote environment, set these on the machine running the Supaterm server.
+Keep them in your launcher or service configuration to retain them across
+updates, then restart the server. For systemd, add
+`Environment=SUPATERM_CODEX_PROBE_TIMEOUT_MS=60000` under `[Service]` in a service
+override, reload systemd, and restart the service. Provider instances can also
+set their own overrides in Settings → Providers.
+
+Each variable extends that provider's readiness-probe deadlines; a phase whose
+default is already longer keeps its default. Providers with several phases can
+take longer than one deadline in total. Values must be whole milliseconds no
+greater than 2147483647; unset or invalid values keep the defaults.
+
+| Provider            | Environment variable                     |
+| ------------------- | ---------------------------------------- |
+| Codex               | `SUPATERM_CODEX_PROBE_TIMEOUT_MS`        |
+| Claude              | `SUPATERM_CLAUDE_PROBE_TIMEOUT_MS`       |
+| Cursor              | `SUPATERM_CURSOR_PROBE_TIMEOUT_MS`       |
+| Antigravity         | `SUPATERM_ANTIGRAVITY_PROBE_TIMEOUT_MS`  |
+| Grok                | `SUPATERM_GROK_PROBE_TIMEOUT_MS`         |
+| Kiro                | `SUPATERM_KIRO_PROBE_TIMEOUT_MS`         |
+| fx                  | `SUPATERM_FX_PROBE_TIMEOUT_MS`           |
+| Pi                  | `SUPATERM_PI_PROBE_TIMEOUT_MS`           |
+| Muse Code           | `SUPATERM_MUSE_PROBE_TIMEOUT_MS`         |
+| OpenCode            | `SUPATERM_OPENCODE_PROBE_TIMEOUT_MS`     |
+| ACP Registry agents | `SUPATERM_ACP_REGISTRY_PROBE_TIMEOUT_MS` |
+
+Longer deadlines also take longer to report a stalled check. These overrides
+cover readiness and discovery, including OpenCode server startup. Usage and
+config enrichment retain their own shorter limits. Turn execution, package
+installation, update checks, and shutdown limits keep their existing behavior.
+
 ## Next steps
 
 - [Working with threads](./thread-sidebar.md): start tasks and organize parallel work.

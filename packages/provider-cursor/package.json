@@ -50,6 +50,7 @@
     "@supaterm/provider-core": "workspace:*",
     "@supaterm/shared": "workspace:*",
     "effect": "catalog:",
+    "jsonc-parser": "3.3.1",
     "yaml": "catalog:"
   },
   "devDependencies": {

@@ -6,6 +6,7 @@ import {
   buildUsageCalendar,
   enumerateDays,
   formatHourShort,
+  formatTokens,
   makeWindow,
   periodAverage,
   usageSourceMessages,
@@ -234,5 +235,13 @@ describe("period average", () => {
     expect(periodAverage([10, 20, 30, 1], true)).toBe(20);
     expect(periodAverage([5], true)).toBe(0);
     expect(periodAverage([0, 0, 2400], false)).toBe(800);
+  });
+});
+
+describe("token formatting", () => {
+  it("moves to the next unit when rounding reaches it", () => {
+    expect(formatTokens(999_999)).toBe("1M");
+    expect(formatTokens(999_999_999)).toBe("1B");
+    expect(formatTokens(-999_999)).toBe("-1M");
   });
 });

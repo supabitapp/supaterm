@@ -158,7 +158,8 @@ export const make = Effect.gen(function* () {
   const projectFileLoader = yield* SupatermProjectFileLoader.SupatermProjectFileLoader;
 
   const resolveIconHref = (baseDir: string, href: string): ReadonlyArray<string> => {
-    const clean = href.replace(/^\//, "");
+    // Browsers strip surrounding whitespace from URL attributes; file paths keep theirs.
+    const clean = href.trim().replace(/^\//, "");
     return [path.join(baseDir, "public", clean), path.join(baseDir, clean)];
   };
 

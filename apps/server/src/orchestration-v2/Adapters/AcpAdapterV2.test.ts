@@ -101,6 +101,16 @@ import {
 
 const DEFAULT_GROK_SETTINGS = Schema.decodeSync(GrokSettings)({});
 const DROID_SETTINGS = Schema.decodeSync(AcpRegistrySettings)({ agentId: "factory-droid" });
+const OMP_SETTINGS = Schema.decodeSync(AcpRegistrySettings)({
+  source: "local",
+  commandPath: "/usr/local/bin/omp",
+  commandArgs: ["acp"],
+});
+const OPENCODE_SETTINGS = Schema.decodeSync(AcpRegistrySettings)({
+  source: "local",
+  commandPath: "/usr/local/bin/opencode",
+  commandArgs: ["acp"],
+});
 
 const layerHost = TestProviderHost.layer().pipe(
   Layer.provide(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer)),
@@ -770,6 +780,94 @@ function assertReinjectedInstructions(
   assert.include(text, "Supaterm orchestration");
   assert.include(text, `<user_request>\n${request}\n</user_request>`);
 }
+
+const makeAdvertisedCompactionHarness = Effect.fnUntraced(function* (
+  environment: Readonly<Record<string, string>>,
+) {
+  const childProcessSpawner = yield* ChildProcessSpawner.ChildProcessSpawner;
+  const path = yield* Path.Path;
+  const selfInvocation = yield* resolveSelfInvocation();
+  const mockAgentPath = yield* path.fromFileUrl(
+    new URL("../../../scripts/acp-mock-agent.ts", import.meta.url),
+  );
+  const protocolEvents = yield* Queue.unbounded<EffectAcpProtocol.AcpProtocolLogEvent>();
+  // Resolves after the adapter records what the agent advertised, so the refusal is deterministic.
+  const commandsPublished = yield* Deferred.make<void>();
+  const instanceId = ProviderInstanceId.make("acp-test-advertised-compaction");
+  const threadId = ThreadId.make("thread-acp-advertised-compaction");
+  const adapter = yield* makeAcpAdapterV2({
+    instanceId,
+    flavor: {
+      driver: ACP_TEST_DRIVER,
+      capabilities: AcpProviderCapabilitiesV2,
+      compactViaAdvertisedCommand: true,
+      onAvailableCommandsUpdate: () => Deferred.succeed(commandsPublished, undefined),
+      makeRuntime: makeMockRuntime({
+        childProcessSpawner,
+        mockAgentPath,
+        protocolEvents,
+        environment,
+      }),
+    },
+    selfInvocation,
+  });
+  const runtimePolicy = ProviderAdapter.ProviderAdapterV2RuntimePolicy.make({
+    runtimeMode: "full-access",
+    interactionMode: "default",
+    cwd: process.cwd(),
+  });
+  const modelSelection = { instanceId, model: "default" } as const;
+  const runtime = yield* adapter.openSession({
+    threadId,
+    providerSessionId: ProviderSessionId.make("provider-session-acp-advertised-compaction"),
+    modelSelection,
+    runtimePolicy,
+  });
+  const providerThread = yield* runtime.ensureThread({ threadId, modelSelection, runtimePolicy });
+  yield* Deferred.await(commandsPublished);
+  const now = yield* DateTime.now;
+  let ordinal = 0;
+  const nextPromptTexts = () =>
+    Effect.gen(function* () {
+      while (true) {
+        const event = yield* Queue.take(protocolEvents);
+        if (event.direction === "outgoing" && rawProtocolMethod(event) === "session/prompt") {
+          return rawProtocolPromptTextBlocks(event);
+        }
+      }
+    });
+  return {
+    runtime,
+    compact: (otherSession = false) =>
+      Effect.gen(function* () {
+        const compactThread = runtime.compactThread;
+        assert.isDefined(compactThread, "compactThread must be wired for compactCommand");
+        return yield* Effect.exit(
+          compactThread!(
+            makeTurnInput({
+              threadId,
+              providerThread: otherSession
+                ? {
+                    ...providerThread,
+                    nativeThreadRef: {
+                      driver: ACP_TEST_DRIVER,
+                      nativeId: "other-session",
+                      strength: "strong",
+                    },
+                  }
+                : { ...providerThread, contextUsage: { usedTokens: 1234 } },
+              instanceId,
+              runtimePolicy,
+              now,
+              ordinal: ++ordinal,
+              messageText: "Compact the conversation.",
+            }),
+          ),
+        );
+      }),
+    nextPromptTexts,
+  };
+});
 
 const runFormElicitation = (input: {
   readonly name: string;
@@ -1517,7 +1615,7 @@ describe("AcpAdapterV2", () => {
       }).pipe(Effect.provide(layerTest), Effect.scoped),
   );
 
-  // Factory Droid 0.243.0 sends an optional text companion for every AskUser choice.
+  // Droid 0.243.0 and OpenCode 2.1 pair each choice with an optional free-form companion field.
   const droidChoice = {
     type: "string",
     title: "Format",
@@ -1548,7 +1646,89 @@ describe("AcpAdapterV2", () => {
     ],
   }));
 
+  // OpenCode 2.1 pairs each qN choice with a qN_custom free-form companion.
+  const openCodeSchema = {
+    type: "object",
+    properties: {
+      q0: {
+        type: "string",
+        title: "Color preference",
+        description: "Which color do you prefer?",
+        oneOf: [
+          { const: "red", title: "Red", description: "Choose the color red" },
+          { const: "blue", title: "Blue" },
+        ],
+        default: "red",
+      },
+      q0_custom: {
+        type: "string",
+        title: "Color preference (other)",
+        description: "Type your own answer",
+        minLength: 1,
+      },
+    },
+  };
+  const openCodeQuestions = [
+    {
+      id: "q0",
+      header: "Color preference",
+      question: "Which color do you prefer?",
+      options: [
+        { label: "Red", description: "Choose the color red", value: "red" },
+        { label: "Blue", description: "Blue", value: "blue" },
+      ],
+      allowCustomAnswer: true,
+    },
+  ];
+
   it.live.each([
+    ...[
+      { scenario: "OMP selected option", answers: { q0: "Approve" }, content: { q0: "Approve" } },
+      {
+        scenario: "OMP custom answer",
+        answers: { q0: "Please wait" },
+        content: { q0__other: "Please wait" },
+      },
+    ].map((fixture) => ({
+      ...fixture,
+      settings: OMP_SETTINGS,
+      schema: {
+        type: "object",
+        properties: {
+          q0: {
+            type: "string",
+            title: "Approve this exact code-only commit?",
+            description: "Safety-hook false positive",
+            oneOf: [
+              { const: "Approve", title: "Approve", description: "Commit the verified fix." },
+              { const: "Hold", title: "Hold" },
+            ],
+            default: "Approve",
+          },
+          q0__other: { type: "string", title: "Other (type your own)" },
+        },
+      },
+      questions: [
+        {
+          id: "q0",
+          header: "Safety-hook false positive",
+          question: "Approve this exact code-only commit?",
+          options: [
+            { label: "Approve", value: "Approve", description: "Commit the verified fix." },
+            { label: "Hold", value: "Hold", description: "Hold" },
+          ],
+        },
+      ],
+      result: { action: "accept", content: fixture.content },
+    })),
+    {
+      scenario: "OMP unrelated form uses generic mapping",
+      settings: OMP_SETTINGS,
+      schema: { type: "object", properties: { name: { type: "string" } } },
+      questions: [{ id: "name", header: "Question 1", question: "Your answer?", options: [] }],
+      answers: { name: "Ada" },
+      result: { action: "accept", content: { name: "Ada" } },
+    },
     {
       scenario: "preserves selected IDs and encodes custom answers",
       schema: droidSchema,
@@ -1592,12 +1772,23 @@ describe("AcpAdapterV2", () => {
       answers: { name: "Ada" },
       result: { action: "accept", content: { name: "Ada" } },
     },
-  ])("Droid elicitation $scenario", ({ schema, questions, answers, result, withAttachments }) =>
-    Effect.gen(function* () {
+    {
+      scenario: "OpenCode keeps the selected option and hides the custom companion",
+      settings: OPENCODE_SETTINGS,
+      schema: openCodeSchema,
+      questions: openCodeQuestions,
+      answers: { q0: "blue" },
+      result: { action: "accept", content: { q0: "blue" } },
+    },
+  ])("Registry elicitation $scenario", (fixture) => {
+    const { schema, questions, answers, result } = fixture;
+    const withAttachments = "withAttachments" in fixture && fixture.withAttachments;
+    const settings = "settings" in fixture ? fixture.settings : DROID_SETTINGS;
+    return Effect.gen(function* () {
       const fileSystem = yield* FileSystem.FileSystem;
       const path = yield* Path.Path;
       const directory = yield* fileSystem.makeTempDirectoryScoped({
-        prefix: "supaterm-droid-form-",
+        prefix: "supaterm-registry-form-",
       });
       const statusPath = path.join(directory, "status.json");
       const expectedResult = typeof result === "function" ? result(directory) : result;
@@ -1702,7 +1893,7 @@ describe("AcpAdapterV2", () => {
       const adapter = yield* makeAcpRegistryAdapterV2({
         instanceId,
         selfInvocation: yield* resolveSelfInvocation(),
-        settings: DROID_SETTINGS,
+        settings,
         environment: {},
         makeRuntime: makeAcpReplayRuntime({
           transcript,
@@ -1718,7 +1909,7 @@ describe("AcpAdapterV2", () => {
           Layer.mock(AcpRegistryCatalog)({ resolve: () => Effect.die("runtime is injected") }),
         ),
       );
-      const threadId = ThreadId.make("droid-form-thread");
+      const threadId = ThreadId.make("registry-form-thread");
       const modelSelection = { instanceId, model: "default" } as const;
       const runtimePolicy = ProviderAdapter.ProviderAdapterV2RuntimePolicy.make({
         runtimeMode: "approval-required",
@@ -1755,7 +1946,7 @@ describe("AcpAdapterV2", () => {
         ),
       );
       if (item.type !== "turn_item.updated" || item.turnItem.type !== "user_input_request")
-        return yield* Effect.die("Expected Droid question");
+        return yield* Effect.die("Expected a user input question");
       assert.deepEqual(item.turnItem.questions, questions);
       yield* runtime.respondToRuntimeRequest({
         requestId: item.turnItem.requestId,
@@ -1766,8 +1957,8 @@ describe("AcpAdapterV2", () => {
         Stream.runHead,
       );
       assert.equal(Option.getOrThrow(terminal).status, "completed");
-    }).pipe(Effect.provide(layerTest), Effect.scoped),
-  );
+    }).pipe(Effect.provide(layerTest), Effect.scoped);
+  });
 
   it.live.each(["failed", "recovered", "cancelled"] as const)(
     "projects Mistral retry notices and their %s outcome",
@@ -2060,6 +2251,80 @@ describe("AcpAdapterV2", () => {
         assert.deepEqual(yield* runTurn("/repro-skill"), [{ type: "text", text: "/repro-skill" }]);
         assertReinjectedInstructions(yield* runTurn("Continue work."), "Continue work.");
         assert.equal((yield* runTurn("Finish work."))[0]?.text, "Finish work.");
+      }).pipe(Effect.provide(layerTest), Effect.scoped),
+  );
+
+  it.live.each([false, true])(
+    "sends a bare /compact prompt with protocol compaction %s",
+    (structured) =>
+      Effect.gen(function* () {
+        const harness = yield* makeAdvertisedCompactionHarness({
+          SUPATERM_ACP_AVAILABLE_COMMANDS: "compact,plan",
+          SUPATERM_ACP_COMPACTION_PROMPT_ORDINALS: structured ? "1" : "",
+        });
+        const compacted = yield* harness.compact();
+        assert.isTrue(Exit.isSuccess(compacted));
+        assert.deepEqual(yield* harness.nextPromptTexts(), [{ type: "text", text: "/compact" }]);
+        const events = yield* harness.runtime.events.pipe(
+          Stream.takeUntil((event) => event.type === "turn.terminal"),
+          Stream.runCollect,
+        );
+        assert.isTrue(
+          events.some(
+            (event) =>
+              event.type === "provider_thread.updated" &&
+              event.providerThread.contextUsage === null,
+          ),
+        );
+        assert.isTrue(
+          events.some(
+            (event) =>
+              event.type === "turn_item.updated" &&
+              event.turnItem.type === "compaction" &&
+              event.turnItem.status === "completed" &&
+              event.turnItem.title === (structured ? "Compact context" : "Context compacted"),
+          ),
+        );
+        assert.lengthOf(
+          events.filter(
+            (event) =>
+              event.type === "turn_item.updated" &&
+              event.turnItem.type === "compaction" &&
+              event.turnItem.status === "completed",
+          ),
+          1,
+        );
+      }).pipe(Effect.provide(layerTest), Effect.scoped),
+  );
+
+  it.live.each([
+    { active: "plan", target: "compact", allowed: true },
+    { active: "compact", target: "plan", allowed: false },
+    { active: "compact", target: undefined, allowed: false },
+  ])(
+    "validates the target session's compact command ($active -> $target)",
+    ({ active, target, allowed }) =>
+      Effect.gen(function* () {
+        const harness = yield* makeAdvertisedCompactionHarness({
+          SUPATERM_ACP_AVAILABLE_COMMANDS: active,
+          ...(target === undefined ? {} : { SUPATERM_ACP_LOADED_COMMANDS: target }),
+        });
+        const result = yield* harness.compact(true);
+        assert.equal(Exit.isSuccess(result), allowed);
+        if (allowed) {
+          assert.deepEqual(yield* harness.nextPromptTexts(), [{ type: "text", text: "/compact" }]);
+          yield* harness.runtime.events.pipe(
+            Stream.takeUntil((event) => event.type === "turn.terminal"),
+            Stream.runDrain,
+          );
+        } else {
+          const error = Exit.isFailure(result) ? Cause.squash(result.cause) : undefined;
+          assert.instanceOf(error, ProviderAdapter.ProviderAdapterTurnStartError);
+          assert.instanceOf(
+            (error as ProviderAdapter.ProviderAdapterTurnStartError).cause,
+            ProviderAdapter.ProviderCompactionUnsupportedError,
+          );
+        }
       }).pipe(Effect.provide(layerTest), Effect.scoped),
   );
 
