@@ -15,6 +15,7 @@ import { buildPairingUrl } from "@supaterm/shared/remote";
 import { relayName } from "@supaterm/shared/relay/name";
 import * as HostProcess from "@supaterm/shared/HostProcess";
 import * as NodeOS from "node:os";
+import { formatHostForUrl, isWildcardHost } from "@supaterm/shared/hostClassification";
 import { DEFAULT_SIGNAL_EXPORT } from "@supaterm/shared/observability";
 import { buildPairingAppLink } from "@supaterm/shared/remote";
 import * as OtelEnvironment from "@supaterm/shared/otelEnvironment";
@@ -47,9 +48,7 @@ import {
   readPersistedServerRuntimeState,
 } from "../serverRuntimeState.ts";
 import {
-  formatHostForUrl,
   isLoopbackHost,
-  isWildcardHost,
   renderTerminalQrCode,
   resolveHeadlessConnectionString,
 } from "../startupAccess.ts";

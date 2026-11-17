@@ -28,6 +28,7 @@ const emitInterleavedAssistantToolCalls =
   process.env.SUPATERM_ACP_EMIT_INTERLEAVED_ASSISTANT_TOOL_CALLS === "1";
 const emitV2Fidelity = process.env.SUPATERM_ACP_EMIT_V2_FIDELITY === "1";
 const emitNotice = process.env.SUPATERM_ACP_EMIT_NOTICE === "1";
+const hangCloseSession = process.env.SUPATERM_ACP_HANG_CLOSE_SESSION === "1";
 const vibeRetryOutcome = process.env.SUPATERM_ACP_VIBE_RETRY_OUTCOME;
 const emitGenericToolPlaceholders = process.env.SUPATERM_ACP_EMIT_GENERIC_TOOL_PLACEHOLDERS === "1";
 const emitInTurnTaskOutputThenLateDuplicate =
@@ -86,6 +87,7 @@ const supportsSessionLifecycle = process.env.SUPATERM_ACP_SESSION_LIFECYCLE === 
 const supportsAcpMcp = process.env.SUPATERM_ACP_MCP_ACP === "1";
 const supportsHttpMcp = process.env.SUPATERM_ACP_MCP_HTTP === "1";
 const supportsV2Management = process.env.SUPATERM_ACP_V2_MANAGEMENT === "1";
+const failDeleteSession = process.env.SUPATERM_ACP_FAIL_DELETE_SESSION === "1";
 const advertisedAuthMethodId = process.env.SUPATERM_ACP_AUTH_METHOD_ID?.trim();
 const initializeAuthMethodId =
   advertisedAuthMethodId ?? (supportsSessionLifecycle ? "test" : undefined);
@@ -735,6 +737,9 @@ const program = Effect.gen(function* () {
   yield* agent.handleCloseSession(() =>
     Effect.gen(function* () {
       yield* requireAuthentication();
+      if (hangCloseSession) {
+        return yield* Effect.never;
+      }
       return {};
     }),
   );
@@ -742,6 +747,9 @@ const program = Effect.gen(function* () {
   yield* agent.handleDeleteSession(() =>
     Effect.gen(function* () {
       yield* requireAuthentication();
+      if (failDeleteSession) {
+        return yield* AcpError.AcpRequestError.internalError("delete failed");
+      }
       return {};
     }),
   );

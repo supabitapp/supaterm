@@ -61,9 +61,7 @@ export const toOperationError = (
       timeoutMs === undefined ? undefined : { timeoutMs },
     );
   }
-  if (
-    /while parsing selector|Unknown engine|Unexpected token|strict mode violation/i.test(message)
-  ) {
+  if (/while parsing selector|Unknown engine|Unexpected token/i.test(message)) {
     return new ServerBrowserOperationError("PreviewAutomationInvalidSelectorError", firstLine);
   }
   if (/not an <input>|not editable|not an editable/i.test(message)) {
@@ -922,7 +920,7 @@ export const evaluate = async (
   const params = {
     expression: input.expression,
     awaitPromise: input.awaitPromise ?? true,
-    returnByValue: input.returnByValue ?? true,
+    returnByValue: true,
   };
   // The devtools console's replMode allows top-level await but returns a trailing promise unawaited,
   // so it only retries what the page's parser rejected. A parse error has a scriptId but no stack and

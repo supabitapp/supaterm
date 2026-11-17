@@ -122,6 +122,14 @@ function resolveThreadProviderSession(projection: Projection): ProviderSession |
   );
 }
 
+export function threadSteersDuringCompaction(projection: Projection | null | undefined): boolean {
+  if (projection == null) return false;
+  return (
+    resolveThreadProviderSession(projection)?.capabilities.turns.activeSteeringDuringCompaction ===
+    true
+  );
+}
+
 export function threadSupportsProviderHandoff(projection: Projection | null | undefined): boolean {
   if (projection == null) return false;
   const session = resolveThreadProviderSession(projection);
