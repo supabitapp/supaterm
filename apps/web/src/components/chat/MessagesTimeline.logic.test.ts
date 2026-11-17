@@ -950,7 +950,6 @@ describe("deriveMessagesTimelineRows", () => {
         { ...liveWork, position: 5 },
         compaction("second-compaction", 6, 90_000, 30_000),
       ],
-      optimisticMessages: [],
     });
     const rowsFor = (expandedRunIds?: ReadonlySet<RunId>) =>
       deriveMessagesTimelineRows({
