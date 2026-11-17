@@ -6723,7 +6723,7 @@ it.layer(layerTest)("GitVcsDriver core integration", (it) => {
         const merge = yield* driver.execute({
           operation: "test.merge",
           cwd,
-          args: ["merge", "feature"],
+          args: ["merge", "--no-ff", "feature"],
           allowNonZeroExit: true,
         });
         assert.equal(merge.exitCode, 1);
