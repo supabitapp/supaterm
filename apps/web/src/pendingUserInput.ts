@@ -84,7 +84,10 @@ export function withdrawDisplacedCustomAnswerFromPrompt(
 ): string {
   const text = displaced.trim();
   if (text.length === 0) return prompt;
-  const later = laterDisplaced.map((entry) => entry.trim()).filter((entry) => entry.length > 0);
+  const later = laterDisplaced.flatMap((entry) => {
+    const trimmed = entry.trim();
+    return trimmed.length > 0 ? [trimmed] : [];
+  });
   const suffix = [text, ...later].join(DISPLACED_ANSWER_SEPARATOR);
   if (!prompt.endsWith(suffix)) return prompt;
   const before = prompt.slice(0, prompt.length - suffix.length);
