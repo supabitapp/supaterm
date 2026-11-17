@@ -2,7 +2,7 @@ import { type TimelineRow, TimelineRowCtx, TimelineRowActivityCtx } from "./time
 import { MessageAuthorHeading, MESSAGE_HEADING_LEVEL } from "./TimelineRowParts";
 import { resolveAssistantMessageCopyState } from "./MessagesTimeline.logic";
 import { shouldPreserveAssistantLineBreaks } from "@supaterm/shared/markdownPipeline";
-import type { RunId } from "@supaterm/contracts";
+import { MessageId, type RunId } from "@supaterm/contracts";
 import { canForkProjectedAssistantItem } from "@supaterm/client-runtime/state/thread-workflows";
 import { use, useState, memo } from "react";
 import type { ChatMessage, TurnDiffSummary } from "../../types";
@@ -254,19 +254,30 @@ export function HtmlRenderTimelineRow({
   row: Extract<TimelineRow, { kind: "html-render" }>;
 }) {
   const ctx = use(TimelineRowCtx);
-  const { onAppFullscreenChange } = ctx;
+  const { onAppFullscreenChange, onHtmlRenderSelection } = ctx;
   const onFullscreenChange = (fullscreen: boolean) => onAppFullscreenChange(row.id, fullscreen);
+  const messageId = MessageId.make(row.id);
 
   return (
     <div className="min-w-0 px-1">
-      <HtmlRenderFrame
-        key={row.htmlRender.attachmentId}
-        environmentId={ctx.activeThreadEnvironmentId}
-        htmlRender={row.htmlRender}
-        threadRef={ctx.threadRef ?? undefined}
-        onOpen={ctx.onFileOpen}
-        onFullscreenChange={onFullscreenChange}
-      />
+      <AssistantCitationSource
+        messageId={messageId}
+        {...(ctx.threadRef ? { threadRef: ctx.threadRef } : {})}
+        itemKey={row.id}
+        request={ctx.citationRequest}
+        listRef={ctx.listRef}
+        opaque
+      >
+        <HtmlRenderFrame
+          key={row.htmlRender.attachmentId}
+          environmentId={ctx.activeThreadEnvironmentId}
+          htmlRender={row.htmlRender}
+          threadRef={ctx.threadRef ?? undefined}
+          onOpen={ctx.onFileOpen}
+          onSelection={(report) => onHtmlRenderSelection(messageId, report)}
+          onFullscreenChange={onFullscreenChange}
+        />
+      </AssistantCitationSource>
     </div>
   );
 }

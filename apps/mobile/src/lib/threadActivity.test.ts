@@ -3073,7 +3073,13 @@ describe("html renders", () => {
       "activity-group",
       "message",
     ]);
-    expect(expanded[3]).toMatchObject({ type: "html-render", render: page, runId });
+    // A quote from the page cites this item id, which web resolves back to the render.
+    expect(expanded[3]).toMatchObject({
+      type: "html-render",
+      render: page,
+      runId,
+      itemId: "item-render",
+    });
 
     const callIds = [expanded[2], expanded[4]].map((row) =>
       row?.type === "activity-group"

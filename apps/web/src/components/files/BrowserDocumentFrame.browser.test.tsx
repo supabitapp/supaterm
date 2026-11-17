@@ -1,5 +1,10 @@
-import { injectHtmlRenderBootstrap } from "@supaterm/shared/htmlRender";
+import {
+  htmlRenderClearSelectionMessage,
+  htmlRenderSelectionActionMessage,
+  injectHtmlRenderBootstrap,
+} from "@supaterm/shared/htmlRender";
 import { describe, expect, it, vi } from "vite-plus/test";
+import { page, userEvent } from "vite-plus/test/browser";
 
 import "~/index.css";
 import { render } from "../../../test/render";
@@ -33,6 +38,88 @@ describe("HtmlRenderDocument", () => {
     window.postMessage(sizeChanged(999), "*");
     await delivered;
     expect(onContentHeight).toHaveBeenCalledTimes(1);
+  });
+
+  it("reports a dragged selection once, only from a focused frame, and hands Tab to an offered action", async () => {
+    const box = { left: 0, top: 0, right: 10, bottom: 10 };
+    const forged = {
+      jsonrpc: "2.0",
+      method: "supaterm/notifications/selection-changed",
+      params: { text: "Forged", rect: box, bounds: box },
+    };
+    const html = injectHtmlRenderBootstrap(`<!doctype html><p id="quote">Quoted words</p><script>
+      window.addEventListener("message", function(event) {
+        if (event.source !== window.parent || event.data !== "forge") return;
+        parent.postMessage(${JSON.stringify(forged)}, "*");
+        parent.postMessage("forged", "*");
+      });
+    </script>`);
+    const src = URL.createObjectURL(new Blob([html], { type: "text/html" }));
+    using _url = { [Symbol.dispose]: () => URL.revokeObjectURL(src) };
+    const listeners = new AbortController();
+    using _listeners = { [Symbol.dispose]: () => listeners.abort() };
+    const onContentHeight = vi.fn();
+    const onSelection = vi.fn();
+    await using screen = await render(
+      <HtmlRenderDocument
+        src={src}
+        title="Quote"
+        onContentHeight={onContentHeight}
+        onSelection={onSelection}
+      />,
+    );
+    await vi.waitFor(() => expect(onContentHeight).toHaveBeenCalled());
+    const frame = screen.getByTitle("Quote").element() as HTMLIFrameElement;
+
+    // A page can post any selection it likes. Without focus it is not the reader's.
+    const forgedDelivered = new Promise<void>((resolve) =>
+      window.addEventListener(
+        "message",
+        (event) => {
+          if (event.source === frame.contentWindow && event.data === "forged") resolve();
+        },
+        { signal: listeners.signal },
+      ),
+    );
+    frame.contentWindow?.postMessage("forge", "*");
+    await forgedDelivered;
+    expect(onSelection).not.toHaveBeenCalled();
+
+    const quote = page.frameLocator(screen.getByTitle("Quote")).getByText("Quoted words");
+    await userEvent.dragAndDrop(quote, quote, {
+      sourcePosition: { x: 0, y: 5 },
+      targetPosition: { x: 250, y: 5 },
+    });
+    await vi.waitFor(() => expect(onSelection).toHaveBeenCalled());
+    expect(onSelection).toHaveBeenCalledTimes(1);
+    const [reportedFrame, event] = onSelection.mock.calls[0]!;
+    expect(reportedFrame).toBe(frame);
+    expect(event._tag).toBe("selected");
+    const { selection } = event;
+    expect(selection.text).toBe("Quoted words");
+    for (const reported of [selection.rect, selection.bounds]) {
+      expect(reported.left).toBeGreaterThanOrEqual(0);
+      expect(reported.top).toBeGreaterThanOrEqual(0);
+      expect(reported.right).toBeGreaterThan(reported.left);
+      expect(reported.bottom).toBeGreaterThan(reported.top);
+      expect(reported.right).toBeLessThanOrEqual(frame.clientWidth);
+      expect(reported.bottom).toBeLessThanOrEqual(frame.clientHeight);
+    }
+
+    // Tab is the page's own until the host offers an action for the selection.
+    frame.contentWindow?.postMessage(htmlRenderSelectionActionMessage(true), "*");
+    await userEvent.keyboard("{Tab}");
+    await vi.waitFor(() =>
+      expect(onSelection).toHaveBeenLastCalledWith(frame, { _tag: "focus-action" }),
+    );
+    expect(document.activeElement).toBe(frame);
+
+    // The host clears the page's selection once it is quoted, and the page reports that.
+    frame.contentWindow?.postMessage(htmlRenderClearSelectionMessage(), "*");
+    await vi.waitFor(() =>
+      expect(onSelection).toHaveBeenLastCalledWith(frame, { _tag: "cleared" }),
+    );
+    expect(onSelection).toHaveBeenCalledTimes(3);
   });
 });
 

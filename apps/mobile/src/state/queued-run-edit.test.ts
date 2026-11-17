@@ -265,4 +265,13 @@ describe("activeComposerDraftKey", () => {
   it("falls back to the thread's draft once the edit has ended", () => {
     expect(activeComposerDraftKey(threadKey, editKey, null)).toBe(threadKey);
   });
+
+  it("never honors a draft key that belongs to another thread", () => {
+    const otherThread = "env:other-thread";
+    const otherEdit = queuedEditDraftKey(otherThread, RunId.make("run-1"));
+    for (const requested of [otherThread, otherEdit]) {
+      expect(activeComposerDraftKey(threadKey, requested, null)).toBe(threadKey);
+      expect(activeComposerDraftKey(threadKey, requested, edit([]))).toBe(threadKey);
+    }
+  });
 });

@@ -1,3 +1,4 @@
+import { ASSISTANT_CITATION_MAX_TEXT_LENGTH } from "@supaterm/contracts";
 import { describe, expect, it } from "vite-plus/test";
 
 import {
@@ -5,6 +6,7 @@ import {
   injectHtmlRenderBootstrap,
   readHtmlRenderImageRequest,
   readHtmlRenderLinkRequest,
+  readHtmlRenderSelectionEvent,
 } from "./htmlRender.ts";
 import { SUPATERM_DARK_THEME_COLORS, SUPATERM_LIGHT_THEME_COLORS } from "./themePalettes.ts";
 import { htmlRenderFromToolItem } from "./toolOutput.ts";
@@ -140,6 +142,61 @@ describe("readHtmlRenderImageRequest", () => {
     expect(readHtmlRenderImageRequest(image({ src: "javascript:alert(1)" }))).toBeUndefined();
     expect(readHtmlRenderImageRequest(image({ src: "data:text/html,<p>" }))).toBeUndefined();
     expect(readHtmlRenderImageRequest(image({ src: "blob:null/1" }))).toBeUndefined();
+  });
+});
+
+describe("readHtmlRenderSelectionEvent", () => {
+  const selection = (params: unknown, method = "supaterm/notifications/selection-changed") => ({
+    jsonrpc: "2.0",
+    method,
+    params,
+  });
+  const rect = { left: 8, top: 20, right: 120, bottom: 38 };
+  const bounds = { left: 8, top: 0, right: 300, bottom: 38 };
+
+  it("reads a trimmed selection with its boxes, a clear, a Tab hand-off, and nothing else", () => {
+    expect(
+      readHtmlRenderSelectionEvent(selection({ text: " Quoted\nwords ", rect, bounds })),
+    ).toEqual({ _tag: "selected", selection: { text: "Quoted\nwords", rect, bounds } });
+    const cleared = { _tag: "cleared" };
+    expect(readHtmlRenderSelectionEvent(selection({ text: "" }))).toEqual(cleared);
+    expect(readHtmlRenderSelectionEvent(selection({ text: " \n ", rect, bounds }))).toEqual(
+      cleared,
+    );
+    expect(
+      readHtmlRenderSelectionEvent(
+        selection(undefined, "supaterm/notifications/focus-selection-action"),
+      ),
+    ).toEqual({ _tag: "focus-action" });
+    for (const params of [
+      { text: "Quoted", bounds },
+      { text: "Quoted", rect },
+      { text: "Quoted", rect: { ...rect, top: Number.NaN }, bounds },
+      { text: "Quoted", rect: { ...rect, right: 0 }, bounds },
+      { text: "Quoted", rect, bounds: { ...bounds, bottom: Number.POSITIVE_INFINITY } },
+      { text: "Quoted", rect, bounds: { ...bounds, top: 40 } },
+      { text: 1, rect, bounds },
+      { text: ["Quoted"], rect, bounds },
+    ]) {
+      expect(readHtmlRenderSelectionEvent(selection(params))).toBeUndefined();
+    }
+    expect(
+      readHtmlRenderSelectionEvent(
+        selection({ text: "Quoted", rect, bounds }, "supaterm/notifications/open-image"),
+      ),
+    ).toBeUndefined();
+  });
+
+  it("keeps oversized text one character past the citation limit, however it is padded", () => {
+    const limit = ASSISTANT_CITATION_MAX_TEXT_LENGTH;
+    const read = (text: string) => {
+      const event = readHtmlRenderSelectionEvent(selection({ text, rect, bounds }));
+      return event?._tag === "selected" ? event.selection.text : undefined;
+    };
+    expect(read("a".repeat(limit * 3))).toHaveLength(limit + 1);
+    // Padding must not hide the overflow: trimming after the cut would leave a quote at the limit.
+    expect(read(` ${"a".repeat(limit)}TAIL`)).toHaveLength(limit + 1);
+    expect(read(` ${"a".repeat(limit)} `)).toHaveLength(limit);
   });
 });
 

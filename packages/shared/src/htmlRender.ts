@@ -1,3 +1,5 @@
+import { ASSISTANT_CITATION_MAX_TEXT_LENGTH } from "@supaterm/contracts";
+
 import {
   SUPATERM_DARK_THEME_COLORS,
   SUPATERM_LIGHT_THEME_COLORS,
@@ -249,6 +251,12 @@ const SIZE_CHANGED_METHOD = "ui/notifications/size-changed";
 const SHORTCUTS_METHOD = "supaterm/notifications/shortcuts";
 const KEY_DOWN_METHOD = "supaterm/notifications/keydown";
 const OPEN_IMAGE_METHOD = "supaterm/notifications/open-image";
+const SELECTION_CHANGED_METHOD = "supaterm/notifications/selection-changed";
+const FOCUS_SELECTION_ACTION_METHOD = "supaterm/notifications/focus-selection-action";
+const CLEAR_SELECTION_METHOD = "supaterm/notifications/clear-selection";
+const SELECTION_ACTION_METHOD = "supaterm/notifications/selection-action";
+// One past the limit, so the host can tell an oversized selection from one that fits.
+const MAX_REPORTED_SELECTION_LENGTH = ASSISTANT_CITATION_MAX_TEXT_LENGTH + 1;
 
 export function readHtmlRenderContentHeight(data: unknown): number | undefined {
   if (typeof data !== "object" || data === null) return undefined;
@@ -292,6 +300,78 @@ export function readHtmlRenderImageRequest(
   if (typeof src !== "string" || !/^(?:https?:\/\/|data:image\/)/i.test(src)) return undefined;
   const label = typeof name === "string" ? name.trim().slice(0, HTML_RENDER_MAX_TITLE_LENGTH) : "";
   return { src, name: label || "Image" };
+}
+
+export interface HtmlRenderBox {
+  readonly left: number;
+  readonly top: number;
+  readonly right: number;
+  readonly bottom: number;
+}
+
+/** Boxes are in the page's own viewport coordinates. */
+export interface HtmlRenderSelection {
+  /** Trimmed, and one character past the citation limit when the selection was longer. */
+  readonly text: string;
+  /** The last line box, where the annotate action sits. */
+  readonly rect: HtmlRenderBox;
+  /** The whole selection, which decides whether any of it is on screen. */
+  readonly bounds: HtmlRenderBox;
+}
+
+function readHtmlRenderBox(value: unknown): HtmlRenderBox | undefined {
+  if (typeof value !== "object" || value === null) return undefined;
+  const { left, top, right, bottom } = value as Record<string, unknown>;
+  return typeof left === "number" &&
+    typeof top === "number" &&
+    typeof right === "number" &&
+    typeof bottom === "number" &&
+    [left, top, right, bottom].every(Number.isFinite) &&
+    right >= left &&
+    bottom >= top
+    ? { left, top, right, bottom }
+    : undefined;
+}
+
+/** What a page says about its text selection. */
+export type HtmlRenderSelectionEvent =
+  | { readonly _tag: "selected"; readonly selection: HtmlRenderSelection }
+  | { readonly _tag: "cleared" }
+  /** Tab was pressed while the host offers an action for the selection. */
+  | { readonly _tag: "focus-action" };
+
+/**
+ * A page can report any text, so it is trimmed and then capped here: a text at the cap is
+ * oversized, never a shorter one that lost its end.
+ */
+export function readHtmlRenderSelectionEvent(data: unknown): HtmlRenderSelectionEvent | undefined {
+  if (typeof data !== "object" || data === null) return undefined;
+  const { jsonrpc, method, params } = data as Record<string, unknown>;
+  if (jsonrpc !== "2.0") return undefined;
+  if (method === FOCUS_SELECTION_ACTION_METHOD) return { _tag: "focus-action" };
+  if (method !== SELECTION_CHANGED_METHOD) return undefined;
+  if (typeof params !== "object" || params === null) return undefined;
+  const { text, rect, bounds } = params as Record<string, unknown>;
+  if (typeof text !== "string") return undefined;
+  const quote = text.trim().slice(0, MAX_REPORTED_SELECTION_LENGTH);
+  if (quote.length === 0) return { _tag: "cleared" };
+  const line = readHtmlRenderBox(rect);
+  const box = readHtmlRenderBox(bounds);
+  return line && box
+    ? { _tag: "selected", selection: { text: quote, rect: line, bounds: box } }
+    : undefined;
+}
+
+export function htmlRenderClearSelectionMessage() {
+  return { jsonrpc: "2.0", method: CLEAR_SELECTION_METHOD } as const;
+}
+
+/**
+ * Tells the page whether the host offers an action for its selection. Only then does the page
+ * hand Tab to the host, so Tab keeps moving through the page wherever no action is offered.
+ */
+export function htmlRenderSelectionActionMessage(offered: boolean) {
+  return { jsonrpc: "2.0", method: SELECTION_ACTION_METHOD, params: { offered } } as const;
 }
 
 export function readHtmlRenderKeyDown(data: unknown):
@@ -345,6 +425,7 @@ export function htmlRenderResult(id: string | number) {
 }
 
 const THEME_FRAGMENT_KEY = "supaterm-theme";
+const SELECTION_SETTLE_MS = 120;
 
 export function htmlRenderThemeFragment(theme: HtmlRenderTheme): string {
   return `#${THEME_FRAGMENT_KEY}=${encodeURIComponent(JSON.stringify(theme))}`;
@@ -372,9 +453,125 @@ function rootRule(theme: HtmlRenderTheme): string {
   return `:root{color-scheme:${theme.appearance};${declarations}}`;
 }
 
+// Reports a selection once it settles, never while it is being dragged, so the host hears of it
+// once. Clears go out at once: on collapse, on blur, and when a scroll moves the selection.
+// The text is trimmed before it is capped, so a capped length always means an oversized selection.
+// Tab goes to the host only while it offers an action for the reported selection.
+const SELECTION_BRIDGE_SCRIPT = `(function () {
+  var dragging = false;
+  var reported = false;
+  var actionOffered = false;
+  var settleTimer = 0;
+  function post(params) {
+    window.parent.postMessage(
+      { jsonrpc: "2.0", method: ${JSON.stringify(SELECTION_CHANGED_METHOD)}, params: params },
+      "*"
+    );
+  }
+  function box(rect) {
+    return { left: rect.left, top: rect.top, right: rect.right, bottom: rect.bottom };
+  }
+  function clearReported() {
+    actionOffered = false;
+    if (!reported) return;
+    reported = false;
+    post({ text: "" });
+  }
+  function report() {
+    settleTimer = 0;
+    if (dragging) return;
+    var selection = getSelection();
+    var focused = document.activeElement;
+    var text = selection && selection.rangeCount ? selection.toString().trim() : "";
+    var editing =
+      focused && (focused.isContentEditable || /^(?:INPUT|TEXTAREA)$/.test(focused.tagName));
+    if (!text || editing || !document.hasFocus()) {
+      clearReported();
+      return;
+    }
+    var range = selection.getRangeAt(selection.rangeCount - 1);
+    var bounds = range.getBoundingClientRect();
+    var lines = [].filter.call(range.getClientRects(), function (line) {
+      return line.width > 0 && line.height > 0;
+    });
+    reported = true;
+    post({
+      text: text.slice(0, ${MAX_REPORTED_SELECTION_LENGTH}),
+      rect: box(lines[lines.length - 1] || bounds),
+      bounds: box(bounds)
+    });
+  }
+  function schedule() {
+    clearTimeout(settleTimer);
+    settleTimer = setTimeout(report, ${SELECTION_SETTLE_MS});
+  }
+  function endDrag(event) {
+    if (!event.isPrimary) return;
+    dragging = false;
+    schedule();
+  }
+  document.addEventListener("selectionchange", function () {
+    clearReported();
+    schedule();
+  });
+  window.addEventListener(
+    "pointerdown",
+    function (event) {
+      if (event.isPrimary && event.button === 0) dragging = true;
+    },
+    true
+  );
+  window.addEventListener("pointerup", endDrag, true);
+  window.addEventListener("pointercancel", endDrag, true);
+  window.addEventListener("blur", function () {
+    dragging = false;
+    clearReported();
+  });
+  window.addEventListener("focus", schedule);
+  window.addEventListener(
+    "scroll",
+    function (event) {
+      if (!reported && !settleTimer) return;
+      var selection = getSelection();
+      var scrolled = event.target;
+      var holdsSelection =
+        !selection ||
+        !selection.rangeCount ||
+        !scrolled ||
+        scrolled.nodeType !== 1 ||
+        selection.getRangeAt(0).intersectsNode(scrolled);
+      if (!holdsSelection) return;
+      clearReported();
+      schedule();
+    },
+    true
+  );
+  window.addEventListener("message", function (event) {
+    var data = event.data;
+    if (event.source !== window.parent || !data || data.jsonrpc !== "2.0") return;
+    if (data.method === ${JSON.stringify(CLEAR_SELECTION_METHOD)}) {
+      var selection = getSelection();
+      if (selection) selection.removeAllRanges();
+    } else if (data.method === ${JSON.stringify(SELECTION_ACTION_METHOD)}) {
+      actionOffered = reported && !!data.params && data.params.offered === true;
+    }
+  });
+  window.addEventListener("keydown", function (event) {
+    var plainTab =
+      event.key === "Tab" && !event.shiftKey && !event.altKey && !event.ctrlKey && !event.metaKey;
+    if (!actionOffered || !plainTab || !event.isTrusted || event.isComposing) return;
+    if (event.defaultPrevented) return;
+    event.preventDefault();
+    window.parent.postMessage(
+      { jsonrpc: "2.0", method: ${JSON.stringify(FOCUS_SELECTION_ACTION_METHOD)} },
+      "*"
+    );
+  });
+})();`;
+
 // Apply overridable theme CSS before paint and strip the fragment before routing; framed navigation uses the client.
 // Forward shortcuts after page handlers; text fields retain their keys.
-const BOOTSTRAP_SCRIPT = `(function(){var s=document.getElementById("supaterm-theme"),n=0;if(!s)return;var b=${JSON.stringify(BASE_CSS)};function a(t){if(!t||typeof t!=="object"||!t.variables||typeof t.variables!=="object")return;var c=":root{color-scheme:"+(t.appearance==="light"?"light":"dark")+";";for(var k in t.variables){if(/^--[a-z0-9-]+$/.test(k))c+=k+":"+String(t.variables[k]).replace(/[;{}<>]/g,"")+";";}s.textContent=c+"}"+b;}try{var m=/[#&]${THEME_FRAGMENT_KEY}=([^&]*)/.exec(location.hash);if(m){a(JSON.parse(decodeURIComponent(m[1])));history.replaceState(history.state,"",location.pathname+location.search);}}catch(e){}window.addEventListener("message",function(e){var d=e.data,p=d&&d.params;if(d&&d.jsonrpc==="2.0"&&d.method===${JSON.stringify(HOST_CONTEXT_CHANGED_METHOD)}&&p&&p.styles)a({appearance:p.theme,variables:p.styles.variables});});document.addEventListener("click",function(e){var l=e.isTrusted?e.composedPath().find(function(t){return t&&t.matches&&t.matches("a[href]");}):null,u;if(!l)return;try{u=new URL(l.getAttribute("href"),document.baseURI);}catch(x){return;}if(!/^https?:$/.test(u.protocol)||u.href.split("#")[0]===location.href.split("#")[0])return;if(window.parent!==window){e.preventDefault();window.parent.postMessage({jsonrpc:"2.0",id:"supaterm-link-"+(++n),method:${JSON.stringify(OPEN_LINK_METHOD)},params:{url:u.href,metaKey:e.metaKey,ctrlKey:e.ctrlKey}},"*");}else{l.setAttribute("target","_blank");l.setAttribute("rel","noopener");}},true);if(window.parent!==window){var h,o,z=function(){var r=document.documentElement,v=Math.ceil(r.scrollHeight>r.clientHeight?r.scrollHeight:r.getBoundingClientRect().height);if(v===h)return;h=v;window.parent.postMessage({jsonrpc:"2.0",method:${JSON.stringify(SIZE_CHANGED_METHOD)},params:{height:v}},"*");};if(window.ResizeObserver){o=new ResizeObserver(z);o.observe(document.documentElement);}document.addEventListener("DOMContentLoaded",function(){if(o&&document.body)o.observe(document.body);z();});window.addEventListener("load",z);window.addEventListener("click",function(e){var t=e.composedPath()[0],u;if(!e.isTrusted||e.defaultPrevented||e.button!==0||e.metaKey||e.ctrlKey||e.shiftKey||e.altKey||!t||t.tagName!=="IMG"||t.closest("a[href],button"))return;u=t.currentSrc||t.src;if(u)setTimeout(function(){if(!e.defaultPrevented)window.parent.postMessage({jsonrpc:"2.0",method:${JSON.stringify(OPEN_IMAGE_METHOD)},params:{src:u,name:t.alt||t.title||""}},"*");});});var K=[],B=[],C=${JSON.stringify(EVENT_CODE_SHORTCUT_KEYS)};window.addEventListener("message",function(e){var d=e.data,p=d&&d.params;if(e.source===window.parent&&d&&d.jsonrpc==="2.0"&&d.method===${JSON.stringify(SHORTCUTS_METHOD)}&&p&&Array.isArray(p.shortcuts)&&Array.isArray(p.blocked)){K=p.shortcuts;B=p.blocked;}});window.addEventListener("keydown",function(e){var t=e.composedPath()[0],c=e.code||"",l=e.key.toLowerCase(),x=/^[a-z]$/.test(l)?[l]:[l,/^Key[A-Z]$/.test(c)?c.slice(3).toLowerCase():"",C.hasOwnProperty(c)?C[c]:""],f,m=function(s){return s&&s.metaKey===e.metaKey&&s.ctrlKey===e.ctrlKey&&s.shiftKey===e.shiftKey&&s.altKey===e.altKey&&x.indexOf(s.key)>-1;};if(!e.isTrusted||e.isComposing||e.getModifierState("AltGraph")&&!/^[a-z0-9]$/i.test(e.key)||t&&(t.isContentEditable||/^(?:INPUT|TEXTAREA|SELECT)$/.test(t.tagName))||!K.some(m)||B.some(m))return;f=function(v){window.removeEventListener("keydown",f);if(v!==e||e.defaultPrevented)return;e.preventDefault();window.parent.postMessage({jsonrpc:"2.0",method:${JSON.stringify(KEY_DOWN_METHOD)},params:{key:e.key,code:e.code,metaKey:e.metaKey,ctrlKey:e.ctrlKey,shiftKey:e.shiftKey,altKey:e.altKey,repeat:e.repeat}},"*");};window.addEventListener("keydown",f);setTimeout(function(){window.removeEventListener("keydown",f);});},true);}})();`;
+const BOOTSTRAP_SCRIPT = `(function(){var s=document.getElementById("supaterm-theme"),n=0;if(!s)return;var b=${JSON.stringify(BASE_CSS)};function a(t){if(!t||typeof t!=="object"||!t.variables||typeof t.variables!=="object")return;var c=":root{color-scheme:"+(t.appearance==="light"?"light":"dark")+";";for(var k in t.variables){if(/^--[a-z0-9-]+$/.test(k))c+=k+":"+String(t.variables[k]).replace(/[;{}<>]/g,"")+";";}s.textContent=c+"}"+b;}try{var m=/[#&]${THEME_FRAGMENT_KEY}=([^&]*)/.exec(location.hash);if(m){a(JSON.parse(decodeURIComponent(m[1])));history.replaceState(history.state,"",location.pathname+location.search);}}catch(e){}window.addEventListener("message",function(e){var d=e.data,p=d&&d.params;if(d&&d.jsonrpc==="2.0"&&d.method===${JSON.stringify(HOST_CONTEXT_CHANGED_METHOD)}&&p&&p.styles)a({appearance:p.theme,variables:p.styles.variables});});document.addEventListener("click",function(e){var l=e.isTrusted?e.composedPath().find(function(t){return t&&t.matches&&t.matches("a[href]");}):null,u;if(!l)return;try{u=new URL(l.getAttribute("href"),document.baseURI);}catch(x){return;}if(!/^https?:$/.test(u.protocol)||u.href.split("#")[0]===location.href.split("#")[0])return;if(window.parent!==window){e.preventDefault();window.parent.postMessage({jsonrpc:"2.0",id:"supaterm-link-"+(++n),method:${JSON.stringify(OPEN_LINK_METHOD)},params:{url:u.href,metaKey:e.metaKey,ctrlKey:e.ctrlKey}},"*");}else{l.setAttribute("target","_blank");l.setAttribute("rel","noopener");}},true);if(window.parent!==window){var h,o,z=function(){var r=document.documentElement,v=Math.ceil(r.scrollHeight>r.clientHeight?r.scrollHeight:r.getBoundingClientRect().height);if(v===h)return;h=v;window.parent.postMessage({jsonrpc:"2.0",method:${JSON.stringify(SIZE_CHANGED_METHOD)},params:{height:v}},"*");};if(window.ResizeObserver){o=new ResizeObserver(z);o.observe(document.documentElement);}document.addEventListener("DOMContentLoaded",function(){if(o&&document.body)o.observe(document.body);z();});window.addEventListener("load",z);window.addEventListener("click",function(e){var t=e.composedPath()[0],u;if(!e.isTrusted||e.defaultPrevented||e.button!==0||e.metaKey||e.ctrlKey||e.shiftKey||e.altKey||!t||t.tagName!=="IMG"||t.closest("a[href],button"))return;u=t.currentSrc||t.src;if(u)setTimeout(function(){if(!e.defaultPrevented)window.parent.postMessage({jsonrpc:"2.0",method:${JSON.stringify(OPEN_IMAGE_METHOD)},params:{src:u,name:t.alt||t.title||""}},"*");});});var K=[],B=[],C=${JSON.stringify(EVENT_CODE_SHORTCUT_KEYS)};window.addEventListener("message",function(e){var d=e.data,p=d&&d.params;if(e.source===window.parent&&d&&d.jsonrpc==="2.0"&&d.method===${JSON.stringify(SHORTCUTS_METHOD)}&&p&&Array.isArray(p.shortcuts)&&Array.isArray(p.blocked)){K=p.shortcuts;B=p.blocked;}});window.addEventListener("keydown",function(e){var t=e.composedPath()[0],c=e.code||"",l=e.key.toLowerCase(),x=/^[a-z]$/.test(l)?[l]:[l,/^Key[A-Z]$/.test(c)?c.slice(3).toLowerCase():"",C.hasOwnProperty(c)?C[c]:""],f,m=function(s){return s&&s.metaKey===e.metaKey&&s.ctrlKey===e.ctrlKey&&s.shiftKey===e.shiftKey&&s.altKey===e.altKey&&x.indexOf(s.key)>-1;};if(!e.isTrusted||e.isComposing||e.getModifierState("AltGraph")&&!/^[a-z0-9]$/i.test(e.key)||t&&(t.isContentEditable||/^(?:INPUT|TEXTAREA|SELECT)$/.test(t.tagName))||!K.some(m)||B.some(m))return;f=function(v){window.removeEventListener("keydown",f);if(v!==e||e.defaultPrevented)return;e.preventDefault();window.parent.postMessage({jsonrpc:"2.0",method:${JSON.stringify(KEY_DOWN_METHOD)},params:{key:e.key,code:e.code,metaKey:e.metaKey,ctrlKey:e.ctrlKey,shiftKey:e.shiftKey,altKey:e.altKey,repeat:e.repeat}},"*");};window.addEventListener("keydown",f);setTimeout(function(){window.removeEventListener("keydown",f);});},true);${SELECTION_BRIDGE_SCRIPT}}})();`;
 
 function bootstrapMarkup(markup: string): string {
   const dark = htmlRenderTheme(SUPATERM_DARK_THEME_COLORS, "dark");

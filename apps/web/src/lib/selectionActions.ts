@@ -186,6 +186,14 @@ export function observeSelectionActions({
         schedule(0);
       }
     },
+    /** A framed document reports its own settled selection; focus moving into it blurred this window. */
+    selectionReported() {
+      dismissed = false;
+      pointer = null;
+      schedule(0);
+    },
+    /** A scroller outside `element`, such as a dialog, moved the selection. */
+    scrolled: onScroll,
     dispose() {
       cancel();
       document.removeEventListener("pointerdown", onPointerDown, true);

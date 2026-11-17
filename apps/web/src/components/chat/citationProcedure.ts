@@ -1,5 +1,6 @@
 import { useAtomValue } from "@effect/atom-react";
 import { type AtomCommandSuccess, runAtomCommand } from "@supaterm/client-runtime/state/runtime";
+import { htmlRenderFromToolItem } from "@supaterm/shared/toolOutput";
 import { Atom, type AtomRegistry } from "effect/reactivity";
 import type { TimelineEntry } from "../../session-logic";
 import { environmentThreadDetails, threadEnvironment } from "../../state/threads";
@@ -83,6 +84,11 @@ export async function loadCitedHistory(input: {
   }
 }
 
+/** A response is cited by its message id, an HTML render by its item id. */
+const isCited = (candidate: TimelineEntry | MessagesTimelineRow, messageId: string) =>
+  (candidate.kind === "message" && candidate.message.id === messageId) ||
+  (candidate.kind === "html-render" && candidate.id === messageId);
+
 /** Where the citation stands for the rows the timeline currently shows. */
 export function resolveCitationPhase(input: {
   readonly history: CitedHistory;
@@ -91,15 +97,11 @@ export function resolveCitationPhase(input: {
   readonly rows: ReadonlyArray<MessagesTimelineRow>;
 }): CitationPhase {
   if (input.history._tag === "failed") return { _tag: "failed" };
-  const source = input.entries.find(
-    (entry) => entry.kind === "message" && entry.message.id === input.messageId,
-  );
+  const source = input.entries.find((entry) => isCited(entry, input.messageId));
   // The history store can hold the message a render before the entries do.
   if (!source) return { _tag: "loading" };
-  if (source.kind !== "message" || source.message.role !== "assistant") return { _tag: "failed" };
-  const row = input.rows.find(
-    (candidate) => candidate.kind === "message" && candidate.message.id === input.messageId,
-  );
+  if (source.kind === "message" && source.message.role !== "assistant") return { _tag: "failed" };
+  const row = input.rows.find((candidate) => isCited(candidate, input.messageId));
   if (row) return { _tag: "ready", rowId: row.id };
   return { _tag: "expanding" };
 }
@@ -125,14 +127,20 @@ export function citedThreadSnapshot(input: {
     if (input.status === "deleted") return { message: null, hasMoreHistory: false };
     return input.error === null ? null : { message: null, hasMoreHistory: false, loadFailed: true };
   }
-  // Older pages merge into the visible turn items, not the message list.
-  const item = input.thread.projection.visibleTurnItems.find(
-    (row) =>
-      (row.item.type === "assistant_message" || row.item.type === "user_message") &&
-      row.item.messageId === input.messageId,
+  // Older pages merge into the visible turn items, not the message list. As in history
+  // paging, a message matches by its message id and an HTML render by its item id.
+  const item = input.thread.projection.visibleTurnItems.find(({ item }) =>
+    item.type === "assistant_message" || item.type === "user_message"
+      ? item.messageId === input.messageId
+      : item.id === input.messageId,
   )?.item;
+  const citable =
+    item?.type === "assistant_message" ||
+    (item?.type === "dynamic_tool" &&
+      item.status === "completed" &&
+      htmlRenderFromToolItem(item) !== undefined);
   return {
-    message: item === undefined ? null : item.type === "assistant_message" ? "assistant" : "other",
+    message: item === undefined ? null : citable ? "assistant" : "other",
     hasMoreHistory: input.history.hasMoreHistory,
   };
 }

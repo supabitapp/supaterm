@@ -22,6 +22,7 @@ import type { AssistantCitationTarget } from "./AssistantCitationSource";
 import type { TimestampFormat } from "@supaterm/contracts/settings";
 import type { HandoffTimelineRun } from "./V2LifecycleRow";
 import type { PinnableProjectedItem } from "./PinnedMessages";
+import type { HtmlRenderSelectionReport } from "./HtmlRenderFrame";
 
 export interface TimelineRowSharedState {
   citationRequest: AssistantCitationTarget | null;
@@ -41,6 +42,8 @@ export interface TimelineRowSharedState {
   onSendAppMessage: ((text: string) => Promise<void>) | undefined;
 
   onAppFullscreenChange: (rowId: string, fullscreen: boolean) => void;
+  /** A quote from a render cites `messageId`, the render's turn item id. */
+  onHtmlRenderSelection: (messageId: MessageId, report: HtmlRenderSelectionReport) => void;
   onRunShellCommand: ((command: string) => void) | undefined;
   findActive: boolean;
   onImageExpand: (preview: ExpandedImagePreview) => void;

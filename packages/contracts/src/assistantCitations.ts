@@ -10,6 +10,7 @@ export const AssistantCitation = Schema.Struct({
   version: Schema.Literal(1),
   environmentId: EnvironmentId.check(Schema.isMaxLength(512)),
   threadId: ThreadId.check(Schema.isMaxLength(512)),
+  /** The cited assistant message, or the turn item ID of a cited HTML render. */
   messageId: MessageId.check(Schema.isMaxLength(512)),
   text: Schema.String.check(
     Schema.isNonEmpty(),

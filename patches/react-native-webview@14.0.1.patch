@@ -1,5 +1,5 @@
 diff --git a/android/src/main/java/com/reactnativecommunity/webview/RNCWebView.java b/android/src/main/java/com/reactnativecommunity/webview/RNCWebView.java
-index 80c68034b193a47bedb56ca527352de9548e8ac6..1fac4b40c9f376a4f6d6b7fa60e4d247e8ef8550 100644
+index 80c68034b193a47bedb56ca527352de9548e8ac6..38054651c3760ff2b5a975ea84104a64131ea5d2 100644
 --- a/android/src/main/java/com/reactnativecommunity/webview/RNCWebView.java
 +++ b/android/src/main/java/com/reactnativecommunity/webview/RNCWebView.java
 @@ -9,6 +9,7 @@ import android.view.Menu;
@@ -69,3 +69,131 @@ index 80c68034b193a47bedb56ca527352de9548e8ac6..1fac4b40c9f376a4f6d6b7fa60e4d247
      @Override
      protected void onSizeChanged(int w, int h, int ow, int oh) {
          super.onSizeChanged(w, h, ow, oh);
+@@ -153,35 +195,60 @@ public class RNCWebView extends WebView implements LifecycleEventListener {
+       this.menuCustomItems = menuCustomItems;
+     }
+ 
++    private static final int CUSTOM_MENU_GROUP_ID = 0x535452;
++    private static final int CUSTOM_MENU_ITEM_ID = 0x535452;
++
++    // Custom items join the platform's selection menu and come first. An empty
++    // list still hides the menu, as upstream documents.
+     @Override
+     public ActionMode startActionMode(ActionMode.Callback callback, int type) {
+       if(menuCustomItems == null ){
+         return super.startActionMode(callback, type);
+       }
++      final boolean keepPlatformItems = !menuCustomItems.isEmpty();
+ 
+       return super.startActionMode(new ActionMode.Callback2() {
+-        @Override
+-        public boolean onCreateActionMode(ActionMode mode, Menu menu) {
++        private boolean addCustomItems(Menu menu) {
++          boolean added = false;
+           for (int i = 0; i < menuCustomItems.size(); i++) {
+-            menu.add(Menu.NONE, i, i, (menuCustomItems.get(i)).get("label"));
++            if (menu.findItem(CUSTOM_MENU_ITEM_ID + i) != null) continue;
++            // The floating toolbar sorts these ahead of the platform's items; a plain item goes to its overflow.
++            menu.add(CUSTOM_MENU_GROUP_ID, CUSTOM_MENU_ITEM_ID + i, Menu.NONE, (menuCustomItems.get(i)).get("label"))
++              .setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS);
++            added = true;
+           }
+-          return true;
++          return added;
+         }
+ 
++        @Override
++        public boolean onCreateActionMode(ActionMode mode, Menu menu) {
++          boolean created = !keepPlatformItems || callback.onCreateActionMode(mode, menu);
++          addCustomItems(menu);
++          return created;
++        }
++
++        // The platform can rebuild its menu here, which drops the custom items.
+         @Override
+         public boolean onPrepareActionMode(ActionMode actionMode, Menu menu) {
+-          return false;
++          if (!keepPlatformItems) return false;
++          boolean changed = callback.onPrepareActionMode(actionMode, menu);
++          return addCustomItems(menu) || changed;
+         }
+ 
+         @Override
+         public boolean onActionItemClicked(ActionMode mode, MenuItem item) {
++          if (item.getGroupId() != CUSTOM_MENU_GROUP_ID) {
++            return keepPlatformItems && callback.onActionItemClicked(mode, item);
++          }
++          final int index = item.getItemId() - CUSTOM_MENU_ITEM_ID;
++          if (index < 0 || index >= menuCustomItems.size()) return false;
++          final Map<String, String> menuItemMap = menuCustomItems.get(index);
+           WritableMap wMap = Arguments.createMap();
+           RNCWebView.this.evaluateJavascript(
+             "(function(){return {selection: window.getSelection().toString()} })()",
+             new ValueCallback<String>() {
+               @Override
+               public void onReceiveValue(String selectionJson) {
+-                Map<String, String> menuItemMap = menuCustomItems.get(item.getItemId());
+                 wMap.putString("label", menuItemMap.get("label"));
+                 wMap.putString("key", menuItemMap.get("key"));
+                 String selectionText = "";
+@@ -199,7 +266,7 @@ public class RNCWebView extends WebView implements LifecycleEventListener {
+ 
+         @Override
+         public void onDestroyActionMode(ActionMode mode) {
+-          mode = null;
++          if (keepPlatformItems) callback.onDestroyActionMode(mode);
+         }
+ 
+         @Override
+diff --git a/apple/RNCWebViewImpl.m b/apple/RNCWebViewImpl.m
+index 38904266dc37b006274104f4680778ffbfece369..3c0b8826d2000434e56b4fd2e5f10b53d6150eac 100644
+--- a/apple/RNCWebViewImpl.m
++++ b/apple/RNCWebViewImpl.m
+@@ -87,7 +87,8 @@ NSString *const CUSTOM_SELECTOR = @"_CUSTOM_SELECTOR_";
+       }
+   }
+ 
+-  if (!self.menuItems) {
++  // Custom items join the system edit menu. An empty list still hides it.
++  if (!self.menuItems || self.menuItems.count > 0) {
+       return [super canPerformAction:action withSender:sender];
+   }
+ 
+@@ -95,11 +96,25 @@ NSString *const CUSTOM_SELECTOR = @"_CUSTOM_SELECTOR_";
+ }
+ - (void)buildMenuWithBuilder:(id<UIMenuBuilder>)builder API_AVAILABLE(ios(13.0))  {
+     if (@available(iOS 16.0, *)) {
+-      if(self.menuItems){
++      if(self.menuItems && self.menuItems.count == 0){
+         [builder removeMenuForIdentifier:UIMenuLookup];
+       }
+     }
+     [super buildMenuWithBuilder:builder];
++    if (@available(iOS 16.0, *)) {
++      if (self.menuItems.count > 0 && builder.system == UIMenuSystem.contextSystem) {
++        NSMutableArray<UICommand *> *commands = [NSMutableArray new];
++        for (NSDictionary *menuItem in self.menuItems) {
++          NSString *sel = [NSString stringWithFormat:@"%@%@", CUSTOM_SELECTOR, [RCTConvert NSString:menuItem[@"key"]]];
++          [commands addObject:[UICommand commandWithTitle:[RCTConvert NSString:menuItem[@"label"]]
++                                                    image:nil
++                                                   action:NSSelectorFromString(sel)
++                                             propertyList:nil]];
++        }
++        UIMenu *menu = [UIMenu menuWithTitle:@"" image:nil identifier:nil options:UIMenuOptionsDisplayInline children:commands];
++        [builder insertSiblingMenu:menu beforeMenuForIdentifier:UIMenuStandardEdit];
++      }
++    }
+ }
+ #else // TARGET_OS_OSX
+ - (void)scrollWheel:(NSEvent *)theEvent {
+@@ -592,8 +607,8 @@ RCTAutoInsetsProtocol>
+   }
+ 
+ #if !TARGET_OS_OSX
+-  // Allow this object to recognize gestures
+-  if (self.menuItems != nil) {
++  // Only an empty list needs its own menu; items ride the system edit menu.
++  if (self.menuItems != nil && self.menuItems.count == 0) {
+     UILongPressGestureRecognizer *longPress = [[UILongPressGestureRecognizer alloc] initWithTarget:self action:@selector(startLongPress:)];
+     longPress.delegate = self;
+ 

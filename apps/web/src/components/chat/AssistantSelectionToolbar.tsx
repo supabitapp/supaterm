@@ -5,10 +5,17 @@ import {
   type ScopedThreadRef,
 } from "@supaterm/contracts";
 import { QuoteIcon } from "@supaterm/icons";
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import {
+  htmlRenderClearSelectionMessage,
+  htmlRenderSelectionActionMessage,
+  type HtmlRenderBox,
+  type HtmlRenderSelection,
+} from "@supaterm/shared/htmlRender";
+import { useEffect, useImperativeHandle, useLayoutEffect, useRef, useState, type Ref } from "react";
 import { createPortal } from "react-dom";
 import {
   captureAssistantTextSelection,
+  createAssistantTextSelector,
   type AssistantCitationSourceAnchor,
 } from "~/lib/assistantTextSelection";
 import {
@@ -18,22 +25,73 @@ import {
   type SelectionActionPoint,
 } from "~/lib/selectionActions";
 import { Button } from "../ui/button";
+import type { HtmlRenderSelectionReport } from "./HtmlRenderFrame";
 import { usePresence } from "~/hooks/usePresence";
 import { EASE_DRAWER, EASE_IN, prefersReducedMotion } from "~/lib/motion";
+import { cn } from "~/lib/utils";
+
+export interface AssistantSelectionToolbarHandle {
+  /** An HTML render's page reported its text selection, cleared it, or asked for the action. */
+  reportRenderSelection: (messageId: MessageId, report: HtmlRenderSelectionReport) => void;
+}
+
+/** Where the shown selection lives. The host cannot read or clear one inside a render's page. */
+type SelectionSource =
+  | { readonly _tag: "document"; readonly anchor: AssistantCitationSourceAnchor }
+  | {
+      readonly _tag: "render";
+      readonly frame: HTMLIFrameElement;
+      /** Closes the expanded view. Absent for the inline render. */
+      readonly collapse: (() => void) | undefined;
+    };
+
+type ClipRect = Pick<DOMRect, "left" | "right" | "top" | "bottom">;
+
+/** The padding boxes of the ancestors from `from` up to `until` that clip their content. */
+function ancestorClips(from: Element | null, until: Element | null): ClipRect[] {
+  const clips: ClipRect[] = [];
+  for (let element = from; element && element !== until; element = element.parentElement) {
+    const style = getComputedStyle(element);
+    const clipX = style.overflowX !== "visible";
+    const clipY = style.overflowY !== "visible";
+    if (!clipX && !clipY) continue;
+    const bounds = element.getBoundingClientRect();
+    const left = bounds.left + element.clientLeft;
+    const top = bounds.top + element.clientTop;
+    clips.push({
+      left: clipX ? left : -Infinity,
+      right: clipX ? left + element.clientWidth : Infinity,
+      top: clipY ? top : -Infinity,
+      bottom: clipY ? top + element.clientHeight : Infinity,
+    });
+  }
+  return clips;
+}
 
 export function AssistantSelectionToolbar({
+  ref,
   viewport,
   threadRef,
   onCite,
 }: {
+  ref?: Ref<AssistantSelectionToolbarHandle>;
   viewport: HTMLElement | null;
   threadRef: ScopedThreadRef;
-  onCite: (citation: AssistantCitation, sourceAnchor: AssistantCitationSourceAnchor) => boolean;
+  onCite: (
+    citation: AssistantCitation,
+    sourceAnchor: AssistantCitationSourceAnchor | undefined,
+  ) => boolean;
 }) {
   const [selection, setSelection] = useState<{
     citation: AssistantCitation;
     position: SelectionActionPoint;
-    sourceAnchor: AssistantCitationSourceAnchor;
+    source: SelectionSource;
+  } | null>(null);
+  const renderReportRef = useRef<{
+    messageId: MessageId;
+    frame: HTMLIFrameElement;
+    selection: HtmlRenderSelection;
+    collapse: (() => void) | undefined;
   } | null>(null);
   const toolbarRef = useRef<HTMLButtonElement | null>(null);
   const actionsRef = useRef<ReturnType<typeof observeSelectionActions> | null>(null);
@@ -44,6 +102,46 @@ export function AssistantSelectionToolbar({
     presenceRef(node);
   };
   const shown = presence.value !== null;
+
+  useImperativeHandle(
+    ref,
+    () => ({
+      reportRenderSelection(messageId, { frame, event, collapse }) {
+        const actions = actionsRef.current;
+        const toolbar = toolbarRef.current;
+        if (event._tag === "selected") {
+          if (!actions) return;
+          renderReportRef.current = { messageId, frame, selection: event.selection, collapse };
+          actions.selectionReported();
+          return;
+        }
+        if (renderReportRef.current?.frame !== frame) return;
+        if (event._tag === "focus-action") {
+          if (toolbar && !toolbar.disabled && !toolbar.inert)
+            toolbar.focus({ preventScroll: true });
+          return;
+        }
+        // Focus moving to the action blurs the page, which clears its report. The quote stands.
+        if (document.activeElement === toolbar) return;
+        renderReportRef.current = null;
+        setSelection(null);
+      },
+    }),
+    [],
+  );
+
+  const offeredFrame =
+    selection?.source._tag === "render" &&
+    selection.citation.text.length <= ASSISTANT_CITATION_MAX_TEXT_LENGTH
+      ? selection.source.frame
+      : null;
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- tells the render's sandboxed page while an action is offered for its selection, so Tab pressed in the page can reach the button
+  useEffect(() => {
+    const page = offeredFrame?.contentWindow;
+    if (!page) return;
+    page.postMessage(htmlRenderSelectionActionMessage(true), "*");
+    return () => page.postMessage(htmlRenderSelectionActionMessage(false), "*");
+  }, [offeredFrame]);
 
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- measures the toolbar DOM node and clamps its position inside the window before paint
   useLayoutEffect(() => {
@@ -74,7 +172,58 @@ export function AssistantSelectionToolbar({
   useEffect(() => {
     if (!viewport) return;
     const clear = () => setSelection(null);
+    // A render's page reports its own selection. The focused document owns the selection, so
+    // the report stands only while its frame has focus.
+    const updateFromRender = () => {
+      const reported = renderReportRef.current;
+      if (!reported) return false;
+      const { frame, messageId, collapse } = reported;
+      if (document.activeElement !== frame) {
+        renderReportRef.current = null;
+        return false;
+      }
+      const frameRect = frame.getBoundingClientRect();
+      // The expanded view zooms its frame, so page pixels are not host pixels.
+      const scaleX = frame.offsetWidth > 0 ? frameRect.width / frame.offsetWidth : 1;
+      const scaleY = frame.offsetHeight > 0 ? frameRect.height / frame.offsetHeight : 1;
+      const within = (value: number, max: number) => Math.min(Math.max(value, 0), max);
+      const inHost = (box: HtmlRenderBox) => ({
+        left: frameRect.left + within(box.left * scaleX, frameRect.width),
+        top: frameRect.top + within(box.top * scaleY, frameRect.height),
+        right: frameRect.left + within(box.right * scaleX, frameRect.width),
+        bottom: frameRect.top + within(box.bottom * scaleY, frameRect.height),
+      });
+      // The expanded view sits in a dialog over the timeline, which does not clip it. The walk
+      // stops at body, whose overflow applies to the window and not to its own box.
+      const inline = collapse === undefined;
+      const viewportRect = viewport.getBoundingClientRect();
+      const { text } = reported.selection;
+      const selector = createAssistantTextSelector(text, 0, text.length);
+      if (
+        !selector ||
+        !isSelectionRectVisible(inHost(reported.selection.bounds), [
+          frameRect,
+          ...ancestorClips(frame.parentElement, inline ? viewport : document.body),
+          ...(inline ? [viewportRect] : []),
+        ])
+      ) {
+        clear();
+        return true;
+      }
+      setSelection({
+        source: { _tag: "render", frame, collapse },
+        citation: { version: 1, ...threadRef, messageId, ...selector },
+        position: resolveSelectionActionPosition({
+          bounds: inline ? viewportRect : frameRect,
+          selectionRect: inHost(reported.selection.rect),
+          pointer: null,
+          viewport: { width: window.innerWidth, height: window.innerHeight },
+        }),
+      });
+      return true;
+    };
     const update = (pointer: SelectionActionPoint | null) => {
+      if (updateFromRender()) return;
       const nativeSelection = window.getSelection();
       const captured = captureAssistantTextSelection(viewport, nativeSelection);
       const messageId = captured?.source.dataset.assistantCitationSource;
@@ -108,26 +257,7 @@ export function AssistantSelectionToolbar({
         if (!fragment.toString().trim()) continue;
         const lines = Array.from(fragment.getClientRects());
         if (!lines.some((line) => isSelectionRectVisible(line, [viewportRect]))) continue;
-        const clips: Pick<DOMRect, "left" | "right" | "top" | "bottom">[] = [viewportRect];
-        for (
-          let element = node.parentElement;
-          element && element !== viewport;
-          element = element.parentElement
-        ) {
-          const style = getComputedStyle(element);
-          const clipX = style.overflowX !== "visible";
-          const clipY = style.overflowY !== "visible";
-          if (!clipX && !clipY) continue;
-          const bounds = element.getBoundingClientRect();
-          const left = bounds.left + element.clientLeft;
-          const top = bounds.top + element.clientTop;
-          clips.push({
-            left: clipX ? left : -Infinity,
-            right: clipX ? left + element.clientWidth : Infinity,
-            top: clipY ? top : -Infinity,
-            bottom: clipY ? top + element.clientHeight : Infinity,
-          });
-        }
+        const clips = [viewportRect, ...ancestorClips(node.parentElement, viewport)];
         visible = lines.some((line) => isSelectionRectVisible(line, clips));
       }
       if (!visible) {
@@ -145,7 +275,10 @@ export function AssistantSelectionToolbar({
             pointer.y <= line.bottom + 8,
         );
       setSelection({
-        sourceAnchor: { source: captured.source, range: captured.range, viewport },
+        source: {
+          _tag: "document",
+          anchor: { source: captured.source, range: captured.range, viewport },
+        },
         citation: {
           version: 1,
           ...threadRef,
@@ -168,6 +301,20 @@ export function AssistantSelectionToolbar({
       onDismiss: clear,
     });
     actionsRef.current = actions;
+    // The expanded view scrolls inside a dialog, outside the viewport the observer listens to.
+    const onOuterScroll = (event: Event) => {
+      const frame = renderReportRef.current?.frame;
+      const scrolled = event.target;
+      if (
+        frame &&
+        scrolled instanceof Node &&
+        scrolled.contains(frame) &&
+        !viewport.contains(scrolled)
+      ) {
+        actions.scrolled();
+      }
+    };
+    document.addEventListener("scroll", onOuterScroll, true);
     const focusActions = (event: KeyboardEvent) => {
       const toolbar = toolbarRef.current;
       if (
@@ -191,23 +338,34 @@ export function AssistantSelectionToolbar({
     document.addEventListener("keydown", focusActions, true);
     document.addEventListener("selectionchange", actions.selectionChanged);
     return () => {
+      document.removeEventListener("scroll", onOuterScroll, true);
       document.removeEventListener("keydown", focusActions, true);
       document.removeEventListener("selectionchange", actions.selectionChanged);
       actions.dispose();
       actionsRef.current = null;
+      renderReportRef.current = null;
     };
   }, [threadRef, viewport]);
 
   const shownSelection = presence.value;
   if (!shownSelection) return null;
   const tooLong = shownSelection.citation.text.length > ASSISTANT_CITATION_MAX_TEXT_LENGTH;
+  const { source } = shownSelection;
+  const expanded = source._tag === "render" && source.collapse !== undefined;
   const dismiss = () => {
     actionsRef.current?.cancel();
+    renderReportRef.current = null;
     setSelection(null);
   };
   const cite = () => {
-    if (tooLong || !onCite(shownSelection.citation, shownSelection.sourceAnchor)) return false;
-    window.getSelection()?.removeAllRanges();
+    const anchor = source._tag === "document" ? source.anchor : undefined;
+    if (tooLong || !onCite(shownSelection.citation, anchor)) return false;
+    if (source._tag === "render") {
+      source.frame.contentWindow?.postMessage(htmlRenderClearSelectionMessage(), "*");
+      source.collapse?.();
+    } else {
+      window.getSelection()?.removeAllRanges();
+    }
     dismiss();
     return true;
   };
@@ -220,7 +378,9 @@ export function AssistantSelectionToolbar({
       disabled={tooLong}
       inert={presence.exiting}
       aria-label={tooLong ? "Selection is too long to annotate" : "Add annotation in composer"}
-      className="fixed z-50 max-w-[calc(100vw-1rem)] origin-top-left"
+      data-selection-action=""
+      // The expanded view of a render is a media dialog, which sits above the timeline's layer.
+      className={cn("fixed max-w-[calc(100vw-1rem)] origin-top-left", expanded ? "z-[70]" : "z-50")}
       style={{ left: shownSelection.position.x, top: shownSelection.position.y }}
       onPointerDown={(event) => event.preventDefault()}
       onClick={cite}

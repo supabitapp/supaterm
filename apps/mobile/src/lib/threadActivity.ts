@@ -174,6 +174,7 @@ type RawThreadFeedEntry =
       readonly id: string;
       readonly createdAt: string;
       readonly runId: RunId | null;
+      readonly itemId: TurnItemId;
       readonly render: HtmlRenderReference;
     }
   | {
@@ -2082,6 +2083,7 @@ export function buildThreadFeed(
         id: `html-render:${row.visibility}:${row.sourceThreadId}:${row.sourceItemId}`,
         createdAt,
         runId: item.runId,
+        itemId: item.id,
         render,
       };
       projectedEntriesCache.set(row, { attemptId, entry });
