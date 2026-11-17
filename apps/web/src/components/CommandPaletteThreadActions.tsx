@@ -96,6 +96,7 @@ const THREAD_PALETTE_COMMANDS: Record<
   "regenerate-title": {
     icon: RefreshCwIcon,
     searchTerms: ["regenerate", "title", "rename", "name", "thread"],
+    shortcutCommand: "thread.regenerateTitle",
   },
   "mark-unread": {
     title: "Mark thread unread",
