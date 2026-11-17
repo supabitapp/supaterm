@@ -55,6 +55,10 @@
       "types": "./src/modelTraits.ts",
       "default": "./src/modelTraits.ts"
     },
+    "./pull-request-saved-views": {
+      "types": "./src/pullRequestSavedViews.ts",
+      "default": "./src/pullRequestSavedViews.ts"
+    },
     "./composerThreadItems": {
       "types": "./src/composerThreadItems.ts",
       "default": "./src/composerThreadItems.ts"
