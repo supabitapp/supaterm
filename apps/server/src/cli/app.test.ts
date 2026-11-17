@@ -173,6 +173,15 @@ describe("supaterm server command safety", () => {
     ),
   );
 
+  it.effect("does not offer auto-bootstrap in serve help, since serve never bootstraps", () =>
+    Effect.gen(function* () {
+      yield* runCli(["serve", "--help"]);
+      const help = (yield* TestConsole.logLines).join("\n");
+      expect(help).toContain("--no-browser");
+      expect(help).not.toContain("--auto-bootstrap-project-from-cwd");
+    }),
+  );
+
   it.effect("refuses manual startup over a live server before creating directories", () =>
     withTempDirectory("supaterm-cli-running-", (root) =>
       Effect.gen(function* () {

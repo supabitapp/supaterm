@@ -1210,7 +1210,10 @@ describe("AcpRegistryAdapterV2", () => {
           type: "http",
           name: "supaterm",
           url: endpoint,
-          headers: [{ name: "Authorization", value: authorization }],
+          headers: [
+            { name: "Authorization", value: authorization },
+            { name: "supaterm-tool-exposure", value: "deferred" },
+          ],
         },
       ];
       const stdio = (authorization: string) => [

@@ -898,7 +898,12 @@ export const revertThreadCheckpoint = Effect.fn("EnvironmentCommands.revertThrea
         ? candidate.ordinalWithinScope === 0 && candidate.appRunOrdinal === null
         : candidate.appRunOrdinal === input.turnCount,
     );
-    if (checkpoint === undefined || checkpoint.status !== "ready") {
+    if (
+      checkpoint === undefined ||
+      // Missing snapshots support conversation rewind only.
+      (checkpoint.status !== "ready" &&
+        !(input.restoreFiles === false && checkpoint.status === "missing"))
+    ) {
       return yield* new OrchestrationV2CheckpointUnavailableError({
         threadId: input.threadId,
         target: `run ordinal ${input.turnCount}`,

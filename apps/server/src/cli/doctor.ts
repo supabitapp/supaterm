@@ -1,4 +1,5 @@
 import { DATABASE_COMPACTION_RECOMMENDED_BYTES } from "@supaterm/contracts";
+import * as Clock from "effect/Clock";
 import * as Console from "effect/Console";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
@@ -15,6 +16,18 @@ const formatBytes = (bytes: number) =>
     : bytes >= 1024 ** 2
       ? `${(bytes / 1024 ** 2).toFixed(1)} MiB`
       : `${Math.ceil(bytes / 1024)} KiB`;
+
+const formatElapsed = (nanos: bigint) => {
+  const seconds = Number(nanos / 1_000_000_000n);
+  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
+};
+
+const COMPACT_STEP_LABELS: Record<DatabaseMaintenance.DatabaseCompactStep, string> = {
+  "compact-events": "Removing superseded events",
+  vacuum: "Rewriting the database file",
+  "rebuild-search": "Rebuilding the search index",
+  checkpoint: "Flushing the write-ahead log",
+};
 
 export const runDoctor = Effect.fn("runDoctor")(function* (
   databasePath: string,
@@ -36,9 +49,11 @@ export const runDoctor = Effect.fn("runDoctor")(function* (
     {
       id: "database" as const,
       title: "Reclaim database space",
-      description: status.incrementalVacuumEnabled
-        ? "Returns unused space to disk."
-        : "Returns unused space to disk and turns on automatic shrinking.",
+      description: `${
+        status.incrementalVacuumEnabled
+          ? "Returns unused space to disk."
+          : "Returns unused space to disk and turns on automatic shrinking."
+      }\n  Rewrites the whole ${formatBytes(status.databaseBytes)} database, which can take more than an hour on a large database or slow disk.`,
       recommended,
     },
   ];
@@ -79,16 +94,27 @@ export const runDoctor = Effect.fn("runDoctor")(function* (
     return;
   }
   const service = yield* BootService.BootService;
-  yield* Console.log("\nReclaiming database space. This can take several minutes...");
+  yield* Console.log("\nReclaiming database space. Each step is shown as it starts.");
+  const startedAt = yield* Clock.monotonicTimeNanos;
+  const reportStep = (step: DatabaseMaintenance.DatabaseCompactStep) =>
+    Clock.monotonicTimeNanos.pipe(
+      Effect.flatMap((now) =>
+        Console.log(`  [${formatElapsed(now - startedAt)}] ${COMPACT_STEP_LABELS[step]}`),
+      ),
+    );
   // Report inside the pause: a repair that succeeded is worth knowing about
   // even when starting the service again fails afterwards.
   yield* service.withStopped(
     maintenance
-      .compact(databasePath)
+      .compact(databasePath, reportStep)
       .pipe(
         Effect.tap((result) =>
-          Console.log(
-            `Done: ${formatBytes(result.beforeBytes)} -> ${formatBytes(result.afterBytes)}, ${result.deletedEventCount} superseded events removed.`,
+          Clock.monotonicTimeNanos.pipe(
+            Effect.flatMap((now) =>
+              Console.log(
+                `Done in ${formatElapsed(now - startedAt)}: ${formatBytes(result.beforeBytes)} -> ${formatBytes(result.afterBytes)}, ${result.deletedEventCount} superseded events removed.`,
+              ),
+            ),
           ),
         ),
       ),

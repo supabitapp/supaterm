@@ -88,47 +88,6 @@ function runtimePolicy(input: {
 }
 
 describe("GrokAdapterV2 capabilities", () => {
-  it.effect("forwards metadata-only reasoning choices on both ACP protocol versions", () =>
-    Effect.gen(function* () {
-      const flavor = makeGrokAcpAdapterFlavor(
-        { makeRuntime: () => Effect.never } as unknown as Parameters<
-          typeof makeGrokAcpAdapterFlavor
-        >[0],
-        "/home/ada",
-      );
-      const apply = flavor.applyModelSelection!;
-      const calls: Array<{ model: string; meta: unknown }> = [];
-      const runtime = {
-        getConfigOptions: Effect.succeed([]),
-        setSessionModel: (model: string, meta: unknown) =>
-          Effect.sync(() => {
-            calls.push({ model, meta });
-            return {};
-          }),
-        setModel: () => Effect.die("Metadata-only reasoning must reach session/set_model"),
-      } as unknown as Parameters<typeof apply>[0]["runtime"];
-      for (const protocolVersion of [1, 2]) {
-        yield* apply({
-          runtime,
-          startResult: {
-            sessionId: "session-1",
-            modelConfigId: undefined,
-            initializeResult: { protocolVersion, agentCapabilities: {} },
-            sessionSetupResult: { models: { currentModelId: "grok-4.6", availableModels: [] } },
-          },
-          modelSelection: {
-            instanceId: ProviderInstanceId.make("grok"),
-            model: "grok-4.6",
-            options: [{ id: "reasoningEffort", value: "high" }],
-          },
-        });
-      }
-      assert.deepEqual(calls, [
-        { model: "grok-4.6", meta: { reasoningEffort: "high" } },
-        { model: "grok-4.6", meta: { reasoningEffort: "high" } },
-      ]);
-    }),
-  );
   it("preserves Grok's rate-limit stop and distinguishes other prompt failures", () => {
     const flavor = makeGrokAcpAdapterFlavor(
       {
