@@ -16,10 +16,16 @@ import { vi } from "vite-plus/test";
 vi.hoisted(() => {
   const NodeModule = process.getBuiltinModule("node:module");
   const NodeEvents = process.getBuiltinModule("node:events");
+  const NodeUrl = process.getBuiltinModule("node:url");
   const require = NodeModule.createRequire(import.meta.url);
-  const electronPath = NodeModule.createRequire(require.resolve("electron-updater")).resolve(
-    "electron",
-  );
+  const electronPath = require.resolve("electron");
+  // The global virtual store links electron-updater without Electron beside it.
+  NodeModule.registerHooks({
+    resolve: (specifier, context, nextResolve) =>
+      specifier === "electron"
+        ? { url: NodeUrl.pathToFileURL(electronPath).href, shortCircuit: true }
+        : nextResolve(specifier, context),
+  });
   const electronModule = new NodeModule.Module(electronPath);
   electronModule.filename = electronPath;
   electronModule.loaded = true;
@@ -53,7 +59,9 @@ describe.skipIf(HostProcess.Platform.defaultValue() !== "linux")(
       Effect.gen(function* () {
         const fileSystem = yield* FileSystem.FileSystem;
         const path = yield* Path.Path;
-        const dir = yield* fileSystem.makeTempDirectoryScoped({ prefix: "supaterm-appimage-install-" });
+        const dir = yield* fileSystem.makeTempDirectoryScoped({
+          prefix: "supaterm-appimage-install-",
+        });
         const appImagePath = path.join(dir, "Supaterm-Code.AppImage");
         const stagedPath = path.join(dir, "Supaterm-Code-1.0.1.AppImage");
         const fdReportPath = path.join(dir, "relaunched-fds.txt");
