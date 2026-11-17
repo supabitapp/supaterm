@@ -139,7 +139,9 @@ describe.skipIf(HostProcess.Platform.defaultValue() !== "linux")(
   "installer archive download",
   () => {
     it("names the archive when it returns 404", async () => {
-      const root = await NodeFSP.mkdtemp(NodePath.join(NodeOS.tmpdir(), "supaterm-install-archive-"));
+      const root = await NodeFSP.mkdtemp(
+        NodePath.join(NodeOS.tmpdir(), "supaterm-install-archive-"),
+      );
       const arch = HostProcess.Architecture.defaultValue() === "arm64" ? "arm64" : "x64";
       const archive = `supaterm-1.2.3-linux-${arch}.tar.gz`;
       const server = NodeHttp.createServer((request, response) => {
