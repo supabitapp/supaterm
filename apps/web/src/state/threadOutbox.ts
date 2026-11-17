@@ -375,6 +375,7 @@ export const webThreadOutbox = createBrowserThreadOutbox<OutboxTurn>({
           attachments,
           ...(context ? { context } : {}),
         },
+        resendAfterSocketLoss: false,
       },
     });
     if (payload.linkPullRequestUrl)

@@ -263,6 +263,7 @@ describe("web thread outbox delivery", () => {
       });
       expect(harness.run.mock.calls[1]![2].input).toMatchObject({
         commandId: "stable-command",
+        resendAfterSocketLoss: false,
         message: {
           messageId: "message",
           text: "Saved prompt",
