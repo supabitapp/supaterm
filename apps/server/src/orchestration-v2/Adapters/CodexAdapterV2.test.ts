@@ -4428,15 +4428,17 @@ describe("CodexAdapterV2 post-settle continuation", () => {
             undefined,
             undefined,
             undefined,
-            (entry) => {
-              const gate = streamed
-                ? gates.find((gate) => entry.label === `item/completed/${gate.id}`)
-                : undefined;
-              return gate === undefined
-                ? Effect.void
-                : Deferred.succeed(gate.ready, undefined).pipe(
-                    Effect.andThen(Deferred.await(gate.release)),
-                  );
+            {
+              beforeEmitInbound: (entry) => {
+                const gate = streamed
+                  ? gates.find((gate) => entry.label === `item/completed/${gate.id}`)
+                  : undefined;
+                return gate === undefined
+                  ? Effect.void
+                  : Deferred.succeed(gate.ready, undefined).pipe(
+                      Effect.andThen(Deferred.await(gate.release)),
+                    );
+              },
             },
           );
           const now = yield* DateTime.now;
