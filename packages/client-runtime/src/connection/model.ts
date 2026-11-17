@@ -1,4 +1,8 @@
-import { type ClientConnectionMethod, EnvironmentId } from "@supaterm/contracts";
+import {
+  type ClientConnectionMethod,
+  EnvironmentId,
+  type ExecutionEnvironmentDescriptor,
+} from "@supaterm/contracts";
 import { RelayTunnelFailure } from "@supaterm/shared/relay/protocol";
 import * as Schema from "effect/Schema";
 
@@ -122,6 +126,8 @@ export interface PreparedConnection {
   readonly socketUrl: string;
   readonly httpAuthorization: PreparedHttpAuthorization | null;
   readonly target: ConnectionTarget;
+  /** What the server said about itself while this connection was prepared. */
+  readonly descriptor?: ExecutionEnvironmentDescriptor;
 }
 
 export type SupervisorConnectionPhase =

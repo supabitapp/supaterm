@@ -130,6 +130,8 @@ import { QuestionIcon as CircleHelpSource } from "@phosphor-icons/react/dist/csr
 export const CircleHelpIcon = /* @__PURE__ */ withIconDefaults(CircleHelpSource);
 import { ProhibitIcon as CircleSlashSource } from "@phosphor-icons/react/dist/csr/Prohibit";
 export const CircleSlashIcon = /* @__PURE__ */ withIconDefaults(CircleSlashSource);
+import { StopCircleIcon as CircleStopSource } from "@phosphor-icons/react/dist/csr/StopCircle";
+export const CircleStopIcon = /* @__PURE__ */ withIconDefaults(CircleStopSource);
 import { XCircleIcon as CircleXSource } from "@phosphor-icons/react/dist/csr/XCircle";
 export const CircleXIcon = /* @__PURE__ */ withIconDefaults(CircleXSource);
 import { XCircleIcon as CircleXFilledSource } from "@phosphor-icons/react/dist/csr/XCircle";

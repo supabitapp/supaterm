@@ -923,10 +923,18 @@ export interface SearchMatchHint {
 }
 
 // Most threads' branches start with the app's own worktree prefix ("supaterm/", and
-// "supaterm/" before it), so "supaterm connect" would match nearly every thread.
+// "supaterm/" before it, "supaterm-<hex>" when a "supaterm" branch blocks nested refs), so
+// "supaterm connect" would match nearly every thread.
 // Only before more text, so typing "supaterm/" does not empty the list for a keystroke.
 const WORKTREE_BRANCH_PREFIX_PATTERN = new RegExp(
-  `^(?:${WORKTREE_BRANCH_PREFIX}|supaterm)/(?=\\S)`,
+  `^(?:(?:${WORKTREE_BRANCH_PREFIX}|supaterm)/(?=\\S)|${WORKTREE_BRANCH_PREFIX}-(?=[0-9a-f]{8}$))`,
+);
+
+// The flat prefix anywhere in a query, while its hex is still being typed, so
+// "supaterm-abcd" and "connect supaterm-abcd1234" still reach the stripped branch field.
+const FLAT_BRANCH_QUERY_PREFIX_PATTERN = new RegExp(
+  `(^| )${WORKTREE_BRANCH_PREFIX}-(?=[0-9a-f]{1,8}(?: |$))`,
+  "g",
 );
 
 function searchableBranch(branch: string | null | undefined): string | null {
@@ -1007,7 +1015,8 @@ function threadFieldQuery(normalizedQuery: string): string {
       fieldQuery: normalizedQuery
         .replace(/^(?:pr|pull request|pull)\s*(?=#?\d)/, "")
         .replace(/^#\s*/, "")
-        .replace(WORKTREE_BRANCH_PREFIX_PATTERN, ""),
+        .replace(WORKTREE_BRANCH_PREFIX_PATTERN, "")
+        .replace(FLAT_BRANCH_QUERY_PREFIX_PATTERN, "$1"),
     };
   }
   return lastFieldQuery.fieldQuery;

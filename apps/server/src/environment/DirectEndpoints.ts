@@ -29,6 +29,7 @@ import {
 } from "@supaterm/shared/hostClassification";
 
 import * as ServerConfig from "../config.ts";
+import * as ServerEnvironment from "./ServerEnvironment.ts";
 import { isLoopbackHost } from "../startupAccess.ts";
 
 type NetworkInterfacesMap = ReturnType<typeof NodeOS.networkInterfaces>;
@@ -108,6 +109,7 @@ export const make = Effect.gen(function* () {
   const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
   const httpClient = yield* HttpClient.HttpClient;
   const platform = yield* HostProcess.Platform;
+  const environmentId = yield* (yield* ServerEnvironment.ServerEnvironment).getEnvironmentId;
 
   const servedEndpoint = yield* Ref.make<Option.Option<string>>(Option.none());
   const resolveAvailable = Effect.fn("DirectEndpoints.resolveAvailable")(function* () {
@@ -137,7 +139,7 @@ export const make = Effect.gen(function* () {
             magicDnsName,
             servePort: config.tailscaleServePort,
           });
-          return probeTailscaleHttpsEndpoint({ baseUrl: httpBaseUrl }).pipe(
+          return probeTailscaleHttpsEndpoint({ baseUrl: httpBaseUrl, environmentId }).pipe(
             Effect.map((reachable) => (reachable ? httpBaseUrl : null)),
           );
         }),

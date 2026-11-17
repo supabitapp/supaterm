@@ -135,6 +135,7 @@ import {
   shellStreamItemFromThreadShell,
   shellStreamItemsFromInitialSnapshot,
   loadSubscriberShellSnapshot,
+  resumeIdentityRoots,
   shellStreamItemsFromResumeSnapshot,
   shouldPublishShellApplicationEvent,
   skipUnchangedThreadShells,
@@ -1032,6 +1033,7 @@ export const subscribeOrchestrationV2Shell = Effect.fn("ws.orchestrationV2.subsc
   function* (input: {
     readonly afterSequence?: number;
     readonly httpSnapshotFallback?: true;
+    readonly knownProjectIdentities?: string;
     readonly requestCompletionMarker?: boolean;
     readonly omitIdleSubagents?: boolean;
     readonly omitOlderDone?: boolean;
@@ -1267,7 +1269,14 @@ export const subscribeOrchestrationV2Shell = Effect.fn("ws.orchestrationV2.subsc
       const loaded = yield* loadProjectMetadataSnapshot(highWater);
       const replay = toShellStream(Stream.fromIterable(changed.value));
       return composeShellStreamWithEnrichment({
-        initial: initialEnrichmentItems(loaded),
+        initial: initialEnrichmentItems({
+          snapshot: loaded.snapshot,
+          resolvedRepositoryIdentityRoots: resumeIdentityRoots({
+            projects: loaded.snapshot.projects,
+            resolvedRepositoryIdentityRoots: loaded.resolvedRepositoryIdentityRoots,
+            knownProjectIdentities: input.knownProjectIdentities,
+          }),
+        }),
         tail: Stream.concat(Stream.concat(replay, completionMarker), liveFrom(highWater)),
         enrichment: enrichmentRefreshes,
       });

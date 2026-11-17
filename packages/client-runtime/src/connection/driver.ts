@@ -24,6 +24,7 @@ import {
   connectionRoutes,
   routeEntry,
   routeHttpBaseUrl,
+  routeKeepsItsHost,
   sendsTokenInClear,
   usableRoutes,
 } from "./routes.ts";
@@ -316,6 +317,7 @@ export const make = Effect.gen(function* () {
     httpBaseUrl: Effect.Effect<string, E, R>,
     environmentId: string,
     timeoutMs: number,
+    keepsItsHost: (resolved: string) => boolean,
   ) =>
     httpBaseUrl.pipe(
       Effect.flatMap((resolved) =>
@@ -325,7 +327,7 @@ export const make = Effect.gen(function* () {
           // failure, replaces what an older check remembered.
           Effect.tap((descriptor) =>
             Option.isSome(remote)
-              ? remote.value.rememberCheckedDescriptor(resolved, descriptor)
+              ? remote.value.rememberCheckedDescriptor(resolved, descriptor, keepsItsHost(resolved))
               : Effect.void,
           ),
         ),
@@ -352,6 +354,9 @@ export const make = Effect.gen(function* () {
       leaseRouteOrigin(route, httpBaseUrl),
       entry.target.environmentId,
       timeoutMs,
+      // A relay tunnel's plain http origin is not the route's own address.
+      (resolved) =>
+        resolved.startsWith("https:") || (resolved === httpBaseUrl && routeKeepsItsHost(route)),
     ).pipe(
       Effect.withSpan("ConnectionDriver.checkRoute", {
         attributes: { "connection.target.kind": route.target._tag },
@@ -366,6 +371,7 @@ export const make = Effect.gen(function* () {
       Effect.succeed(prepared.httpBaseUrl),
       prepared.environmentId,
       ROUTE_CHECK_TIMEOUT_MS,
+      (resolved) => resolved.startsWith("https:"),
     ).pipe(
       Effect.withSpan("ConnectionDriver.checkHost", {
         attributes: { "connection.target.kind": prepared.target._tag },

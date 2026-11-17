@@ -39,6 +39,7 @@ import {
   TurnItemId,
 } from "./baseSchemas.ts";
 import { ChatAttachment } from "./chatAttachment.ts";
+import { ThreadTitleRegenerationOutcome } from "./threadTitle.ts";
 import {
   OrchestrationSearchThreadsInput,
   OrchestrationSearchThreadsResult,
@@ -421,6 +422,12 @@ const LenientThreadOpens = Schema.NullOr(OrchestrationV2ThreadOpens).pipe(
   Schema.catchDecoding(() => Effect.succeedSome(null)),
 );
 
+const OrchestrationV2LastTitleRegeneration = Schema.Struct({
+  ...ThreadTitleRegenerationOutcome.fields,
+  requestId: CommandId,
+  completedAt: Schema.DateTimeUtc,
+});
+
 export const OrchestrationV2AppThread = Schema.Struct({
   ...OrchestrationV2CreationFields,
   id: ThreadId,
@@ -480,6 +487,7 @@ export const OrchestrationV2AppThread = Schema.Struct({
       }),
     ),
   ),
+  lastTitleRegeneration: Schema.optional(Schema.NullOr(OrchestrationV2LastTitleRegeneration)),
   rollbackRequestId: Schema.optional(CommandId),
   rollbackFailure: Schema.optional(
     Schema.NullOr(
@@ -2185,6 +2193,7 @@ export const OrchestrationV2ThreadShell = Schema.Struct({
       }),
     ),
   ),
+  lastTitleRegeneration: Schema.optional(Schema.NullOr(OrchestrationV2LastTitleRegeneration)),
   deletedAt: Schema.NullOr(Schema.DateTimeUtc),
 });
 export type OrchestrationV2ThreadShell = typeof OrchestrationV2ThreadShell.Type;
@@ -2256,6 +2265,22 @@ export const OrchestrationV2ShellSnapshot = Schema.Struct({
   olderDone: Schema.optionalKey(OrchestrationV2OlderDoneThreads),
 });
 export type OrchestrationV2ShellSnapshot = typeof OrchestrationV2ShellSnapshot.Type;
+
+/** The HTTP shell snapshot. `projectIdentities` names its repository identities; see `knownProjectIdentities`. */
+export const OrchestrationV2ShellHttpSnapshot = Schema.Struct({
+  ...OrchestrationV2ShellSnapshot.fields,
+  projectIdentities: Schema.optionalKey(Schema.String),
+});
+export type OrchestrationV2ShellHttpSnapshot = typeof OrchestrationV2ShellHttpSnapshot.Type;
+
+/**
+ * The HTTP shell route's answer to `resumeFrom` when the socket can replay from that cursor:
+ * the client keeps its rows and subscribes from the cursor.
+ */
+export const OrchestrationV2ShellResumable = Schema.Struct({
+  resumable: Schema.Literal(true),
+});
+export type OrchestrationV2ShellResumable = typeof OrchestrationV2ShellResumable.Type;
 
 const OrchestrationV2KnownShellStreamItems = [
   Schema.Struct({
@@ -2366,6 +2391,14 @@ export const OrchestrationV2AppThreadJson = OrchestrationV2AppThread.mapFields((
         requestId: CommandId,
         startedAt: Schema.DateTimeUtcFromString,
       }),
+    ),
+  ),
+  lastTitleRegeneration: Schema.optional(
+    Schema.NullOr(
+      OrchestrationV2LastTitleRegeneration.mapFields((fields) => ({
+        ...fields,
+        completedAt: Schema.DateTimeUtcFromString,
+      })),
     ),
   ),
   deletedAt: Schema.NullOr(Schema.DateTimeUtcFromString),
@@ -2802,6 +2835,14 @@ export const OrchestrationV2ThreadShellJson = OrchestrationV2ThreadShell.mapFiel
       }),
     ),
   ),
+  lastTitleRegeneration: Schema.optional(
+    Schema.NullOr(
+      OrchestrationV2LastTitleRegeneration.mapFields((fields) => ({
+        ...fields,
+        completedAt: Schema.DateTimeUtcFromString,
+      })),
+    ),
+  ),
   deletedAt: Schema.NullOr(Schema.DateTimeUtcFromString),
 }));
 export type OrchestrationV2ThreadShellJson = typeof OrchestrationV2ThreadShellJson.Type;
@@ -3186,6 +3227,7 @@ export const OrchestrationV2Command = Schema.Union([
     threadId: ThreadId,
     requestId: CommandId,
     title: Schema.optional(TrimmedNonEmptyString),
+    outcome: Schema.optional(ThreadTitleRegenerationOutcome),
   }),
   /** Makes a side chat a full thread: listed and forkable. */
   Schema.Struct({
@@ -3708,6 +3750,11 @@ export const OrchestrationV2SubscribeShellInput = Schema.Struct({
    * a socket snapshot, which clients without transport compression download over gzip HTTP.
    */
   httpSnapshotFallback: Schema.optionalKey(Schema.Literal(true)),
+  /**
+   * The `projectIdentities` of the HTTP snapshot whose cursor is `afterSequence`, when the client
+   * changed nothing since. A resume that still has the same identities does not resend them.
+   */
+  knownProjectIdentities: Schema.optionalKey(Schema.String),
   requestCompletionMarker: Schema.optionalKey(Schema.Boolean),
   /**
    * Snapshots leave out idle subagent children; read them with `getThreadFamily`. Send only to

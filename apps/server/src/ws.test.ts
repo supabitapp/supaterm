@@ -147,6 +147,7 @@ import * as ShellSyncGeneration from "./orchestration-v2/ShellSyncGeneration.ts"
 import * as EventSink from "./orchestration-v2/EventSink.ts";
 import * as ThreadCommandExecutor from "./orchestration-v2/ThreadCommandExecutor.ts";
 import * as IdAllocator from "@supaterm/provider-core/server/IdAllocator";
+import { projectIdentitiesDigest } from "./orchestration-v2/ShellStream.ts";
 import * as OrchestrationEventStore from "./persistence/OrchestrationEventStore.ts";
 import * as SqlitePersistence from "./persistence/Sqlite.ts";
 import * as ExternalLauncher from "./process/externalLauncher.ts";
@@ -1913,6 +1914,102 @@ it.effect("thread resume across compacted history keeps message order and final 
       ),
     ),
   ),
+);
+
+// A shell cursor at the high-water missed nothing; resuming must not resend a snapshot. A client
+// that just loaded the HTTP snapshot gets the marker, and the project identities only when it
+// does not name them.
+it.effect.each([
+  { knowsIdentities: false, isRepository: true, kinds: ["snapshot", "synchronized"] },
+  { knowsIdentities: true, isRepository: true, kinds: ["synchronized"] },
+  // The client keeps a cached identity over an absent one, so "resolved to none" still goes out.
+  { knowsIdentities: true, isRepository: false, kinds: ["snapshot", "synchronized"] },
+] as const)(
+  "shell resume at its own high-water skips the snapshot (knows identities: $knowsIdentities, repository: $isRepository)",
+  ({ knowsIdentities, isRepository, kinds }) =>
+    Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient;
+      const now = "2026-10-13T00:00:00.000Z";
+      const threadId = ThreadId.make("thread:idle");
+      const [last] = yield* sql<{ sequence: number }>`
+        INSERT INTO orchestration_events (
+          event_id, aggregate_kind, stream_id, stream_version, event_type,
+          occurred_at, actor_kind, payload_json, metadata_json, application_event_version
+        ) VALUES (
+          'idle:0', 'thread', ${threadId}, 0, 'provider-session.detached',
+          ${now}, 'server', ${JSON.stringify({ providerSessionId: "session:idle", detachedAt: now })},
+          '{}', 2
+        ) RETURNING sequence
+      `;
+      const identity = isRepository
+        ? ({
+            canonicalKey: "github.com/example/idle",
+            locator: {
+              source: "git-remote",
+              remoteName: "origin",
+              remoteUrl: "git@github.com:example/idle",
+            },
+          } as const)
+        : null;
+      const project = {
+        id: ProjectId.make("project:idle"),
+        title: "Idle",
+        workspaceRoot: "/tmp/idle",
+        defaultModelSelection: null,
+        scripts: [],
+        createdAt: now,
+        updatedAt: now,
+      } satisfies OrchestrationProjectShell;
+      const exit = yield* subscribeOrchestrationV2Shell({
+        afterSequence: last!.sequence,
+        requestCompletionMarker: true,
+        ...(knowsIdentities
+          ? {
+              knownProjectIdentities: projectIdentitiesDigest([
+                { ...project, repositoryIdentity: identity },
+              ]),
+            }
+          : {}),
+      }).pipe(
+        Effect.flatMap((stream) =>
+          stream.pipe(
+            Stream.takeUntil((item) => item.kind === "synchronized"),
+            Stream.map((item) => item.kind),
+            Stream.runCollect,
+          ),
+        ),
+        Effect.provideService(ThreadManagement.ThreadManagementService, {
+          ensureLegacyTranscript: () => Effect.void,
+          getThreadSnapshot: () => Effect.die("snapshot"),
+          listActiveShellIndex: () => Effect.die("snapshot"),
+          readShellSnapshot: () => Effect.die("snapshot"),
+          listActiveSubagentThreadIds: () => Effect.succeed([]),
+          streamStoredEventsFrom: () => Stream.empty,
+        } as unknown as ThreadManagement.ThreadManagementService["Service"]),
+        Effect.provideService(ProjectStore.ProjectStoreV2, {
+          listShells: () => Effect.succeed([project]),
+        } as unknown as ProjectStore.ProjectStoreV2["Service"]),
+        Effect.provideService(
+          ProjectService.ProjectService,
+          {} as ProjectService.ProjectService["Service"],
+        ),
+        Effect.provideService(ProjectEnrichment.ProjectEnrichmentService, {
+          subscribeChanges: PubSub.subscribe(yield* PubSub.unbounded()),
+          getAvailable: () =>
+            Effect.succeed({
+              repositoryIdentity: identity,
+              faviconPath: null,
+              repositoryIdentityResolved: true,
+            }),
+        } as unknown as ProjectEnrichment.ProjectEnrichmentService["Service"]),
+        Effect.exit,
+      );
+      // A snapshot load dies with "snapshot", so success means the resume replayed nothing.
+      assert.deepEqual(
+        Exit.isFailure(exit) ? Cause.squash(exit.cause) : Array.from(exit.value),
+        kinds,
+      );
+    }).pipe(Effect.scoped, Effect.provide(ReplayTestLayer)),
 );
 
 const acpDriver = ProviderDriverKind.make("acpRegistry");

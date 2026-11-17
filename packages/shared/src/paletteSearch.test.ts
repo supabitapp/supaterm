@@ -339,6 +339,18 @@ describe("scoreThreadSearch beyond Latin text and titles", () => {
       ranges: [{ start: 0, end: 7 }],
     });
     expect(scoreThreadSearch("trim", subject, NOW)?.explain?.()).toBeUndefined();
+    // Nor is it in the flat supaterm-<hex> form used when a `supaterm` branch blocks nested refs.
+    const flat = thread("Add search", { branch: "supaterm-abcd1234" });
+    expect(scoreThreadSearch("supaterm", flat, NOW)).toBeNull();
+    expect(scoreThreadSearch("supaterm connect", flat, NOW)).toBeNull();
+    expect(scoreThreadSearch("abcd1234", flat, NOW)).not.toBeNull();
+    for (const query of [
+      "supaterm-abcd",
+      "supaterm-abcd1234 connect",
+      "connect supaterm-abcd1234",
+    ]) {
+      expect(scoreThreadSearch(query, { ...flat, projectTitle: "connect" }, NOW)).not.toBeNull();
+    }
   });
 
   it("reads letters and numbers typed together, without forgiving typos in numbers", () => {
