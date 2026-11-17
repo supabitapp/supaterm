@@ -1557,7 +1557,9 @@ it.layer(NodeServices.layer)("build-desktop-artifact", (it) => {
         assert.instanceOf(error, BundleNotSelfContainedError);
         assert.include(error.output, "supaterm-deliberately-missing-package");
 
-        const emptyStage = yield* fs.makeTempDirectoryScoped({ prefix: "supaterm-linux-payload-test-" });
+        const emptyStage = yield* fs.makeTempDirectoryScoped({
+          prefix: "supaterm-linux-payload-test-",
+        });
         const missing = yield* validateLinuxPackagedPayload({ stageDistDir: emptyStage }).pipe(
           Effect.flip,
         );

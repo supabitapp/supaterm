@@ -1413,9 +1413,11 @@ function forkInheritedRunOrdinals(
   forkCreatedAt: DateTime.Utc,
 ): Map<RunId, number> {
   return new Map(
-    runs
-      .filter((run) => !isRolledBackBeforeFork(runRolledBackAt(run), forkCreatedAt))
-      .map((run) => [run.id, run.ordinal]),
+    runs.flatMap((run) =>
+      isRolledBackBeforeFork(runRolledBackAt(run), forkCreatedAt)
+        ? []
+        : [[run.id, run.ordinal] as const],
+    ),
   );
 }
 
