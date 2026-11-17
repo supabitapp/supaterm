@@ -3768,7 +3768,7 @@ it.layer(McpProviderSessions.layer)("OpenCode2 adapter", (it) => {
       yield* Deferred.succeed(resume, undefined);
       yield* Deferred.await(recovered);
       assert.deepEqual(
-        collected.filter((event) => event.type === "turn.terminal").map((event) => event.status),
+        collected.flatMap((event) => (event.type === "turn.terminal" ? [event.status] : [])),
         ["interrupted"],
       );
       assert.isFalse(
