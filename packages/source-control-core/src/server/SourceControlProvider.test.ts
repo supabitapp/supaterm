@@ -19,6 +19,8 @@ it.each([
   ["github.com:SupabitApp/supaterm.git", "SupabitApp/supaterm"],
   ["gitlab.com:SupabitApp/platform/supaterm", "SupabitApp/platform/supaterm"],
   ["https://github.com/SupabitApp/supaterm.git", "SupabitApp/supaterm"],
+  ["https://github.com/SupabitApp/supaterm.git?view=compact", "SupabitApp/supaterm"],
+  ["https://github.com/SupabitApp/supaterm.git#section", "SupabitApp/supaterm"],
   ["C:/repos/supaterm", null],
 ])("reads the repository path of %s", (remoteUrl, expected) => {
   assert.strictEqual(repositoryPathFromRemoteUrl(remoteUrl), expected);

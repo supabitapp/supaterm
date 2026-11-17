@@ -41,6 +41,18 @@ const loader = Migrator.fromRecord(
   ),
 );
 
+export function skippedMigrations(
+  recorded: ReadonlyArray<{ readonly id: number; readonly name: string }>,
+): string[] {
+  const latestRecordedId = Math.max(0, ...recorded.map((row) => row.id));
+  const recordedNames = new Map(recorded.map((row) => [row.id, row.name]));
+  return migrationManifest.flatMap(([id, name]) => {
+    if (id > latestRecordedId) return [];
+    const recordedName = recordedNames.get(id);
+    return recordedName === name ? [] : [`${id}_${name} (recorded: ${recordedName ?? "nothing"})`];
+  });
+}
+
 /**
  * The migrator compares ids only, so it would silently skip this build's migrations at or below
  * the highest recorded id that the ledger holds under another name. Refuse that. Unknown recorded
@@ -56,14 +68,9 @@ const assertKnownMigrationHistory = Effect.fn("assertKnownMigrationHistory")(fun
     readonly migration_id: number;
     readonly name: string;
   }>`SELECT migration_id, name FROM effect_sql_migrations`;
-  const latestRecordedId = Math.max(0, ...recorded.map((row) => row.migration_id));
-  const recordedNames = new Map(recorded.map((row) => [row.migration_id, row.name]));
-  const skipped = migrationManifest.flatMap(([id, name]) => {
-    if (id > latestRecordedId) return [];
-    const recordedName = recordedNames.get(id);
-    if (recordedName === name) return [];
-    return [`${id}_${name} (recorded: ${recordedName ?? "nothing"})`];
-  });
+  const skipped = skippedMigrations(
+    recorded.map((row) => ({ id: row.migration_id, name: row.name })),
+  );
   if (skipped.length > 0) {
     return yield* new Migrator.MigrationError({
       kind: "BadState",

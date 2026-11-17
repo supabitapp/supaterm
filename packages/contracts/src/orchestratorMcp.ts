@@ -324,6 +324,8 @@ export const OrchestratorMcpThreadPullRequest = Schema.Struct({
   url: TrimmedNonEmptyString,
   source: ThreadPullRequestLinkSource,
   state: Schema.NullOr(PullRequestState),
+  watching: Schema.Boolean,
+  watchStartedAt: Schema.NullOr(IsoDateTime),
 });
 export type OrchestratorMcpThreadPullRequest = typeof OrchestratorMcpThreadPullRequest.Type;
 
@@ -341,7 +343,9 @@ export const OrchestratorMcpThreadListItem = Schema.Struct({
   runtimeMode: RuntimeMode,
   interactionMode: ProviderInteractionMode,
   linkedPullRequest: Schema.NullOr(ThreadLinkedPullRequest),
+  /** Linked pull requests not yet merged or closed; list_thread_pull_requests has all of them. */
   pullRequests: Schema.optional(Schema.Array(OrchestratorMcpThreadPullRequest)),
+  pullRequestCount: Schema.optional(NonNegativeInt),
   done: Schema.Boolean,
   doneAt: Schema.NullOr(IsoDateTime),
   snoozed: Schema.Boolean,
@@ -412,7 +416,9 @@ export const OrchestratorMcpThreadDetail = Schema.Struct({
   runtimeMode: RuntimeMode,
   interactionMode: ProviderInteractionMode,
   linkedPullRequest: Schema.NullOr(ThreadLinkedPullRequest),
+  /** Open linked pull requests, on the first page only; list_thread_pull_requests has all of them. */
   pullRequests: Schema.optional(Schema.Array(OrchestratorMcpThreadPullRequest)),
+  pullRequestCount: Schema.optional(NonNegativeInt),
   titleRegeneration: Schema.NullOr(ThreadTitleRegeneration),
   branch: Schema.NullOr(Schema.String),
   worktreePath: Schema.NullOr(Schema.String),
@@ -505,6 +511,12 @@ export const OrchestratorMcpThreadWaitInput = Schema.Struct({
   threadId: ThreadId,
   runId: Schema.optional(RunId),
   timeoutMs: Schema.optional(Schema.Finite),
+  untilDelegatedWorkSettled: Schema.optional(
+    Schema.Boolean.annotate({
+      description:
+        "Also wait for its delegated and background tasks and their completions to settle. `resultRun` then names the run with its final answer.",
+    }),
+  ),
 });
 export type OrchestratorMcpThreadWaitInput = typeof OrchestratorMcpThreadWaitInput.Type;
 
@@ -514,6 +526,8 @@ export const OrchestratorMcpThreadWaitResult = Schema.Struct({
   status: OrchestratorMcpThreadStatus,
   timedOut: Schema.Boolean,
   next: Schema.optional(OrchestratorMcpRunningTaskNext),
+  /** With untilDelegatedWorkSettled, once settled: the run whose reply is the thread's result. */
+  resultRun: Schema.optional(Schema.Struct({ runId: RunId, status: OrchestrationV2RunStatus })),
 });
 export type OrchestratorMcpThreadWaitResult = typeof OrchestratorMcpThreadWaitResult.Type;
 

@@ -744,24 +744,6 @@ export function orchestrationV2RunWorkStartedAt(
   return run.workStartedAt ?? run.startedAt ?? run.requestedAt;
 }
 
-/**
- * Work started now would run in the project checkout, not the worktree the thread asked for. A
- * failed or interrupted setup leaves the request standing until a worktree exists.
- */
-export function orchestrationV2WorktreePending(
-  worktreePath: string | null,
-  runs: ReadonlyArray<Pick<OrchestrationV2Run, "status" | "workspacePreparation">>,
-): boolean {
-  return (
-    worktreePath === null &&
-    runs.some(
-      (run) =>
-        (run.status === "preparing" || run.status === "failed" || run.status === "interrupted") &&
-        run.workspacePreparation?.type === "worktree",
-    )
-  );
-}
-
 export const OrchestrationV2RunAttempt = Schema.Struct({
   id: RunAttemptId,
   // Provider-thread rows can be reused after recovery; retain the native input destination.
@@ -1077,6 +1059,7 @@ export const OrchestrationV2PendingBackgroundTask = kindUnionWithFallback(
 export type OrchestrationV2PendingBackgroundTask = typeof OrchestrationV2PendingBackgroundTask.Type;
 
 export const OrchestrationV2ProviderThreadNativeMetadata = Schema.Struct({
+  cursorStoreCwd: Schema.optional(TrimmedNonEmptyString),
   modelSelection: Schema.optional(ModelSelection),
   title: Schema.optional(Schema.NullOr(TrimmedNonEmptyString)),
   updatedAt: Schema.optional(Schema.NullOr(TrimmedNonEmptyString)),
@@ -3239,6 +3222,8 @@ export const OrchestrationV2Command = Schema.Union([
     restartContinuationOfRunId: Schema.optional(RunId),
     usageLimitContinuationOfRunId: Schema.optional(RunId),
     manualContinuationOfRunId: Schema.optional(RunId),
+    steerFollowUpOfRunId: Schema.optional(RunId),
+    steerFollowUpAfterRunOrdinal: Schema.optional(NonNegativeInt),
     usageLimitRecoveryRequestId: Schema.optional(CommandId),
     deliveryIntent: Schema.optional(Schema.Literals(["auto", "steer", "restart"])),
     delegatedCompletion: Schema.optional(

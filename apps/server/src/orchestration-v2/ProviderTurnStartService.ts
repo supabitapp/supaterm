@@ -26,6 +26,10 @@ import * as Predicate from "effect/Predicate";
 import * as Schema from "effect/Schema";
 
 import * as ServerConfig from "../config.ts";
+import {
+  CLAUDE_PROVIDER,
+  CLAUDE_QUERY_ENDED_BEFORE_TURN_DETAIL,
+} from "./Adapters/ClaudeAdapterV2.ts";
 import { withWorkspaceLease } from "../workspace/workspaceLease.ts";
 import * as GitWorkflowService from "../git/GitWorkflowService.ts";
 import * as ProjectService from "../project/ProjectService.ts";
@@ -94,6 +98,7 @@ class WorktreeRecreateNoBaseError extends Schema.TaggedError<WorktreeRecreateNoB
 }
 
 const isProviderTurnStartError = Schema.is(ProviderTurnStartError);
+const isProviderAdapterProtocolError = Schema.is(ProviderAdapter.ProviderAdapterProtocolError);
 const isProviderAdapterOpenSessionError = Schema.is(
   ProviderAdapter.ProviderAdapterOpenSessionError,
 );
@@ -108,6 +113,9 @@ const PROMPT_REFUSAL_TAGS = [
 
 const refusedBeforePrompt = (error: unknown): boolean =>
   PROMPT_REFUSAL_TAGS.some((tag) => Predicate.isTagged(error, tag)) ||
+  (isProviderAdapterProtocolError(error) &&
+    error.driver === CLAUDE_PROVIDER &&
+    error.detail === CLAUDE_QUERY_ENDED_BEFORE_TURN_DETAIL) ||
   (Predicate.hasProperty(error, "cause") && refusedBeforePrompt(error.cause));
 
 const startFailureMessage = (error: Error): string => {

@@ -45,6 +45,7 @@ import * as ProviderInstallationGate from "./ProviderInstallationGate.ts";
 import * as ProviderOrchestrationAdapterInfrastructure from "./ProviderOrchestrationAdapterInfrastructure.ts";
 import * as PortScanner from "../preview/PortScanner.ts";
 import * as ProviderHostLive from "./ProviderHostLive.ts";
+import * as SqlitePersistence from "../persistence/Sqlite.ts";
 
 vi.mock("@anthropic-ai/claude-agent-sdk", { spy: true });
 
@@ -200,7 +201,7 @@ describe("ProviderInstanceRegistry — multi-instance codex slice", () => {
   );
   const layerBase = ProviderHostLive.layer.pipe(Layer.provideMerge(layerBaseDeps));
   const layerTest = ProviderOrchestrationAdapterInfrastructure.layer.pipe(
-    Layer.provide(PortScanner.layerTest),
+    Layer.provide(Layer.merge(PortScanner.layerTest, SqlitePersistence.layerMemory)),
     Layer.provideMerge(layerBase),
   );
 
