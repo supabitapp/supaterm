@@ -132,6 +132,8 @@ import * as Metrics from "../observability/Metrics.ts";
 import * as SecretRequests from "../secrets/SecretRequests.ts";
 
 const DEFAULT_WAIT_TIMEOUT_MS = 10 * 60 * 1_000;
+// Nothing is written while a task wait blocks, and Node fetch drops a silent call at 300 s.
+const DEFAULT_TASK_WAIT_TIMEOUT_MS = 4 * 60 * 1_000;
 const MAX_WAIT_TIMEOUT_MS = 60 * 60 * 1_000;
 const TASK_WAKE_EVENTS = [
   { thread: "parent", eventType: "subagent.updated" },
@@ -2501,7 +2503,7 @@ const make = Effect.gen(function* () {
       }
       const timeoutMs = Math.min(
         MAX_WAIT_TIMEOUT_MS,
-        Math.max(1, input.timeoutMs ?? DEFAULT_WAIT_TIMEOUT_MS),
+        Math.max(1, input.timeoutMs ?? DEFAULT_TASK_WAIT_TIMEOUT_MS),
       );
       const upgradeWake = threadManagement
         .dispatch({

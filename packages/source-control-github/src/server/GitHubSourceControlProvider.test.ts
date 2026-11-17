@@ -1190,6 +1190,10 @@ it.effect.each([
         `${host}/repos/${expected}`,
         `${host}/repos/${expected}/pulls`,
       ]);
+      assert.deepStrictEqual(
+        yield* provider.createsChangeRequestsIn!({ ...input, repository: "me/web" }),
+        expected === "me/web",
+      );
     }).pipe(
       Effect.provide(layer),
       Effect.provideService(HostProcess.Environment, { GH_REPO: envRepository }),
@@ -1461,30 +1465,33 @@ it.effect("ignores an empty normalized GH_HOST", () => {
   });
 });
 
-it.effect("says a GH_REPO naming an unparseable host targets no remote rather than failing", () => {
-  const { layer } = harness({
-    remotes: remotesOutput(["upstream", "git@github.com:acme/web.git"]),
-    resolved: "",
-    api: {},
-  });
-  return Effect.gen(function* () {
-    const provider = yield* GitHubSourceControlProvider.make;
-    const targets = yield* provider.createsChangeRequestsIn!({
-      cwd: "/repo",
-      context: {
-        provider: {
-          kind: SourceControlProviderKind.make("github"),
-          name: "GitHub",
-          baseUrl: "https://github.com",
-        },
-        remoteName: "upstream",
-        remoteUrl: "git@github.com:acme/web.git",
-      },
-      repository: "acme/web",
+it.effect(
+  "says a GH_REPO naming an unparseable host falls back to the remotes, as creation does",
+  () => {
+    const { layer } = harness({
+      remotes: remotesOutput(["upstream", "git@github.com:acme/web.git"]),
+      resolved: "",
+      api: {},
     });
-    assert.isFalse(targets);
-  }).pipe(
-    Effect.provide(layer),
-    Effect.provideService(HostProcess.Environment, { GH_REPO: "bad host/acme/web" }),
-  );
-});
+    return Effect.gen(function* () {
+      const provider = yield* GitHubSourceControlProvider.make;
+      const targets = yield* provider.createsChangeRequestsIn!({
+        cwd: "/repo",
+        context: {
+          provider: {
+            kind: SourceControlProviderKind.make("github"),
+            name: "GitHub",
+            baseUrl: "https://github.com",
+          },
+          remoteName: "upstream",
+          remoteUrl: "git@github.com:acme/web.git",
+        },
+        repository: "acme/web",
+      });
+      assert.isTrue(targets);
+    }).pipe(
+      Effect.provide(layer),
+      Effect.provideService(HostProcess.Environment, { GH_REPO: "bad host/acme/web" }),
+    );
+  },
+);

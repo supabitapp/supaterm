@@ -972,7 +972,6 @@ export const makeVcsDriverShape = Effect.fn("makeGitVcsDriverShape")(function* (
       const indexId = yield* random.uuidV4();
       const tempIndexPath = path.join(gitCommonDir, `supaterm-checkpoint-index-${indexId}`);
       const commitEnv: NodeJS.ProcessEnv = {
-        ...process.env,
         GIT_INDEX_FILE: tempIndexPath,
         GIT_AUTHOR_NAME: "supaterm",
         GIT_AUTHOR_EMAIL: "supaterm@users.noreply.github.com",
