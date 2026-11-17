@@ -126,7 +126,7 @@ describe("runtime diagnostics in the v2 work log", () => {
 
     expect(diagnostic?.kind).toBe("work");
     if (diagnostic?.kind !== "work") throw new Error("Expected a diagnostic row");
-    expect(diagnostic.isExpandedToolGroup).toBe(false);
+    expect(diagnostic.groupDisclosure).toBeNull();
     expect(diagnostic.groupedEntries).toHaveLength(1);
     expect(workEntryDisplayLabel(diagnostic.groupedEntries[0]!, undefined)).toBe(retainedMessage);
   });
