@@ -48,6 +48,7 @@ function environment(
       traceId: error === null ? null : "trace-1",
     },
     serverConfig: null,
+    refusedRouteIds: [],
   };
   return projectWorkspaceEnvironment(ENVIRONMENT_ID, presentation);
 }
