@@ -1,3 +1,4 @@
+// @effect-diagnostics nodeBuiltinImport:off -- one synchronous probe at module load gates the case-sensitive test.
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import * as NodeFS from "node:fs";
 import * as NodeOS from "node:os";
