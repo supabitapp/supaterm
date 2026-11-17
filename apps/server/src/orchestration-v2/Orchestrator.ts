@@ -15910,7 +15910,8 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
               stored.event.payload.queueHeld === true)) &&
           ((stored.event.payload.delegatedTaskId !== undefined &&
             (stored.event.payload.status === "queued" ||
-              stored.event.payload.status === "starting")) ||
+              stored.event.payload.status === "starting" ||
+              stored.event.payload.status === "waiting")) ||
             isOrchestrationV2RunSettled(stored.event.payload.status)),
       ),
       Stream.runForEach((stored) =>
