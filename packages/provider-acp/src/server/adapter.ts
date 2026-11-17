@@ -807,10 +807,9 @@ export const AcpProviderCapabilitiesV2 = {
   checkpointing: {
     appCanCheckpointFilesystem: true,
     supportsNestedCheckpointScopes: true,
-    // ACP defines no conversation truncation, so rollback resets the provider
-    // conversation: Supaterm restores checkpointed state and the next turn starts a
-    // fresh agent session without the rolled-back context.
-    providerCanRollbackConversation: true,
+    // ACP defines no conversation truncation, so rollback starts a fresh agent
+    // session and turn start replays the kept history.
+    providerCanRollbackConversation: false,
     providerRollbackReturnsSnapshot: true,
     providerCanReadConversationSnapshot: false,
   },
