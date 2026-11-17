@@ -339,6 +339,8 @@ interface ThreadState {
    * so the next execution end belongs to that run; it clears this and ends no turn.
    */
   unsettledRun: UnsettledRun;
+  /** Execution starts seen; lets a check that awaited OpenCode notice a run that began meanwhile. */
+  starts: number;
   directory: string;
   agent: string;
   title: string | undefined;
@@ -367,6 +369,8 @@ interface ThreadState {
   >;
   readonly stoppedChildren: Set<string>;
   readonly strandedSteers: Set<string>;
+  /** Prompts other clients queued while no Supaterm turn ran, shown once delivered; `leads` the next wake if no report preceded it. */
+  readonly externalPrompts: Map<string, { readonly text: string; leads: boolean }>;
   mcp:
     | { readonly name: string; readonly directory: string; readonly credential: string }
     | undefined;
@@ -647,6 +651,7 @@ const turnPromptId = (sessionId: string, attemptId: string) =>
   SessionMessage.ID.make(`msg_supaterm_turn_${sessionId}:${attemptId}`);
 const steerPromptId = (sessionId: string, messageId: string) =>
   SessionMessage.ID.make(`msg_supaterm_steer_${sessionId}:${messageId}`);
+const isOwnPrompt = (inboxId: string) => inboxId.startsWith("msg_supaterm_");
 
 const promptOf = (turn: OrchestrationV2ProviderTurn) => {
   const nativeId = turn.nativeTurnRef?.nativeId;
@@ -842,6 +847,7 @@ export const make = Effect.fn("OpenCode2Adapter.make")(function* (instanceId: Pr
       active: undefined,
       model: undefined,
       unsettledRun: "none",
+      starts: 0,
       directory,
       agent: "build",
       title: undefined,
@@ -854,6 +860,7 @@ export const make = Effect.fn("OpenCode2Adapter.make")(function* (instanceId: Pr
       reports: new Map(),
       stoppedChildren: new Set(),
       strandedSteers: new Set(),
+      externalPrompts: new Map(),
       mcp: undefined,
       instructions: undefined,
     });
@@ -1130,6 +1137,57 @@ export const make = Effect.fn("OpenCode2Adapter.make")(function* (instanceId: Pr
           messageId,
           text: entry.text,
           streaming: !completed,
+        },
+      });
+    });
+
+    // Supaterm's own prompts are sent while their turn is active, so only other clients reach here.
+    const emitExternalPrompt = Effect.fnUntraced(function* (
+      state: ThreadState,
+      turn: ActiveTurn,
+      inboxId: string,
+      text: string,
+    ) {
+      const now = yield* DateTime.now;
+      const base = {
+        ...itemBase(state, turn, inboxId, "completed", now, now, now),
+        nodeId: turn.input.rootNodeId,
+      };
+      // History derives the same ID from the message ID, so a later snapshot does not duplicate it.
+      const messageId = idAllocator.derive.messageFromProviderItem({
+        driver,
+        nativeItemId: inboxId,
+      });
+      yield* emit({
+        type: "message.updated",
+        driver,
+        message: {
+          createdBy: "user",
+          creationSource: "provider",
+          id: messageId,
+          threadId: turn.input.threadId,
+          runId: turn.input.runId,
+          nodeId: base.nodeId,
+          role: "user",
+          text,
+          attachments: [],
+          streaming: false,
+          createdAt: now,
+          updatedAt: now,
+        },
+      });
+      yield* emit({
+        type: "turn_item.updated",
+        driver,
+        turnItem: {
+          ...base,
+          createdBy: "user",
+          creationSource: "provider",
+          type: "user_message",
+          messageId,
+          inputIntent: "turn_start",
+          text,
+          attachments: [],
         },
       });
     });
@@ -2788,6 +2846,10 @@ export const make = Effect.fn("OpenCode2Adapter.make")(function* (instanceId: Pr
       const { delivered, stopped } = yield* takeReports(state);
       if (stopped) return;
       const route = state.providerThread.appThreadId;
+      // History begins at whichever OpenCode queued first: a report or another client's prompt.
+      // A prompt leads only this wake, so one dropped undelivered cannot move a later boundary.
+      const leading = [...state.externalPrompts].find(([, prompt]) => prompt.leads)?.[0];
+      for (const prompt of state.externalPrompts.values()) prompt.leads = false;
       const wake: Wake = {
         messageId:
           route === null
@@ -2799,7 +2861,7 @@ export const make = Effect.fn("OpenCode2Adapter.make")(function* (instanceId: Pr
         detail: delivered.length === 0 ? null : delivered.map((entry) => entry.text).join("\n\n"),
         dropped: false,
         after: delivered.at(-1)?.inboxId,
-        first: delivered[0]?.inboxId,
+        first: leading ?? delivered[0]?.inboxId,
         children: new Set(),
       };
       state.wakes.push(wake);
@@ -3054,6 +3116,7 @@ export const make = Effect.fn("OpenCode2Adapter.make")(function* (instanceId: Pr
           // `unsettledRun` waits on is over: its unseen end was lost with a dropped stream, and
           // the next end is this execution's own.
           const state = threads.get(sessionId);
+          if (state !== undefined) state.starts += 1;
           if (state?.unsettledRun === "started") state.unsettledRun = "none";
           else if (state?.unsettledRun === "notStarted") state.unsettledRun = "started";
           busy.add(sessionId);
@@ -3208,21 +3271,36 @@ export const make = Effect.fn("OpenCode2Adapter.make")(function* (instanceId: Pr
       }
       if (event.type === "session.inbox.cancelled" || event.type === "session.inbox.delivered") {
         state.reports.delete(event.data.inboxID);
+        const external = state.externalPrompts.get(event.data.inboxID);
+        state.externalPrompts.delete(event.data.inboxID);
         const turn = state.active;
         if (turn !== undefined && turn.steers.delete(event.data.inboxID)) {
           turn.settledInbox.add(event.data.inboxID);
           if (event.type === "session.inbox.cancelled") yield* endIfSettled(state, turn);
+        } else if (
+          event.type === "session.inbox.delivered" &&
+          external !== undefined &&
+          turn !== undefined
+        ) {
+          yield* emitExternalPrompt(state, turn, event.data.inboxID, external.text);
         }
         return;
       }
+      // No Supaterm turn existed while a wake held these, so its user items came from another client.
       if (
         event.type === "session.inbox.enqueued" &&
         event.data.item.type === "user" &&
-        state.subagent !== undefined &&
-        state.subagent.prompt === undefined &&
-        state.active === undefined
+        (state.active === undefined || (held && state.subagent === undefined))
       ) {
-        state.subagent.prompt = event.data.item.payload.text;
+        const text = event.data.item.payload.text;
+        if (state.subagent !== undefined) state.subagent.prompt ??= text;
+        // Supaterm's own prompts can be admitted after a failed submit ended their turn.
+        else if (!isOwnPrompt(event.data.inboxID)) {
+          state.externalPrompts.set(event.data.inboxID, {
+            text,
+            leads: !held && state.reports.size === 0,
+          });
+        }
         return;
       }
       const started =
@@ -3527,11 +3605,13 @@ export const make = Effect.fn("OpenCode2Adapter.make")(function* (instanceId: Pr
       currentScope = scope;
       yield* Scope.close(previous, Exit.void);
       // A restarted server forgot Supaterm's MCP servers; the next turn adds them again.
+      // The gap may have started a pending prompt unseen, so none may set a later wake's boundary.
       for (const state of threads.values()) {
         state.mcp = undefined;
         state.goalFresh = false;
         state.goalRefreshing = false;
         state.goalRevision += 1;
+        for (const prompt of state.externalPrompts.values()) prompt.leads = false;
       }
       if (supportsNativeGoals()) {
         yield* Effect.forEach(
@@ -3804,21 +3884,36 @@ export const make = Effect.fn("OpenCode2Adapter.make")(function* (instanceId: Pr
       verb: "roll back" | "fork",
     ) {
       const state = threads.get(sessionId);
+      // A stopped turn whose end was lost with the stream stays active here,
+      // so OpenCode's own list decides whether it still runs.
+      const stopped = state?.active?.interrupted === true ? state.active : undefined;
+      const starts = state?.starts;
+      const stillWorking = new ProviderAdapter.ProviderAdapterProtocolError({
+        driver: OPENCODE_PROVIDER,
+        detail: `Cannot ${verb} OpenCode session ${sessionId} while it is still working`,
+      });
       const busyHere =
         state !== undefined &&
-        (state.active !== undefined ||
-          busy.has(sessionId) ||
+        ((stopped === undefined && (state.active !== undefined || busy.has(sessionId))) ||
           (verb === "roll back" && hasBackground(state)));
       const busyThere =
         !busyHere &&
-        (state === undefined || state.unsettledRun !== "none") &&
+        (state === undefined || state.unsettledRun !== "none" || stopped !== undefined) &&
         sessionId in (yield* client.session.active().pipe(Effect.timeout(ACTIVE_CHECK_TIMEOUT)));
-      if (busyHere || busyThere) {
-        return yield* new ProviderAdapter.ProviderAdapterProtocolError({
-          driver: OPENCODE_PROVIDER,
-          detail: `Cannot ${verb} OpenCode session ${sessionId} while it is still working`,
-        });
-      }
+      if (busyHere || busyThere) return yield* stillWorking;
+      if (state === undefined || stopped === undefined) return;
+      yield* lock.withPermit(
+        Effect.gen(function* () {
+          // A run that started during the check may postdate OpenCode's answer.
+          if (state.starts !== starts) return yield* stillWorking;
+          if (state.active !== stopped) return;
+          // Its end may still arrive late; unsettledRun swallows it and makes the next turn await its start.
+          // OpenCode reported it idle, so any later start is a new run.
+          state.unsettledRun = "started";
+          busy.delete(sessionId);
+          yield* finishTurn(state, stopped, { status: "interrupted" });
+        }),
+      );
     });
 
     const cancelStrandedSteers = Effect.fnUntraced(function* (state: ThreadState) {

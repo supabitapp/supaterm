@@ -166,7 +166,13 @@ export function getUserQueuedThreadRuns(
   );
 }
 
-export function deriveThreadQueueWorkflowState(projection: Projection): ThreadQueueWorkflowState {
+export function deriveThreadQueueWorkflowState(
+  projection: Projection,
+  options?: {
+    /** The server advertises `deferredSteering`; older servers reject a steer during setup. */
+    readonly deferredSteering?: boolean;
+  },
+): ThreadQueueWorkflowState {
   const activeRun = resolveActiveThreadRun(projection);
   const session = resolveThreadProviderSession(projection);
   const capabilities = session?.capabilities.turns;
@@ -208,6 +214,11 @@ export function deriveThreadQueueWorkflowState(projection: Projection): ThreadQu
       projection.thread.deletedAt == null,
     canPromoteToSteer:
       promoteSkipsCompaction ||
+      (options?.deferredSteering === true &&
+        (activeRun?.status === "preparing" || activeRun?.status === "starting") &&
+        (capabilities === undefined ||
+          capabilities.supportsActiveSteering ||
+          capabilities.supportsSteeringByInterruptRestart)) ||
       (hasSteerableProviderTurn &&
         (capabilities?.supportsActiveSteering === true ||
           capabilities?.supportsSteeringByInterruptRestart === true)),

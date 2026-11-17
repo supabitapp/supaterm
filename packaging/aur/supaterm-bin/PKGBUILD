@@ -73,7 +73,9 @@ package() {
 
   install -Dm755 /dev/stdin "$pkgdir/usr/bin/supaterm" <<'EOF'
 #!/bin/sh
-exec /opt/supaterm-bin/AppRun "$@"
+# AppRun computes APPDIR but doesn't export it. The server's AppImage env scrub needs it
+# to keep /opt/supaterm-bin/usr/lib etc. out of terminal and agent shells (#28993).
+exec env APPDIR=/opt/supaterm-bin /opt/supaterm-bin/AppRun "$@"
 EOF
   ln -s supaterm "$pkgdir/usr/bin/supaterm-desktop"
 

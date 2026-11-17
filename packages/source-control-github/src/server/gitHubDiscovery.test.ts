@@ -89,6 +89,31 @@ it.effect("asks for no credential when the identity resolver left the base URL e
   }),
 );
 
+it.effect.each([
+  ["github-work", "git@github-work:team/project.git"],
+  ["github-ci", "git@github-ci:team/project.git"],
+  ["github-work", "ssh://git@github-work:22/team/project.git"],
+  ["github.com-work", "git@github.com-work:team/project.git"],
+] as const)("recognizes a GitHub SSH alias on %s (%s)", ([host, remoteUrl]) =>
+  Effect.gen(function* () {
+    const discovery = yield* makeDiscovery((host) =>
+      host === "github.com"
+        ? signedIn(host)
+        : Effect.fail(new GitHubCredentials.GitHubNotSignedInError({ host })),
+    );
+    if (discovery.type !== "managed-cli") return assert.fail("expected a managed CLI");
+    const provider = yield* discovery.refineUnknownRemote({
+      cwd: "/repo",
+      context: { ...unknownContext(`https://${host}`), remoteUrl },
+    });
+    assert.deepStrictEqual(provider, {
+      kind: SourceControlProviderKind.make("github"),
+      name: "GitHub",
+      baseUrl: "https://github.com",
+    });
+  }),
+);
+
 it.effect("claims a remote through the shared gh login, not a request's pinned credential", () =>
   Effect.gen(function* () {
     const spawned: Array<string> = [];

@@ -92,13 +92,30 @@ function isOpenCodeNativeCommandPath(commandPath: string): boolean {
   );
 }
 
+function openCodeNativeHome(commandPath: string): string | null {
+  const slashed = commandPath.replaceAll("\\", "/");
+  const match = /\/\.opencode\/bin\/opencode(?:\.exe)?$/i.exec(slashed);
+  if (!match) return null;
+  return match.index === 0 ? "/" : slashed.slice(0, match.index);
+}
+
 export const openCode2Update = makePackageManagedProviderMaintenanceResolver({
   provider: DRIVER_KIND,
   npmPackageName: "@opencode/cli",
   nativeUpdate: {
-    args: ["upgrade"],
+    // `isOpenCodeNativeCommandPath` is the curl installer's own binary. Name the
+    // method so OpenCode does not have to infer it from `process.execPath`, which
+    // fails when the binary is launched through a wrapper or shim.
+    args: ["upgrade", "--method", "curl"],
     isCommandPath: isOpenCodeNativeCommandPath,
     requiresCommandPath: true,
+    // The curl installer writes to `$HOME/.opencode/bin`, so point HOME at the install it replaces.
+    env: (context) => {
+      const home =
+        openCodeNativeHome(context.realCommandPath) ??
+        openCodeNativeHome(context.resolvedCommandPath);
+      return home ? { HOME: home } : {};
+    },
   },
   mise: { tool: "opencode" },
 });
@@ -272,7 +289,9 @@ export const OpenCodeDriver: ProviderDriver<
     const listOpenCode2Workspace = (cwd: string) =>
       openCode2Server.withConnection(({ client, events }) =>
         Effect.gen(function* () {
-          const location = { directory: cwd };
+          // OpenCode names a location by its resolved path (no trailing slash or `..`).
+          const directory = pathService.resolve(cwd);
+          const location = { directory };
           const scanned = yield* Deferred.make<void>();
           const pending = new Set(["command.updated", "skill.updated"]);
           const stream = yield* events.pipe(Effect.option);
@@ -280,7 +299,7 @@ export const OpenCodeDriver: ProviderDriver<
             yield* stream.value.pipe(
               Stream.runForEach((event) =>
                 "location" in event &&
-                event.location?.directory === cwd &&
+                event.location?.directory === directory &&
                 pending.delete(event.type) &&
                 pending.size === 0
                   ? Deferred.succeed(scanned, undefined)
@@ -299,6 +318,14 @@ export const OpenCodeDriver: ProviderDriver<
               { concurrency: "unbounded" },
             ),
             Deferred.await(scanned),
+            // Without events no scan can be awaited, so trust the first read as before.
+            stream._tag === "None"
+              ? Effect.succeed(true)
+              : client.debug.location.list().pipe(
+                  Effect.map((loaded) => loaded.some((entry) => entry.directory === directory)),
+                  Effect.timeout("2 seconds"),
+                  Effect.orElseSucceed(() => true),
+                ),
           );
         }).pipe(Effect.scoped),
       );

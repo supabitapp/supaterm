@@ -625,6 +625,9 @@ export const make = Effect.fn("EnvironmentSupervisor.make")(function* (
     }
   };
 
+  const isForegroundProbe = (next: SupervisorSignal) =>
+    next._tag === "Wakeup" && next.reason === "application-active";
+
   // Ends "silent" when the host answers a fresh request while the socket
   // delivers nothing, as when iOS kills a suspended socket without a close
   // event, and "alive" once the socket delivers a frame. A slow or
@@ -706,7 +709,11 @@ export const make = Effect.fn("EnvironmentSupervisor.make")(function* (
       // A probe for an older signal can answer after the wake armed recovery.
       if (next._tag === "Wakeup" && next.reason === "system-resumed")
         yield* Ref.set(wakeRecoveryPending, true);
-      const probe = yield* Effect.forkChild(lease.session.probe);
+      let probe = yield* Effect.forkChild(lease.session.probe);
+      // A busy server can miss one foreground probe while the socket is still
+      // healthy, so the first miss asks again and only the follow-up's miss
+      // replaces the session.
+      let toleratesMiss = isForegroundProbe(next);
       let replacementFiber =
         next._tag === "Wakeup" &&
         next.afterLongBackground === true &&
@@ -725,7 +732,7 @@ export const make = Effect.fn("EnvironmentSupervisor.make")(function* (
       // The web and desktop foreground probe allows a busy host 15 seconds,
       // and a busy host can answer a fresh request before a queued probe.
       const armSilentSocketCheck = Effect.fnUntraced(function* (signal: SupervisorSignal) {
-        if (signal._tag === "Wakeup" && signal.reason === "application-active") return;
+        if (isForegroundProbe(signal)) return;
         if (silentSocket !== undefined) {
           recheck = true;
           return;
@@ -793,6 +800,13 @@ export const make = Effect.fn("EnvironmentSupervisor.make")(function* (
           return true;
         }
         if (probeEvent._tag === "TimedOut") {
+          if (toleratesMiss) {
+            toleratesMiss = false;
+            yield* Fiber.interrupt(probe);
+            probe = yield* Effect.forkChild(lease.session.probe);
+            deadline = (yield* Clock.monotonicTimeNanos) + Duration.toNanosUnsafe(probeTimeout);
+            continue;
+          }
           yield* stopProbe;
           return yield* new ConnectionTransientError({
             reason: "timeout",
@@ -827,6 +841,9 @@ export const make = Effect.fn("EnvironmentSupervisor.make")(function* (
           yield* Ref.set(pendingProbe, "mobile-resume");
         const signalTimeout = probeTimeoutFor(probeEvent.signal, routeKind);
         if (signalTimeout !== undefined) {
+          // A retry or network signal wants a definite answer, even when its
+          // own deadline lands after the foreground one.
+          if (!isForegroundProbe(probeEvent.signal)) toleratesMiss = false;
           if (isLongResume(probeEvent.signal) && !longResume) {
             longResume = true;
             longResumeStartedAt = yield* Clock.monotonicTimeNanos;
@@ -905,7 +922,7 @@ export const make = Effect.fn("EnvironmentSupervisor.make")(function* (
     ignoreOffline: boolean,
   ) {
     const switchingTo = yield* Ref.get(preferredRoute);
-    const routeCount = connectionRoutes(yield* Ref.get(currentEntry)).length;
+    const routes = connectionRoutes(yield* Ref.get(currentEntry));
     yield* SubscriptionRef.set(prepared, Option.none());
     const synchronizedRoutes = yield* Ref.make(0);
     const routeOpen = yield* SubscriptionRef.make(false);
@@ -930,22 +947,36 @@ export const make = Effect.fn("EnvironmentSupervisor.make")(function* (
       // reaches synchronizing adds its own snapshot budget, so a route that
       // fails late does not eat the next route's time.
       Effect.gen(function* () {
-        const startedAt = yield* Clock.monotonicTimeNanos;
         const setup = Duration.toNanosUnsafe(
           Duration.sum(
-            Duration.times(Duration.fromInputUnsafe(CONNECTION_ESTABLISHMENT_TIMEOUT), routeCount),
-            Duration.millis(routeCount > 1 ? ConnectionDriver.LATE_ROUTE_CHECK_TIMEOUT_MS : 0),
+            Duration.times(
+              Duration.fromInputUnsafe(CONNECTION_ESTABLISHMENT_TIMEOUT),
+              routes.length,
+            ),
+            Duration.millis(routes.length > 1 ? ConnectionDriver.LATE_ROUTE_CHECK_TIMEOUT_MS : 0),
           ),
         );
+        // The desktop bounds SSH preparation, which may download a server
+        // release, so for SSH-only entries the clock stops while preparing.
+        const pausesWhilePreparing = routes.every((route) => connectionRouteKind(route) === "ssh");
+        const preparing = (expected: boolean) =>
+          SubscriptionRef.changes(state).pipe(
+            Stream.filter((current) => (current.stage === "preparing") === expected),
+            Stream.runHead,
+          );
+        let spent = 0n;
         while (true) {
+          if (pausesWhilePreparing) yield* preparing(false);
           const synchronized = BigInt(yield* Ref.get(synchronizedRoutes));
-          const deadline =
-            startedAt + setup + synchronized * Duration.toNanosUnsafe(synchronizationTimeout);
-          const remaining = deadline - (yield* Clock.monotonicTimeNanos);
+          const remaining =
+            setup + synchronized * Duration.toNanosUnsafe(synchronizationTimeout) - spent;
           if (remaining <= 0n) {
             return { _tag: "TimedOut" } as const satisfies EstablishmentEvent;
           }
-          yield* Effect.sleep(Duration.nanos(remaining));
+          const resumedAt = yield* Clock.monotonicTimeNanos;
+          const sleep = Effect.sleep(Duration.nanos(remaining));
+          yield* pausesWhilePreparing ? Effect.raceFirst(sleep, preparing(true)) : sleep;
+          spent += (yield* Clock.monotonicTimeNanos) - resumedAt;
         }
       }),
       ...(wakeRecovery ? [awaitWakeRecoveryStall(routeOpen)] : []),

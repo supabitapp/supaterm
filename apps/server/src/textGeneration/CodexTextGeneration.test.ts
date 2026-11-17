@@ -6,6 +6,7 @@ import {
   type ServerProvider,
 } from "@supaterm/contracts";
 import type { ProviderInstance } from "@supaterm/provider-core/server/driver";
+import * as ProviderInstallationGate from "../provider/ProviderInstallationGate.ts";
 import * as ProviderInstanceRegistry from "../provider/ProviderInstanceRegistry.ts";
 import * as ServerSettings from "../serverSettings.ts";
 import * as SourceControlProviderRegistry from "../sourceControl/SourceControlProviderRegistry.ts";
@@ -497,8 +498,8 @@ it.layer(layerCodexTextGenerationTest)("CodexTextGeneration", (it) => {
           subject: "Add important change",
           body: "",
         }),
-        launchArgs: "--strict-config --listen off",
-        requireArg: "--strict-config",
+        launchArgs: "--strict-config --oss --local-provider ollama --listen off",
+        requireArg: "--strict-config --oss --local-provider ollama",
         forbidArg: "--listen",
       },
       (textGeneration) =>
@@ -704,6 +705,7 @@ it.effect.each(PREFLIGHT_PRIMARY_STATES)("text generation preflight: %s", (prima
           Layer.mock(SourceControlProviderRegistry.SourceControlProviderRegistry)({
             resolveLink: () => Effect.die("unused"),
           }),
+          ProviderInstallationGate.layer,
         ),
       ),
     );

@@ -37,6 +37,7 @@ import {
 import * as ClaudeAdapterV2 from "./ClaudeAdapterV2.ts";
 import { claudeTaskOutputRoot } from "./ClaudeTaskOutputTail.ts";
 import * as IdAllocator from "@supaterm/provider-core/server/IdAllocator";
+import * as ProviderInstallationGate from "../../provider/ProviderInstallationGate.ts";
 import { ProviderAdapterDriverCreateError } from "@supaterm/provider-core/server/adapterDriver";
 import * as ProviderAdapterRegistry from "../ProviderAdapterRegistry.ts";
 import { randomUuidV4 } from "@supaterm/provider-core/server/randomUuid";
@@ -1063,6 +1064,7 @@ function layerClaudeProviderAdapterRegistryReplay(
       Layer.mergeAll(
         layerClaudeAgentSdkReplay(transcript, options),
         IdAllocator.layer,
+        ProviderInstallationGate.layer,
         NodeServices.layer,
         NodeCrypto.layer,
         layerServerConfig,

@@ -399,13 +399,16 @@ export function createEnvironmentThreadDetailAtoms<E>(
   });
 
   const queueWorkflowAtomFamily = Atom.family((key: string) => {
+    const separator = key.lastIndexOf("\u0000");
+    const thread = key.slice(0, separator);
+    const deferredSteering = key.slice(separator + 1) === "deferred-steering";
     let previous: Pick<
       OrchestrationV2ThreadProjection,
       "thread" | "runs" | "messages" | "providerThreads" | "providerSessions" | "providerTurns"
     > | null = null;
     let value: ThreadQueueWorkflowState | null = null;
     return Atom.make((get) => {
-      const projection = Option.getOrNull(get(threadStateValueAtomFamily(key)).data);
+      const projection = Option.getOrNull(get(threadStateValueAtomFamily(thread)).data);
       if (projection === null) {
         previous = null;
         value = null;
@@ -418,7 +421,7 @@ export function createEnvironmentThreadDetailAtoms<E>(
         projection.providerSessions !== previous.providerSessions ||
         projection.providerTurns !== previous.providerTurns
       ) {
-        const next = deriveThreadQueueWorkflowState(projection);
+        const next = deriveThreadQueueWorkflowState(projection, { deferredSteering });
         if (value === null || !queueWorkflowStatesEqual(value, next)) value = next;
         const { thread, runs, messages, providerThreads, providerSessions, providerTurns } =
           projection;
@@ -621,7 +624,10 @@ export function createEnvironmentThreadDetailAtoms<E>(
     updatedAtAtom: (ref: ScopedThreadRef) => updatedAtAtomFamily(threadKey(ref)),
     lastVisitedAtAtom: (ref: ScopedThreadRef) => lastVisitedAtAtomFamily(threadKey(ref)),
     pendingRequestsAtom: (ref: ScopedThreadRef) => pendingRequestsAtomFamily(threadKey(ref)),
-    queueWorkflowAtom: (ref: ScopedThreadRef) => queueWorkflowAtomFamily(threadKey(ref)),
+    queueWorkflowAtom: (ref: ScopedThreadRef, options?: { readonly deferredSteering?: boolean }) =>
+      queueWorkflowAtomFamily(
+        `${threadKey(ref)}\u0000${options?.deferredSteering === true ? "deferred-steering" : ""}`,
+      ),
     queuedCountAtom: (ref: ScopedThreadRef) => queuedCountAtomFamily(threadKey(ref)),
     runStopAtom: (ref: ScopedThreadRef) => runStopAtomFamily(threadKey(ref)),
     turnSubagentsAtom: (ref: ScopedThreadRef) => turnSubagentsAtomFamily(threadKey(ref)),

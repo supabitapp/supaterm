@@ -111,9 +111,23 @@ const AGENT_CURSOR_MOVE_MS = 160;
 const AGENT_CURSOR_CLICK_LEAD_MS = 40;
 /** A dialog blocks page script, so a desktop size read gives up after this. */
 const DESKTOP_VIEWPORT_READ_TIMEOUT = "1 second";
+// A revealed tab's client opens the panel and attaches its stream a few round trips later, remote ones included.
+const REVEAL_VIEWER_WAIT_MS = 1000;
 
 const sleepUntil = (deadline: number) =>
   new Promise<void>((resolve) => setTimeout(resolve, Math.max(0, deadline - Date.now())));
+
+const awaitViewer = async (tab: ServerTab, timeoutMs: number) => {
+  const attached = (tab.viewerAttached ??= Promise.withResolvers());
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  await Promise.race([
+    attached.promise,
+    new Promise<void>((resolve) => {
+      timer = setTimeout(resolve, Math.max(0, timeoutMs));
+    }),
+  ]);
+  clearTimeout(timer);
+};
 
 const EDITABLE_AT_POINT_SCRIPT = `(x, y) => {
   let element = document.elementFromPoint(x, y);
@@ -299,6 +313,7 @@ interface ServerTab {
   readonly createdAt: number;
   usedAt: number;
   readonly viewers: Set<ViewerState>;
+  viewerAttached: PromiseWithResolvers<void> | null;
   readonly consoleEntries: Array<PreviewAutomationConsoleEntry>;
   readonly networkEntries: Array<PreviewAutomationNetworkEntry>;
   readonly actionTimeline: Array<PreviewAutomationActionEvent>;
@@ -371,6 +386,7 @@ const IDLE_SWEEP_INTERVAL = "1 minute";
 const DOWNLOAD_LIMIT = 20;
 
 const ABORTED_NAVIGATION_DOWNLOAD_WAIT_MS = 5_000;
+const PAGE_CLOSE_GRACE_MS = 5_000;
 const DOWNLOAD_MAX_BYTES = 1024 * 1024 * 1024;
 
 const tabKey = (threadId: string, tabId: string) => `${threadId}\u0000${tabId}`;
@@ -778,19 +794,54 @@ const make = Effect.gen(function* () {
 
   const sessionOpen = (tab: ServerTab) => !closedSessions.has(tabKey(tab.threadId, tab.tabId));
 
+  // Closing the session makes the desktop destroy its webview, which drops an unload still in
+  // progress, and `runBeforeUnload` resolves before it runs. So wait for the page's `pagehide`.
+  const unloadDesktopPage = async (page: Page) => {
+    const unloaded = Promise.withResolvers<void>();
+    const timeout = setTimeout(unloaded.resolve, PAGE_CLOSE_GRACE_MS);
+    const binding = `__supatermPreviewUnloaded${NodeCrypto.randomUUID().replaceAll("-", "")}`;
+    void (async () => {
+      await page.exposeFunction(binding, unloaded.resolve);
+      await page.evaluate((name) => {
+        const target = globalThis as unknown as {
+          addEventListener: (type: string, listener: () => void) => void;
+        } & Record<string, () => void>;
+        target.addEventListener("pagehide", () => target[name]?.());
+      }, binding);
+      await page.close({ runBeforeUnload: true });
+    })().catch(unloaded.resolve);
+    await unloaded.promise;
+    clearTimeout(timeout);
+  };
+
   const dropTab = (tab: ServerTab, closeSession: boolean) => {
     const key = tabKey(tab.threadId, tab.tabId);
     if (tabs.get(key) !== tab) return;
     tabs.delete(key);
     tab.closing = true;
+    tab.viewerAttached?.resolve();
     clearAbortedNavigation(tab);
     // A desktop page outlives the connection unless its session closed with it.
     const end = tab.desktop && !closeSession && sessionOpen(tab) ? "reconnect" : "gone";
     for (const viewer of tab.viewers) viewer.push({ _tag: end });
     void tab.control.close().catch(constVoid);
     if (tab.desktop) void tab.desktop.close().catch(constVoid);
-    else void tab.page.close().catch(constVoid);
-    if (tab.isolatedContext) void tab.page.context().close().catch(constVoid);
+    else {
+      const page = tab.page;
+      // `runBeforeUnload` returns before the page closes, so closing an isolated context
+      // must wait for it. A pending dialog would block `beforeunload` from running at all.
+      const closed = page.isClosed()
+        ? Promise.resolve()
+        : new Promise<void>((resolve) => page.once("close", () => resolve()));
+      // A renderer that never finishes unloading would outlive its tab, so force it closed.
+      const forceClose = setTimeout(() => void page.close().catch(constVoid), PAGE_CLOSE_GRACE_MS);
+      void closed.then(() => clearTimeout(forceClose));
+      void page
+        .close({ runBeforeUnload: tab.dialog === null })
+        .catch(() => page.close())
+        .catch(constVoid);
+      if (tab.isolatedContext) void closed.then(() => page.context().close()).catch(constVoid);
+    }
     void tab.recording?.encoder.close().catch(constVoid);
     void NodeFSP.rm(downloadDir(tab), { recursive: true, force: true }).catch(constVoid);
     reportLiveTabs();
@@ -906,6 +957,7 @@ const make = Effect.gen(function* () {
       createdAt: Date.now(),
       usedAt: Date.now(),
       viewers: new Set(),
+      viewerAttached: null,
       consoleEntries: [],
       networkEntries: [],
       actionTimeline: [],
@@ -1045,6 +1097,11 @@ const make = Effect.gen(function* () {
       });
     });
     page.on("dialog", (dialog) => {
+      // Closing is already decided, so an unsaved-changes guard must not keep the page open.
+      if (tab.closing && dialog.type() === "beforeunload") {
+        void dialog.accept().catch(constVoid);
+        return;
+      }
       tab.dialog = dialog;
       broadcastControl(tab);
     });
@@ -1670,6 +1727,27 @@ const make = Effect.gen(function* () {
     return reported && { ...reported, url: ServerBrowserPage.withoutDataPayload(reported.url) };
   };
 
+  const assertNavigationSucceeded = (tab: ServerTab) => {
+    const failure = loadErrorOf(tab);
+    if (failure) {
+      const diagnosticUrl = URL.parse(failure.url);
+      if (diagnosticUrl) {
+        diagnosticUrl.username = "";
+        diagnosticUrl.password = "";
+        diagnosticUrl.search = "";
+        diagnosticUrl.hash = "";
+      }
+      const url = diagnosticUrl
+        ? ServerBrowserPage.withoutDataPayload(diagnosticUrl.href)
+        : "the requested page";
+      throw new ServerBrowserPage.ServerBrowserOperationError(
+        "PreviewAutomationExecutionError",
+        `Navigation to ${url} failed: ${failure.description}`,
+        { ...failure, url },
+      );
+    }
+  };
+
   const statusWithTitle = async (
     tab: ServerTab | undefined,
     agentSessionId?: string,
@@ -1692,7 +1770,7 @@ const make = Effect.gen(function* () {
       available: true,
       visible: isVisible(tab),
       tabId: tab.tabId,
-      url: url === "about:blank" ? null : url,
+      url: loadError?.url ?? (url === "about:blank" ? null : url),
       title: null,
       loading: tab.loading,
       ...(loadError ? { loadError } : {}),
@@ -1715,7 +1793,8 @@ const make = Effect.gen(function* () {
                 url:
                   candidate.page.url() === "about:blank"
                     ? null
-                    : ServerBrowserPage.withoutDataPayload(candidate.page.url()),
+                    : (loadErrorOf(candidate)?.url ??
+                      ServerBrowserPage.withoutDataPayload(candidate.page.url())),
                 ...(candidate.openerTabId === undefined
                   ? {}
                   : { openerTabId: candidate.openerTabId }),
@@ -1784,6 +1863,7 @@ const make = Effect.gen(function* () {
       }
       throw ServerBrowserPage.toOperationError(cause, timeout);
     });
+    assertNavigationSucceeded(tab);
   };
 
   const withCaptureLock = <A>(tab: ServerTab, operation: () => Promise<A>): Promise<A> => {
@@ -1894,6 +1974,25 @@ const make = Effect.gen(function* () {
         await recording.session.send("Page.stopScreencast").catch(constVoid);
         await Promise.all(recording.framesInFlight);
         await recording.session.detach().catch(constVoid);
+        // A screencast can miss the last paint when the page goes idle.
+        if (!tab.closing && !tab.dialog) {
+          const finalFrame = await ServerBrowserPage.captureFinalRecordingFrame(
+            tab.cdp,
+            RECORDING_SCREENCAST.quality,
+          );
+          if (finalFrame !== undefined) {
+            await recording.encoder
+              .evaluate(
+                ([data, width]) =>
+                  (globalThis as unknown as EncoderWindow).__supatermRecorder.frame(data, width),
+                [
+                  finalFrame,
+                  tab.page.viewportSize()?.width ?? UNATTACHED_FILL_VIEWPORT.width,
+                ] as const,
+              )
+              .catch(constVoid);
+          }
+        }
         const stopped = await recording.encoder.evaluate(() =>
           (globalThis as unknown as EncoderWindow).__supatermRecorder.stop(),
         );
@@ -2139,17 +2238,27 @@ const make = Effect.gen(function* () {
               if (url) await navigate(tab, url, "load", navigationTimeout);
             } else {
               // A failed open returns no tabId; a leftover hidden tab would block later reuse.
-              await tab.initialNavigation?.catch(async (cause: unknown) => {
-                // Playwright rejects downloads too; their tab must survive to save the file.
-                if (cause instanceof Error && cause.message.includes("Download is starting")) {
+              await Promise.resolve(tab.initialNavigation)
+                .then(async () => {
+                  if (url) {
+                    await tab.page
+                      .waitForLoadState("load", { timeout: navigationTimeout })
+                      .catch(constVoid);
+                  }
+                  assertNavigationSucceeded(tab);
+                })
+                .catch(async (cause: unknown) => {
+                  // Playwright rejects downloads too; their tab must survive to save the file.
+                  if (cause instanceof Error && cause.message.includes("Download is starting")) {
+                    throw cause;
+                  }
+                  await runPromise(manager.close({ threadId: tab.threadId, tabId: tab.tabId }));
+                  dropTab(tab, false);
                   throw cause;
-                }
-                await runPromise(manager.close({ threadId: tab.threadId, tabId: tab.tabId }));
-                dropTab(tab, false);
-                throw cause;
-              });
+                });
             }
             const reveal = open.open;
+            let shown: Promise<void> | undefined;
             if (reveal !== false) {
               await runPromise(
                 manager.requestReveal({
@@ -2158,12 +2267,14 @@ const make = Effect.gen(function* () {
                   force: reveal === true,
                 }),
               );
+              // Only an explicit show is sure to reach a client; desktop tabs are visible without a viewer.
+              if (reveal === true && tab.viewers.size === 0 && tab.desktop === null)
+                shown = awaitViewer(
+                  tab,
+                  Math.min(REVEAL_VIEWER_WAIT_MS, deadlineMs - performance.now()),
+                );
             }
-            if (!existing && url) {
-              await tab.page
-                .waitForLoadState("load", { timeout: navigationTimeout })
-                .catch(constVoid);
-            }
+            await shown;
             return statusWithTitle(tab, request.agentSessionId);
           },
           deadlineMs,
@@ -2215,6 +2326,10 @@ const make = Effect.gen(function* () {
       if (tab.control.controller !== null)
         throw new BrowserControlInterrupted("A human controls this tab.", "humanControl");
       void tab.control.close().catch(constVoid);
+      if (tab.desktop && tab.dialog === null) {
+        tab.closing = true;
+        await unloadDesktopPage(tab.page);
+      }
       await runPromise(manager.close({ threadId: tab.threadId, tabId: tab.tabId }));
       dropTab(tab, false);
       return {};
@@ -2310,7 +2425,7 @@ const make = Effect.gen(function* () {
           }),
         );
         const loadError = loadErrorOf(tab);
-        return loadError ? { ...snapshot, loadError } : snapshot;
+        return loadError ? { ...snapshot, url: loadError.url, loadError } : snapshot;
       }
       case "click": {
         const clickInput = input as PreviewAutomationClickInput;
@@ -2693,6 +2808,8 @@ const make = Effect.gen(function* () {
     yield* Effect.acquireRelease(
       Effect.sync(() => {
         tab.viewers.add(viewer);
+        tab.viewerAttached?.resolve();
+        tab.viewerAttached = null;
         reportLiveTabs();
       }),
       () =>

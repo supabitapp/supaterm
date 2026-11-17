@@ -58,6 +58,7 @@ function makeMockDetachedHandle(input: MockSpawnResult & { readonly onUnref?: ()
 const layerTest = (input: {
   readonly platform: NodeJS.Platform;
   readonly env?: Record<string, string>;
+  readonly path?: Path.Path;
   readonly resolveExecutable?: (command: string) => string | undefined;
   readonly onSpawn?: (command: ChildProcess.StandardCommand) => void;
   readonly onUnref?: () => void;
@@ -83,7 +84,15 @@ const layerTest = (input: {
   );
 
   return Layer.mergeAll(
-    ExternalLauncher.layer.pipe(Layer.provide(Layer.merge(NodeServices.layer, layerSpawner))),
+    ExternalLauncher.layer.pipe(
+      Layer.provide(
+        Layer.mergeAll(
+          NodeServices.layer,
+          layerSpawner,
+          input.path ? Layer.succeed(Path.Path, input.path) : Layer.empty,
+        ),
+      ),
+    ),
     Layer.succeed(HostProcess.Platform, input.platform),
     Layer.succeed(
       SpawnExecutableResolution,
@@ -168,6 +177,46 @@ it.effect.skipIf(windowsHost)(
           env: { PATH: binDir, DISPLAY: ":0" },
           extendEnv: false,
         })),
+      );
+    }).pipe(Effect.scoped, Effect.provide(NodeServices.layer)),
+);
+
+// A project opened from Supaterm must not replace the editor's last active window.
+it.effect.skipIf(windowsHost)(
+  "opens a project folder in a new VS Code window and a file in the existing one",
+  () =>
+    Effect.gen(function* () {
+      const fileSystem = yield* FileSystem.FileSystem;
+      const path = yield* Path.Path;
+      const binDir = yield* fileSystem.makeTempDirectoryScoped({ prefix: "supaterm-editors-" });
+      const project = yield* fileSystem.makeTempDirectoryScoped({ prefix: "supaterm-project-" });
+      const codePath = path.join(binDir, "code");
+      yield* fileSystem.writeFileString(codePath, "#!/bin/sh\n");
+      yield* fileSystem.chmod(codePath, 0o755);
+      const file = `${path.join(project, "file.ts")}:3:7`;
+
+      const spawned: ChildProcess.StandardCommand[] = [];
+      yield* Effect.gen(function* () {
+        const launcher = yield* ExternalLauncher.ExternalLauncher;
+        yield* launcher.launchEditor({ editor: "vscode", cwd: project });
+        yield* launcher.launchEditor({ editor: "vscode", cwd: file });
+      }).pipe(
+        Effect.provide(
+          layerTest({
+            platform: "linux",
+            env: { PATH: binDir, DISPLAY: ":0" },
+            onSpawn: (command) => spawned.push(command),
+          }),
+        ),
+        Effect.provideService(HostProcess.Environment, { PATH: binDir, DISPLAY: ":0" }),
+      );
+
+      assert.deepEqual(
+        spawned.map((command) => command.args),
+        [
+          ["--new-window", project],
+          ["--goto", file],
+        ],
       );
     }).pipe(Effect.scoped, Effect.provide(NodeServices.layer)),
 );
@@ -502,6 +551,18 @@ for (const { layout, pathNames, fallbackNames, expected } of [
   );
 }
 
+// Linux editor discovery also probes fixed system directories; tests point them at a temp
+// directory so an editor installed on the host cannot satisfy the lookup.
+const withSystemBin = (path: Path.Path, systemBin: string): Path.Path => ({
+  ...path,
+  join: (...parts) =>
+    path.join(
+      ...parts.map((part) =>
+        ["/usr/local/bin", "/usr/bin", "/snap/bin"].includes(part) ? systemBin : part,
+      ),
+    ),
+});
+
 it.effect.skipIf(windowsHost)("prefers zeditor in a later Linux fallback directory", () =>
   Effect.gen(function* () {
     const fs = yield* FileSystem.FileSystem;
@@ -521,15 +582,7 @@ it.effect.skipIf(windowsHost)("prefers zeditor in a later Linux fallback directo
     const editor = EDITORS.find((editor) => editor.id === "zed")!;
     const resolve = resolveEditorCommand(editor, { HOME: home, PATH: "" }).pipe(
       Effect.provideService(HostProcess.Platform, "linux"),
-      Effect.provideService(Path.Path, {
-        ...path,
-        join: (...parts) =>
-          path.join(
-            ...parts.map((part) =>
-              ["/usr/local/bin", "/usr/bin", "/snap/bin"].includes(part) ? systemBin : part,
-            ),
-          ),
-      }),
+      Effect.provideService(Path.Path, withSystemBin(path, systemBin)),
     );
     assert.deepEqual(
       yield* resolve,
@@ -562,15 +615,7 @@ it.effect.skipIf(windowsHost)("does not offer the OpenZFS zed daemon as Zed on L
     const editor = EDITORS.find((editor) => editor.id === "zed")!;
     const resolve = resolveEditorCommand(editor, { HOME: home, PATH: binDir }).pipe(
       Effect.provideService(HostProcess.Platform, "linux"),
-      Effect.provideService(Path.Path, {
-        ...path,
-        join: (...parts) =>
-          path.join(
-            ...parts.map((part) =>
-              ["/usr/local/bin", "/usr/bin", "/snap/bin"].includes(part) ? systemBin : part,
-            ),
-          ),
-      }),
+      Effect.provideService(Path.Path, withSystemBin(path, systemBin)),
     );
     assert.deepEqual(yield* resolve, Option.none());
 
@@ -588,6 +633,7 @@ it.effect.skipIf(windowsHost)("does not open Zed with the OpenZFS zed daemon on 
     const path = yield* Path.Path;
     const home = yield* fs.makeTempDirectoryScoped({ prefix: "supaterm-zed-zfs-launch-" });
     const binDir = path.join(home, "bin");
+    const systemBin = path.join(home, "system-bin");
     yield* fs.makeDirectory(binDir, { recursive: true });
     yield* fs.writeFileString(path.join(binDir, "zed"), "#!/bin/sh\nexit 1\n");
     yield* fs.chmod(path.join(binDir, "zed"), 0o755);
@@ -601,6 +647,7 @@ it.effect.skipIf(windowsHost)("does not open Zed with the OpenZFS zed daemon on 
         layerTest({
           platform: "linux",
           env: { HOME: home, PATH: binDir },
+          path: withSystemBin(path, systemBin),
           onSpawn: (command) => spawned.push(command),
           spawnResult: (command) => (command.args[0] === "--version" ? { exitCode: 1 } : undefined),
         }),

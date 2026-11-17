@@ -15,6 +15,7 @@ import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
 import * as Path from "effect/Path";
+import { ChildProcess, ChildProcessSpawner } from "effect/process";
 import { Command } from "effect/cli";
 import * as TestConsole from "effect/testing/TestConsole";
 import { vi } from "vite-plus/test";
@@ -26,7 +27,7 @@ import {
   persistServerRuntimeState,
 } from "../serverRuntimeState.ts";
 import { CliServerVersionMismatchError } from "./config.ts";
-import { CliServerNotRunningError, type ServerTools } from "./serverTools.ts";
+import { CliServerNotRunningError, resolveProject, type ServerTools } from "./serverTools.ts";
 import { readLatestMessages, threadCommand, titleFromMessage, waitForRun } from "./thread.ts";
 
 vi.mock("../auth/EnvironmentAuth.ts", async (importOriginal) => {
@@ -134,6 +135,45 @@ it.effect(
         ),
       ),
     ),
+);
+
+it.effect("does not sign in to whatever took over a dead server's port", () =>
+  Effect.gen(function* () {
+    const fs = yield* FileSystem.FileSystem;
+    const path = yield* Path.Path;
+    const baseDir = yield* fs.makeTempDirectoryScoped({ prefix: "supaterm-thread-dead-server-" });
+    const state = yield* makePersistedServerRuntimeState({
+      config: { host: "127.0.0.1", devUrl: undefined },
+      port: 3_773,
+    });
+    yield* persistServerRuntimeState({
+      path: path.join(baseDir, "userdata", "server-runtime.json"),
+      // Above Linux's PID ceiling, as in pair.test.ts: no process can hold it.
+      state: { ...state, pid: 4_194_305 },
+    });
+    using session = vi
+      .spyOn(McpBridge, "mcpToolSession")
+      .mockReturnValue(Effect.die("no session should open"));
+
+    const error = yield* Command.runWith(threadCommand, { version: "0.0.0" })([
+      "list",
+      "--base-dir",
+      baseDir,
+    ]).pipe(Effect.flip);
+
+    assert.strictEqual(error._tag, "CliServerNotRunningError");
+    assert.strictEqual(session.mock.calls.length, 0);
+  }).pipe(
+    Effect.scoped,
+    Effect.provide(
+      Layer.mergeAll(
+        NodeServices.layer,
+        NodeCrypto.layer,
+        NetService.layer,
+        ConfigProvider.layer(ConfigProvider.fromEnv({ env: { SUPATERM_PORT: "3773" } })),
+      ),
+    ),
+  ),
 );
 
 /** Answers each tool call with the next scripted response for that tool. */
@@ -414,3 +454,69 @@ it("titles from a long first line without splitting an emoji", () => {
   const title = titleFromMessage(`${"a".repeat(78)}😀 and the rest of a long first line`);
   assert.strictEqual(title, `${"a".repeat(78)}…`);
 });
+
+const git = Effect.fn("test.git")(function* (cwd: string, args: ReadonlyArray<string>) {
+  const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
+  const exitCode = yield* spawner.exitCode(ChildProcess.make("git", args, { cwd }));
+  assert.strictEqual(Number(exitCode), 0, `git ${args.join(" ")}`);
+});
+
+const commitAll = (cwd: string) =>
+  Effect.andThen(
+    git(cwd, ["add", "."]),
+    git(cwd, [
+      "-c",
+      "user.name=Test",
+      "-c",
+      "user.email=test@example.test",
+      "commit",
+      "--quiet",
+      "-m",
+      "initial",
+    ]),
+  );
+
+it.live("resolves a path inside a git worktree of the project's repository to that project", () =>
+  Effect.gen(function* () {
+    const fileSystem = yield* FileSystem.FileSystem;
+    const path = yield* Path.Path;
+    const root = yield* fileSystem.makeTempDirectoryScoped({ prefix: "supaterm-thread-worktree-" });
+    const repo = path.join(root, "sample");
+    const worktree = path.join(root, "worktrees", "sample", "supaterm-8ff64c24");
+    const feature = path.join(root, "wt", "feature");
+    const featureWorktree = path.join(root, "worktrees", "feature", "supaterm-1a2b3c4d");
+    yield* fileSystem.makeDirectory(path.join(repo, "pkg"), { recursive: true });
+    yield* fileSystem.writeFileString(path.join(repo, "pkg", "index.ts"), "export {};\n");
+    yield* git(repo, ["init", "--quiet", "-b", "main"]);
+    yield* commitAll(repo);
+    yield* git(repo, ["worktree", "add", "--quiet", "-b", "supaterm/8ff64c24", worktree]);
+    yield* git(repo, ["worktree", "add", "--quiet", "-b", "feature", feature]);
+    yield* git(feature, ["worktree", "add", "--quiet", "-b", "supaterm/1a2b3c4d", featureWorktree]);
+
+    const project = (id: string, workspaceRoot: string) => ({
+      id: ProjectId.make(id),
+      title: path.basename(workspaceRoot),
+      workspaceRoot,
+    });
+    const sample = project("project-sample", repo);
+    const featureProject = project("project-feature", feature);
+    const resolveFrom = (
+      projects: ReadonlyArray<ReturnType<typeof project>>,
+      workingDirectory: string,
+      identifier = ".",
+    ) =>
+      resolveProject(
+        scriptedTools({ supaterm_project_list: [{ projects, nextCursor: null }] }).tools,
+        identifier,
+      ).pipe(Effect.provideService(HostProcess.WorkingDirectory, workingDirectory));
+
+    assert.deepStrictEqual(yield* resolveFrom([sample], worktree), sample);
+    assert.deepStrictEqual(yield* resolveFrom([sample], path.join(worktree, "pkg")), sample);
+    assert.deepStrictEqual(yield* resolveFrom([sample], worktree, "pkg/index.ts"), sample);
+    assert.deepStrictEqual(yield* resolveFrom([featureProject], featureWorktree), featureProject);
+    const ambiguous = yield* Effect.flip(resolveFrom([sample, featureProject], featureWorktree));
+    assert.strictEqual(ambiguous._tag, "CliProjectAmbiguousError");
+    assert.include(ambiguous.message, "sample (project-sample)");
+    assert.include(ambiguous.message, "feature (project-feature)");
+  }).pipe(Effect.scoped, Effect.provide(NodeServices.layer)),
+);

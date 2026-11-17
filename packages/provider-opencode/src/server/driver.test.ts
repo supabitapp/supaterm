@@ -38,7 +38,11 @@ import * as ProviderMaintenance from "@supaterm/provider-core/server/maintenance
 import * as OpenCodeRuntime from "./OpenCodeRuntime.ts";
 import { OpenCodeDriver, isLocalOpenCodeServerUrl, openCode2Update } from "./driver.ts";
 import * as OpenCodeServerLedger from "./OpenCodeServerLedger.ts";
-import { OPENCODE_2_RESPONSES, replayOpenCodeServer } from "./probeResponses.fixture.ts";
+import {
+  OPENCODE_2_RESPONSES,
+  OPENCODE_2_WORKSPACE_RESPONSES,
+  replayOpenCodeServer,
+} from "./probeResponses.fixture.ts";
 import * as TestProviderHost from "@supaterm/provider-testing/TestProviderHost";
 
 const OPENCODE_1_GUIDANCE =
@@ -398,6 +402,45 @@ it.layer(layer)("OpenCodeDriver", (it) => {
       assert.isDefined(capabilities.pollUnsafe());
       yield* Fiber.join(capabilities);
     }).pipe(Effect.scoped, Effect.provide(TestClock.layer())),
+  );
+
+  it.effect.each(["/api/debug/location", "/api/event"])(
+    "lists workspace skills from an external OpenCode 2 server whose %s never answers",
+    (stalled) =>
+      Effect.gen(function* () {
+        const answers: Record<string, string> = {
+          "/api/info": OPENCODE_2_RESPONSES["/api/info"].body,
+          "/api/debug/location": "[]",
+          "/api/command": OPENCODE_2_WORKSPACE_RESPONSES["/api/command"].body,
+          "/api/skill": OPENCODE_2_WORKSPACE_RESPONSES["/api/skill"].body,
+        };
+        const http = HttpClient.make((request) => {
+          const path = new URL(request.url).pathname;
+          if (path === stalled) return Effect.never;
+          if (path === "/api/event")
+            return Effect.succeed(
+              HttpClientResponse.fromWeb(
+                request,
+                new Response(new ReadableStream(), {
+                  headers: { "content-type": "text/event-stream" },
+                }),
+              ),
+            );
+          const body = answers[path];
+          return body === undefined
+            ? Effect.die(`Unexpected request: ${path}`)
+            : Effect.succeed(HttpClientResponse.fromWeb(request, Response.json(JSON.parse(body))));
+        });
+        const instance = yield* create({ serverUrl: "http://127.0.0.1:4096" }, http);
+
+        const snapshot = yield* instance.snapshotForCwd!("/work").pipe(Effect.forkChild);
+        yield* TestClock.adjust("30 seconds");
+        const { skills } = yield* Fiber.join(snapshot);
+        assert.include(
+          skills.map((skill) => skill.name),
+          "plum",
+        );
+      }).pipe(Effect.scoped, Effect.provide(TestClock.layer())),
   );
 
   it.effect.each(["probe", "error", "empty"] as const)(
@@ -791,10 +834,9 @@ it.effect.skipIf(HostProcess.Platform.defaultValue() === "win32")(
         return path;
       };
       assert.isNull((yield* resolveUpdate(executable("launcher", "opencode"))).update);
-      assert.deepStrictEqual(
-        (yield* resolveUpdate(executable(".opencode", "bin", "opencode"))).update?.args,
-        ["upgrade"],
-      );
+      const update = (yield* resolveUpdate(executable(".opencode", "bin", "opencode"))).update;
+      assert.deepStrictEqual(update?.args, ["upgrade", "--method", "curl"]);
+      assert.strictEqual(update?.env?.HOME, root);
     }),
 );
 

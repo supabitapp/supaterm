@@ -1,9 +1,16 @@
 import type { ServerSelfUpdateOutcome } from "@supaterm/contracts";
 
-// Protocol 4 requires coordinated selection writes and unit reconciliation. An
-// installed protocol-3 launcher needs one local update or service install with a restart:
-// remote updates replace its child, so cannot add these launcher guarantees.
+// Protocol 4 launchers coordinate selection writes and reconcile the unit. A remote update
+// replaces only the child, so an installed protocol-3 launcher stays until a local update or
+// service install restarts the service.
 export const SERVICE_LAUNCHER_PROTOCOL = 4 as const;
+/** Launchers this runtime runs under. Protocol 3 has the same IPC and durable format, and
+    refusing it stops every remote update until someone opens a shell on the host. */
+export type SupportedLauncherProtocol = 3 | typeof SERVICE_LAUNCHER_PROTOCOL;
+export const isSupportedLauncherProtocol = (
+  protocol: unknown,
+): protocol is SupportedLauncherProtocol =>
+  protocol === 3 || protocol === SERVICE_LAUNCHER_PROTOCOL;
 export const SERVICE_LAUNCHER_CONTEXT_ENV = "SUPATERM_SERVICE_LAUNCHER_CONTEXT";
 export const SERVICE_ENV_FILE = "service.env";
 export const SERVICE_STATE_FILE = "service-state.json";
@@ -25,11 +32,18 @@ const unquoteSystemdValue = (raw: string) =>
 const unescapeXmlText = (value: string) =>
   value.replaceAll("&lt;", "<").replaceAll("&gt;", ">").replaceAll("&amp;", "&");
 
-export function serviceUnitBaseDirOf(contents: string): string | undefined {
-  const systemd = /^Environment=SUPATERM_HOME=(.*)$/m.exec(contents)?.[1];
+export function serviceUnitEnvironmentValueOf(
+  contents: string,
+  name: "SUPATERM_HOME" | "SUPATERM_INSTALL_BIN_DIR",
+): string | undefined {
+  const systemd = new RegExp(`^Environment=${name}=(.*)$`, "m").exec(contents)?.[1];
   if (systemd !== undefined) return unquoteSystemdValue(systemd.trim());
-  const plist = /<key>SUPATERM_HOME<\/key>\s*<string>([^<]*)<\/string>/.exec(contents)?.[1];
+  const plist = new RegExp(`<key>${name}</key>\\s*<string>([^<]*)</string>`).exec(contents)?.[1];
   return plist === undefined ? undefined : unescapeXmlText(plist);
+}
+
+export function serviceUnitBaseDirOf(contents: string): string | undefined {
+  return serviceUnitEnvironmentValueOf(contents, "SUPATERM_HOME");
 }
 
 /** The executable an installed unit or plist starts: the launcher's runtime. */
@@ -59,7 +73,7 @@ export interface ServiceState {
 }
 
 export interface ServiceLauncherContext {
-  readonly protocol: typeof SERVICE_LAUNCHER_PROTOCOL;
+  readonly protocol: SupportedLauncherProtocol;
   readonly childVersion: string;
   readonly update?: ServiceUpdateRecord;
 }
@@ -175,8 +189,8 @@ export function decodeServiceState(value: unknown): ServiceState | undefined {
   if (!isRecord(value)) return undefined;
   const update = value.update === undefined ? undefined : decodeServiceUpdate(value.update);
   if (
-    // Protocol 3 has the same durable format; its installer can select a protocol-4 runtime.
-    (value.protocol !== 3 && value.protocol !== SERVICE_LAUNCHER_PROTOCOL) ||
+    // A protocol-3 installer can select a protocol-4 runtime.
+    !isSupportedLauncherProtocol(value.protocol) ||
     typeof value.activeVersion !== "string" ||
     !isExactServiceVersion(value.activeVersion) ||
     (value.update !== undefined && update === undefined) ||
@@ -253,7 +267,7 @@ export function decodeServiceLauncherContext(value: string): ServiceLauncherCont
   }
   if (
     !isRecord(parsed) ||
-    parsed.protocol !== SERVICE_LAUNCHER_PROTOCOL ||
+    !isSupportedLauncherProtocol(parsed.protocol) ||
     typeof parsed.childVersion !== "string" ||
     !isExactServiceVersion(parsed.childVersion)
   ) {
@@ -271,7 +285,7 @@ export function decodeServiceLauncherContext(value: string): ServiceLauncherCont
     return undefined;
   }
   return {
-    protocol: SERVICE_LAUNCHER_PROTOCOL,
+    protocol: parsed.protocol,
     childVersion: parsed.childVersion,
     ...(update === undefined ? {} : { update }),
   };

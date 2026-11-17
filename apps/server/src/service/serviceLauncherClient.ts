@@ -1,17 +1,23 @@
 import type { ServerSelfUpdateOutcome } from "@supaterm/contracts";
 import * as HostProcess from "@supaterm/shared/HostProcess";
 import * as Context from "effect/Context";
+import * as Cause from "effect/Cause";
 import * as Effect from "effect/Effect";
+import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
+import * as Option from "effect/Option";
+import * as Path from "effect/Path";
 import * as Schema from "effect/Schema";
 
 import packageJson from "../../package.json" with { type: "json" };
+import { pinnedRuntimePaths, pinnedRuntimeVersionsDir } from "./pinnedRuntime.ts";
 import {
   decodeServiceLauncherContext,
   decodeServiceLauncherParentMessage,
   SERVICE_LAUNCHER_CONTEXT_ENV,
   type ServiceLauncherChildMessage,
   type ServiceLauncherParentMessage,
+  type SupportedLauncherProtocol,
 } from "./serviceProtocol.ts";
 
 export class ServiceLauncherClientError extends Schema.TaggedError<ServiceLauncherClientError>()(
@@ -97,14 +103,17 @@ export class ServiceLauncherClient extends Context.Service<
   ServiceLauncherClient,
   {
     readonly managed: boolean;
+    /** The supervising launcher's protocol. A remote update never replaces the launcher,
+        so it can be older than this runtime's own. */
+    readonly protocol: SupportedLauncherProtocol | undefined;
     readonly requestUpdate: (input: {
       readonly targetVersion: string;
       readonly dbPath: string;
     }) => Effect.Effect<string, ServiceLauncherClientError | ServiceLauncherRejectedError>;
-    readonly prepareTrial: Effect.Effect<
-      ServerSelfUpdateOutcome | undefined,
-      ServiceLauncherClientError
-    >;
+    /** Owned `supaterm` symlinks move to the new runtime only when this start commits the trial. */
+    readonly prepareTrial: (input: {
+      readonly baseDir: string;
+    }) => Effect.Effect<ServerSelfUpdateOutcome | undefined, ServiceLauncherClientError>;
   }
 >()("supaterm/service/serviceLauncherClient") {}
 
@@ -137,10 +146,92 @@ export const resolveServiceLauncherMode = Effect.fn("cloud.service_launcher_clie
   },
 );
 
+export const repointLaunchers = Effect.fn("cloud.service_launcher_client.repoint_launchers")(
+  function* (input: { readonly baseDir: string; readonly targetVersion: string }) {
+    const fs = yield* FileSystem.FileSystem;
+    const path = yield* Path.Path;
+    const environment = yield* HostProcess.Environment;
+    const platform = yield* HostProcess.Platform;
+    if (platform !== "linux" && platform !== "darwin") return;
+    const installBinDir =
+      environment["SUPATERM_INSTALL_BIN_DIR"] ||
+      (environment["HOME"] ? path.join(environment["HOME"], ".local", "bin") : undefined);
+    const candidates = new Set<string>();
+    if (installBinDir !== undefined) candidates.add(path.join(installBinDir, "supaterm"));
+    for (const directory of (environment["PATH"] ?? "").split(":")) {
+      if (directory.length === 0) continue;
+      const candidate = path.join(directory, "supaterm");
+      if (
+        yield* fs.exists(candidate).pipe(
+          Effect.catch((cause) =>
+            Effect.logWarning("Could not check the supaterm command on PATH", {
+              launchedAs: candidate,
+              cause,
+            }).pipe(Effect.as(false)),
+          ),
+        )
+      ) {
+        candidates.add(candidate);
+        break;
+      }
+    }
+    const versionsDir = pinnedRuntimeVersionsDir(path, input.baseDir);
+    const target = pinnedRuntimePaths(path, input.baseDir, input.targetVersion, platform);
+    for (const launchedAs of candidates) {
+      yield* Effect.scoped(
+        Effect.gen(function* () {
+          const linkTarget = yield* fs.readLink(launchedAs).pipe(
+            Effect.asSome,
+            Effect.catchIf(
+              (error) =>
+                error.reason._tag === "NotFound" ||
+                (error.reason.cause as NodeJS.ErrnoException | undefined)?.code === "EINVAL",
+              () => Effect.succeedNone,
+            ),
+          );
+          if (Option.isNone(linkTarget)) return;
+          const relative = path.relative(
+            versionsDir,
+            path.resolve(path.dirname(launchedAs), linkTarget.value),
+          );
+          if (
+            relative.length === 0 ||
+            relative === ".." ||
+            relative.startsWith(`..${path.sep}`) ||
+            path.isAbsolute(relative)
+          )
+            return;
+          const temporary = yield* fs.makeTempDirectoryScoped({
+            directory: path.dirname(launchedAs),
+            prefix: ".supaterm-launcher-",
+          });
+          const link = path.join(temporary, "supaterm");
+          yield* fs.symlink(target.entryPath, link);
+          yield* fs.rename(link, launchedAs);
+        }),
+      ).pipe(
+        Effect.catchCause((cause) =>
+          Cause.hasInterrupts(cause)
+            ? Effect.interrupt
+            : Effect.logWarning("Could not move the supaterm command to the updated version", {
+                launchedAs,
+                cause,
+              }),
+        ),
+      );
+    }
+  },
+);
+
 export const make = Effect.fn("cloud.service_launcher_client.make")(function* (options?: {
   readonly currentVersion?: string;
 }) {
   const { host, context, managed } = yield* resolveStartup(options);
+  // prepareTrial runs later, outside whatever context built the client.
+  const fs = yield* FileSystem.FileSystem;
+  const path = yield* Path.Path;
+  const environment = yield* HostProcess.Environment;
+  const platform = yield* HostProcess.Platform;
 
   const exchange = (
     message: ServiceLauncherChildMessage,
@@ -218,28 +309,37 @@ export const make = Effect.fn("cloud.service_launcher_client.make")(function* (o
     context?.update === undefined || context.update.status === "pending"
       ? undefined
       : context.update;
-  const prepareTrial =
+  const prepareTrial = (input: { readonly baseDir: string }) =>
     pending !== undefined
       ? exchange(
           { type: "prepared", updateId: pending.id },
           (reply) => reply.type === "committed" && reply.updateId === pending.id,
         ).pipe(
-          Effect.flatMap((reply) => {
-            if (reply.type !== "committed") {
-              return Effect.die("service launcher returned an impossible prepared response");
-            }
-            return Effect.succeed({
-              id: pending.id,
-              fromVersion: pending.fromVersion,
-              targetVersion: pending.targetVersion,
-              status: "committed" as const,
-            });
-          }),
+          Effect.flatMap((reply) =>
+            reply.type !== "committed"
+              ? Effect.die("service launcher returned an impossible prepared response")
+              : repointLaunchers({
+                  baseDir: input.baseDir,
+                  targetVersion: pending.targetVersion,
+                }).pipe(
+                  Effect.provideService(FileSystem.FileSystem, fs),
+                  Effect.provideService(Path.Path, path),
+                  Effect.provideService(HostProcess.Environment, environment),
+                  Effect.provideService(HostProcess.Platform, platform),
+                  Effect.as({
+                    id: pending.id,
+                    fromVersion: pending.fromVersion,
+                    targetVersion: pending.targetVersion,
+                    status: "committed" as const,
+                  }),
+                ),
+          ),
         )
       : Effect.succeed(outcome);
 
   return ServiceLauncherClient.of({
     managed,
+    protocol: context?.protocol,
     requestUpdate,
     prepareTrial,
   });
