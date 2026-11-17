@@ -695,10 +695,9 @@ describe("orchestrator MCP toolkit", () => {
           expect(
             threadRecordReads
               .slice(threadRecordReadsBeforeStatus)
-              .filter(
-                ({ fields }) => fields.includes("runs") || fields.includes("contextTransfers"),
-              )
-              .map(({ threadId }) => threadId),
+              .flatMap(({ fields, threadId }) =>
+                fields.includes("runs") || fields.includes("contextTransfers") ? [threadId] : [],
+              ),
           ).toEqual([delegated.childThreadId]);
         }).pipe(Effect.provide(layerTest));
       }),
