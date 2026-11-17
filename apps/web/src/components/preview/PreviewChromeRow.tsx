@@ -39,9 +39,9 @@ interface Props {
   onCapture?: ((record: boolean) => void) | undefined;
   captureDisabled?: boolean | undefined;
   recording?: boolean | undefined;
-  onPictureInPicture?: (() => void) | undefined;
-  pictureInPicture?: boolean | undefined;
-  pictureInPictureDisabled?: boolean | undefined;
+  onToggleFloating?: (() => void) | undefined;
+  floating?: boolean | undefined;
+  floatingDisabled?: boolean | undefined;
   onPickElement?: (() => void) | undefined;
   pickActive?: boolean | undefined;
   pickDisabled?: boolean | undefined;
@@ -68,9 +68,9 @@ export function PreviewChromeRow({
   onCapture,
   captureDisabled,
   recording,
-  onPictureInPicture,
-  pictureInPicture,
-  pictureInPictureDisabled,
+  onToggleFloating,
+  floating,
+  floatingDisabled,
   onPickElement,
   pickActive,
   pickDisabled,
@@ -266,27 +266,25 @@ export function PreviewChromeRow({
             </TooltipPopup>
           </Tooltip>
         ) : null}
-        {onPictureInPicture ? (
+        {onToggleFloating ? (
           <Tooltip>
             <TooltipTrigger
               render={
                 <Button
-                  variant={pictureInPicture ? "secondary" : "ghost"}
+                  variant={floating ? "secondary" : "ghost"}
                   size="icon-xs"
-                  onClick={onPictureInPicture}
-                  aria-label={
-                    pictureInPicture ? "Close floating preview" : "Float preview over chat"
-                  }
-                  aria-pressed={pictureInPicture ? "true" : "false"}
+                  onClick={onToggleFloating}
+                  aria-label={floating ? "Close floating preview" : "Float preview over chat"}
+                  aria-pressed={floating ? "true" : "false"}
                   type="button"
-                  disabled={pictureInPictureDisabled}
+                  disabled={floatingDisabled}
                 />
               }
             >
-              <PictureInPictureIcon className={cn(pictureInPicture && "text-primary")} />
+              <PictureInPictureIcon className={cn(floating && "text-primary")} />
             </TooltipTrigger>
             <TooltipPopup>
-              {pictureInPicture ? "Close floating preview" : "Float preview over chat"}
+              {floating ? "Close floating preview" : "Float preview over chat"}
             </TooltipPopup>
           </Tooltip>
         ) : null}

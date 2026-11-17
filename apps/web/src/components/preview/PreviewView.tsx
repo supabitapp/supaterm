@@ -53,13 +53,7 @@ import {
 import { previewEnvironment } from "~/state/preview";
 import { usePreviewStreamAccess } from "~/state/previewStream";
 import { useAtomCommand } from "~/state/use-atom-command";
-import {
-  closeServerPictureInPicture,
-  openServerPictureInPicture,
-  serverPictureInPictureKey,
-  supportsServerPictureInPicture,
-  useServerPictureInPictureKey,
-} from "~/browser/serverPictureInPicture";
+import { useServerPictureInPicture } from "~/browser/serverPictureInPicture";
 import {
   browserMiniPlayerSource,
   selectThreadPreviewMiniPlayerTabId,
@@ -67,7 +61,6 @@ import {
 } from "~/previewMiniPlayerStore";
 import { readEnvironmentScope, useEnvironmentScope } from "~/state/session";
 import { useRightPanelStore } from "~/rightPanelStore";
-import { useStableCallback } from "~/hooks/useStableCallback";
 
 import { previewBridge } from "./previewBridge";
 import { subscribePreviewAction } from "./previewActionBus";
@@ -441,7 +434,7 @@ export function PreviewView({
     await closePreviewSession({ closePreview, snapshot, tabId, threadRef });
   };
 
-  const handlePictureInPicture = () => {
+  const toggleFloatingPreview = () => {
     if (!tabId) return;
     if (miniPlayerTabId === tabId) {
       usePreviewMiniPlayerStore.getState().close(threadRef);
@@ -451,31 +444,13 @@ export function PreviewView({
     useRightPanelStore.getState().close(threadRef);
   };
 
-  const serverPictureInPictureOpen =
-    useServerPictureInPictureKey() ===
-    (tabId ? serverPictureInPictureKey(threadRef.threadId, tabId) : null);
   const serverPdfUrl =
     navStatus._tag === "Success" ? previewPdfAssetUrl(url, environmentHttpBaseUrl) : null;
-  const canPopOutServerTab =
-    isServerTab &&
-    (serverPictureInPictureOpen || (serverPdfUrl === null && supportsServerPictureInPicture()));
-  const toggleServerPictureInPicture = useStableCallback(() => {
-    if (!tabId) return;
-    if (serverPictureInPictureOpen) {
-      closeServerPictureInPicture();
-      return;
-    }
-    void openServerPictureInPicture({
-      ...threadRef,
-      tabId,
-      seed: serverSurfaceRef.current?.canvas() ?? null,
-    }).catch((error) => {
-      toastManager.add({
-        type: "error",
-        title: "Unable to pop out preview",
-        description: error instanceof Error ? error.message : "An error occurred.",
-      });
-    });
+  const serverPictureInPicture = useServerPictureInPicture({
+    threadRef,
+    tabId: tabId || null,
+    pdfUrl: serverPdfUrl,
+    surfaceRef: serverSurfaceRef,
   });
 
   const desktopCall = (op: ((tabId: string) => Promise<void>) | undefined) => () => {
@@ -496,8 +471,8 @@ export function PreviewView({
               toggleNativePictureInPicture: () => handleNativePictureInPicture(),
             }
           : {}),
-        ...(canPopOutServerTab
-          ? { toggleNativePictureInPicture: toggleServerPictureInPicture }
+        ...(isServerTab && serverPictureInPicture.available
+          ? { toggleNativePictureInPicture: serverPictureInPicture.toggle }
           : {}),
       }
     : previewBridge
@@ -944,13 +919,11 @@ export function PreviewView({
         onCapture={previewBridge && tabId && !isServerTab ? handleCapture : undefined}
         captureDisabled={!desktopOverlay || isUnreachable}
         recording={recordingRuntimeTabId !== null}
-        onPictureInPicture={
-          tabId && (isServerTab || previewBridge) ? handlePictureInPicture : undefined
+        onToggleFloating={
+          tabId && (isServerTab || previewBridge) ? toggleFloatingPreview : undefined
         }
-        pictureInPicture={miniPlayerTabId === tabId}
-        pictureInPictureDisabled={
-          isUnreachable || (!isServerTab && !desktopOverlay?.hasWebContents)
-        }
+        floating={miniPlayerTabId === tabId}
+        floatingDisabled={isUnreachable || (!isServerTab && !desktopOverlay?.hasWebContents)}
         onPickElement={previewBridge && tabId && !isServerTab ? handlePickElement : undefined}
         pickActive={pickActive}
         pickDisabled={!tabId || isUnreachable}
@@ -991,7 +964,7 @@ export function PreviewView({
               onToggleDeviceToolbar={handleToggleDeviceToolbar}
               nativePictureInPicture={
                 isServerTab
-                  ? serverPictureInPictureOpen
+                  ? serverPictureInPicture.open
                   : (desktopOverlay?.pictureInPicture ?? false)
               }
             />

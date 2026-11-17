@@ -31,13 +31,7 @@ import { previewRuntimeTabId } from "~/browser/previewRuntimeTabId";
 import { rendersServerTabNatively } from "~/browser/previewRuntime";
 import { primaryEnvironmentIdAtom } from "~/state/primaryEnvironment";
 import { type ServerBrowserHandle, ServerBrowserSurface } from "~/browser/ServerBrowserSurface";
-import {
-  closeServerPictureInPicture,
-  openServerPictureInPicture,
-  serverPictureInPictureKey,
-  supportsServerPictureInPicture,
-  useServerPictureInPictureKey,
-} from "~/browser/serverPictureInPicture";
+import { useServerPictureInPicture } from "~/browser/serverPictureInPicture";
 import { useBrowserLayoutZoomFactor } from "~/browser/useBrowserLayoutZoomFactor";
 import { Button } from "~/components/ui/button";
 import { toastManager } from "~/components/ui/toast";
@@ -252,8 +246,16 @@ function BrowserMiniPlayer({ threadRef, tabId, miniPlayer }: Props & { readonly 
     return !serverTab && surface?.visible ? surface.rect : null;
   });
   const serverSurfaceRef = useRef<ServerBrowserHandle | null>(null);
-  const serverPictureInPicture =
-    useServerPictureInPictureKey() === serverPictureInPictureKey(threadRef.threadId, tabId);
+  const pdfUrl =
+    snapshot?.navStatus._tag === "Success"
+      ? previewPdfAssetUrl(snapshot.navStatus.url, httpBaseUrl)
+      : null;
+  const serverPictureInPicture = useServerPictureInPicture({
+    threadRef,
+    tabId,
+    pdfUrl,
+    surfaceRef: serverSurfaceRef,
+  });
   const togglePreviewShortcut = useShortcutLabel("preview.toggle");
   const viewportKey = streamedSourceKey(
     threadRef,
@@ -271,40 +273,25 @@ function BrowserMiniPlayer({ threadRef, tabId, miniPlayer }: Props & { readonly 
     useRightPanelStore.getState().openBrowser(threadRef, tabId);
   };
 
-  const toggleNativePictureInPicture = async () => {
-    try {
-      if (serverTab) {
-        if (serverPictureInPicture) closeServerPictureInPicture();
-        else
-          await openServerPictureInPicture({
-            ...threadRef,
-            tabId,
-            seed: serverSurfaceRef.current?.canvas() ?? null,
-          });
-      } else if (previewBridge) {
-        const operation = desktopOverlay?.pictureInPicture
-          ? previewBridge.pictureInPicture.close
-          : previewBridge.pictureInPicture.open;
-        await operation(runtimeTabId);
-      }
-    } catch (error) {
+  const toggleDesktopPictureInPicture = () => {
+    if (!previewBridge) return;
+    const operation = desktopOverlay?.pictureInPicture
+      ? previewBridge.pictureInPicture.close
+      : previewBridge.pictureInPicture.open;
+    void operation(runtimeTabId).catch((error: unknown) => {
       toastManager.add({
         type: "error",
-        title: serverTab ? "Unable to pop out preview" : "Unable to update popped-out preview",
+        title: "Unable to update popped-out preview",
         description: error instanceof Error ? error.message : "An error occurred.",
       });
-    }
+    });
   };
 
   if (!snapshot || !pageVisible) return null;
-  const pdfUrl =
-    snapshot.navStatus._tag === "Success"
-      ? previewPdfAssetUrl(snapshot.navStatus.url, httpBaseUrl)
-      : null;
-  const poppedOut = serverTab ? serverPictureInPicture : Boolean(desktopOverlay?.pictureInPicture);
-  const canPopOut = serverTab
-    ? poppedOut || (pdfUrl === null && supportsServerPictureInPicture())
-    : true;
+  const poppedOut = serverTab
+    ? serverPictureInPicture.open
+    : Boolean(desktopOverlay?.pictureInPicture);
+  const canPopOut = serverTab ? serverPictureInPicture.available : true;
 
   return (
     <MiniPlayerShell
@@ -330,7 +317,9 @@ function BrowserMiniPlayer({ threadRef, tabId, miniPlayer }: Props & { readonly 
                   }
                   disabled={!serverTab && !desktopOverlay?.hasWebContents}
                   onPointerDown={(event) => event.stopPropagation()}
-                  onClick={toggleNativePictureInPicture}
+                  onClick={
+                    serverTab ? serverPictureInPicture.toggle : toggleDesktopPictureInPicture
+                  }
                 />
               }
             >
