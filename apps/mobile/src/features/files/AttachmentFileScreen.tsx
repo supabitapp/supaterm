@@ -14,6 +14,7 @@ import { useAttachmentDocument } from "../../lib/attachmentDocument";
 import { nativeViewerErrorMessage } from "../../lib/attachmentDownload";
 import { isFileBackedComposerAttachment } from "../../lib/composerImages";
 import { copyTextWithHaptic } from "../../lib/copyTextWithHaptic";
+import { activeComposerDraftKey, useQueuedRunEdit } from "../../state/queued-run-edit";
 import { removeComposerDraftAttachment, useComposerDraft } from "../../state/use-composer-drafts";
 import { useEnvironmentServerConfig } from "../../state/entities";
 import { useRefreshAssetUrl } from "../../state/assets";
@@ -31,7 +32,10 @@ export type AttachmentFileRouteParams = {
   readonly sizeBytes: string;
   readonly draftKey?: string;
   readonly htmlRender?: "1";
-  /** Set together by a thread whose composer takes quotes from this render. */
+  /**
+   * Set together by a thread whose composer takes quotes from this render. A link can carry any
+   * draft key, so the screen only honors one that belongs to this route's thread.
+   */
   readonly annotationItemId?: string;
   readonly annotationDraftKey?: string;
 };
@@ -223,21 +227,29 @@ export function AttachmentFileScreen(props: AttachmentFileScreenProps) {
   const subtitle = `${draftKey ? "Draft attachment" : "Attachment"}${sizeBytes > 0 ? ` · ${formatAttachmentSize(sizeBytes)}` : ""}`;
   const refresh = useRefreshAssetUrl(environmentId, resource);
   const capabilities = useEnvironmentServerConfig(environmentId)?.environment.capabilities;
+  const threadId = params.threadId ? ThreadId.make(params.threadId) : null;
+  const threadDraftKey =
+    environmentId && threadId ? scopedThreadKey(environmentId, threadId) : null;
+  const queuedRunEdit = useQueuedRunEdit(threadDraftKey);
   const annotation =
-    environmentId && params.threadId && params.annotationItemId && params.annotationDraftKey
+    environmentId &&
+    threadId &&
+    threadDraftKey &&
+    params.annotationItemId &&
+    params.annotationDraftKey
       ? {
           environmentId,
-          threadId: ThreadId.make(params.threadId),
+          threadId,
           itemId: TurnItemId.make(params.annotationItemId),
-          draftKey: params.annotationDraftKey,
+          draftKey: activeComposerDraftKey(
+            threadDraftKey,
+            params.annotationDraftKey,
+            queuedRunEdit,
+          ),
         }
       : undefined;
 
   if (document.kind === "archive" && isZipFile(params) && !document.error) {
-    const threadDraftKey =
-      environmentId && params.threadId
-        ? scopedThreadKey(environmentId, ThreadId.make(params.threadId))
-        : null;
     return (
       <ZipArchiveView
         name={params.name}
