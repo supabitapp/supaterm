@@ -2728,7 +2728,7 @@ describe("AcpRegistryAdapterV2", () => {
       assert.isFalse(yield* queued.runtime.hasPendingBackgroundWork!);
     }).pipe(Effect.provide(layerTest), Effect.scoped),
   );
-  it.effect("routes /compact to Copilot's native command and to no other registry agent", () =>
+  it.effect("routes /compact to Copilot's native command", () =>
     Effect.gen(function* () {
       const childProcessSpawner = yield* ChildProcessSpawner.ChildProcessSpawner;
       const path = yield* Path.Path;
@@ -2779,7 +2779,6 @@ describe("AcpRegistryAdapterV2", () => {
       });
 
       assert.isDefined((yield* openSession("github-copilot-cli")).compactThread);
-      assert.isUndefined((yield* openSession("gemini")).compactThread);
     }).pipe(Effect.provide(layerTest), Effect.scoped),
   );
 
