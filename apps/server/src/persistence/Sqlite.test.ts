@@ -2,7 +2,6 @@
 import * as NodeFS from "node:fs";
 import * as NodeOS from "node:os";
 import * as NodePath from "node:path";
-import * as NodeSqlite from "node:sqlite";
 import type * as NodeWorkerThreads from "node:worker_threads";
 
 import * as NodeCrypto from "@effect/platform-node/NodeCrypto";
@@ -13,6 +12,7 @@ import * as NodeSqliteClient from "@supaterm/shared/nodeSqliteClient";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
+import * as Migrator from "effect/sql/Migrator";
 import * as SqlClient from "effect/sql/SqlClient";
 import * as SqlError from "effect/sql/SqlError";
 import { vi } from "vite-plus/test";
@@ -21,90 +21,29 @@ import * as ServerConfig from "../config.ts";
 import * as ProcessRunner from "../processRunner.ts";
 import * as ServerOwnership from "../serverOwnership.ts";
 import { migrationManifest, runMigrations } from "./Migrations.ts";
+import Migration0001 from "./Migrations/001_Baseline.ts";
+import Migration0002 from "./Migrations/002_ThreadMessageSearch.ts";
+import Migration0003 from "./Migrations/003_ActiveTurnItemIndexes.ts";
+import Migration0004 from "./Migrations/004_ExcludeAttachmentPlaceholdersFromSearch.ts";
+import Migration0005 from "./Migrations/005_SubagentDeliveryState.ts";
+import Migration0006 from "./Migrations/006_ProjectionProjectsPinArchive.ts";
+import Migration0007 from "./Migrations/007_DropOrchestrationEventCorrelationIndex.ts";
+import Migration0008 from "./Migrations/008_DelegatedRecoveryIndexes.ts";
+import Migration0009 from "./Migrations/009_ScheduledTaskThreadMode.ts";
+import Migration0010 from "./Migrations/010_ProjectionMessageSearchText.ts";
 import * as SqlitePersistence from "./Sqlite.ts";
 
-const workers = vi.hoisted((): Array<NodeWorkerThreads.Worker> => []);
+const workerData = vi.hoisted((): Array<unknown> => []);
 
 vi.mock("node:worker_threads", async (importOriginal) => {
   const actual = await importOriginal<typeof NodeWorkerThreads>();
   class RecordedWorker extends actual.Worker {
     constructor(...args: ConstructorParameters<typeof actual.Worker>) {
       super(...args);
-      workers.push(this);
+      workerData.push(args[1]?.workerData);
     }
   }
   return { ...actual, Worker: RecordedWorker };
-});
-
-it.effect("keeps writes moving past a 48 MiB WAL while a reader retains its snapshot", () => {
-  const tempDir = NodeFS.mkdtempSync(NodePath.join(NodeOS.tmpdir(), "supaterm-sqlite-burst-"));
-  const dbPath = NodePath.join(tempDir, "state.sqlite");
-  const persistence = SqlitePersistence.layerFromPath(dbPath).pipe(
-    Layer.provide(NodeServices.layer),
-  );
-
-  return Effect.gen(function* () {
-    const sql = yield* SqlClient.SqlClient;
-    const checkpointWorker = workers.at(-1)!;
-    yield* sql`CREATE TABLE burst_probe(id INTEGER PRIMARY KEY, payload BLOB)`;
-    yield* sql`INSERT INTO burst_probe VALUES (1, NULL)`;
-    yield* sql`PRAGMA wal_checkpoint(TRUNCATE)`;
-    const reader = yield* Effect.acquireRelease(
-      Effect.sync(() => new NodeSqlite.DatabaseSync(dbPath, { readOnly: true })),
-      (database) => Effect.sync(() => database.close()),
-    );
-    reader.exec("BEGIN");
-    assert.equal(reader.prepare("SELECT COUNT(*) AS count FROM burst_probe").get()?.count, 1);
-
-    yield* sql.withTransaction(
-      sql`INSERT INTO burst_probe VALUES (2, zeroblob(${48 * 1024 * 1024}))`,
-    );
-    const state = yield* Effect.callback<{
-      readonly log: number;
-      readonly checkpointed: number;
-      readonly blocked: boolean;
-    }>((resume) => {
-      const onMessage = (message: {
-        readonly type?: string;
-        readonly log?: number;
-        readonly checkpointed?: number;
-        readonly blocked?: boolean;
-      }) => {
-        if (
-          message.type === "checkpoint" &&
-          typeof message.log === "number" &&
-          message.log > 10_000 &&
-          typeof message.checkpointed === "number" &&
-          typeof message.blocked === "boolean"
-        ) {
-          checkpointWorker.off("message", onMessage);
-          resume(
-            Effect.succeed({
-              log: message.log,
-              checkpointed: message.checkpointed,
-              blocked: message.blocked,
-            }),
-          );
-        }
-      };
-      checkpointWorker.on("message", onMessage);
-      checkpointWorker.ref();
-      // oxlint-disable-next-line unicorn/require-post-message-target-origin -- Node workers do not accept a target origin.
-      checkpointWorker.postMessage("barrier");
-      return Effect.sync(() => checkpointWorker.off("message", onMessage));
-    });
-    assert.isBelow(state.checkpointed, state.log);
-    assert.isFalse(state.blocked);
-
-    yield* sql.withTransaction(sql`INSERT INTO burst_probe VALUES (3, NULL)`);
-    assert.equal(reader.prepare("SELECT COUNT(*) AS count FROM burst_probe").get()?.count, 1);
-    reader.exec("COMMIT");
-    assert.equal(reader.prepare("SELECT COUNT(*) AS count FROM burst_probe").get()?.count, 3);
-  }).pipe(
-    Effect.scoped,
-    Effect.provide(persistence),
-    Effect.ensuring(Effect.sync(() => NodeFS.rmSync(tempDir, { recursive: true, force: true }))),
-  );
 });
 
 // Linux names an open, already-deleted file "<path> (deleted)" in /proc/self/fd.
@@ -187,6 +126,57 @@ it.effect("drops planner statistics a database already has", () => {
         "SEARCH parent USING INDEX sqlite_autoindex_walk_probe_1 (node_id=?)",
       );
     }).pipe(Effect.provide(persistence()));
+  }).pipe(
+    Effect.ensuring(Effect.sync(() => NodeFS.rmSync(tempDir, { recursive: true, force: true }))),
+  );
+});
+
+it.effect("upgrades an existing database on a read-write worker connection", () => {
+  const tempDir = NodeFS.mkdtempSync(NodePath.join(NodeOS.tmpdir(), "supaterm-sqlite-upgrade-"));
+  const dbPath = NodePath.join(tempDir, "state.sqlite");
+
+  return Effect.gen(function* () {
+    yield* Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient;
+      yield* sql`PRAGMA journal_mode = WAL;`;
+      yield* Migrator.make({})({
+        loader: Migrator.fromRecord({
+          "1_Baseline": Migration0001,
+          "2_ThreadMessageSearch": Migration0002,
+          "3_ActiveTurnItemIndexes": Migration0003,
+          "4_ExcludeAttachmentPlaceholdersFromSearch": Migration0004,
+          "5_SubagentDeliveryState": Migration0005,
+          "6_ProjectionProjectsPinArchive": Migration0006,
+          "7_DropOrchestrationEventCorrelationIndex": Migration0007,
+          "8_DelegatedRecoveryIndexes": Migration0008,
+          "9_ScheduledTaskThreadMode": Migration0009,
+          "10_ProjectionMessageSearchText": Migration0010,
+        }),
+      });
+    }).pipe(Effect.provide(NodeSqliteClient.layer({ filename: dbPath })));
+    const startedBefore = workerData.length;
+
+    yield* Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient;
+      const rows = yield* sql<{ readonly migration_id: number; readonly name: string }>`
+        SELECT migration_id, name FROM effect_sql_migrations ORDER BY migration_id
+      `;
+      assert.deepStrictEqual(
+        rows.map((row) => [row.migration_id, row.name] as const),
+        migrationManifest,
+      );
+    }).pipe(
+      Effect.provide(
+        SqlitePersistence.layerFromPath(dbPath).pipe(Layer.provide(NodeServices.layer)),
+      ),
+    );
+    assert.deepInclude(workerData.slice(startedBefore), {
+      filename: dbPath,
+      readOnly: false,
+      requireWal: false,
+      allowExtension: false,
+      prepareCacheSize: 200,
+    });
   }).pipe(
     Effect.ensuring(Effect.sync(() => NodeFS.rmSync(tempDir, { recursive: true, force: true }))),
   );

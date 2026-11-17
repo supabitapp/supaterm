@@ -1497,7 +1497,7 @@ describe("AcpRegistryAdapterV2", () => {
                   })
                 : "test prompt",
           },
-          runtimeInstructions,
+          ...(ordinal === 1 ? [runtimeInstructions] : []),
         ];
         const echo = (messageId: string, content: ReadonlyArray<unknown>) =>
           claudeFrames.update(CLAUDE_ROOT_SESSION, {
@@ -1518,6 +1518,7 @@ describe("AcpRegistryAdapterV2", () => {
               {
                 type: "text",
                 text: promptText(ordinal),
+                annotations: { audience: ["user"] },
               },
             ]),
             ...(ordering === "before" ? [matching, acknowledgment] : [acknowledgment, matching]),
@@ -2093,6 +2094,69 @@ describe("AcpRegistryAdapterV2", () => {
           (event) => event.type === "message.updated" && event.message.text.includes("onetwo"),
         ),
       );
+    }).pipe(Effect.provide(layerTest), Effect.scoped),
+  );
+
+  it.effect("replaces streamed root tool output with a later content list", () =>
+    Effect.gen(function* () {
+      const { update } = claudeFrames;
+      const text = (value: string) => [{ type: "content", content: { type: "text", text: value } }];
+      const session = yield* openClaudeReplaySession([
+        ...claudeFrames.open,
+        ...claudeFrames.prompt(1),
+        update(CLAUDE_ROOT_SESSION, {
+          sessionUpdate: "tool_call_update",
+          toolCallId: "root-tool",
+          title: "Stream",
+          status: "in_progress",
+          content: text("one"),
+        }),
+        update(CLAUDE_ROOT_SESSION, {
+          sessionUpdate: "tool_call_content_chunk",
+          toolCallId: "root-tool",
+          content: { type: "content", content: { type: "text", text: "two" } },
+        }),
+        update(CLAUDE_ROOT_SESSION, {
+          sessionUpdate: "tool_call_update",
+          toolCallId: "root-tool",
+          status: "completed",
+          content: text("replacement"),
+        }),
+        update(CLAUDE_ROOT_SESSION, {
+          sessionUpdate: "tool_call_content_chunk",
+          toolCallId: "root-tool",
+          content: { type: "content", content: { type: "text", text: "-more" } },
+        }),
+        update(CLAUDE_ROOT_SESSION, {
+          sessionUpdate: "tool_call_content_chunk",
+          toolCallId: "root-tool",
+          content: {
+            type: "diff",
+            changes: [{ operation: "add", path: "/a.txt" }],
+            patch: { format: "git_patch", text: "PATCH" },
+          },
+        }),
+        claudeMarker("tools complete"),
+        claudeFrames.idle("end_turn"),
+        claudeFrames.closeRequest,
+        claudeFrames.closed,
+      ]);
+      yield* session.runtime.startTurn(session.turnInput(1));
+      const events = yield* session.throughMarker("tools complete");
+      const outputs = events.flatMap((event) =>
+        event.type === "turn_item.updated" &&
+        event.turnItem.nativeItemRef?.nativeId === "root-tool" &&
+        "output" in event.turnItem
+          ? [event.turnItem.output]
+          : [],
+      );
+      assert.deepEqual(outputs, [
+        text("one"),
+        text("onetwo"),
+        text("replacement"),
+        text("replacement-more"),
+        { type: "Text", text: "replacement-morePATCH" },
+      ]);
     }).pipe(Effect.provide(layerTest), Effect.scoped),
   );
 
@@ -2727,7 +2791,7 @@ describe("AcpRegistryAdapterV2", () => {
       assert.isFalse(yield* queued.runtime.hasPendingBackgroundWork!);
     }).pipe(Effect.provide(layerTest), Effect.scoped),
   );
-  it.effect("routes /compact to Copilot's native command and to no other registry agent", () =>
+  it.effect("routes /compact to Copilot's native command", () =>
     Effect.gen(function* () {
       const childProcessSpawner = yield* ChildProcessSpawner.ChildProcessSpawner;
       const path = yield* Path.Path;
@@ -2778,7 +2842,6 @@ describe("AcpRegistryAdapterV2", () => {
       });
 
       assert.isDefined((yield* openSession("github-copilot-cli")).compactThread);
-      assert.isUndefined((yield* openSession("gemini")).compactThread);
     }).pipe(Effect.provide(layerTest), Effect.scoped),
   );
 

@@ -4811,8 +4811,7 @@ it.layer(layerTest)("ProjectionStoreV2", (it) => {
         );
       }
 
-      // A steer cancels the queued run before it starts while the steered run keeps writing, so
-      // the queued message leaves the window but its run is still the shell's latest run.
+      // A steer moves the cancelled queued message outside the window.
       const steeredItemId = "turn-item:bounded-sql-history:steered-output";
       const steeredRunId = RunId.make("run:bounded-sql-history:1000");
       yield* sql`
@@ -4850,7 +4849,14 @@ it.layer(layerTest)("ProjectionStoreV2", (it) => {
       assert.isFalse(
         steeredSnapshot.projection.turnItems.some((item) => item.runId === cancelledRunId),
       );
-      assert.isTrue(steeredSnapshot.projection.runs.some((run) => run.id === cancelledRunId));
+      const latestRunId = (yield* projectionStore.getShellSnapshot()).threads.find(
+        (thread) => thread.id === threadId,
+      )?.latestRunId;
+      assert.equal(latestRunId, hiddenRunId);
+      assert.isFalse(
+        steeredSnapshot.projection.turnItems.some((item) => item.runId === latestRunId),
+      );
+      assert.isTrue(steeredSnapshot.projection.runs.some((run) => run.id === latestRunId));
       yield* sql`DELETE FROM orchestration_v2_projection_turn_items WHERE turn_item_id = ${steeredItemId}`;
 
       const interruptRunId = RunId.make("run:bounded-sql-history:interrupt");
@@ -5694,7 +5700,7 @@ it.layer(layerTest)("ProjectionStoreV2", (it) => {
       let windowReads = 0;
       let foldedGroups = 0;
 
-      for (let round = 0; round < 4; round += 1) {
+      for (let round = 0; round < 5; round += 1) {
         const threadId = ThreadId.make(`thread:window-equivalence:${round}`);
         const created = {
           id: EventId.make(`event:window-equivalence:${round}`),
@@ -5726,35 +5732,41 @@ it.layer(layerTest)("ProjectionStoreV2", (it) => {
           },
         } satisfies Parameters<typeof projectionStore.apply>[0];
         yield* projectionStore.apply(created);
+        // The last thread puts three things below a window: a user turn under a hidden queued
+        // turn, the start of a long run that folds, and the start of the run before it, which
+        // has later rows among the first rows of the long run.
+        const windowEdges = round === 4;
         // One run of each kind in a random order, then an active run. Every other thread has
         // one user turn and then only wake turns.
-        // The last thread is a long run that a late notification wakes, then enough one-row
-        // runs that a page stops at the raw turn limit only if it counts that wake as a turn.
+        // The fourth thread is a turn, many rolled-back rows, a late notification of that turn,
+        // then 149 one-row turns. A page stops at that notification only if it counts as a turn.
         const kinds =
           round === 3
-            ? ["late wake", ...Array.from({ length: 148 }, () => "one row")]
-            : [
-                "rolled back",
-                "cancelled queued turn",
-                "held queued turn",
-                "replaced attempt",
-                "stopped",
-                "stopped",
-                "folds work",
-                "folds work",
-                "short",
-                "short",
-                "short",
-              ]
-                .map((kind) => ({ kind, order: random() }))
-                .toSorted((left, right) => left.order - right.order)
-                .map(({ kind }) => kind);
+            ? ["rolled back", "late wake", ...Array.from({ length: 149 }, () => "one row")]
+            : windowEdges
+              ? ["short", "cancelled queued turn", "folds work", "long fold", "stopped"]
+              : [
+                  "rolled back",
+                  "cancelled queued turn",
+                  "held queued turn",
+                  "replaced attempt",
+                  "stopped",
+                  "stopped",
+                  "folds work",
+                  "folds work",
+                  "short",
+                  "short",
+                  "short",
+                ]
+                  .map((kind) => ({ kind, order: random() }))
+                  .toSorted((left, right) => left.order - right.order)
+                  .map(({ kind }) => kind);
         const agentDriven = round === 1;
         const runs: Array<unknown> = [];
         const attempts: Array<unknown> = [];
         const items: Array<unknown> = [];
         const tiedWithHidden: Array<TurnItemId> = [];
-        const repliesInStoppedRuns: Array<string> = [];
+        const pageEnds: Array<string> = [];
         let ordinal = 0;
         for (const [index, kind] of [...kinds, "active"].entries()) {
           const run = index + 1;
@@ -5848,7 +5860,11 @@ it.layer(layerTest)("ProjectionStoreV2", (it) => {
           const wakes =
             kind === "one row"
               ? run % 10 !== 0
-              : kind !== "late wake" && (agentDriven ? run > 1 : chance(0.2));
+              : windowEdges
+                ? ["folds work", "long fold", "stopped"].includes(kind)
+                : kind !== "late wake" && (agentDriven ? run > 1 : chance(0.2));
+          if (round === 3 && kind === "active")
+            pageEnds.push(`turn-item:window-equivalence:${round}:${items.length}`);
           if (wakes) notification();
           else
             userMessage(
@@ -5864,25 +5880,40 @@ it.layer(layerTest)("ProjectionStoreV2", (it) => {
                 ? 320 + Math.floor(random() * 60)
                 : kind === "folds work"
                   ? 155 + Math.floor(random() * 60)
-                  : kind === "one row"
-                    ? 0
-                    : Math.floor(random() * 30);
+                  : kind === "long fold"
+                    ? 300
+                    : kind === "one row"
+                      ? 0
+                      : Math.floor(random() * 30);
           for (let row = 0; row < work; row += 1) {
-            if (chance(0.5)) add("command_execution", { input: "echo", output: "ok", exitCode: 0 });
-            else add("reasoning", { text: "", streaming: false });
+            // The first rows of a long fold and the work of a late wake belong to the run before.
+            const owner =
+              (kind === "long fold" && row < 140) || kind === "late wake"
+                ? {
+                    runId: `run:window-equivalence:${round}:${run - 1}`,
+                    nodeId: `node:window-equivalence:${round}:${run - 1}`,
+                  }
+                : {};
+            if (chance(0.5))
+              add("command_execution", { input: "echo", output: "ok", exitCode: 0, ...owner });
+            else add("reasoning", { text: "", streaming: false, ...owner });
             // A reply deep in a stopped run: a page that ends on it has enough work below it
             // to fold, and only the stop request above it says that it does not.
             const reply = kind === "stopped" && row === 200;
-            if (reply)
-              repliesInStoppedRuns.push(`turn-item:window-equivalence:${round}:${items.length}`);
-            if (reply || chance(0.02))
+            if (reply) pageEnds.push(`turn-item:window-equivalence:${round}:${items.length}`);
+            // With these replies, the part of a long fold in one window is too small to fold,
+            // and a shown row lies below the notification of a late wake.
+            const replies = kind === "long fold" || kind === "late wake";
+            if (reply || (replies && row % 5 === 0) || chance(0.02))
               add("assistant_message", {
                 messageId: `message:window-equivalence:${round}:${items.length}`,
                 text: "Reply",
                 streaming: false,
               });
-            if (chance(0.01)) notification();
-            if (chance(0.004) && !agentDriven) userMessage("steer");
+            // A late wake has no other input above its turn start.
+            if (chance(0.01) && kind !== "late wake") notification();
+            if (chance(0.004) && !agentDriven && !windowEdges && kind !== "late wake")
+              userMessage("steer");
           }
           if (kind === "late wake") notification();
           if (kind === "stopped") add("run_interrupt_request", { message: "Stop" });
@@ -5977,7 +6008,7 @@ it.layer(layerTest)("ProjectionStoreV2", (it) => {
             cursor = page.nextCursor;
           }
         }
-        for (const sourceItemId of repliesInStoppedRuns) {
+        for (const sourceItemId of pageEnds) {
           const cursor = encodeThreadHistoryCursor({
             snapshotSequence: 0,
             sourceThreadId: threadId,
@@ -5994,6 +6025,13 @@ it.layer(layerTest)("ProjectionStoreV2", (it) => {
         for (const view of ["messages", "activity"] as const) {
           for (const afterPosition of [-1, Math.floor(totalItems / 3), totalItems - 5])
             yield* windowed(timeline({ view, afterPosition, limit: 20 }));
+          for (const beforePosition of [
+            Number.POSITIVE_INFINITY,
+            Math.floor(totalItems / 3),
+            totalItems - 5,
+          ])
+            yield* windowed(timeline({ view, beforePosition, limit: 20 }));
+          yield* windowed(timeline({ view, afterPosition: 3, beforePosition: 40, limit: 20 }));
         }
         for (const itemId of [newest.sourceItemId, ...tiedWithHidden])
           yield* windowed(timeline({ itemId, limit: 1 }));
@@ -7375,8 +7413,26 @@ it.layer(layerTest)("ProjectionStoreV2", (it) => {
             value == null ? null : DateTime.toEpochMillis(value);
           assert.equal(timestamp(sqlShell.activityRunStartedAt), expected);
           assert.equal(timestamp(memoryShell.activityRunStartedAt), expected);
-          assert.equal(sqlShell.latestRunId, "run:clock:newer");
+          // A queued message steered or removed before it started never ran, so the run that did presents.
+          for (const shell of [sqlShell, memoryShell]) {
+            assert.equal(shell.latestRunId, status === "cancelled" ? runId : "run:clock:newer");
+          }
         }
+      }
+      // Removing a message after the earlier run ended leaves the cancelled run as the latest.
+      yield* projectionStore.apply({
+        id: EventId.make("event:clock:ended-before-cancel"),
+        type: "run.updated",
+        threadId,
+        occurredAt: later,
+        payload: { ...run, status: "completed", startedAt: now, completedAt: now },
+      });
+      const endedBeforeCancelProjection = yield* projectionStore.getThreadProjection(threadId);
+      for (const shell of [
+        (yield* projectionStore.getShellSnapshot()).threads.find((row) => row.id === threadId)!,
+        ProjectionStore.threadShellFromProjection(endedBeforeCancelProjection),
+      ]) {
+        assert.equal(shell.latestRunId, "run:clock:newer");
       }
 
       yield* projectionStore.apply({
@@ -9650,6 +9706,23 @@ it.layer(layerTest)("ProjectionStoreV2", (it) => {
       });
       assert.deepEqual(followingPage.items, targetAfterRollback.visibleTurnItems.slice(2));
       assert.isFalse(followingPage.hasMore);
+      assert.isTrue(followingPage.hasEarlier);
+      const newestPage = yield* projectionStore.getTimelinePage(targetThreadId, {
+        view: "activity",
+        limit: 2,
+        beforePosition: Number.POSITIVE_INFINITY,
+      });
+      assert.deepEqual(newestPage.items, targetAfterRollback.visibleTurnItems.slice(-2));
+      assert.isFalse(newestPage.hasMore);
+      assert.isTrue(newestPage.hasEarlier);
+      const earlierPage = yield* projectionStore.getTimelinePage(targetThreadId, {
+        view: "activity",
+        limit: 10,
+        beforePosition: newestPage.items[0]!.position,
+      });
+      assert.deepEqual(earlierPage.items, targetAfterRollback.visibleTurnItems.slice(0, -2));
+      assert.isTrue(earlierPage.hasMore);
+      assert.isFalse(earlierPage.hasEarlier);
       const tracedTimelinePage = (limit: number) =>
         Effect.gen(function* () {
           const { statements, tracer } = traceSqlStatements();

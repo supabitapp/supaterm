@@ -123,6 +123,7 @@ overrides:
   micromark: 4.0.2
   mdast-util-to-hast: 13.2.1
   expo-audio: 58.0.11
+  "@expo/ui": 58.0.27
   expo-network: 58.0.4
   expo-sharing: 58.0.22
   expo-video: 58.0.13
@@ -233,6 +234,9 @@ patchedDependencies:
   expo-video@58.0.13: patches/expo-video@58.0.13.patch
   expo-network@58.0.4: patches/expo-network@58.0.4.patch
   expo-sharing@58.0.22: patches/expo-sharing@58.0.22.patch
+  # Android: an RNHostView without a scrolling descendant (an app bar's buttons) is no longer the
+  # scroll target a Material bottom sheet picks, so sheet content can sit below its header.
+  "@expo/ui@58.0.27": patches/@expo__ui@58.0.27.patch
   "@ff-labs/fff-node@0.11.0": patches/@ff-labs__fff-node@0.11.0.patch
   # Re-requests a ResizeObserver delivery when a layout measurement disagrees with it, lets a
   # native scroll event at the target finish a re-armed initial bootstrap on iOS, and keeps a
