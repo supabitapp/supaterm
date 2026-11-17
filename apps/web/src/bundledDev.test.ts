@@ -50,6 +50,9 @@ export const startup = Promise.resolve().then(() => globalThis.onStarted(Shared(
           "@supaterm/icons/nodes": NodeURL.fileURLToPath(
             import.meta.resolve("@supaterm/icons/nodes"),
           ),
+          "allo-font": NodePath.dirname(
+            NodeURL.fileURLToPath(import.meta.resolve("allo-font/package.json")),
+          ),
         },
       },
       experimental: { bundledDev: true },
@@ -102,6 +105,7 @@ globalThis.window = globalThis;
 globalThis.document = {
   createElement: () => ({ relList: { supports: () => true } }),
   getElementById: () => null,
+  head: { append() {} },
 };
 globalThis.__rolldown_runtime__ = {
   registerGraph() {},
