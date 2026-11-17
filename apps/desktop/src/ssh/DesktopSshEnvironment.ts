@@ -3,6 +3,7 @@ import type {
   DesktopSshEnvironmentBootstrap,
   DesktopSshEnvironmentTarget,
 } from "@supaterm/contracts";
+import { CLI_RELEASE_BASE_URL_ENV } from "@supaterm/shared/cliRelease";
 import * as NetService from "@supaterm/shared/Net";
 import * as SshAuth from "@supaterm/ssh/auth";
 import { resolveSshTarget } from "@supaterm/ssh/command";
@@ -26,6 +27,10 @@ import * as Layer from "effect/Layer";
 import * as Path from "effect/Path";
 import * as HttpClient from "effect/http/HttpClient";
 import * as ChildProcessSpawner from "effect/process/ChildProcessSpawner";
+import * as Option from "effect/Option";
+import serverPackageJson from "../../../server/package.json" with { type: "json" };
+
+import type * as DesktopEnvironment from "../app/DesktopEnvironment.ts";
 
 import * as DesktopSshPasswordPrompts from "./DesktopSshPasswordPrompts.ts";
 
@@ -72,6 +77,24 @@ export interface DesktopSshEnvironmentLayerOptions {
   readonly resolveCliRunner?: Effect.Effect<SshTunnel.RemoteSupatermRunnerOptions>;
   readonly resolveLauncherId?: Effect.Effect<string | null>;
 }
+
+export const resolveDesktopSshCliRunner = (
+  environment: DesktopEnvironment.DesktopEnvironment["Service"],
+  env: NodeJS.ProcessEnv,
+): SshTunnel.RemoteSupatermRunnerOptions => {
+  const devRemoteEntryPath = Option.getOrUndefined(environment.devRemoteSupatermServerEntryPath);
+  if (environment.isDevelopment && devRemoteEntryPath !== undefined) {
+    return {
+      nodeScriptPath: devRemoteEntryPath,
+      nodeEngineRange: serverPackageJson.engines.node,
+    };
+  }
+  const releaseBaseUrl = env[CLI_RELEASE_BASE_URL_ENV]?.trim() || undefined;
+  return {
+    archiveVersion: environment.appVersion,
+    ...(releaseBaseUrl === undefined ? {} : { releaseBaseUrl }),
+  };
+};
 
 // Remote servers record this ID as their owner, so it has to outlive restarts,
 // updates and edits to a saved connection. Without a stored one there is none.
