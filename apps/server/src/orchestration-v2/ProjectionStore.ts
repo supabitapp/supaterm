@@ -6773,12 +6773,13 @@ export const layer: Layer.Layer<ProjectionStoreV2, never, SqlClient.SqlClient> =
           items: ReadonlyArray<TimelineIndexItem>,
           from: number | null,
         ) {
-          const base = from === null ? 0 : yield* local.visibleBefore(from);
-          return items.filter(local.isVisible).map((item, offset): IndexedTimelineRow => ({
-            ...localTimelineRow(item),
-            position: base + offset,
-            canonicalPosition: base + offset,
-          }));
+          let position = from === null ? 0 : yield* local.visibleBefore(from);
+          return items.flatMap((item): ReadonlyArray<IndexedTimelineRow> => {
+            if (!local.isVisible(item)) return [];
+            const row = { ...localTimelineRow(item), position, canonicalPosition: position };
+            position += 1;
+            return [row];
+          });
         });
         const isCursorRow = (row: TimelineIndexRow) => row.sourceItemId === cursor.si;
         // The ordinals come from the stop request index, so this does not walk the thread.
@@ -7005,51 +7006,54 @@ export const layer: Layer.Layer<ProjectionStoreV2, never, SqlClient.SqlClient> =
                       findCursorEndIndex(indexed, decodeThreadHistoryCursor(cursor)),
                       indexed.length - 1,
                     );
-              while (workMode !== undefined) {
-                const { page } = selection;
-                const span = [...page.items.slice(0, 1), ...page.items.slice(-1)].map(
-                  (row) => row.canonicalPosition,
-                );
-                if (cursorPosition >= 0) span.push(cursorPosition);
-                if (span.length === 0) break;
-                const runs = new Map(
-                  // A work page holds rows of one run, which can be the rows that have no run.
-                  (workMode === "work"
-                    ? page.items.slice(0, 1)
-                    : indexed.slice(Math.min(...span), Math.max(...span) + 1)
-                  ).flatMap(({ sourceThreadId, item }) =>
-                    (workMode === "work" ||
-                      (item.runId !== null &&
-                        (item.runStatus === "completed" || item.attemptStatus === "superseded"))) &&
-                    !scannedRuns.has(`${sourceThreadId}:${item.runId}`)
-                      ? [
-                          [
-                            `${sourceThreadId}:${item.runId}`,
-                            { threadId: sourceThreadId, id: item.runId },
-                          ] as const,
-                        ]
-                      : [],
-                  ),
-                );
-                if (runs.size === 0) break;
-                for (const run of runs.keys()) scannedRuns.add(run);
-                const found = yield* sql<{ thread_id: string; turn_item_id: string }>`
-          SELECT item.thread_id, item.turn_item_id
-          FROM json_each(${yield* encodeTimelineSources([...runs.values()])}) AS wanted
-          CROSS JOIN orchestration_v2_projection_turn_items AS item
-            ON item.thread_id = json_extract(wanted.value, '$.threadId')
-            AND item.run_id IS json_extract(wanted.value, '$.id')
-          WHERE item.status = 'completed' AND ${inlineWorkOutput}`;
-                if (found.length === 0) break;
-                for (const row of found)
-                  persistentOutputs.add(`${row.thread_id}:${row.turn_item_id}`);
-                selection = yield* select(
-                  indexed.map((row) =>
-                    persistentOutputs.has(`${row.sourceThreadId}:${row.sourceItemId}`)
-                      ? { ...row, item: { ...row.item, persistentOutput: true } }
-                      : row,
-                  ),
-                );
+              if (workMode !== undefined) {
+                for (;;) {
+                  const { page } = selection;
+                  const span = [...page.items.slice(0, 1), ...page.items.slice(-1)].map(
+                    (row) => row.canonicalPosition,
+                  );
+                  if (cursorPosition >= 0) span.push(cursorPosition);
+                  if (span.length === 0) break;
+                  const runs = new Map(
+                    // A work page holds rows of one run, which can be the rows that have no run.
+                    (workMode === "work"
+                      ? page.items.slice(0, 1)
+                      : indexed.slice(Math.min(...span), Math.max(...span) + 1)
+                    ).flatMap(({ sourceThreadId, item }) =>
+                      (workMode === "work" ||
+                        (item.runId !== null &&
+                          (item.runStatus === "completed" ||
+                            item.attemptStatus === "superseded"))) &&
+                      !scannedRuns.has(`${sourceThreadId}:${item.runId}`)
+                        ? [
+                            [
+                              `${sourceThreadId}:${item.runId}`,
+                              { threadId: sourceThreadId, id: item.runId },
+                            ] as const,
+                          ]
+                        : [],
+                    ),
+                  );
+                  if (runs.size === 0) break;
+                  for (const run of runs.keys()) scannedRuns.add(run);
+                  const found = yield* sql<{ thread_id: string; turn_item_id: string }>`
+            SELECT item.thread_id, item.turn_item_id
+            FROM json_each(${yield* encodeTimelineSources([...runs.values()])}) AS wanted
+            CROSS JOIN orchestration_v2_projection_turn_items AS item
+              ON item.thread_id = json_extract(wanted.value, '$.threadId')
+              AND item.run_id IS json_extract(wanted.value, '$.id')
+            WHERE item.status = 'completed' AND ${inlineWorkOutput}`;
+                  if (found.length === 0) break;
+                  for (const row of found)
+                    persistentOutputs.add(`${row.thread_id}:${row.turn_item_id}`);
+                  selection = yield* select(
+                    indexed.map((row) =>
+                      persistentOutputs.has(`${row.sourceThreadId}:${row.sourceItemId}`)
+                        ? { ...row, item: { ...row.item, persistentOutput: true } }
+                        : row,
+                    ),
+                  );
+                }
               }
               return {
                 indexed,

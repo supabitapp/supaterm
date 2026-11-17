@@ -198,9 +198,9 @@ export function normalizeAcpRegistryLiveConfiguration(
   const models = normalizeModels(candidates, boundedCurrentModelId);
   const descriptors = acpProviderOptionDescriptors({ configOptions, modeState });
   const modelOptionIds = new Set(
-    configOptions
-      .filter((option) => option.category === "thought_level" || option.category === "model_config")
-      .map((option) => option.id),
+    configOptions.flatMap((option) =>
+      option.category === "thought_level" || option.category === "model_config" ? [option.id] : [],
+    ),
   );
   return {
     models,
