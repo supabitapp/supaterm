@@ -1,5 +1,6 @@
 import * as NodeOS from "node:os";
 
+import { formatHostForUrl, isWildcardHost } from "@supaterm/shared/hostClassification";
 import { QrCode } from "@supaterm/shared/qrCode";
 import { buildPairingAppLink, buildPairingUrl } from "@supaterm/shared/remote";
 import * as Effect from "effect/Effect";
@@ -32,12 +33,6 @@ export const isLoopbackHost = (host: string | undefined): boolean => {
     host.startsWith("127.")
   );
 };
-
-export const isWildcardHost = (host: string | undefined): boolean =>
-  host === "0.0.0.0" || host === "::" || host === "[::]";
-
-export const formatHostForUrl = (host: string): string =>
-  host.includes(":") && !host.startsWith("[") ? `[${host}]` : host;
 
 export const loopbackUrlHostForAddress = (address: NetAddress.InetAddress): string =>
   address._tag === "InetAddressV6" && NetAddress.isLoopback(address.address)

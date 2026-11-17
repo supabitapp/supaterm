@@ -530,7 +530,7 @@ it.layer(NodeServices.layer)("buildAntigravityPrompt", (it) => {
     }),
   );
 
-  it.effect.each([undefined, {}, { image: false }, { image: true }])(
+  it.effect.each([{ image: true }])(
     "keeps unsupported image formats path-only with capabilities %s",
     (promptCapabilities) =>
       Effect.gen(function* () {

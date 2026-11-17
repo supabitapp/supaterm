@@ -425,6 +425,9 @@ desktop app, open **Settings → Environments** and switch off **Local
 environment**. Supaterm restarts without a local server: no local agents or terminals run, WSL
 backends stay off, and other devices can no longer connect to this computer. Your projects,
 history, and saved connections are kept, and you keep working through paired environments or SSH.
+If a [background service](./background-service.md) on this computer uses the same Supaterm home, the
+app still treats it as this computer: **Open in** and file reveal for its projects run here,
+whichever connection you reach it through.
 
 Switch **Local environment** back on in the same place to restart with your previous local
 settings.

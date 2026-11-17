@@ -11,6 +11,7 @@ import Migration0006 from "./Migrations/006_ProjectionProjectsPinArchive.ts";
 import Migration0007 from "./Migrations/007_DropOrchestrationEventCorrelationIndex.ts";
 import Migration0008 from "./Migrations/008_DelegatedRecoveryIndexes.ts";
 import Migration0009 from "./Migrations/009_ScheduledTaskThreadMode.ts";
+import Migration0010 from "./Migrations/010_ProjectionMessageSearchText.ts";
 
 /**
  * Add a schema change as a new entry with the next id. Never edit, renumber, or
@@ -27,6 +28,7 @@ const migrationEntries = [
   [7, "DropOrchestrationEventCorrelationIndex", Migration0007],
   [8, "DelegatedRecoveryIndexes", Migration0008],
   [9, "ScheduledTaskThreadMode", Migration0009],
+  [10, "ProjectionMessageSearchText", Migration0010],
 ] as const;
 
 export const migrationManifest = migrationEntries.map(([id, name]) => [id, name] as const);
@@ -121,6 +123,21 @@ const ensureUnrecordedSchema = Effect.fn("ensureUnrecordedSchema")(function* () 
     CREATE INDEX IF NOT EXISTS idx_orchestration_events_sequence_aggregate
     ON orchestration_events(sequence, aggregate_kind, stream_id)
   `;
+});
+
+const latestMigrationId = Math.max(...migrationEntries.map(([id]) => id));
+
+// Mirrors the Migrator, which runs only ids above the highest recorded.
+export const hasPendingMigrations = Effect.fn("hasPendingMigrations")(function* () {
+  const sql = yield* SqlClient.SqlClient;
+  const tables = yield* sql`
+    SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'effect_sql_migrations'
+  `;
+  if (tables.length === 0) return true;
+  const rows = yield* sql<{ readonly latestId: number | null }>`
+    SELECT MAX(migration_id) AS latestId FROM effect_sql_migrations
+  `;
+  return (rows[0]?.latestId ?? 0) < latestMigrationId;
 });
 
 const run = Migrator.make({});

@@ -17,7 +17,10 @@ import * as Schema from "effect/Schema";
 import { createMuseSdkHost, createMuseSdkHostEffect, type MuseSdkHost } from "./sdk.ts";
 import { museModelCapabilities, resolveMuseReasoningEffort } from "./modelCatalog.ts";
 import type { ProviderTextGeneration } from "@supaterm/provider-core/server/textGeneration";
-import { investigationUnsupported } from "@supaterm/provider-core/server/textGenerationOperations";
+import {
+  generatedThreadTitle,
+  investigationUnsupported,
+} from "@supaterm/provider-core/server/textGenerationOperations";
 import {
   buildBranchNamePrompt,
   buildCommitMessagePrompt,
@@ -27,7 +30,6 @@ import {
 import {
   sanitizeCommitSubject,
   sanitizePrTitle,
-  sanitizeThreadTitle,
   toJsonSchemaObject,
 } from "@supaterm/provider-core/server/textGenerationUtils";
 
@@ -338,7 +340,7 @@ export const makeMuseTextGeneration = Effect.fn("makeMuseTextGeneration")(functi
       ...buildThreadTitlePrompt(input),
       modelSelection: input.modelSelection,
     });
-    return { title: sanitizeThreadTitle(generated.title) };
+    return { title: yield* generatedThreadTitle(generated.title) };
   });
   const generateReviewGuide: ProviderTextGeneration["generateReviewGuide"] = () =>
     Effect.fail(investigationUnsupported("generateReviewGuide", "Muse Code"));
