@@ -15,6 +15,7 @@ import {
   CircleDashedIcon,
   CircleDotIcon,
   CircleSlashIcon,
+  CircleStopIcon,
   CircleXIcon,
   UserCheckIcon,
   UserIcon,
@@ -217,7 +218,7 @@ const CHECK_STATUS_PRESENTATION = {
   failure: { label: "Failed", Icon: CircleXIcon, toneClassName: "text-destructive" },
   cancelled: {
     label: "Cancelled",
-    Icon: CircleXIcon,
+    Icon: CircleStopIcon,
     toneClassName: "text-muted-foreground/70",
   },
   skipped: { label: "Skipped", Icon: CircleSlashIcon, toneClassName: "text-muted-foreground/70" },
