@@ -248,6 +248,26 @@ describe("parseGitRemoteVerboseOutput", () => {
       parseGitRemoteFetchUrls("origin\thttps://github.com/acme/repo.git (fetch) [blob:none]"),
     ).toEqual(new Map([["origin", "https://github.com/acme/repo.git"]]));
   });
+
+  it.each([
+    { fetchUrl: "../team repos/shared.git", pushUrl: "../team repos/push.git", lineEnding: "\n" },
+    {
+      fetchUrl: " ../team repos/shared (fetch) [blob:none].git ",
+      pushUrl: "../team repos/push (push).git\t",
+      lineEnding: "\r\n",
+    },
+  ])(
+    "keeps spaces and annotations inside remote URLs (%j)",
+    ({ fetchUrl, pushUrl, lineEnding }) => {
+      expect(
+        parseGitRemoteVerboseUrls(
+          [`origin\t${fetchUrl} (fetch) [blob:none]`, `origin\t${pushUrl} (push)`, ""].join(
+            lineEnding,
+          ),
+        ),
+      ).toEqual(new Map([["origin", { fetchUrl, pushUrl }]]));
+    },
+  );
 });
 
 describe("isTemporaryWorktreeBranch", () => {

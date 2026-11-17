@@ -791,10 +791,9 @@ it.effect.skipIf(HostProcess.Platform.defaultValue() === "win32")(
         return path;
       };
       assert.isNull((yield* resolveUpdate(executable("launcher", "opencode"))).update);
-      assert.deepStrictEqual(
-        (yield* resolveUpdate(executable(".opencode", "bin", "opencode"))).update?.args,
-        ["upgrade"],
-      );
+      const update = (yield* resolveUpdate(executable(".opencode", "bin", "opencode"))).update;
+      assert.deepStrictEqual(update?.args, ["upgrade", "--method", "curl"]);
+      assert.strictEqual(update?.env?.HOME, root);
     }),
 );
 

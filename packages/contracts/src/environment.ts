@@ -128,6 +128,9 @@ export const ExecutionEnvironmentCapabilities = Schema.Struct({
   freshContext: Schema.optionalKey(Schema.Boolean),
   /** Server saves and runs scheduled task `threadMode`; older servers ignore it. */
   scheduledTaskThreadModes: Schema.optionalKey(Schema.Boolean),
+  /** Server holds a steer sent while a run prepares or starts and delivers it once the provider
+      turn runs; older servers reject that steer. */
+  deferredSteering: Schema.optionalKey(Schema.Boolean),
 });
 export type ExecutionEnvironmentCapabilities = typeof ExecutionEnvironmentCapabilities.Type;
 

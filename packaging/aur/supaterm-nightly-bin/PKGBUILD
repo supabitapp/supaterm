@@ -74,7 +74,9 @@ package() {
 
   install -Dm755 /dev/stdin "$pkgdir/usr/bin/supaterm-nightly" <<'EOF'
 #!/bin/sh
-exec /opt/supaterm-nightly-bin/AppRun "$@"
+# AppRun computes APPDIR but doesn't export it. The server's AppImage env scrub needs it
+# to keep /opt/supaterm-nightly-bin/usr/lib etc. out of terminal and agent shells (#28993).
+exec env APPDIR=/opt/supaterm-nightly-bin /opt/supaterm-nightly-bin/AppRun "$@"
 EOF
   ln -s supaterm-nightly "$pkgdir/usr/bin/supaterm-nightly-desktop"
 

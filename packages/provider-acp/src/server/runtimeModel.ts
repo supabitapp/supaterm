@@ -1188,6 +1188,15 @@ export function extractMcpToolCallIdentity(
   for (const candidate of candidates) {
     const trimmed = candidate.trim();
     const qualified = /^mcp__(.+?)__(.+)$/i.exec(trimmed);
+    // Hermes renames client MCP servers to editor_<sanitized name>_<8 hex of a per-session hash>.
+    if (
+      qualified?.[1] &&
+      qualified[2] &&
+      /^editor_supaterm_[0-9a-f]{8}$/.test(qualified[1]) &&
+      SUPATERM_MCP_TOOL_NAMES.has(qualified[2])
+    ) {
+      return { server: "supaterm", tool: qualified[2] };
+    }
     if (qualified?.[1] && qualified[2] && !/^supaterm$/i.test(qualified[1]))
       return { server: qualified[1], tool: qualified[2] };
     const candidateTool = [

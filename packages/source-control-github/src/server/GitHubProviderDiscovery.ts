@@ -12,6 +12,7 @@ import * as SourceControlHost from "@supaterm/source-control-core/server/SourceC
 import * as GitHubClient from "../shared/definition.ts";
 import * as GitHubRest from "./GitHubRest.ts";
 import * as GitHubCredentials from "./GitHubCredentials.ts";
+import { gitHubApiHostForRemote } from "./gitHubRepositoryResolution.ts";
 import {
   effectiveGitHubAccount,
   findAuthenticatedGitHubAccount,
@@ -316,8 +317,9 @@ export const make = Effect.gen(function* () {
     refineUnknownRemote: ({ context }) => {
       const url = URL.parse(context.provider.baseUrl);
       if (!url?.host) return Effect.succeed(null);
+      const host = gitHubApiHostForRemote(context.remoteUrl) ?? url.host;
       // A timeout or keyring failure propagates: the registry does not keep that answer.
-      return credentials.get(url.host).pipe(
+      return credentials.get(host).pipe(
         Effect.as(true),
         Effect.catchTags({
           GitHubCliMissingError: () => Effect.succeed(false),
@@ -328,8 +330,8 @@ export const make = Effect.gen(function* () {
           known
             ? ({
                 kind: SourceControlProviderKind.make("github"),
-                name: "GitHub Self-Hosted",
-                baseUrl: context.provider.baseUrl,
+                name: host === "github.com" ? "GitHub" : "GitHub Self-Hosted",
+                baseUrl: host === url.host ? context.provider.baseUrl : `https://${host}`,
               } as const)
             : null,
         ),

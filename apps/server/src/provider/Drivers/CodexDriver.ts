@@ -2,10 +2,12 @@ import { CodexSettings, ProviderDriverKind, TranscriptionError } from "@supaterm
 import * as Digest from "effect/crypto/Digest";
 import * as SecureRandom from "effect/crypto/SecureRandom";
 import type * as Signature from "effect/crypto/Signature";
+import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
 import * as Path from "effect/Path";
 import * as Schema from "effect/Schema";
+import * as Stream from "effect/Stream";
 import { HttpClient } from "effect/http";
 import { ChildProcessSpawner } from "effect/process";
 
@@ -406,6 +408,17 @@ export const CodexDriver: ProviderDriver<
       Effect.provideService(Path.Path, pathService),
     );
 
+    // `codex login` and `codex logout` rewrite auth.json outside Supaterm.
+    if (effectiveConfig.enabled) {
+      yield* fileSystem.watch(authHomePath).pipe(
+        Stream.filter((event) => pathService.basename(event.path) === "auth.json"),
+        Stream.debounce(Duration.millis(250)),
+        Stream.runForEach(() => snapshot.refresh.pipe(Effect.ignoreCause({ log: true }))),
+        Effect.catchReason("PlatformError", "NotFound", () => Effect.void),
+        Effect.ignoreCause({ log: true }),
+        Effect.forkScoped,
+      );
+    }
     return {
       skillInstallDirectory: pathService.join(
         homeLayout.effectiveHomePath === undefined
