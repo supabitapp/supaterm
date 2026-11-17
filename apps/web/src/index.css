@@ -1406,6 +1406,10 @@ textarea {
   font-variant-ligatures: no-contextual;
 }
 
+.font-mono :is(input, textarea) {
+  font-variant-ligatures: inherit;
+}
+
 [data-preview-url-input] {
   font-variant-ligatures: none;
 }
