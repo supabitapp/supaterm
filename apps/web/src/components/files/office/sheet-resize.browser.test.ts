@@ -180,11 +180,15 @@ it("requests current dimensions after resizing and scrolling away and back befor
     expect(canvas.getContext("2d")!.getImageData(10, 10, 1, 1).data[0]).toBeLessThan(255);
   });
   const postMessage = Worker.prototype.postMessage;
-  const pending: { worker: Worker; message: unknown; options: unknown }[] = [];
+  const pending: {
+    worker: Worker;
+    message: unknown;
+    options: StructuredSerializeOptions | undefined;
+  }[] = [];
   using _frames = vi.spyOn(Worker.prototype, "postMessage").mockImplementation(function (
     this: Worker,
     message: unknown,
-    options?: Transferable[] | StructuredSerializeOptions,
+    options?: StructuredSerializeOptions,
   ) {
     if (
       typeof message === "object" &&
@@ -195,7 +199,7 @@ it("requests current dimensions after resizing and scrolling away and back befor
       pending.push({ worker: this, message, options });
       return;
     }
-    Reflect.apply(postMessage, this, [message, options]);
+    postMessage.call(this, message, options);
   });
   // Synthetic pointer events have no browser pointer to capture.
   using _capture = vi.spyOn(root, "setPointerCapture").mockImplementation(() => {});
@@ -228,7 +232,7 @@ it("requests current dimensions after resizing and scrolling away and back befor
   await vi.waitFor(() => expect(pending).toHaveLength(4));
   const retry = pending[3]!;
   expect(retry.message).toMatchObject({ input: { x: 0, y: 0 } });
-  Reflect.apply(postMessage, retry.worker, [retry.message, retry.options]);
+  postMessage.call(retry.worker, retry.message, retry.options);
   await expect.element(screen.getByRole("status")).not.toBeInTheDocument();
   const ratio = window.devicePixelRatio || 1;
   await vi.waitFor(() => {
