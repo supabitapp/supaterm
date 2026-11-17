@@ -5219,7 +5219,7 @@ describe("AcpAdapterV2", () => {
         childProcessSpawner,
         mockAgentPath,
         protocolEvents,
-        environment: { Supaterm_ACP_HANG_CLOSE_SESSION: "1" },
+        environment: { SUPATERM_ACP_HANG_CLOSE_SESSION: "1" },
       });
       let runtimeClosed = false;
       const instanceId = ProviderInstanceId.make("acp-test");
