@@ -2886,7 +2886,7 @@ it.layer(layerTest)("ProjectionStoreV2", (it) => {
           parent_item_id, ordinal, type, status, updated_at, payload_json
         ) VALUES (
           ${`turn-item:bounded-sql-history:ordinal-${suffix}`}, ${itemThreadId}, NULL, NULL, NULL,
-          NULL, NULL, ${ordinal}, 'assistant_message', 'completed', ${nowIso},
+          NULL, NULL, ${ordinal}, 'user_message', 'completed', ${nowIso},
           ${encodeUnknownJsonString({ messageId })}
         )
       `;
