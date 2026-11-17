@@ -152,9 +152,9 @@ On web and desktop, select text within one assistant response and choose
 around it.
 
 Text inside a [page the agent published](html-renders.md) can be quoted the same way, from the
-thread or from the page's full-screen view. Annotating from full screen returns you to the thread.
-On web and desktop this needs a page published by this version or later; older pages offer it on
-mobile only.
+thread or from the page's full-screen view. On web and desktop, annotating from full screen returns
+you to the thread, and quoting needs a page published by this version or later. Older pages can be
+quoted on mobile only.
 
 Select the quote in a draft or sent message to return to its source. A quote from a page returns
 to that page. If the source is unavailable or has changed, the saved quote remains readable.
