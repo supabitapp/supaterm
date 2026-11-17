@@ -4940,7 +4940,6 @@ describe("streaming v2 row projection", () => {
           "Let",
           source.time(20),
         ),
-        optimisticMessages: [],
       };
       let timeline = deriveTimelineEntriesFromVisibleTurnItemsWithState(timelineInput);
       let projection = deriveMessagesTimelineRowsWithState(rowsInput(timeline.entries));
@@ -4952,7 +4951,6 @@ describe("streaming v2 row projection", () => {
             text,
             source.time(21 + step),
           ),
-          optimisticMessages: [],
         };
         const previous = projection;
         timeline = deriveTimelineEntriesFromVisibleTurnItemsWithState(timelineInput, timeline);
@@ -4995,7 +4993,6 @@ describe("streaming v2 row projection", () => {
       let visibleTurnItems = source.visibleTurnItems;
       let timeline = deriveTimelineEntriesFromVisibleTurnItemsWithState({
         visibleTurnItems,
-        optimisticMessages: [],
       });
       let projection = deriveMessagesTimelineRowsWithState(rowsInput(timeline.entries));
       const steps = [
@@ -5022,7 +5019,7 @@ describe("streaming v2 row projection", () => {
       ];
       for (const step of steps) {
         visibleTurnItems = step(visibleTurnItems);
-        const timelineInput = { visibleTurnItems, optimisticMessages: [] };
+        const timelineInput = { visibleTurnItems };
         timeline = deriveTimelineEntriesFromVisibleTurnItemsWithState(timelineInput, timeline);
         expect(timeline.entries).toEqual(deriveTimelineEntriesFromVisibleTurnItems(timelineInput));
         projection = deriveMessagesTimelineRowsWithState(rowsInput(timeline.entries), projection);
@@ -5089,7 +5086,6 @@ describe("streaming v2 row projection", () => {
     );
     let timeline = deriveTimelineEntriesFromVisibleTurnItemsWithState({
       visibleTurnItems,
-      optimisticMessages: [],
     });
     const liveRow = deriveMessagesTimelineRows(rowsInput(timeline.entries)).find(
       (row) => row.kind === "work-live",
@@ -5106,7 +5102,7 @@ describe("streaming v2 row projection", () => {
         text,
         source.time(21 + step),
       );
-      const timelineInput = { visibleTurnItems, optimisticMessages: [] };
+      const timelineInput = { visibleTurnItems };
       const previous = projection;
       timeline = deriveTimelineEntriesFromVisibleTurnItemsWithState(timelineInput, timeline);
       projection = deriveMessagesTimelineRowsWithState(

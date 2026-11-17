@@ -1921,7 +1921,6 @@ describe("incremental v2 timeline entries", () => {
         "Let",
         fixture.time(20),
       ),
-      optimisticMessages: [],
       plans: plans("Let"),
     };
     let projection = deriveTimelineEntriesFromVisibleTurnItemsWithState(input);
@@ -1933,7 +1932,6 @@ describe("incremental v2 timeline entries", () => {
           text,
           fixture.time(21 + step),
         ),
-        optimisticMessages: [],
         plans: plans(text),
       };
       const previous = projection;
@@ -1955,12 +1953,10 @@ describe("incremental v2 timeline entries", () => {
     );
     const previous = deriveTimelineEntriesFromVisibleTurnItemsWithState({
       visibleTurnItems,
-      optimisticMessages: [],
       plans: [streamingPlanArtifact(fixture, "Plan", "active")],
     });
     const input = {
       visibleTurnItems,
-      optimisticMessages: [],
       plans: [streamingPlanArtifact(fixture, "Plan", "superseded")],
     };
     const next = deriveTimelineEntriesFromVisibleTurnItemsWithState(input, previous);
