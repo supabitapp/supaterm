@@ -18,10 +18,10 @@ import { isMacPlatform } from "../../lib/utils";
 import { Input } from "../ui/input";
 import {
   DEFAULT_CODE_FONT_FAMILY,
-  DEFAULT_SANS_FONT_STACK,
+  DEFAULT_SANS_FONT_FAMILY,
+  fontFamilyLabel,
   isFontFamilyAvailable,
   isMonospaceFamily,
-  resolveDefaultFamilyLabel,
   resolveTerminalFontPreference,
   resolveTerminalFontSizePreference,
   TYPOGRAPHY_ADVANCED_STORAGE_KEY,
@@ -43,25 +43,12 @@ import {
 } from "./settingsSearch";
 import { isImeComposing } from "~/lib/imeComposition";
 
-let fontDefaultFamilies: { readonly sans: string; readonly code: string } | undefined;
-
-function resolveFontDefaultFamilies() {
-  if (fontDefaultFamilies !== undefined) return fontDefaultFamilies;
-  const families = {
-    sans: resolveDefaultFamilyLabel(DEFAULT_SANS_FONT_STACK) ?? "System default",
-    code: DEFAULT_CODE_FONT_FAMILY,
-  };
-  if (document.fonts.status === "loaded") fontDefaultFamilies = families;
-  return families;
-}
-
 function useFontDefaultFamilies() {
   const settings = useScopedSettings();
-  const [defaults] = useState(resolveFontDefaultFamilies);
   return {
-    sans: defaults.sans,
-    code: defaults.code,
-    interfaceFamily: settings.fontFamilySans.trim() || defaults.sans,
+    sans: DEFAULT_SANS_FONT_FAMILY,
+    code: DEFAULT_CODE_FONT_FAMILY,
+    interfaceFamily: settings.fontFamilySans.trim() || DEFAULT_SANS_FONT_FAMILY,
   };
 }
 
@@ -490,7 +477,7 @@ function FontFamilySettingsRow({
             setDraftSettled(true);
           }
         }}
-        placeholder={defaultFamily}
+        placeholder={fontFamilyLabel(defaultFamily)}
         spellCheck={false}
         value={draft}
       />
