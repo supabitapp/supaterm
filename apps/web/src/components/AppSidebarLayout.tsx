@@ -35,9 +35,9 @@ import { MainSidebarToggle, SidebarHeaderWidthProbe } from "./sidebar/SidebarChr
 import { isAppModalPage } from "./sidebar/mainAppLocation";
 import type { SidebarRouteReveal } from "./sidebar/routeReveal";
 import {
-  resolveDefaultThreadSidebarWidth,
   resolveThreadSidebarMinimumWidth,
   THREAD_MAIN_CONTENT_MIN_WIDTH,
+  THREAD_SIDEBAR_DEFAULT_WIDTH,
   THREAD_SIDEBAR_WIDTH_STORAGE_KEY,
 } from "./threadSidebarWidth";
 import {
@@ -323,7 +323,7 @@ export function AppSidebarLayout({ children }: { children: ReactNode }) {
           role="navigation"
           aria-label="Threads"
           resizable={{
-            defaultWidth: resolveDefaultThreadSidebarWidth(window.innerWidth),
+            defaultWidth: THREAD_SIDEBAR_DEFAULT_WIDTH,
             minWidth: sidebarMinimumWidth,
             storageKey: THREAD_SIDEBAR_WIDTH_STORAGE_KEY,
           }}

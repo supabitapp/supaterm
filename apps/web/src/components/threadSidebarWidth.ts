@@ -1,19 +1,8 @@
 export const THREAD_SIDEBAR_WIDTH_STORAGE_KEY = "chat_thread_sidebar_width";
-const THREAD_SIDEBAR_DEFAULT_WIDTH = 16 * 16;
+export const THREAD_SIDEBAR_DEFAULT_WIDTH = 16 * 16;
 const THREAD_SIDEBAR_MIN_WIDTH = 13 * 16;
 export const THREAD_MAIN_CONTENT_MIN_WIDTH = 40 * 16;
 
 export function resolveThreadSidebarMinimumWidth(headerWidth: number): number {
   return Math.max(THREAD_SIDEBAR_MIN_WIDTH, Math.ceil(headerWidth));
-}
-
-function resolveThreadSidebarMaximumWidth(
-  viewportWidth: number,
-  minimumWidth = THREAD_SIDEBAR_MIN_WIDTH,
-): number {
-  return Math.max(minimumWidth, Math.floor(viewportWidth) - THREAD_MAIN_CONTENT_MIN_WIDTH);
-}
-
-export function resolveDefaultThreadSidebarWidth(viewportWidth: number): number {
-  return Math.min(THREAD_SIDEBAR_DEFAULT_WIDTH, resolveThreadSidebarMaximumWidth(viewportWidth));
 }
