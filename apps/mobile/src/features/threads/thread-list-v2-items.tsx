@@ -426,7 +426,6 @@ export const ThreadListV2PendingRow = memo(function ThreadListV2PendingRow(props
   readonly environmentLabel: string | null;
   readonly environmentMachine?: EnvironmentMachineKind;
   readonly pane?: "screen" | "sidebar";
-  /** Draws the "Drafts" or "Unsent" divider above the first row in each group. */
   readonly showPendingDivider: boolean;
   readonly showTrailingDivider?: boolean;
   readonly onSelectPendingTask: (pendingTask: PendingNewTask) => void;
