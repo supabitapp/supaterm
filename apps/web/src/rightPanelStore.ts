@@ -538,8 +538,7 @@ export const useRightPanelStore = create<RightPanelStoreState>()(
       openDevice: (ref, target, origin = "user") =>
         set((state) =>
           updateFrom(origin)(state, scopedThreadKey(ref), (current) => {
-            const id =
-              `device:${encodeURIComponent(target.hostId)}:${encodeURIComponent(target.deviceId)}` as const;
+            const id = deviceSurfaceId(target);
             if (origin !== "user" && current.dismissedDeviceSurfaceIds?.includes(id))
               return current;
             const surface: RightPanelSurface = { id, kind: "device", target };
@@ -1070,6 +1069,22 @@ useRightPanelStore.subscribe((next, previous) => {
     }
   }
 });
+
+const deviceSurfaceId = (target: Pick<DeviceTabTarget, "hostId" | "deviceId">) =>
+  `device:${encodeURIComponent(target.hostId)}:${encodeURIComponent(target.deviceId)}` as const;
+
+/** A device tab the user closed stays closed to agents until the user opens that device again. */
+export function selectDeviceDismissed(
+  byThreadKey: Record<string, ThreadRightPanelState>,
+  ref: ScopedThreadRef,
+  target: Pick<DeviceTabTarget, "hostId" | "deviceId">,
+): boolean {
+  return (
+    byThreadKey[scopedThreadKey(ref)]?.dismissedDeviceSurfaceIds?.includes(
+      deviceSurfaceId(target),
+    ) === true
+  );
+}
 
 export function selectThreadRightPanelState(
   byThreadKey: Record<string, ThreadRightPanelState>,

@@ -24,7 +24,11 @@ import {
   previewThreadRefsAtom,
   type ThreadPreviewState,
 } from "../../previewStateStore";
-import { type PanelOpenOrigin, useRightPanelStore } from "../../rightPanelStore";
+import {
+  type PanelOpenOrigin,
+  selectDeviceDismissed,
+  useRightPanelStore,
+} from "../../rightPanelStore";
 import { RIGHT_PANEL_INLINE_LAYOUT_MEDIA_QUERY } from "../../rightPanelLayout";
 import { appAtomRegistry } from "../../rpc/atomRegistry";
 import { deviceEnvironment } from "../../state/device";
@@ -157,9 +161,9 @@ function hasLiveSession(
 
 /**
  * A device the agent opens floats over its thread's chat or becomes a right
- * panel tab; a sheet layout always gets the tab. A session without a device
- * summary yet stays out of the baseline so a later snapshot opens it.
- * Floating devices whose session ended close here.
+ * panel tab; a sheet layout always gets the tab, and one the user closed gets
+ * neither. A session without a device summary yet stays out of the baseline so
+ * a later snapshot opens it. Floating devices whose session ended close here.
  */
 export function applyDeviceSnapshot(
   environmentId: EnvironmentId,
@@ -194,10 +198,11 @@ export function applyDeviceSnapshot(
       platform: device.platform,
       name: device.name,
     };
-    if (options.openTarget === "floating" && !options.sheetLayout) {
+    const panel = useRightPanelStore.getState();
+    if (options.openTarget !== "floating" || options.sheetLayout) {
+      panel.openDevice(threadRef, target, panelOrigin(options, false));
+    } else if (!selectDeviceDismissed(panel.byThreadKey, threadRef, target)) {
       miniPlayer.open(threadRef, { kind: "device", ...target });
-    } else {
-      useRightPanelStore.getState().openDevice(threadRef, target, panelOrigin(options, false));
     }
   }
 }

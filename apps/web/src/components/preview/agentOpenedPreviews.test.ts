@@ -167,15 +167,19 @@ describe("applyDeviceSnapshot", () => {
     expect(miniPlayerSource()).toBeUndefined();
   });
 
-  it("does not reopen a device tab the user closed", () => {
+  it.each([
+    ["the right panel", autoOpen],
+    ["a floating preview", floating],
+  ])("does not reopen a device tab the user closed in %s", (_case, options) => {
     setup();
     applyDeviceSnapshot(ref.environmentId, deviceState({}), autoOpen);
     applyDeviceSnapshot(ref.environmentId, deviceState({ sessions: [session] }), autoOpen);
     useRightPanelStore.getState().closeSurface(ref, PIXEL_TAB);
 
     const reopened = { ...session, openedAt: "2026-01-01T00:05:00.000Z" };
-    applyDeviceSnapshot(ref.environmentId, deviceState({ sessions: [reopened] }), autoOpen);
+    applyDeviceSnapshot(ref.environmentId, deviceState({ sessions: [reopened] }), options);
     expect(deviceTabs()).toEqual([]);
+    expect(miniPlayerSource()).toBeUndefined();
   });
 
   it("opens a session that ended and reopened between two snapshots", () => {
