@@ -688,7 +688,9 @@ describe("supaterm pair", () => {
     withDescriptorServer(
       (origin) =>
         Effect.gen(function* () {
-          const baseDir = NodeFS.mkdtempSync(NodePath.join(NodeOS.tmpdir(), "supaterm-pair-remote-"));
+          const baseDir = NodeFS.mkdtempSync(
+            NodePath.join(NodeOS.tmpdir(), "supaterm-pair-remote-"),
+          );
           yield* persistServerRuntimeState({
             path: NodePath.join(baseDir, "userdata", "server-runtime.json"),
             state: yield* makePersistedServerRuntimeState({
@@ -736,6 +738,7 @@ describe("supaterm pair", () => {
 
           assert.include(String(error), "127.0.0.2");
         }),
+      undefined,
       "127.0.0.2",
     ).pipe(Effect.provide(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer))),
   );
