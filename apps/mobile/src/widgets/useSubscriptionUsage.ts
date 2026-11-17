@@ -24,12 +24,11 @@ const shellDoneAtom = Atom.family((environmentId: EnvironmentId) =>
  * the host, so on a cold start it waits until it cannot compete with the thread list.
  */
 const refreshableEnvironmentsAtom = Atom.make((get) =>
-  [...get(environmentPresentations.presentationsAtom)]
-    .filter(
-      ([environmentId, presentation]) =>
-        presentation.connection.phase === "connected" && get(shellDoneAtom(environmentId)),
-    )
-    .map(([environmentId]) => environmentId),
+  [...get(environmentPresentations.presentationsAtom)].flatMap(([environmentId, presentation]) =>
+    presentation.connection.phase === "connected" && get(shellDoneAtom(environmentId))
+      ? [environmentId]
+      : [],
+  ),
 );
 
 /**
