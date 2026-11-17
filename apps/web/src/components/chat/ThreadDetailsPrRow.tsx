@@ -111,7 +111,6 @@ export function ThreadDetailsPrRow({
   status,
   project,
   title,
-  openAriaLabel,
   composerTarget,
   onOpen,
   onActed,
@@ -124,7 +123,6 @@ export function ThreadDetailsPrRow({
   status: PrStatusIndicator | null;
   project: EnvironmentProject | null;
   title: string | null;
-  openAriaLabel: string;
   composerTarget: ScopedThreadRef | DraftId;
   onOpen: (event: ReactMouseEvent<HTMLElement>) => void;
   onActed?: () => void;
@@ -303,6 +301,15 @@ export function ThreadDetailsPrRow({
   ) : (
     <PullRequestGlyph.pullRequest className={THREAD_DETAILS_PANEL_ICON_CLASS} />
   );
+
+  const stateLabel = (
+    statePresentation ??
+    (pr ? resolvePullRequestState({ state: pr.state, isDraft: pr.isDraft === true }) : null)
+  )?.label.toLowerCase();
+  const accessibleTitle = (detail?.title ?? pr?.title)?.trim();
+  const openAriaLabel = `${capitalizeTerm(terminology.singular)} #${number}${
+    stateLabel ? `, ${stateLabel}` : ""
+  }${accessibleTitle ? `: ${accessibleTitle}` : ""}`;
 
   // Everything the host reported, at a glance. The row stays one line; the tooltip is where the
   // rest of the answer lives — styled like the sidebar's thread tooltip, title above icon-led

@@ -163,7 +163,6 @@ const renderRow = () => (
     status={null}
     project={null}
     title="Test PR"
-    openAriaLabel="Open PR"
     composerTarget={threadRef}
     onOpen={vi.fn()}
   />
@@ -360,4 +359,38 @@ it.each([
   await screen.clickMerge(1_000);
   await screen.clickMerge(1_900);
   expect(state.perform).toHaveBeenCalledExactlyOnceWith("merge", expected);
+});
+
+it("names a linked pull request row by its kind, number and title, not its URL", async () => {
+  await using screen = await setup();
+  state.projects = [repositoryProject];
+  state.pullRequests = [
+    {
+      host: "github.com",
+      repository: "owner/repo",
+      number: 1,
+      url: "https://github.com/owner/repo/pull/1",
+      source: "manual",
+      linkedAt: "2026-10-30T00:00:00.000Z",
+      snapshot: null,
+      stack: null,
+    },
+  ];
+  await act(async () => {
+    await screen.rerender(
+      <ThreadDetailsThreadPrRows
+        threadRef={threadRef}
+        project={repositoryProject as never}
+        composerTarget={threadRef}
+      />,
+    );
+  });
+  const row = [...screen.container.querySelectorAll("button")].find((button) =>
+    button.textContent?.startsWith("#1"),
+  )!;
+  const name = row.getAttribute("aria-label") ?? row.textContent ?? "";
+  expect(name).not.toContain("https://");
+  expect(name).toMatch(/pull request/i);
+  expect(name).toContain("#1");
+  expect(name).toContain("Test PR");
 });
