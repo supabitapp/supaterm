@@ -16,6 +16,7 @@ import packageJson from "../../package.json" with { type: "json" };
 import * as ServerConfig from "../config.ts";
 import * as DesktopAppUpdate from "../desktopUpdate/DesktopAppUpdate.ts";
 import * as ProcessRunner from "../processRunner.ts";
+import { BOOT_SERVICE_PLIST_FILE } from "./bootService.ts";
 import * as ServiceLauncherClient from "./serviceLauncherClient.ts";
 import { SERVICE_LAUNCHER_PROTOCOL } from "./serviceProtocol.ts";
 import * as ServerSelfUpdate from "./selfUpdate.ts";
@@ -372,9 +373,15 @@ it.layer(NodeServices.layer)("pruning runtimes on start", (it) => {
         ? path.join(tempDir, "alias-home")
         : baseDir;
       if (input.servicePlistThroughLink) yield* fs.symlink(realHome, programHome);
-      const program = path.join(programHome, "runtime", "versions", input.servicePlistStarts, "supaterm");
+      const program = path.join(
+        programHome,
+        "runtime",
+        "versions",
+        input.servicePlistStarts,
+        "supaterm",
+      );
       yield* fs.writeFileString(
-        path.join(agentsDir, "com.supaterm.supaterm.service.plist"),
+        path.join(agentsDir, BOOT_SERVICE_PLIST_FILE),
         `<plist><dict>\n<key>ProgramArguments</key>\n<array>\n<string>${program}</string>\n<string>__service-launcher</string>\n</array>\n</dict></plist>\n`,
       );
     }

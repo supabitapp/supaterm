@@ -486,7 +486,8 @@ it.layer(NodeServices.layer)("prunePinnedRuntimes", (it) => {
       const binDir = path.join(baseDir, "bin");
       yield* fs.makeDirectory(binDir);
       yield* fs.symlink(path.join(versionsDir, "1.1.0", "supaterm"), path.join(binDir, "supaterm"));
-      const ownDir = path.join(versionsDir, "1.0.0");
+      // A temporary directory can itself sit under a link (/var on macOS), so name the real one.
+      const ownDir = path.join(linkedHome ? yield* fs.realPath(versionsDir) : versionsDir, "1.0.0");
       if (recorded) {
         yield* fs.writeFileString(
           path.join(baseDir, "runtime", "launchers"),
@@ -532,7 +533,10 @@ it.layer(NodeServices.layer)("prunePinnedRuntimes", (it) => {
         // The installer accepts any bin directory, including one under the versions directory.
         const binDir = path.join(versionsDir, "bin");
         yield* fs.makeDirectory(binDir);
-        yield* fs.symlink(path.join(versionsDir, "1.0.0", "supaterm"), path.join(binDir, "supaterm"));
+        yield* fs.symlink(
+          path.join(versionsDir, "1.0.0", "supaterm"),
+          path.join(binDir, "supaterm"),
+        );
         yield* fs.writeFileString(
           path.join(baseDir, "runtime", "launchers"),
           `${path.join(binDir, "supaterm")}\n`,
