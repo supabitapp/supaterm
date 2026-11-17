@@ -312,7 +312,9 @@ describe("observability", () => {
         Effect.gen(function* () {
           const fileSystem = yield* FileSystem.FileSystem;
           const path = yield* Path.Path;
-          const tempDir = yield* fileSystem.makeTempDirectoryScoped({ prefix: "supaterm-trace-sink-" });
+          const tempDir = yield* fileSystem.makeTempDirectoryScoped({
+            prefix: "supaterm-trace-sink-",
+          });
           const tracePath = path.join(tempDir, "exit.trace.ndjson");
           const sink = yield* makeTraceSink({
             filePath: tracePath,

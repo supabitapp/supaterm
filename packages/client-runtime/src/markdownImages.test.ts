@@ -4,20 +4,21 @@ import { classifyMarkdownImageSource } from "./markdownImages.js";
 
 describe("classifyMarkdownImageSource", () => {
   it.each([
-    ["images/result.png", "/workspace/project", "/workspace/project/images/result.png"],
+    ["images/result.png", "/workspace/project", "/workspace/project/images/result.png", true],
     [
       "images\\result.png",
       "C:\\Users\\dara\\project",
       "C:\\Users\\dara\\project\\images\\result.png",
+      true,
     ],
-    ["\\\\server\\share\\image.png", "\\\\server\\share", "\\\\server\\share\\image.png"],
-    ["file:///workspace/project/image%20one.png", null, "/workspace/project/image one.png"],
-    ["file://server/share/image.png", "\\\\server\\share", "\\\\server\\share\\image.png"],
-  ])("maps %s to a workspace file", (source, workspaceRoot, path) => {
+    ["\\\\server\\share\\image.png", "\\\\server\\share", "\\\\server\\share\\image.png", false],
+    ["file:///workspace/project/image%20one.png", null, "/workspace/project/image one.png", false],
+    ["file://server/share/image.png", "\\\\server\\share", "\\\\server\\share\\image.png", false],
+  ])("maps %s to a workspace file", (source, workspaceRoot, path, relative) => {
     expect(classifyMarkdownImageSource(source, workspaceRoot)).toEqual({
       _tag: "WorkspaceFile",
       path,
-      ...(source.startsWith("file:") ? {} : { relative: true }),
+      ...(relative ? { relative: true } : {}),
     });
   });
 
