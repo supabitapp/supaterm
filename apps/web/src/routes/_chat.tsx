@@ -1,7 +1,6 @@
 import { Outlet, createFileRoute, redirect } from "@tanstack/react-router";
 
 import { ChatPaneWorkspace } from "../components/chatPanes/ChatPaneWorkspace";
-import { isAppModalPage } from "../components/sidebar/mainAppLocation";
 import { SidebarInset } from "../components/ui/sidebar";
 import { ThreadLinkPrompt } from "../components/promptLinks/ThreadLinkPrompt";
 import { useShownThreadRouteTarget } from "../hooks/useShownThreadRouteTarget";
