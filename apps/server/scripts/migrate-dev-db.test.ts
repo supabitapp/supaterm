@@ -38,8 +38,33 @@ const createFixtureSource = Effect.fn("createMigrateDevDbFixtureSource")(functio
         '{"lineage":{"parentThreadId":"stopped-thread","relationshipToParent":"fork","rootThreadId":"stopped-thread"}}';
       const subagentPayload =
         '{"lineage":{"parentThreadId":"subagent-parent","relationshipToParent":"subagent","rootThreadId":"subagent-parent"},"forkedFrom":{"type":"node","nodeId":"node-1"}}';
+      const watchedPayload = JSON.stringify({
+        pullRequests: [
+          {
+            host: "github.com",
+            repository: "owner/repo",
+            number: 7,
+            url: "https://github.com/owner/repo/pull/7",
+            source: "agent",
+            linkedAt: "2026-08-01T00:00:00.000Z",
+            snapshot: null,
+            stack: null,
+            watch: {
+              startedAt: "2026-08-01T00:00:00.000Z",
+              headSha: null,
+              failedChecks: [],
+              passed: false,
+              passedChecks: [],
+              remarksThrough: "2026-08-01T00:00:00.000Z",
+              remarkIds: [],
+              conflicting: false,
+              wakes: 0,
+            },
+          },
+        ],
+      });
       const threads = [
-        ["stopped-thread", "project-kept", "completed", "{}", "2026-08-01"],
+        ["stopped-thread", "project-kept", "completed", watchedPayload, "2026-08-01"],
         ["fork-thread", "project-kept", "completed", forkPayload, "2026-08-02"],
         ["running-thread", "project-kept", "running", "{}", "2026-08-05"],
         ["done-thread", "project-kept", "completed", '{"doneAt":"2026-08-01"}', "2026-08-05"],
@@ -124,6 +149,11 @@ it.layer(NodeServices.layer)("migrate-dev-db", (it) => {
             SELECT stream_id FROM orchestration_events ORDER BY stream_id`;
           const sessions = yield* sql<{ provider_session_id: string }>`
             SELECT provider_session_id FROM orchestration_v2_projection_provider_sessions`;
+          const [pullRequest] = yield* sql<{ url: string | null; watch: string | null }>`
+            SELECT
+              json_extract(payload_json, '$.pullRequests[0].url') AS url,
+              json_extract(payload_json, '$.pullRequests[0].watch') AS watch
+            FROM orchestration_v2_projection_threads WHERE thread_id = 'stopped-thread'`;
           const [leftovers] = yield* sql<{ auth: number; tasks: number; transfers: number }>`
             SELECT
               (SELECT COUNT(*) FROM auth_sessions) AS auth,
@@ -135,7 +165,16 @@ it.layer(NodeServices.layer)("migrate-dev-db", (it) => {
             WHERE orchestration_v2_message_search MATCH '"needle"'`;
           const [autoVacuum] = yield* sql<{ auto_vacuum: number }>`PRAGMA auto_vacuum`;
           const [journal] = yield* sql<{ journal_mode: string }>`PRAGMA journal_mode`;
-          return { threads, events, sessions, leftovers, searchable, autoVacuum, journal };
+          return {
+            threads,
+            events,
+            sessions,
+            pullRequest,
+            leftovers,
+            searchable,
+            autoVacuum,
+            journal,
+          };
         }),
       );
       assert.deepStrictEqual(
@@ -149,6 +188,11 @@ it.layer(NodeServices.layer)("migrate-dev-db", (it) => {
       assert.deepStrictEqual(
         kept.sessions.map((row) => row.provider_session_id),
         ["session-shared"],
+      );
+      assert.deepStrictEqual(
+        kept.pullRequest,
+        { url: "https://github.com/owner/repo/pull/7", watch: null },
+        "copied pull request links keep their history but stop being watched",
       );
       assert.deepStrictEqual(kept.leftovers, { auth: 0, tasks: 0, transfers: 0 });
       assert.deepStrictEqual(

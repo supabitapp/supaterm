@@ -34,6 +34,7 @@ interface Turn {
   readonly id: string;
   readonly status?: OrchestrationV2RunStatus;
   readonly completedAt?: string;
+  readonly started?: boolean;
 }
 
 function makeLayer(options: { readonly turns: ReadonlyArray<Turn>; readonly enabled?: boolean }) {
@@ -55,10 +56,12 @@ function makeLayer(options: { readonly turns: ReadonlyArray<Turn>; readonly enab
     Effect.succeed({
       runs: turns
         .map(
-          (turn) =>
+          (turn, index) =>
             ({
               id: RunId.make(turn.id),
               threadId,
+              ordinal: index + 1,
+              startedAt: turn.started === false ? null : DateTime.makeUnsafe(NOW),
               status: turn.status ?? "completed",
               completedAt:
                 (turn.status ?? "completed") === "completed"
@@ -166,6 +169,26 @@ describe("NextPromptSuggestionService", () => {
 
   it.effect("suggests nothing for a reply the user has already answered", () => {
     const { layer } = makeLayer({ turns: [...answeredTurns, { id: "run-3" }] });
+    return Effect.gen(function* () {
+      yield* predict("yes, do it");
+      assert.deepStrictEqual(yield* suggest("run-2"), { suggestion: null });
+    }).pipe(Effect.provide(layer));
+  });
+
+  it.effect("answers the run a steer continued after its queued run was cancelled", () => {
+    const { layer } = makeLayer({
+      turns: [...answeredTurns, { id: "run-3", status: "cancelled", started: false }],
+    });
+    return Effect.gen(function* () {
+      yield* predict("yes, do it");
+      assert.deepStrictEqual(yield* suggest("run-2"), { suggestion: "yes, do it" });
+    }).pipe(Effect.provide(layer));
+  });
+
+  it.effect("suggests nothing after a newer run that started was cancelled", () => {
+    const { layer } = makeLayer({
+      turns: [...answeredTurns, { id: "run-3", status: "cancelled" }],
+    });
     return Effect.gen(function* () {
       yield* predict("yes, do it");
       assert.deepStrictEqual(yield* suggest("run-2"), { suggestion: null });

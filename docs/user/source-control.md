@@ -190,6 +190,10 @@ can only read, such as an open-source project you cloned, it lists only pull req
 involve you: ones you opened, are assigned to, were mentioned in, or commented on. Pick the
 project in the project filter to list all of its pull requests.
 
+A link to part of a pull request opens that part: a comment or review is marked in the activity, a
+changed-line link opens the file at those lines, a checks link opens the checks, and a commit link
+opens that commit's changes. On web and desktop, hovering a comment or commit link previews it.
+
 On mobile, **Pull requests** lists reviews across your connected environments. Open a review
 to read its description, activity, commits, and changed files. Line comments stay as drafts
 until you submit the review. **Work on PR** opens a chat with the review attached; sending
