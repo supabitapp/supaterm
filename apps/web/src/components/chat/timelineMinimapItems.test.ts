@@ -1,6 +1,11 @@
-import { MessageId, RunId, ThreadId, TurnItemId } from "@supaterm/contracts";
+import { EnvironmentId, MessageId, RunId, ThreadId, TurnItemId } from "@supaterm/contracts";
 import { describe, expect, it } from "vite-plus/test";
-import { ATTACHMENT_ONLY_BOOTSTRAP_PROMPT } from "@supaterm/shared/composerContextReferences";
+import { serializeAssistantCitation } from "@supaterm/shared/assistantCitations";
+import {
+  ATTACHMENT_ONLY_BOOTSTRAP_PROMPT,
+  formatComposerContextReference,
+  toComposerContextId,
+} from "@supaterm/shared/composerContextReferences";
 
 import type { TimelineEntry } from "../../session-logic";
 import { deriveMessagesTimelineRows } from "./MessagesTimeline.logic";
@@ -109,5 +114,34 @@ describe("resolveTimelineMinimapPreview", () => {
         "Started <supaterm-thread://v2/env-1/thread-1> and [Fix CI](supaterm-thread://v2/env-1/t2).",
     });
     expect(preview?.assistantText).toBe("Started a thread and Fix CI.");
+  });
+
+  it("previews a quote, a context chip and a file link in the user's message as their text", () => {
+    const quote = serializeAssistantCitation({
+      version: 1,
+      environmentId: EnvironmentId.make("env-1"),
+      threadId: ThreadId.make("thread-1"),
+      messageId: MessageId.make("assistant-1"),
+      text: "The cache misses on a cold start.",
+      start: 0,
+      end: 33,
+      prefix: "",
+      suffix: "",
+    });
+    const file = formatComposerContextReference({
+      kind: "file",
+      contextId: toComposerContextId("readme"),
+      label: "README.md",
+    });
+    const preview = resolveTimelineMinimapPreview({
+      id: "turn-1",
+      rowIndex: 0,
+      pin: null,
+      userText: `${quote}\nWhere do ${file} and [math.ts](src/math.ts) cover this?`,
+      assistantText: null,
+    });
+    expect(preview?.userText).toBe(
+      "The cache misses on a cold start. Where do README.md and math.ts cover this?",
+    );
   });
 });
