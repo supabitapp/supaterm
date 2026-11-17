@@ -43,24 +43,14 @@ import {
 } from "./settingsSearch";
 import { isImeComposing } from "~/lib/imeComposition";
 
-function useFontDefaultFamilies() {
-  const settings = useScopedSettings();
-  return {
-    sans: DEFAULT_SANS_FONT_FAMILY,
-    code: DEFAULT_CODE_FONT_FAMILY,
-    interfaceFamily: settings.fontFamilySans.trim() || DEFAULT_SANS_FONT_FAMILY,
-  };
-}
-
 function InterfaceFontRow({ preview }: { preview?: ReactNode }) {
   const settings = useScopedSettings();
   const updateSettings = useUpdateScopedSettings();
-  const defaults = useFontDefaultFamilies();
   return (
     <FontFamilySettingsRow
       {...searchableSetting("interface-font")}
       description="Everything outside code blocks and the terminal."
-      defaultFamily={defaults.sans}
+      defaultFamily={DEFAULT_SANS_FONT_FAMILY}
       defaultValue={DEFAULT_UNIFIED_SETTINGS.fontFamilySans}
       value={settings.fontFamilySans}
       onValueChange={(fontFamilySans) => updateSettings({ fontFamilySans })}
@@ -86,12 +76,11 @@ function InterfaceFontRow({ preview }: { preview?: ReactNode }) {
 function PromptFontRow() {
   const settings = useScopedSettings();
   const updateSettings = useUpdateScopedSettings();
-  const defaults = useFontDefaultFamilies();
   return (
     <FontFamilySettingsRow
       {...searchableSetting("prompt-font")}
       description="Applies to the box you write prompts in."
-      defaultFamily={defaults.interfaceFamily}
+      defaultFamily={settings.fontFamilySans.trim() || DEFAULT_SANS_FONT_FAMILY}
       defaultValue={DEFAULT_UNIFIED_SETTINGS.fontFamilyComposer}
       value={settings.fontFamilyComposer}
       onValueChange={(fontFamilyComposer) => updateSettings({ fontFamilyComposer })}
@@ -125,13 +114,12 @@ function CodeFontRow({
 }) {
   const settings = useScopedSettings();
   const updateSettings = useUpdateScopedSettings();
-  const defaults = useFontDefaultFamilies();
   return (
     <FontFamilySettingsRow
       {...searchableSetting("code-font")}
       {...(title !== undefined ? { title } : {})}
       description={description}
-      defaultFamily={defaults.code}
+      defaultFamily={DEFAULT_CODE_FONT_FAMILY}
       defaultValue={DEFAULT_UNIFIED_SETTINGS.fontFamilyCode}
       value={settings.fontFamilyCode}
       onValueChange={(fontFamilyCode) => updateSettings({ fontFamilyCode })}
@@ -158,12 +146,11 @@ function CodeFontRow({
 function TerminalFontRow() {
   const settings = useScopedSettings();
   const updateSettings = useUpdateScopedSettings();
-  const defaults = useFontDefaultFamilies();
   return (
     <FontFamilySettingsRow
       {...searchableSetting("terminal-font")}
       description="Terminal output, independent from code blocks and diffs."
-      defaultFamily={defaults.code}
+      defaultFamily={DEFAULT_CODE_FONT_FAMILY}
       defaultValue={DEFAULT_UNIFIED_SETTINGS.fontFamilyTerminal}
       value={settings.fontFamilyTerminal}
       onValueChange={(fontFamilyTerminal) => updateSettings({ fontFamilyTerminal })}
