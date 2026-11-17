@@ -15,7 +15,8 @@ type TextPart = string | typeof CELL_START | typeof CELL_END | { fallback: strin
 
 const TRUNCATED = "\n\n[Extracted text truncated at document extraction limits.]";
 // Parts the document never displays: the XHTML head, tracked deletions and moves, field codes,
-// phonetic guides, paragraph properties such as tab-stop definitions.
+// phonetic guides, paragraph properties such as tab-stop definitions, drawing anchor layout
+// values and encoded field data.
 const HIDDEN = new Set([
   "head",
   "script",
@@ -28,6 +29,11 @@ const HIDDEN = new Set([
   "delInstrText",
   "tracked-changes",
   "pPr",
+  "positionH",
+  "positionV",
+  "sizeRelH",
+  "sizeRelV",
+  "fldData",
 ]);
 
 class Truncation extends Error {}
@@ -108,7 +114,7 @@ function xml(source: string, extension: string): XmlNode {
       parent.children.pop();
       return;
     }
-    if (!node.hasText && node.name !== "noBreakHyphen") return;
+    if (HIDDEN.has(node.name) || (!node.hasText && node.name !== "noBreakHyphen")) return;
     parent.hasText = true;
     if (node.name === "Choice") parent.hasTextChoice = true;
   });
