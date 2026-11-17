@@ -405,10 +405,11 @@ const buildRegistryOverSnapshot = Effect.fn("buildRegistryOverSnapshot")(functio
   yield* Effect.addFinalizer(() => Scope.close(scope, Exit.void));
   return yield* Layer.build(
     ProviderRegistry.layer.pipe(
-      Layer.provide(layerUnusedMutator),
       Layer.provideMerge(layerInstanceRegistry),
       Layer.provideMerge(
-        ServerConfig.layerTest(process.cwd(), { prefix: "supaterm-provider-registry-update-state-" }),
+        ServerConfig.layerTest(process.cwd(), {
+          prefix: "supaterm-provider-registry-update-state-",
+        }),
       ),
       Layer.provideMerge(layerBackgroundPolicyAlwaysRun),
       Layer.provideMerge(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer)),
