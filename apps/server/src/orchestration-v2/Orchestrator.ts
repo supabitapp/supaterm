@@ -13580,7 +13580,7 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
     if (command.type === "queue.resume" || command.type === "queued-run.start") {
       yield* mapDispatchError(command)(
         startNextQueuedRun(command.threadId, {
-          userStarted: command.type !== "thread.runtime-mode.set",
+          userStarted: true,
           ...(command.type === "queued-run.start" ? { queuedRunId: command.runId } : {}),
         }),
       );
