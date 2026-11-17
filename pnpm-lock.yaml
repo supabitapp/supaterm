@@ -1589,6 +1589,9 @@ importers:
       '@effect/vitest':
         specifier: 4.1.2
         version: 4.1.2(effect@4.1.2)(vitest@5.0.5)
+      '@supaterm/provider-testing':
+        specifier: workspace:*
+        version: link:../provider-testing
       '@types/node':
         specifier: 24.12.4
         version: 24.12.4
@@ -1654,9 +1657,15 @@ importers:
         specifier: 4.1.2
         version: 4.1.2
     devDependencies:
+      '@effect/platform-node':
+        specifier: 4.1.2
+        version: 4.1.2(bufferutil@4.1.0)(effect@4.1.2)(redis@6.2.1)(utf-8-validate@6.0.6)
       '@effect/vitest':
         specifier: 4.1.2
         version: 4.1.2(effect@4.1.2)(vitest@5.0.5)
+      '@supaterm/provider-testing':
+        specifier: workspace:*
+        version: link:../provider-testing
       '@types/node':
         specifier: 24.12.4
         version: 24.12.4
