@@ -2,6 +2,7 @@ import "vite-plus/test/config";
 import { defineConfig } from "vite-plus";
 import * as NodeURL from "node:url";
 import antiSlop from "ultracite/oxlint/anti-slop";
+import { reactDoctorOverrides, reactDoctorSettings } from "./oxlint-react-doctor.ts";
 
 const TEST_EXCLUDE = [
   "**/.supacode/**",
@@ -196,9 +197,11 @@ export default defineConfig({
       "./oxlint-plugin-supaterm/array-guardrails.ts",
       "./oxlint-plugin-supaterm/test-waits.ts",
       "@shadcn/lint",
+      "oxlint-plugin-react-doctor",
     ],
     settings: {
       shadcn: { ui: "~/components/ui" },
+      "react-doctor": reactDoctorSettings,
     },
     categories: {
       correctness: "error",
@@ -676,6 +679,7 @@ export default defineConfig({
           "supaterm/no-mobile-uniwind-theme-escape-hatches": ["error", { allowUniwindTheme: true }],
         },
       },
+      ...reactDoctorOverrides,
     ],
     options: {
       denyWarnings: true,
