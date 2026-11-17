@@ -5002,6 +5002,10 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
         expect(NodeFS.readFileSync(NodePath.join(repoDir, "untracked.txt"), "utf8")).toBe(
           "keep me\n",
         );
+        expect(
+          (yield* runGit(repoDir, ["config", "branch.feature/pr-safe.supaterm-pull-request"]))
+            .stdout,
+        ).toBe("https://github.com/supabitapp/supaterm/pull/91\n");
       }),
   );
 

@@ -95,7 +95,7 @@ TryExec=supaterm-nightly
 Terminal=false
 Type=Application
 Icon=supaterm-nightly
-StartupWMClass=supaterm
+StartupWMClass=com.supaterm.desktop
 Categories=Development;
 MimeType=x-scheme-handler/supaterm;
 EOF

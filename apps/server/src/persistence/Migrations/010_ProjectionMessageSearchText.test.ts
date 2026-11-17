@@ -92,7 +92,7 @@ it.layer(NodeSqliteClient.layer({ filename: ":memory:" }))(
           { discard: true },
         );
 
-        assert.deepEqual(yield* runMigrations(), [[10, "ProjectionMessageSearchText"]]);
+        assert.deepEqual((yield* runMigrations())[0], [10, "ProjectionMessageSearchText"]);
         const rows = yield* sql<{
           readonly message_id: string;
           readonly search_text: string | null;

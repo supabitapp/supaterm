@@ -1,4 +1,5 @@
 import * as Context from "effect/Context";
+import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
@@ -365,12 +366,15 @@ export const make = Effect.gen(function* () {
     };
     // Git misreads @ in a pathless URL's query as userinfo and echoes its suffix as the host.
     const normalizedCloneUrl = cloneUrl.replace(/^([a-z][a-z0-9+.-]*:\/\/[^/?#]+)\?/i, "$1/?");
-    yield* git
+    const provider = input.provider ?? SourceControlProviderKind.make("unknown");
+    const timeoutMs = options?.timeoutMs === undefined ? CLONE_TIMEOUT_MS : options.timeoutMs;
+    const clone = git
       .execute({
         operation: "SourceControlRepositoryService.cloneRepository",
         cwd: path.dirname(destinationPath),
         args: ["clone", "--progress", "--", normalizedCloneUrl, path.basename(destinationPath)],
-        timeoutMs: options?.timeoutMs === undefined ? CLONE_TIMEOUT_MS : options.timeoutMs,
+        // The deadline is applied below so a timeout is reported as one, not as git's last line.
+        timeoutMs: null,
         // Progress redraws add up on a slow multi-GB clone. The buffered copy
         // is never read (the tail is kept by hand above), so keep it small
         // and let the line callbacks keep flowing past the cap.
@@ -385,7 +389,7 @@ export const make = Effect.gen(function* () {
           (cause) =>
             new SourceControlRepositoryError({
               operation: "cloneRepository",
-              provider: input.provider ?? SourceControlProviderKind.make("unknown"),
+              provider,
               detail:
                 stderrTail.length > 0
                   ? stderrTail.join(" ")
@@ -394,6 +398,21 @@ export const make = Effect.gen(function* () {
             }),
         ),
       );
+    if (timeoutMs === null) return yield* clone;
+    // Interrupting the clone closes the scope that owns git, which kills it.
+    return yield* clone.pipe(
+      Effect.timeoutOrElse({
+        duration: timeoutMs,
+        orElse: () =>
+          Effect.fail(
+            new SourceControlRepositoryError({
+              operation: "cloneRepository",
+              provider,
+              detail: `The clone timed out after ${Duration.format(Duration.millis(timeoutMs))}.`,
+            }),
+          ),
+      }),
+    );
   });
 
   const clonePrepared = Effect.fn("SourceControlRepositoryService.clonePrepared")(function* (

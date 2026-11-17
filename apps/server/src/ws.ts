@@ -247,6 +247,7 @@ import * as SourceControlRepositoryService from "./sourceControl/SourceControlRe
 import * as PairingGrantStore from "./auth/PairingGrantStore.ts";
 import * as SessionStore from "./auth/SessionStore.ts";
 import { failEnvironmentAuthInvalid, failEnvironmentInternal } from "./auth/http.ts";
+import * as SourceControlRateLimit from "@supaterm/source-control-core/server/SourceControlRateLimit";
 import { isNetworkPath } from "@supaterm/shared/path";
 import {
   SOCKET_FRAME_PARTS_QUERY_PARAM,
@@ -1379,6 +1380,8 @@ export const layerWsRpc = (
       const otlpEndpointCheck = yield* OtlpEndpointCheck.OtlpEndpointCheck;
       const sourceControlRepositories =
         yield* SourceControlRepositoryService.SourceControlRepositoryService;
+      // The panel's reads for a pull request the user opened go out during a rate-limit pause.
+      const openedPullRequestRead = Effect.provideService(SourceControlRateLimit.Interactive, true);
       const bootstrapCredentials = yield* PairingGrantStore.PairingGrantStore;
       const sessions = yield* SessionStore.SessionStore;
       const processDiagnostics = yield* ProcessDiagnostics.ProcessDiagnostics;
@@ -2428,13 +2431,19 @@ export const layerWsRpc = (
             ),
           ),
         [WS_METHODS.pullRequestsDetail]: (input) =>
-          pullRequests.withRoutingCredential(input, pullRequests.detail(input)),
+          pullRequests.withRoutingCredential(
+            input,
+            openedPullRequestRead(pullRequests.detail(input)),
+          ),
         [WS_METHODS.pullRequestsPreview]: (input) =>
           pullRequests.withRoutingCredential(input, pullRequests.preview(input)),
         [WS_METHODS.pullRequestsChecks]: (input) =>
           pullRequests.withRoutingCredential(input, pullRequests.checks(input)),
         [WS_METHODS.pullRequestsActivity]: (input) =>
-          pullRequests.withRoutingCredential(input, pullRequests.activity(input)),
+          pullRequests.withRoutingCredential(
+            input,
+            openedPullRequestRead(pullRequests.activity(input)),
+          ),
         [WS_METHODS.pullRequestsReviewGuide]: (input) =>
           pullRequests.withRoutingCredential(input, reviewGuides.get(input)),
         [WS_METHODS.pullRequestsGenerateReviewGuide]: (input) =>
