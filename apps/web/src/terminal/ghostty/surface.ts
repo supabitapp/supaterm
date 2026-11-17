@@ -1,4 +1,4 @@
-import { resolveEventKeys } from "@supaterm/shared/keybindingMatching";
+import { resolveEventKeys } from "@supaterm/shared/keybindings";
 import { isMacPlatform } from "../../lib/utils";
 import { SELECTION_MULTI_CLICK_INTERVAL_MS } from "../../lib/selectionActions";
 import { collectWrappedTerminalLinkLine, extractTerminalLinks } from "../../terminal-links";
