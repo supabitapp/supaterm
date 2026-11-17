@@ -17,7 +17,10 @@ import * as ChildProcess from "effect/process/ChildProcess";
 import * as ChildProcessSpawner from "effect/process/ChildProcessSpawner";
 
 import { signalProcessGroup } from "@supaterm/provider-core/server/processGroup";
-import { isWindowsCommandNotFound } from "@supaterm/provider-core/server/snapshotProbe";
+import {
+  isWindowsCommandNotFound,
+  resolveProviderProbeTimeoutMs,
+} from "@supaterm/provider-core/server/snapshotProbe";
 import * as OpenCodeServerLedger from "./OpenCodeServerLedger.ts";
 import { collectStreamAsString } from "@supaterm/provider-core/server/snapshotProbe";
 import * as NetService from "@supaterm/shared/Net";
@@ -240,6 +243,11 @@ const makeOpenCodeRuntime = Effect.gen(function* () {
             }),
         ),
       ));
+    const timeoutMs = resolveProviderProbeTimeoutMs(
+      "opencode",
+      DEFAULT_OPENCODE_SERVER_TIMEOUT_MS,
+      input.environment,
+    );
     const args = ["serve", `--hostname=${DEFAULT_HOSTNAME}`, `--port=${port}`];
     const launch = yield* agentScope.wrap({
       command: input.binaryPath,
@@ -364,7 +372,7 @@ const makeOpenCodeRuntime = Effect.gen(function* () {
     );
 
     const readyExit = yield* Effect.exit(
-      Deferred.await(readyDeferred).pipe(Effect.timeoutOption(DEFAULT_OPENCODE_SERVER_TIMEOUT_MS)),
+      Deferred.await(readyDeferred).pipe(Effect.timeoutOption(timeoutMs)),
     );
 
     if (Exit.isFailure(readyExit) || Option.isNone(readyExit.value)) {
@@ -384,7 +392,7 @@ const makeOpenCodeRuntime = Effect.gen(function* () {
     if (Option.isNone(readyOption)) {
       return yield* new OpenCodeRuntimeError({
         operation: "startOpenCodeServerProcess",
-        detail: `Timed out waiting for OpenCode server start after ${DEFAULT_OPENCODE_SERVER_TIMEOUT_MS}ms.`,
+        detail: `Timed out waiting for OpenCode server start after ${timeoutMs}ms.`,
       });
     }
 

@@ -67,9 +67,18 @@ export type ExecutionEnvironmentPlatform = typeof ExecutionEnvironmentPlatform.T
 export const ServerSelfUpdateMethod = Schema.Literals(["boot-service", "desktop-app"]);
 export type ServerSelfUpdateMethod = typeof ServerSelfUpdateMethod.Type;
 
+// Not trimmed: a path that differs from the installed one would update the wrong home.
+const InstalledPath = Schema.String.check(Schema.isNonEmpty());
+
 export const ServerInstallation = Schema.Union([
   Schema.Struct({ kind: Schema.Literals(["npx", "pnpm-dlx", "bunx"]) }),
   Schema.Struct({ kind: Schema.Literal("npm-global"), prefix: TrimmedNonEmptyString }),
+  // A launcher symlink into a downloaded runtime, as the install script and `supaterm update` leave.
+  Schema.Struct({
+    kind: Schema.Literal("supaterm-launcher"),
+    launcher: InstalledPath,
+    baseDir: InstalledPath,
+  }),
 ]);
 export type ServerInstallation = typeof ServerInstallation.Type;
 

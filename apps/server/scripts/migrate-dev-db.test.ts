@@ -28,10 +28,21 @@ const createFixtureSource = Effect.fn("createMigrateDevDbFixtureSource")(functio
       const sql = yield* SqlClient.SqlClient;
       yield* runMigrations();
 
+      const scripts = JSON.stringify([
+        { id: "lint", name: "Lint", command: "vp lint", icon: "lint", runOnWorktreeCreate: false },
+        {
+          id: "teardown",
+          name: "Teardown",
+          command: "./teardown",
+          icon: "configure",
+          runOnWorktreeCreate: false,
+          runOnDone: true,
+        },
+      ]);
       yield* sql`INSERT INTO projection_projects
         (project_id, title, workspace_root, scripts_json, created_at, updated_at, deleted_at)
         VALUES
-        ('project-kept', 'Kept', '/tmp/kept', '[]', '2026-08-01', '2026-08-01', NULL),
+        ('project-kept', 'Kept', '/tmp/kept', ${scripts}, '2026-08-01', '2026-08-01', NULL),
         ('project-deleted', 'Deleted', '/tmp/deleted', '[]', '2026-08-01', '2026-08-02', '2026-08-02')`;
 
       const forkPayload =
@@ -154,6 +165,8 @@ it.layer(NodeServices.layer)("migrate-dev-db", (it) => {
               json_extract(payload_json, '$.pullRequests[0].url') AS url,
               json_extract(payload_json, '$.pullRequests[0].watch') AS watch
             FROM orchestration_v2_projection_threads WHERE thread_id = 'stopped-thread'`;
+          const [project] = yield* sql<{ scripts_json: string }>`
+            SELECT scripts_json FROM projection_projects WHERE project_id = 'project-kept'`;
           const [leftovers] = yield* sql<{ auth: number; tasks: number; transfers: number }>`
             SELECT
               (SELECT COUNT(*) FROM auth_sessions) AS auth,
@@ -170,6 +183,7 @@ it.layer(NodeServices.layer)("migrate-dev-db", (it) => {
             events,
             sessions,
             pullRequest,
+            project,
             leftovers,
             searchable,
             autoVacuum,
@@ -193,6 +207,26 @@ it.layer(NodeServices.layer)("migrate-dev-db", (it) => {
         kept.pullRequest,
         { url: "https://github.com/owner/repo/pull/7", watch: null },
         "copied pull request links keep their history but stop being watched",
+      );
+      assert.deepStrictEqual(
+        JSON.parse(kept.project?.scripts_json ?? "[]"),
+        [
+          {
+            id: "lint",
+            name: "Lint",
+            command: "vp lint",
+            icon: "lint",
+            runOnWorktreeCreate: false,
+          },
+          {
+            id: "teardown",
+            name: "Teardown",
+            command: "./teardown",
+            icon: "configure",
+            runOnWorktreeCreate: false,
+          },
+        ],
+        "copied project scripts stay listed but never run when a thread is marked done in the original checkout",
       );
       assert.deepStrictEqual(kept.leftovers, { auth: 0, tasks: 0, transfers: 0 });
       assert.deepStrictEqual(

@@ -77,7 +77,7 @@ jobs:
       devices: ${{ steps.devices.outputs.devices }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
           ref: ${{ inputs.source_sha || github.sha }}
@@ -113,7 +113,7 @@ jobs:
           echo "hash=$hash" >> "$GITHUB_OUTPUT"
       - id: cached-app
         name: Restore iOS showcase app
-        uses: actions/cache/restore@v6
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ${{ runner.temp }}/ios-showcase-app.tar
           key: ios-showcase-app-${{ runner.arch }}-xcode-27.1-${{ steps.fingerprint.outputs.hash }}
@@ -133,13 +133,13 @@ jobs:
         run: tar -C apps/mobile/.showcase/ios-derived-data/Build/Products/Debug-iphonesimulator -cf "$RUNNER_TEMP/ios-showcase-app.tar" Supaterm.app
       - name: Save iOS showcase app
         if: steps.cached-app.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v6
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ${{ runner.temp }}/ios-showcase-app.tar
           key: ${{ steps.cached-app.outputs.cache-primary-key }}
 
       - name: Upload iOS showcase app
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: ios-showcase-app
           path: ${{ runner.temp }}/ios-showcase-app.tar
@@ -160,7 +160,7 @@ jobs:
         device: ${{ fromJSON(needs.ios-build.outputs.devices) }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
           ref: ${{ inputs.source_sha || github.sha }}
@@ -185,7 +185,7 @@ jobs:
         run: echo "AGENT_DEVICE_PATH=$PWD/scripts/node_modules/.bin/agent-device" >> "$GITHUB_ENV"
 
       - name: Download iOS showcase app
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: ios-showcase-app
           path: ${{ runner.temp }}
@@ -203,7 +203,7 @@ jobs:
 
       - name: Upload iOS screenshots
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: app-store-connect-screenshots-${{ matrix.device }}
           path: artifacts/app-store/screenshots/apple/
@@ -213,7 +213,7 @@ jobs:
 
       - name: Upload raw iOS captures
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: app-store-connect-captures-${{ matrix.device }}
           path: artifacts/app-store/captures/apple/
@@ -228,14 +228,14 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: Download iOS screenshots
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           pattern: app-store-connect-screenshots-*
           merge-multiple: true
           path: apple
 
       - name: Upload iOS screenshots
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: app-store-connect-screenshots
           path: apple/
@@ -244,7 +244,7 @@ jobs:
           overwrite: true
 
       - name: Download raw iOS captures
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           pattern: app-store-connect-captures-*
           merge-multiple: true
@@ -252,7 +252,7 @@ jobs:
 
       # Source commits from before raw captures existed upload none.
       - name: Upload raw iOS captures
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: app-store-connect-captures
           path: captures/
@@ -276,7 +276,7 @@ jobs:
       NODE_ENV: development
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
           ref: ${{ inputs.source_sha || github.sha }}
@@ -298,13 +298,13 @@ jobs:
           echo "hash=$hash" >> "$GITHUB_OUTPUT"
       - id: cached-apk
         name: Restore Android showcase APK
-        uses: actions/cache/restore@v6
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: apps/mobile/android/app/build/outputs/apk/debug/app-debug.apk
           key: android-showcase-apk-${{ env.SUPATERM_SHOWCASE_ANDROID_ABI }}-${{ steps.fingerprint.outputs.hash }}
 
       - name: Setup Java
-        uses: actions/setup-java@v6
+        uses: actions/setup-java@d1374f8ac74474200d16ef8ecee22c7ae7a51880 # v6.3.0
         with:
           distribution: temurin
           java-version: 17
@@ -334,7 +334,7 @@ jobs:
           free -m
       - name: Save Android showcase APK
         if: steps.cached-apk.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v6
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: apps/mobile/android/app/build/outputs/apk/debug/app-debug.apk
           key: ${{ steps.cached-apk.outputs.cache-primary-key }}
@@ -359,7 +359,7 @@ jobs:
 
       - name: Upload Android screenshots
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: google-play-screenshots
           path: artifacts/app-store/screenshots/google-play/
@@ -369,7 +369,7 @@ jobs:
 
       - name: Upload raw Android captures
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: google-play-captures
           path: artifacts/app-store/captures/google-play/

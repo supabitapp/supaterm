@@ -17,7 +17,11 @@ const descriptor = {
 describe("ExecutionEnvironmentDescriptor", () => {
   it("decodes old, recognized and future manual installation descriptors", () => {
     expect(decodeDescriptor(descriptor).capabilities.serverInstallation).toBeUndefined();
-    for (const installation of [{ kind: "npx" }, { kind: "npm-global", prefix: "/opt/node" }]) {
+    for (const installation of [
+      { kind: "npx" },
+      { kind: "npm-global", prefix: "/opt/node" },
+      { kind: "supaterm-launcher", launcher: "/opt/bin/supaterm", baseDir: "/data/supaterm" },
+    ]) {
       expect(
         decodeDescriptor({
           ...descriptor,
@@ -25,7 +29,22 @@ describe("ExecutionEnvironmentDescriptor", () => {
         }).capabilities.serverInstallation,
       ).toEqual(installation);
     }
-    for (const installation of [{ kind: "future-manager" }, { kind: "npm-global" }]) {
+    const spaced = {
+      kind: "supaterm-launcher",
+      launcher: "/opt/bin/supaterm ",
+      baseDir: " /data/supaterm ",
+    };
+    expect(
+      decodeDescriptor({
+        ...descriptor,
+        capabilities: { ...descriptor.capabilities, serverInstallation: spaced },
+      }).capabilities.serverInstallation,
+    ).toEqual(spaced);
+    for (const installation of [
+      { kind: "future-manager" },
+      { kind: "npm-global" },
+      { kind: "supaterm-launcher", launcher: "supaterm" },
+    ]) {
       expect(
         decodeDescriptor({
           ...descriptor,

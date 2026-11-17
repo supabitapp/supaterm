@@ -217,7 +217,7 @@ it.layer(layerClaudeTextGenerationTest)("ClaudeTextGeneration", (it) => {
   it.effect("overrides saved Fast for structured generation while unavailable", () =>
     withFakeClaudeEnv(
       {
-        output: JSON.stringify({ structured_output: { title: "Title" } }),
+        output: JSON.stringify({ structured_output: { title: "Fast mode check" } }),
         argsMustContain: '--settings {"disableAllHooks":true,"fastMode":false}',
         fastModeBlocked: Effect.succeed(true),
       },
@@ -232,7 +232,9 @@ it.layer(layerClaudeTextGenerationTest)("ClaudeTextGeneration", (it) => {
               [{ id: "fastMode", value: true }],
             ),
           })
-          .pipe(Effect.tap((result) => Effect.sync(() => expect(result.title).toBe("Title")))),
+          .pipe(
+            Effect.tap((result) => Effect.sync(() => expect(result.title).toBe("Fast mode check"))),
+          ),
     ),
   );
 

@@ -41,7 +41,7 @@ jobs:
     timeout-minutes: 45
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
@@ -59,7 +59,7 @@ jobs:
         run: '"path=$(vp pm cache dir)" >> $env:GITHUB_OUTPUT'
 
       - name: Cache packages
-        uses: actions/cache@v6
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ${{ steps.package_cache_path.outputs.path }}
           key: windows-tests-packages-v1-${{ hashFiles('pnpm-lock.yaml') }}
@@ -73,7 +73,7 @@ jobs:
 
       - name: Setup Rust for desktop packaging
         if: inputs.build_desktop
-        uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87
+        uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
         with:
           toolchain: stable
           targets: x86_64-pc-windows-msvc
@@ -114,7 +114,7 @@ jobs:
       - name: Cache Chromium
         if: inputs.package == '' || inputs.package == 'apps/web'
         id: chromium_cache
-        uses: actions/cache@v6
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/AppData/Local/ms-playwright
           key: playwright-chromium-shell-${{ runner.os }}-${{ runner.arch }}-${{ steps.playwright_version.outputs.version }}

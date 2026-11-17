@@ -76,6 +76,8 @@ describe("detectComposerTrigger", () => {
     ["Read /Users/khoi/notes", "Read /Use".length],
     ["Read /Users/khoi/notes", "Read /".length],
     ["and / or", "and / ".length],
+    ["cmd /foo\\bar", "cmd /foo\\bar".length],
+    ["/Windows\\System32", "/Windows\\System32".length],
   ])("leaves %j alone with the caret at %i", (text, cursor) => {
     expect(detectComposerTrigger(text, cursor)).toBeNull();
   });

@@ -4432,6 +4432,55 @@ it.layer(layerTest)("GitVcsDriver core integration", (it) => {
       }),
     );
 
+    it.effect.each(["checkout", "bare-backed worktree"] as const)(
+      "uses the only remote's HEAD for default-branch detection without origin in a %s",
+      (layout) =>
+        Effect.gen(function* () {
+          const driver = yield* GitVcsDriver.GitVcsDriver;
+          const path = yield* Path.Path;
+          const source = yield* makeTmpDir();
+          const remote = yield* makeTmpDir("git-vcs-driver-github-");
+          yield* initRepoWithCommit(source);
+          yield* git(remote, ["init", "--bare"]);
+          yield* git(source, ["branch", "-M", "trunk"]);
+          yield* git(source, ["remote", "add", "github", remote]);
+          yield* git(source, ["push", "-u", "github", "trunk"]);
+          let cwd = source;
+          if (layout === "bare-backed worktree") {
+            const container = yield* makeTmpDir("git-vcs-driver-bare-");
+            // The driver resolves each command's repository from its cwd, which refuses a bare
+            // repository, so this setup runs Git directly.
+            const gitDirArgs = ["--git-dir", path.join(container, "repo.git")];
+            const bareGit = (args: ReadonlyArray<string>) =>
+              Effect.flatMap(ChildProcessSpawner.ChildProcessSpawner, (spawner) =>
+                spawner.string(
+                  ChildProcess.make("git", [...gitDirArgs, ...args], { cwd: container }),
+                ),
+              );
+            cwd = path.join(container, "trunk");
+            yield* git(container, ["init", "--bare", "repo.git"]);
+            yield* bareGit(["config", "user.email", "test@test.com"]);
+            yield* bareGit(["config", "user.name", "Test"]);
+            yield* bareGit(["remote", "add", "github", remote]);
+            yield* bareGit(["fetch", "github"]);
+            yield* bareGit(["worktree", "add", "--track", "-b", "trunk", cwd, "github/trunk"]);
+          }
+          yield* git(cwd, [
+            "symbolic-ref",
+            "refs/remotes/github/HEAD",
+            "refs/remotes/github/trunk",
+          ]);
+
+          assert.isTrue((yield* driver.statusDetailsLocal(cwd)).isDefaultBranch);
+          const remoteStatus = yield* driver.statusDetailsRemote(cwd);
+          assert.equal(remoteStatus.defaultBranch, "trunk");
+          assert.isTrue(remoteStatus.isDefaultBranch);
+
+          yield* git(cwd, ["remote", "add", "origin", remote]);
+          assert.isNull((yield* driver.statusDetailsRemote(cwd)).defaultBranch);
+        }),
+    );
+
     it.effect("makes background upstream status fetches non-interactive", () =>
       Effect.gen(function* () {
         const cwd = yield* makeTmpDir();
@@ -5358,7 +5407,8 @@ it.layer(layerTest)("GitVcsDriver core integration", (it) => {
 
         const cwd = yield* makeTmpDir();
         const { initialBranch } = yield* initRepoWithCommit(cwd);
-        yield* git(cwd, ["submodule", "add", submoduleRepo, "shared"]);
+        // A file URL transfers a pack like a network remote; a plain path hardlinks silently.
+        yield* git(cwd, ["submodule", "add", NodeURL.pathToFileURL(submoduleRepo).href, "shared"]);
         yield* git(cwd, ["commit", "-m", "add submodule"]);
         const recordedHead = yield* git(submoduleRepo, ["rev-parse", "HEAD"]);
         yield* writeTextFile(submoduleRepo, "SHARED.md", "# newer remote default\n");
@@ -5433,7 +5483,11 @@ it.layer(layerTest)("GitVcsDriver core integration", (it) => {
           yield* git(pathService.join(worktreePath, "shared"), ["status", "--porcelain"]),
           "",
         );
-        if (progress) assert.isNotEmpty(yield* Ref.get(lines));
+        if (progress) {
+          assert.isTrue(
+            (yield* Ref.get(lines)).some((line) => line.startsWith("Receiving objects")),
+          );
+        }
       }),
     );
 

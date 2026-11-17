@@ -29,7 +29,7 @@ jobs:
       targets: ${{ steps.collect.outputs.targets }}
     steps:
       - id: collect
-        uses: actions/github-script@v9.0.0
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         with:
           script: |
             if (context.eventName === "pull_request_target") {
@@ -94,7 +94,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Sync PR labels
-        uses: actions/github-script@v9.0.0
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         env:
           PR_NUMBER: ${{ matrix.target.number }}
           VOUCH_STATUS: ${{ steps.vouch.outputs.status }}
