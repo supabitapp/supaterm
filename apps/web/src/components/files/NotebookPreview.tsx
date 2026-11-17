@@ -30,7 +30,9 @@ function inertNotebookMarkdown() {
 const NOTEBOOK_PLUGINS = [inertNotebookMarkdown];
 
 function NotebookSource(props: { readonly name: string; readonly text: string }) {
-  const [height, setHeight] = useState(Math.min(360, props.text.split("\n").length * 20 + 16));
+  const [height, setHeight] = useState(() =>
+    Math.min(360, props.text.split("\n").length * 20 + 16),
+  );
   const measure = (node: HTMLElement) => {
     setHeight(Math.min(360, Math.ceil(node.getBoundingClientRect().height)));
   };

@@ -16,6 +16,7 @@ import { ScrollArea } from "../ui/scroll-area";
 import { Toggle } from "../ui/toggle";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { HighlightedSearchLine } from "./HighlightedSearchLine";
+import { isImeComposing } from "~/lib/imeComposition";
 
 interface ProjectContentSearchDialogProps {
   readonly onOpenChange: (open: boolean) => void;
@@ -204,7 +205,7 @@ function OpenContentSearchDialog(props: {
         disabled: !search.canReadFiles,
         placeholder: `Search in ${target.projectName}`,
         onKeyDown: (event) => {
-          if (event.nativeEvent.isComposing || event.keyCode === 229) return;
+          if (isImeComposing(event)) return;
           if (event.key === "ArrowDown" && matches.length > 0) {
             event.preventDefault();
             setSelectedIndex((current) => (current + 1) % matches.length);

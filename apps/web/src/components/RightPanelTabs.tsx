@@ -96,6 +96,7 @@ import { PullRequestGlyph } from "~/components/pullRequest/pullRequestIcons";
 import { observeResize } from "~/lib/observeResize";
 import { usePaneInputOwner } from "../chatPanes/paneScope";
 import { surfaceShortcutKey } from "~/lib/surfaceShortcutKey";
+import { isImeComposing } from "~/lib/imeComposition";
 
 export interface RightPanelTabsProps {
   mode: PreviewPanelMode;
@@ -903,6 +904,7 @@ function RightPanelTab(
           onBlur={(event) => onFinishRename(surface.id, event.currentTarget.value)}
           onKeyDown={(event) => {
             event.stopPropagation();
+            if (isImeComposing(event)) return;
             if (event.key === "Enter") event.currentTarget.blur();
             if (event.key === "Escape") {
               event.currentTarget.value = title;

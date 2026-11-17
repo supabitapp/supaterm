@@ -29,6 +29,7 @@ import { Button } from "../ui/button";
 import { InputGroup, InputGroupAddon, InputGroupInput } from "../ui/input-group";
 import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "../ui/select";
 import { Spinner } from "../ui/spinner";
+import { isImeComposing } from "~/lib/imeComposition";
 
 const DOWNLOAD_FORMAT = new Intl.NumberFormat(undefined, {
   notation: "compact",
@@ -309,7 +310,7 @@ export function ThemeSearchSection({
           autoFocus
           onChange={(event) => changeQuery(event.currentTarget.value)}
           onKeyDown={(event) => {
-            if (event.nativeEvent.isComposing || event.keyCode === 229) return;
+            if (isImeComposing(event)) return;
             if (event.key === "Enter" && !isSearching && installingId === null)
               themeSearch.searchNow();
           }}

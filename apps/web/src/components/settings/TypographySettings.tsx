@@ -41,6 +41,7 @@ import {
   revealSettingsSearchTarget,
   searchableSetting,
 } from "./settingsSearch";
+import { isImeComposing } from "~/lib/imeComposition";
 
 let fontDefaultFamilies: { readonly sans: string; readonly code: string } | undefined;
 
@@ -474,6 +475,7 @@ function FontFamilySettingsRow({
           }, 400);
         }}
         onKeyDown={(event) => {
+          if (isImeComposing(event)) return;
           if (event.key === "Enter") flushDraft();
           if (event.key === "Escape") {
             // Discard uncommitted typing without closing the settings page,

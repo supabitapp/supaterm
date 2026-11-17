@@ -67,6 +67,7 @@ const messageActionPillClassName =
 export function ComposerSendButton(props: ComponentProps<"button">) {
   return (
     <button
+      type="button"
       {...props}
       className="flex h-9 w-9 items-center justify-center rounded-full bg-message-action text-message-action-foreground shadow-xs transition-[scale,background-color] duration-150 ease-out motion-reduce:transition-none enabled:cursor-pointer enabled:shadow-message-action/24 enabled:inset-shadow-control-highlight hover:scale-105 hover:bg-message-action-hover active:inset-shadow-control-pressed active:shadow-none disabled:pointer-events-none disabled:opacity-64 disabled:shadow-none disabled:hover:scale-100 sm:h-8 sm:w-8 [&_svg]:pointer-events-none"
     />
