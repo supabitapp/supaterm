@@ -27,6 +27,7 @@ import {
   parseLegacyServiceState,
   parseServiceState,
   serviceUnitBaseDirOf,
+  serviceUnitLogPathOf,
   SERVICE_ENV_FILE,
   SERVICE_LAUNCHER_CONTEXT_ENV,
   SERVICE_LAUNCHER_PROTOCOL,
@@ -141,6 +142,33 @@ function repointServiceUnit(contents: string, version: string): string {
     return contents.replace(program, () => `${prefix}${version}${suffix}`);
   }
   return contents;
+}
+
+const SERVICE_LOG_MAX_BYTES = 10 * 1024 * 1024;
+const SERVICE_LOG_CHECK_INTERVAL_MS = 10 * 60_000;
+
+/**
+ * The service manager holds the log open for appending, so it is copied aside and emptied in
+ * place rather than renamed. The copy is best effort: on a full disk the truncate frees space.
+ */
+async function boundServiceLog(logPath: string): Promise<void> {
+  const size = await NodeFSP.stat(logPath).then(
+    (stats) => stats.size,
+    () => 0,
+  );
+  if (size <= SERVICE_LOG_MAX_BYTES) return;
+  const archivePath = `${logPath}.1`;
+  const pendingArchivePath = `${archivePath}.tmp`;
+  await NodeFSP.copyFile(logPath, pendingArchivePath)
+    .then(() => NodeFSP.rename(pendingArchivePath, archivePath))
+    .catch(() => NodeFSP.rm(pendingArchivePath, { force: true }).catch(() => undefined));
+  await NodeFSP.truncate(logPath, 0).catch(() => undefined);
+}
+
+async function serviceLogPath(serviceUnit: ServiceUnit | undefined): Promise<string | undefined> {
+  if (serviceUnit === undefined) return undefined;
+  const contents = await NodeFSP.readFile(serviceUnit.path, "utf8").catch(() => undefined);
+  return contents === undefined ? undefined : serviceUnitLogPathOf(contents);
 }
 
 const DB_FILE_SUFFIXES = ["", "-wal", "-shm"] as const;
@@ -1154,9 +1182,22 @@ export async function main(): Promise<void> {
     }
   }
   const serviceUnit = serviceUnitFromEnvironment();
-  await new Launcher(
-    baseDir,
-    state,
-    serviceUnit === undefined ? { environment } : { environment, serviceUnit },
-  ).run();
+  let logTimer: NodeJS.Timeout | undefined;
+  try {
+    const logPath = await serviceLogPath(serviceUnit);
+    if (logPath !== undefined) {
+      await boundServiceLog(logPath);
+      logTimer = setInterval(
+        () => void boundServiceLog(logPath),
+        SERVICE_LOG_CHECK_INTERVAL_MS,
+      ).unref();
+    }
+    await new Launcher(
+      baseDir,
+      state,
+      serviceUnit === undefined ? { environment } : { environment, serviceUnit },
+    ).run();
+  } finally {
+    clearInterval(logTimer);
+  }
 }

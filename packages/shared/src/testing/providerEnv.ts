@@ -8,6 +8,7 @@ const KEPT_ENV = new Set([
   // CI sets these so the transfer budget integration test writes its report for the job summary.
   "SUPATERM_TRANSFER_BUDGET_REPORT_PATH",
   "SUPATERM_TRANSFER_BUDGET_RESULT_PATH",
+  "SUPATERM_TRANSFER_BUDGET_SCENARIOS_PATH",
   // Opt-in: points the HtmlRender tests at a headless browser, which they skip without.
   "SUPATERM_TEST_HEADLESS_SHELL",
 ]);

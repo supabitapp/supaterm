@@ -163,6 +163,8 @@ export interface SshEnvironmentManagerShape {
   readonly disconnectEnvironment: (
     target: DesktopSshEnvironmentTarget,
   ) => Effect.Effect<void, SshEnvironmentEffectError, SshEnvironmentEffectContext>;
+  /** Closes every tunnel, as the manager's scope finalizer does. */
+  readonly closeAllTunnels: Effect.Effect<void>;
 }
 
 const RemoteLaunchResult = Schema.Struct({
@@ -505,7 +507,10 @@ if ! supaterm_runtime_ready; then
     if command -v curl >/dev/null 2>&1; then curl -fsSL --connect-timeout 30 --max-time "$3" "$1" -o "$2"
     elif command -v wget >/dev/null 2>&1; then wget -q --timeout=30 --tries=1 "$1" -O "$2"
     else printf 'Remote host needs curl or wget to download %s.\\n' "$SUPATERM_ARCHIVE" >&2; exit 1
-    fi
+    fi || {
+      printf 'Could not download supaterm %s from %s. If this host cannot reach it, install supaterm %s on it with https://supaterm.com/install.sh (SUPATERM_VERSION=%s; SUPATERM_RELEASE_BASE_URL selects a mirror).\\n' "$SUPATERM_ARCHIVE_VERSION" "$1" "$SUPATERM_ARCHIVE_VERSION" "$SUPATERM_ARCHIVE_VERSION" >&2
+      exit 1
+    }
   }
   supaterm_fetch "$SUPATERM_RELEASE_BASE_URL/v$SUPATERM_ARCHIVE_VERSION/SHA256SUMS" "$SUPATERM_STAGING/SHA256SUMS" @@SUPATERM_ARCHIVE_CHECKSUMS_SECONDS@@
   supaterm_fetch "$SUPATERM_RELEASE_BASE_URL/v$SUPATERM_ARCHIVE_VERSION/$SUPATERM_ARCHIVE" "$SUPATERM_STAGING/$SUPATERM_ARCHIVE" @@SUPATERM_ARCHIVE_DOWNLOAD_SECONDS@@
@@ -1515,15 +1520,14 @@ const makeSshEnvironmentManager = Effect.fn("ssh/tunnel.SshEnvironmentManager.ma
     });
   });
 
-  yield* Scope.addFinalizer(
-    managerScope,
-    Effect.sync(() => [...tunnels.values()]).pipe(
-      Effect.flatMap((entries) =>
-        Effect.forEach(entries, closeTunnelEntry, { concurrency: "unbounded" }),
-      ),
-      Effect.ignore,
+  const closeAllTunnels = Effect.sync(() => [...tunnels.values()]).pipe(
+    Effect.flatMap((entries) =>
+      Effect.forEach(entries, closeTunnelEntry, { concurrency: "unbounded" }),
     ),
+    Effect.ignore,
   );
+
+  yield* Scope.addFinalizer(managerScope, closeAllTunnels);
 
   const promptForPassword = Effect.fn("ssh/tunnel.promptForPassword")(function* (
     target: DesktopSshEnvironmentTarget,
@@ -1863,7 +1867,8 @@ const makeSshEnvironmentManager = Effect.fn("ssh/tunnel.SshEnvironmentManager.ma
           issuedPairingToken: pairingToken !== null,
         });
         return {
-          target: entry.target,
+          // Callers save this target; a port ssh -G resolved would pin the alias's current Port.
+          target: { ...entry.target, port: target.port },
           httpBaseUrl: entry.httpBaseUrl,
           wsBaseUrl: entry.wsBaseUrl,
           pairingToken,
@@ -1914,7 +1919,7 @@ const makeSshEnvironmentManager = Effect.fn("ssh/tunnel.SshEnvironmentManager.ma
     );
   });
 
-  return SshEnvironmentManager.of({ ensureEnvironment, disconnectEnvironment });
+  return SshEnvironmentManager.of({ ensureEnvironment, disconnectEnvironment, closeAllTunnels });
 });
 
 /**

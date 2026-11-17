@@ -5,6 +5,7 @@ import {
   type ServerConfig as ServerConfigType,
   ServerConfigStreamEvent,
   type ServerConfigStreamEvent as ServerConfigStreamEventType,
+  ServerProvider,
   WS_METHODS,
   ORCHESTRATION_PROTOCOL_VERSION,
 } from "@supaterm/contracts";
@@ -191,6 +192,18 @@ const THEME_SERVER_CONFIG: ServerConfigType = {
   },
 };
 const ENCODED_THEME_SERVER_CONFIG = encodeServerConfig(THEME_SERVER_CONFIG);
+const PROVIDER = Schema.decodeSync(ServerProvider)({
+  instanceId: "codex",
+  driver: "codex",
+  enabled: true,
+  installed: true,
+  version: "1.0.0",
+  status: "ready",
+  auth: { status: "authenticated" },
+  checkedAt: "2026-04-10T00:00:00.000Z",
+  models: [{ slug: "gpt", name: "GPT", isCustom: false, capabilities: null }],
+  slashCommands: [{ name: "compact" }],
+});
 const makeFactory = Effect.fn("TestRpcSessionFactory.make")(function* (
   options: RpcSession.RpcSessionOptions = {},
 ) {
@@ -668,9 +681,11 @@ describe("RpcSessionFactory", () => {
         const readyFiber = yield* Effect.forkChild(session.ready);
         const socket = yield* awaitSocket(sockets);
         socket.open();
-        yield* completeInitialConfig(socket, ENCODED_THEME_SERVER_CONFIG, {
-          environmentThemes: true,
-        });
+        yield* completeInitialConfig(
+          socket,
+          encodeServerConfig({ ...THEME_SERVER_CONFIG, providers: [PROVIDER] }),
+          { environmentThemes: true },
+        );
         yield* Fiber.join(readyFiber);
 
         const slowSubscriberStarted = yield* Deferred.make<void>();
@@ -726,7 +741,16 @@ describe("RpcSessionFactory", () => {
           type: "settingsUpdated",
           payload: { settings: DEFAULT_SERVER_SETTINGS },
         }));
-        const allEvents = [...themeEvents, ...settingsEvents];
+        // A delta carries no lists; a subscriber that misses it must still get its result.
+        const { models: _models, slashCommands: _commands, skills: _skills, ...status } = PROVIDER;
+        const providerEvent: ServerConfigStreamEventType = {
+          version: 1,
+          type: "providerStatusDeltas",
+          payload: {
+            providers: [{ ...status, checkedAt: "2026-04-10T00:05:00.000Z", message: "Checked" }],
+          },
+        };
+        const allEvents = [providerEvent, ...themeEvents, ...settingsEvents];
         const observedByFastSubscriber = yield* Queue.unbounded<ServerConfigStreamEventType>();
         yield* session.subscribeServerConfig({ environmentThemes: true }).pipe(
           Stream.runForEach((event) => Queue.offer(observedByFastSubscriber, event)),
@@ -745,6 +769,11 @@ describe("RpcSessionFactory", () => {
           "snapshot",
           "environmentThemesUpdated",
         ]);
+        expect(recovered[1]).toMatchObject({
+          config: {
+            providers: [{ ...PROVIDER, checkedAt: "2026-04-10T00:05:00.000Z", message: "Checked" }],
+          },
+        });
         expect(recovered[2]).toMatchObject({ payload: { themes: [] } });
 
         let projection = applyServerConfigProjection(Option.none(), {
