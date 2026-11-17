@@ -644,12 +644,12 @@ describe("server state projection", () => {
             late,
             { instanceId: otherInstanceId, digest: "c1", slashCommands: [], skills: [] },
           ]);
-          const done = yield* SubscriptionRef.changes(h.state).pipe(
+          const settled = yield* SubscriptionRef.changes(h.state).pipe(
             Stream.map((value) => Option.getOrThrow(value).config.providers),
             Stream.filter((providers) => providers[1]?.loadedCatalogDigest === "c1"),
             Stream.runHead,
           );
-          expect(Option.getOrThrow(done)[0]).toMatchObject({
+          expect(Option.getOrThrow(settled)[0]).toMatchObject({
             slashCommands,
             loadedCatalogDigest: "d1",
           });
