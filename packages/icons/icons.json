@@ -69,6 +69,7 @@
     "CircleGauge": "Gauge",
     "CircleHelp": "Question",
     "CircleSlash": "Prohibit",
+    "CircleStop": "StopCircle",
     "CircleX": "XCircle",
     "CircleXFilled": {
       "icon": "XCircle",
