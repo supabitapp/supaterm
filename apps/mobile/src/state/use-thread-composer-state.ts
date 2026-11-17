@@ -89,7 +89,11 @@ import { Atom } from "effect/reactivity";
 import { AsyncResult } from "effect/reactivity";
 import { settlePromise, squashAtomCommandFailure } from "@supaterm/client-runtime/state/runtime";
 import { prepareTurnAttachments } from "../lib/attachmentUpload";
-import { DEFAULT_FOLLOW_UP_BEHAVIOR, type FollowUpBehavior } from "../lib/followUpBehavior";
+import {
+  DEFAULT_FOLLOW_UP_BEHAVIOR,
+  outboxFollowUpDispatchMode,
+  type FollowUpBehavior,
+} from "../lib/followUpBehavior";
 import { mobilePreferencesAtom } from "./preferences";
 import { environmentThreadDetails } from "./threads";
 import {
@@ -276,10 +280,12 @@ export function useThreadComposerState() {
   const followUpBehavior = AsyncResult.isSuccess(preferencesResult)
     ? (preferencesResult.value.followUpBehavior ?? DEFAULT_FOLLOW_UP_BEHAVIOR)
     : DEFAULT_FOLLOW_UP_BEHAVIOR;
+  const deferredSteering =
+    selectedEnvironmentRuntime?.serverConfig?.environment.capabilities.deferredSteering === true;
   const queueWorkflow = useAtomValue(
     selectedThreadRef === null
       ? EMPTY_QUEUE_WORKFLOW_ATOM
-      : environmentThreadDetails.queueWorkflowAtom(selectedThreadRef),
+      : environmentThreadDetails.queueWorkflowAtom(selectedThreadRef, { deferredSteering }),
   );
   const queuedRunEdit = useQueuedRunEdit(selectedThreadKey);
   const composerDraftKey =
@@ -491,8 +497,7 @@ export function useThreadComposerState() {
     scheduleUnusedComposerAttachmentCleanup(draft.attachments);
   };
 
-  // Resolved at send, not drain: the outbox can deliver minutes later. Steering travels as "auto"
-  // so a turn that ends meanwhile degrades to a queued run instead of bouncing to the draft.
+  // Resolved at send, not drain: the outbox can deliver minutes later.
   const resolveFollowUpDispatchMode = (
     activeTurnDefault: FollowUpBehavior,
     followUpOverride?: ActiveTurnComposerAction,
@@ -511,13 +516,7 @@ export function useThreadComposerState() {
       [selectedThreadActivityRun?.status, selectedThreadRuntime?.status].some(
         (status) => status === "preparing" || status === "starting",
       );
-    return setupRunning
-      ? "queue"
-      : followUpAction === "auto"
-        ? null
-        : followUpAction === "queue"
-          ? "queue"
-          : "auto";
+    return outboxFollowUpDispatchMode({ followUpAction, setupRunning, deferredSteering });
   };
 
   /** Queues a recording as the message; it is moved into the outbox before it shows as queued. */

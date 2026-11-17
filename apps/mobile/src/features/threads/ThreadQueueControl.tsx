@@ -26,6 +26,7 @@ import { AppText as Text } from "../../components/ui/AppText";
 import { SymbolView } from "../../components/ui/AppSymbol";
 import { scopedThreadKey } from "../../lib/scopedEntities";
 import { useUniwindTheme } from "../../lib/useUniwindTheme";
+import { useEnvironmentServerConfig } from "../../state/entities";
 import { beginQueuedRunEdit, useQueuedRunEdit } from "../../state/queued-run-edit";
 import { environmentThreadDetails, threadEnvironment } from "../../state/threads";
 import { useAtomCommand } from "../../state/use-atom-command";
@@ -42,7 +43,10 @@ const QUEUE_ACTION_WIDTH = 76;
 type QueueTarget = { readonly environmentId: EnvironmentId; readonly threadId: ThreadId };
 
 function useThreadQueueWorkflow(target: QueueTarget) {
-  return useAtomValue(environmentThreadDetails.queueWorkflowAtom(target));
+  const deferredSteering =
+    useEnvironmentServerConfig(target.environmentId)?.environment.capabilities.deferredSteering ===
+    true;
+  return useAtomValue(environmentThreadDetails.queueWorkflowAtom(target, { deferredSteering }));
 }
 
 export function ThreadQueueSheet({ route }: StaticScreenProps<QueueTarget>) {
