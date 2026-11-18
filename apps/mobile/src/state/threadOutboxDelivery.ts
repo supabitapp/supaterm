@@ -734,14 +734,14 @@ type VoiceDelivery =
 export const deliverQueuedVoiceMessage = Effect.fn("ThreadOutbox.deliverVoiceMessage")(function* (
   queuedMessage: QueuedThreadMessage,
   modelSelection: ModelSelection,
-) {
+): Effect.fn.Return<VoiceDelivery> {
   const voice = queuedMessage.voice;
   if (!voice || !(yield* confirmQueued(queuedMessage))) {
-    return { status: "abandoned" } satisfies VoiceDelivery as VoiceDelivery;
+    return { status: "abandoned" };
   }
   const revision = threadOutboxRevision(queuedMessage.messageId);
   if (!isQueuedMessagePayloadCurrent(queuedMessage, revision)) {
-    return { status: "abandoned" } satisfies VoiceDelivery as VoiceDelivery;
+    return { status: "abandoned" };
   }
   const file = yield* Effect.promise(() => queuedVoiceRecordingFile(queuedMessage.messageId));
   const outcome: Parameters<typeof resolveVoiceDeliveryStep>[1] = !file.exists
@@ -782,7 +782,7 @@ export const deliverQueuedVoiceMessage = Effect.fn("ThreadOutbox.deliverVoiceMes
       messageId: queuedMessage.messageId,
       error: "error" in outcome ? outcome.error : null,
     });
-    return { status: "retry" } satisfies VoiceDelivery as VoiceDelivery;
+    return { status: "retry" };
   }
   if (step.step === "hold") {
     const held = yield* Effect.promise(() =>
@@ -793,7 +793,7 @@ export const deliverQueuedVoiceMessage = Effect.fn("ThreadOutbox.deliverVoiceMes
       ),
     );
     if (held && step.message.voice === undefined) releaseVoiceRecordingsQuietly();
-    return { status: "held" } satisfies VoiceDelivery as VoiceDelivery;
+    return { status: "held" };
   }
   const { voice: _, ...delivered } = queuedMessage;
   const submission = "result" in outcome ? outcome.result.submission : undefined;
@@ -802,7 +802,7 @@ export const deliverQueuedVoiceMessage = Effect.fn("ThreadOutbox.deliverVoiceMes
     message: { ...delivered, text: step.transcript },
     revision,
     sequence: submission?.status === "sent" ? submission.sequence : undefined,
-  } satisfies VoiceDelivery as VoiceDelivery;
+  };
 });
 
 // Everything delivery decides from. Each queued environment's session is read
