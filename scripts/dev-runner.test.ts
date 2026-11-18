@@ -193,26 +193,28 @@ it.layer(NodeServices.layer)("dev-runner", (it) => {
       }),
     );
 
-    it.effect("drops an inherited SUPATERM_HOST and SUPATERM_LAN from a parent Supaterm server", () =>
-      Effect.gen(function* () {
-        const env = yield* createDevRunnerEnv({
-          mode: "dev",
-          baseEnv: { SUPATERM_PORT: "3773", SUPATERM_HOST: "0.0.0.0", SUPATERM_LAN: "true" },
-          serverOffset: 0,
-          webOffset: 0,
-          supatermHome: undefined,
-          browser: undefined,
-          autoBootstrapProjectFromCwd: undefined,
-          logWebSocketEvents: undefined,
-          host: undefined,
-          port: undefined,
-          devUrl: undefined,
-        });
+    it.effect(
+      "drops an inherited SUPATERM_HOST and SUPATERM_LAN from a parent Supaterm server",
+      () =>
+        Effect.gen(function* () {
+          const env = yield* createDevRunnerEnv({
+            mode: "dev",
+            baseEnv: { SUPATERM_PORT: "3773", SUPATERM_HOST: "0.0.0.0", SUPATERM_LAN: "true" },
+            serverOffset: 0,
+            webOffset: 0,
+            supatermHome: undefined,
+            browser: undefined,
+            autoBootstrapProjectFromCwd: undefined,
+            logWebSocketEvents: undefined,
+            host: undefined,
+            port: undefined,
+            devUrl: undefined,
+          });
 
-        assert.equal(env.SUPATERM_PORT, "13773");
-        assert.equal(env.SUPATERM_HOST, undefined);
-        assert.equal(env.SUPATERM_LAN, undefined);
-      }),
+          assert.equal(env.SUPATERM_PORT, "13773");
+          assert.equal(env.SUPATERM_HOST, undefined);
+          assert.equal(env.SUPATERM_LAN, undefined);
+        }),
     );
   });
 
