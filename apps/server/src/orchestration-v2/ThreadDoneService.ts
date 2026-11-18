@@ -1,6 +1,5 @@
 import {
   backgroundWorkHoldsCompletion,
-  isWatchTaskId,
   turnItemUpdateCanEndBackgroundWork,
 } from "@supaterm/shared/orchestrationV2PendingBackgroundWork";
 import { resolveProjectSettings } from "@supaterm/shared/projectSettings";
@@ -176,8 +175,8 @@ export function isAutoMarkDoneCandidate(
   if (thread.activityRunStatus != null) return false;
   const pendingTasks = thread.pendingBackgroundTasks ?? [];
   if (backgroundWorkHoldsCompletion(pendingTasks)) return false;
-  // Marking done ends a watch, which would silently drop a reviewer's later comments.
-  if (pendingTasks.some((task) => isWatchTaskId(task.taskId))) return false;
+  // Marking done detaches the session, ending monitors and watches that would wake the agent.
+  if (pendingTasks.some((task) => task.kind === "monitor")) return false;
   if (threadHasQueuedTurnStart(thread, nowMs)) return false;
 
   return !isSnoozed(thread, nowMs);
