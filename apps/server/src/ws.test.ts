@@ -901,7 +901,6 @@ it.live.each([
         }),
         Layer.mock(SessionStore.SessionStore)({
           cookieName: "compression-test",
-          legacyCookieName: undefined,
           markConnected: () => Effect.void,
           markDisconnected: () => Effect.void,
           awaitInvalidation: () => Effect.never,
@@ -915,7 +914,9 @@ it.live.each([
         Layer.mock(RemoteOpenTargets.RemoteOpenTargets)({}),
         Layer.mock(DirectEndpoints.DirectEndpoints)({}),
         Layer.mock(ServerEnvironment.ServerEnvironment)({}),
-        Layer.mock(SourceControlProviderRegistry.SourceControlProviderRegistry)({}),
+        Layer.mock(SourceControlProviderRegistry.SourceControlProviderRegistry)({
+          resolveLink: () => undefined,
+        }),
         Layer.mock(VcsProcess.VcsProcess)({
           run: (input) =>
             Effect.fail(
