@@ -2271,6 +2271,15 @@ effectIt.effect.each([
     expected: "Continue where you left off.",
     resume: false,
   },
+  {
+    name: "native resume that owes the side chat note",
+    promotedSideChat: {},
+    expected: withInlineContext(
+      "This thread was a side chat and is now a full thread. The side chat restrictions no longer apply.",
+      "Continue where you left off.",
+    ),
+    resume: false,
+  },
 ] as const)("resumes a stopped run: $name", ({ name: _name, expected, resume, ...options }) =>
   Effect.gen(function* () {
     const harness = makeLocalCommandHarness({

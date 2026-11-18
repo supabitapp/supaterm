@@ -1839,7 +1839,9 @@ export const layer: Layer.Layer<
             .filter((part) => part !== "")
             .join("\n\n");
           const { restartContinuationOfRunId: _resumedRunId, ...promptedInput } = turnInput;
-          const text = goalCommand ? userText : withInlineContext(context, userText);
+          // A native resume that has to send a prompt still needs words in it.
+          const promptText = turnInput.resume && userText === "" ? MANUAL_RESUME_PROMPT : userText;
+          const text = goalCommand ? promptText : withInlineContext(context, promptText);
           const startInput = noteContinuation ? promptedInput : turnInput;
           const { resume: _resume, ...contextInput } = startInput;
           const { message: resumeMessage, resume: _resumeIntent, ...resumeInput } = startInput;
@@ -1864,9 +1866,9 @@ export const layer: Layer.Layer<
                       ? {}
                       : { attachments: [...missedAttachments, ...turnInput.message.attachments] }),
                   },
-                  ...(text === userText
+                  ...(text === promptText
                     ? {}
-                    : { inlineContextLength: text.length - userText.length }),
+                    : { inlineContextLength: text.length - promptText.length }),
                 });
           yield* operation.pipe(
             // Clear pending handoff markers for refused prompts so the next turn retains the native session.
