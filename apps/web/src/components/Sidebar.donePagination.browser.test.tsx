@@ -66,6 +66,8 @@ it("keeps Show more focused while older done threads load", async () => {
     router: false,
   });
 
+  // Entering the thread focuses the composer whenever ChatView mounts, so let it land first.
+  await expect.element(page.getByTestId("composer-editor")).toHaveFocus();
   const doneShelf = page.getByRole("button", { name: "Done (60)" });
   await expect.element(doneShelf).toBeInTheDocument();
   await act(() => (doneShelf.element() as HTMLButtonElement).click());
