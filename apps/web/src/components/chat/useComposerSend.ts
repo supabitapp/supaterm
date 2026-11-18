@@ -48,7 +48,7 @@ import type { VoiceRecording } from "../../voice/webVoiceRecorder";
 import { ensureInlineContextReferences } from "../../lib/composerContextReferences";
 import { settlePromise, squashAtomCommandFailure } from "@supaterm/client-runtime/state/runtime";
 import { isUsageLimitsCommand } from "@supaterm/shared/usageLimits";
-import { isClearComposerCommand } from "@supaterm/shared/composerTrigger";
+import { isClearComposerCommand, parseSideChatCommand } from "@supaterm/shared/composerTrigger";
 import { armFreshSession, disarmFreshSession, readFreshSessionArm } from "./freshSessionArms";
 import { newMessageId, newThreadId } from "~/lib/utils";
 import {
