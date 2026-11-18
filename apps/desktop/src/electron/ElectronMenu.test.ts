@@ -62,6 +62,7 @@ describe("ElectronMenu", () => {
           { id: "delete", label: "Delete", icon: "trash", destructive: true },
         ],
         position: Option.none(),
+        source: Option.none(),
       });
 
       assert.deepEqual(
