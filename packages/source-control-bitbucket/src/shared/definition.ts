@@ -60,7 +60,7 @@ export const settings = makeProviderSettingsSchema(
     apiToken: text({
       title: "API token",
       description:
-        "Reaches every repository your Atlassian account can. Give it read and write access to repositories and pull requests, and read:user:bitbucket.",
+        "Reaches every repository your Atlassian account can. Give it read and write access to repositories and pull requests, plus read:user:bitbucket and read:workspace:bitbucket.",
       settingsSecret: true,
       providerSettingsForm: { control: "password" },
     }),

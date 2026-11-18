@@ -15,7 +15,6 @@ import {
   type OrchestrationV2ProviderThread,
 } from "@supaterm/contracts";
 import * as IdAllocator from "@supaterm/provider-core/server/IdAllocator";
-import * as KeyedLock from "@supaterm/shared/KeyedLock";
 import * as AcpRegistryRuntimeCoordinator from "@supaterm/provider-acp-registry/server/AcpRegistryRuntimeCoordinator";
 import * as ProviderAdapter from "@supaterm/provider-core/server/ProviderAdapter";
 import * as Context from "effect/Context";
@@ -187,7 +186,7 @@ const makeImporter = Effect.fn(function* (
   candidates: ReadonlyArray<AgentSessionScanner.AgentSessionRecentThread>,
   beforeTransaction: Effect.Effect<void> = Effect.void,
   getAdapter?: ProviderAdapterRegistry.ProviderAdapterRegistryV2Shape["get"],
-  threadCommands?: KeyedLock.KeyedLock<ThreadId>,
+  threadCommands?: ThreadCommandExecutor.ThreadCommandExecutor["Service"],
   realScan?: {
     readonly workspaceRoot: string;
     readonly scanner: AgentSessionScanner.AgentSessionScanner["Service"];
@@ -265,7 +264,7 @@ const makeImporter = Effect.fn(function* (
           ),
           Layer.succeed(
             ThreadCommandExecutor.ThreadCommandExecutor,
-            threadCommands ?? (yield* KeyedLock.make<ThreadId>()),
+            threadCommands ?? (yield* ThreadCommandExecutor.make),
           ),
         ),
       ),
@@ -810,7 +809,7 @@ const importDuringCommand = Effect.fn(function* (
   const projections = yield* ProjectionStore.ProjectionStoreV2;
   const sink = yield* EventSink.EventSinkV2;
   const threadId = yield* seedOwner(candidate(CODEX_MODEL_SELECTION, name));
-  const lock = yield* KeyedLock.make<ThreadId>();
+  const lock = yield* ThreadCommandExecutor.make;
   const loaded = yield* Deferred.make<void>();
   const importerCommitting = yield* Deferred.make<void>();
   const commandWritten = yield* Deferred.make<void>();

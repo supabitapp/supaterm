@@ -149,13 +149,11 @@ export const makeCursorTextGeneration = Effect.fn("makeCursorTextGeneration")(fu
           }),
         );
 
-      const request = Effect.gen(function* () {
-        // When the SDK refuses it, the empty temp directory and empty setting
-        // sources still keep this run off the user's project.
+      const runPrompt = Effect.fn("CursorTextGeneration.runPrompt")(function* (
+        sandboxEnabled: boolean,
+      ) {
         const agent = yield* Effect.acquireRelease(
-          createCursorAgent(true).pipe(
-            Effect.catchIf(cursorSandboxUnsupported, () => createCursorAgent(false)),
-          ),
+          createCursorAgent(sandboxEnabled),
           (agent) =>
             Effect.tryPromise(() => agent[Symbol.asyncDispose]()).pipe(
               Effect.timeout("5 seconds"),
@@ -178,7 +176,12 @@ export const makeCursorTextGeneration = Effect.fn("makeCursorTextGeneration")(fu
             : Effect.void,
         );
         return yield* Effect.tryPromise(() => run.wait());
-      }).pipe(Effect.scoped);
+      }, Effect.scoped);
+      // The SDK may reject sandboxing in create or lazily in send. Empty cwd and setting
+      // sources isolate the unsandboxed retry from user projects.
+      const request = runPrompt(true).pipe(
+        Effect.catchIf(cursorSandboxUnsupported, () => runPrompt(false)),
+      );
       const promptResult = yield* request.pipe(
         Effect.timeoutOption(CURSOR_TIMEOUT_MS),
         Effect.flatMap(
