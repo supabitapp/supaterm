@@ -183,6 +183,7 @@ it.each(["thread", "session"] as const)(
       addComposerImagesToDraft: (images) => store.addImages(target, images),
       addComposerFilesToDraft: () => [],
       removeComposerImageFromDraft: (id) => store.removeImage(target, id),
+      exitImage: (_id, remove) => remove(),
       insertAttachmentReferences: () => false,
     } satisfies IntakeInput;
     let intake!: Intake;
@@ -212,7 +213,8 @@ it.each(["thread", "session"] as const)(
     expect(getPreparingComposerImages(targetKey)).toHaveLength(0);
     expect(useComposerDraftStore.getState().getComposerDraft(target)).toBeNull();
     const undo = vi.mocked(showThreadUndoNotice).mock.calls.at(-1)![0].undo;
-    expect(AsyncResult.isSuccess(await undo())).toBe(true);
+    const undone = await undo();
+    expect(undone !== undefined && AsyncResult.isSuccess(undone)).toBe(true);
     const restored = useComposerDraftStore.getState().getComposerDraft(target);
     expect(restored?.prompt).toBe("half-written prompt");
     expect(restored?.images).toEqual([]);
