@@ -19,7 +19,7 @@ export const nonPlaceholderMessageCondition = (sql: SqlClient.SqlClient, row = "
 /**
  * Finished user or agent messages only, minus attachment placeholders. Notices that agents or the
  * system wrote stay out, as do subagent threads: search never shows them, and ACP subagents
- * rewrite their whole finished answer on every streamed chunk. `row` is a table alias, or `new`.
+ * rewrite their whole finished answer while it streams. `row` is a table alias, or `new`.
  */
 export const indexedMessageCondition = (sql: SqlClient.SqlClient, row = "messages") =>
   sql`

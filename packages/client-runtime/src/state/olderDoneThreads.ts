@@ -395,7 +395,8 @@ export function createOlderDoneThreadAtoms<R, ER, E>(
   );
   const searchReadAtom = createEnvironmentQueryAtomFamily(runtime, {
     label: "environment-data:orchestration:older-done-search",
-    idleTtlMs: 60_000,
+    staleTimeMs: 0,
+    idleTtlMs: 0,
     execute: Effect.fn("OlderDoneThreads.search")(function* (input: {
       readonly generation: number;
       readonly search: OrchestrationV2SearchThreadsInput;

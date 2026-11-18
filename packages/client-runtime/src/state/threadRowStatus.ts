@@ -1,5 +1,6 @@
 import { isOrchestrationV2RunUnsettled } from "@supaterm/contracts";
 import type { EnvironmentThreadShell } from "./models.ts";
+import { hasUnseenRunFailure } from "./threadSnooze.ts";
 
 /**
  * Waiting (runtime "idle") is the agent parked on open subagents or monitors, blue like active
@@ -43,4 +44,17 @@ export function resolveThreadRowStatus(thread: ThreadRowStatusInput): ThreadRowS
     return thread.runtime.lastErrorClass === "usage_limit" ? "limited" : "failed";
   }
   return "ready";
+}
+
+/** The status a row shows: a failure the user has already opened settles to ready, like Done. */
+export function resolveThreadRowShownStatus(
+  thread: ThreadRowStatusInput &
+    Pick<EnvironmentThreadShell, "latestRun"> & {
+      readonly lastVisitedAt?: string | null | undefined;
+    },
+): ThreadRowStatus {
+  const status = resolveThreadRowStatus(thread);
+  // A runtime failure without a failed run has nothing to date it, so it stays.
+  if (status !== "failed" || thread.latestRun?.status !== "failed") return status;
+  return hasUnseenRunFailure(thread) ? status : "ready";
 }

@@ -180,11 +180,16 @@ function formatClaudeSubscriptionAuthLabel(subscriptionType: string): string {
   return `Claude ${subscriptionLabel} Subscription`;
 }
 
+function hasApiKey(apiKeySource: string | undefined): boolean {
+  return Boolean(apiKeySource) && apiKeySource !== "none";
+}
+
 function claudeAuthMetadata(input: {
   readonly subscriptionType: string | undefined;
   readonly authMethod: string | undefined;
+  readonly apiKeySource: string | undefined;
 }): { readonly type: string; readonly label: string } | undefined {
-  if (normalizeClaudeAuthMethod(input.authMethod) === "apiKey") {
+  if (normalizeClaudeAuthMethod(input.authMethod) === "apiKey" || hasApiKey(input.apiKeySource)) {
     return {
       type: "apiKey",
       label: "Claude API Key",
@@ -217,9 +222,8 @@ function claudeAuthStatus(
     return "authenticated";
   }
   if (capabilities.tokenSource !== "none") return "authenticated";
-
-  const hasApiKey = Boolean(capabilities.apiKeySource) && capabilities.apiKeySource !== "none";
-  return hasApiKey || capabilities.email || capabilities.subscriptionType
+  // API keys can authenticate with tokenSource: none; also check key and account fields.
+  return hasApiKey(capabilities.apiKeySource) || capabilities.email || capabilities.subscriptionType
     ? "authenticated"
     : "unauthenticated";
 }
@@ -931,6 +935,7 @@ export const checkClaudeProviderStatus = Effect.fn("checkClaudeProviderStatus")(
     claudeAuthMetadata({
       subscriptionType: capabilities.subscriptionType,
       authMethod: capabilities.tokenSource,
+      apiKeySource: capabilities.apiKeySource,
     });
   const usageCheckedAt = capabilities.usageCheckedAt ?? checkedAt;
   const usageLimits = !capabilities.usage
