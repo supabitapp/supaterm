@@ -6779,6 +6779,19 @@ it.layer(layerTest)("GitVcsDriver core integration", (it) => {
         const fileSystem = yield* FileSystem.FileSystem;
         const pathService = yield* Path.Path;
 
+        // Git blocks file submodule transports (CVE-2022-39253) despite repo config; local fixtures need env permission.
+        const previousAllowedProtocol = process.env.GIT_ALLOW_PROTOCOL;
+        process.env.GIT_ALLOW_PROTOCOL = "file";
+        yield* Effect.addFinalizer(() =>
+          Effect.sync(() => {
+            if (previousAllowedProtocol === undefined) {
+              delete process.env.GIT_ALLOW_PROTOCOL;
+            } else {
+              process.env.GIT_ALLOW_PROTOCOL = previousAllowedProtocol;
+            }
+          }),
+        );
+
         const submoduleRepo = yield* makeTmpDir("git-submodule-");
         yield* initRepoWithCommit(submoduleRepo);
 
@@ -6823,7 +6836,7 @@ it.layer(layerTest)("GitVcsDriver core integration", (it) => {
         assert.include(results[0]!.detail, "GitVcsDriver.createWorktree.updateSubmodules");
         // A submodule that did clone must not be left as a bare gitdir that reads as modified.
         assert.equal(yield* git(worktreePath, ["status", "--porcelain"]), "");
-      }).pipe(withGitFileProtocol),
+      }),
     );
 
     it.effect("creates worktrees under the configured worktrees directory", () =>
