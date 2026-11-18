@@ -23,12 +23,8 @@ import {
 import { appAtomRegistry } from "./atom-registry";
 import { assetEnvironment } from "./assets";
 import { environmentServerConfigsAtom } from "./server";
-import {
-  flattenQueuedThreadMessages,
-  threadOutboxManager,
-  modifyThreadOutboxMessage,
-  type QueuedThreadMessage,
-} from "./thread-outbox";
+import { recordQueuedAttachmentUploads } from "./queued-attachment-uploads";
+import { flattenQueuedThreadMessages, threadOutboxManager } from "./thread-outbox";
 import { editingQueuedMessageIdsAtom } from "./use-thread-outbox";
 import {
   ComposerDraftPersistenceError,
@@ -124,45 +120,22 @@ export function composerAttachmentUploadRequests(input: {
   ];
 }
 
-function withUploadedAttachment(
-  message: QueuedThreadMessage,
-  uploaded: DraftComposerAttachment,
-): QueuedThreadMessage | null {
-  const awaiting = (attachment: DraftComposerAttachment) =>
-    attachment.id === uploaded.id && attachment.uploadedAttachmentId === undefined;
-  if (!message.attachments.some(awaiting)) return null;
-  return {
-    ...message,
-    attachments: message.attachments.map((attachment) =>
-      awaiting(attachment) ? uploaded : attachment,
-    ),
-  };
-}
-
 const recordQueuedAttachmentUpload = Effect.fn("ComposerAttachments.recordQueuedUpload")(function* (
   environmentId: EnvironmentId,
   uploaded: DraftComposerAttachment,
 ) {
-  const editing = appAtomRegistry.get(editingQueuedMessageIdsAtom);
   const holders = flattenQueuedThreadMessages(
     appAtomRegistry.get(threadOutboxManager.queuedMessagesByThreadKeyAtom),
   ).filter(
     (message) =>
       message.environmentId === environmentId &&
-      !editing[message.messageId] &&
-      withUploadedAttachment(message, uploaded) !== null,
+      message.attachments.some((attachment) => attachment.id === uploaded.id),
   );
   yield* Effect.forEach(
     holders,
     (message) =>
       Effect.tryPromise({
-        // An editor that opened meanwhile owns the message; its draft records the upload.
-        try: () =>
-          modifyThreadOutboxMessage(message.messageId, (current) =>
-            appAtomRegistry.get(editingQueuedMessageIdsAtom)[current.messageId]
-              ? null
-              : withUploadedAttachment(current, uploaded),
-          ),
+        try: () => recordQueuedAttachmentUploads(message.messageId, [uploaded]),
         catch: attachmentUploadError,
       }),
     { concurrency: "unbounded", discard: true },

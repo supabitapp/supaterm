@@ -25,6 +25,7 @@ const native = vi.hoisted(() => ({
   remove: Symbol("remove"),
   transfer:
     vi.fn<(uri: string, url: string, options: UploadOptions) => Promise<{ status: number }>>(),
+  onWrite: null as ((uri: string, value: string) => void) | null,
 }));
 
 vi.mock("react-native", () => ({ Alert: { alert: vi.fn() } }));
@@ -68,6 +69,7 @@ vi.mock("expo-file-system", () => {
       return Buffer.from(native.files.get(this.uri)!).toString("utf8");
     }
     write(value: string, options?: { encoding?: string }) {
+      native.onWrite?.(this.uri, value);
       if (native.fault === "write" && this.uri.includes("/composer-drafts/")) {
         throw new Error("ENOSPC");
       }
@@ -209,6 +211,11 @@ import {
 import type { QueuedThreadMessage } from "./thread-outbox-model";
 import * as drafts from "./use-composer-drafts";
 import { prepareQueuedMessageAttachments } from "./threadOutboxDelivery";
+import {
+  capturePendingTaskEditorWriteBaseline,
+  flushPendingTaskEditorWrite,
+} from "./pending-task-editor-writes";
+import { editingQueuedMessageIdsAtom } from "./use-thread-outbox";
 
 const environmentId = EnvironmentId.make("environment-1");
 const draftKey = "environment-1:thread-1";
@@ -274,6 +281,7 @@ beforeEach(async () => {
   native.canOperate = true;
   native.nextId = 0;
   native.nextUuid = 0;
+  native.onWrite = null;
   native.files.set(draftsUri, Buffer.from('{"schemaVersion":1,"drafts":{}}'));
   drafts.resetComposerDraftsLoadState();
   appAtomRegistry.set(drafts.composerDraftsAtom, {
@@ -295,6 +303,7 @@ afterEach(async () => {
   disposeWorker?.();
   disposeWorker = undefined;
   native.fault = null;
+  appAtomRegistry.set(editingQueuedMessageIdsAtom, {});
   native.files.set(draftsUri, Buffer.from('{"schemaVersion":1,"drafts":{}}'));
   drafts.resetComposerDraftsLoadState();
   await drafts.flushComposerDrafts();
@@ -375,6 +384,44 @@ it("keeps an upload running when its message is sent mid-upload and records it o
     appAtomRegistry.get(threadOutboxManager.queuedMessagesByThreadKeyAtom),
   );
   expect(queued?.attachments[0]?.uploadedAttachmentId).toBe("pending-1");
+});
+
+it.effect("keeps the first preparation of a send whose own join starts the upload", () =>
+  Effect.gen(function* () {
+    disposeWorker = createComposerAttachmentUploadWorker(Atom.make([])).dispose;
+    const message = queuedMessage();
+    yield* Effect.promise(() => enqueueThreadOutboxMessage(message));
+
+    const prepared = yield* prepareQueuedMessageAttachments(message);
+
+    expect(prepared).toMatchObject({
+      status: "ready",
+      prepared: { pendingAttachmentIds: ["pending-1"] },
+    });
+    expect(native.transfer).toHaveBeenCalledOnce();
+  }),
+);
+
+it("saves a pending-task edit that opened while an upload was recorded on its message", async () => {
+  const message = queuedMessage();
+  await enqueueThreadOutboxMessage(message);
+  let baseline: Promise<number> | null = null;
+  native.onWrite = (uri, value) => {
+    if (!uri.includes("/thread-outbox/") || !value.includes("pending-1")) return;
+    native.onWrite = null;
+    appAtomRegistry.set(editingQueuedMessageIdsAtom, { [message.messageId]: "editing" });
+    baseline = capturePendingTaskEditorWriteBaseline(message.messageId);
+  };
+  await worker().settled();
+  expect(baseline).not.toBeNull();
+
+  const saved = await flushPendingTaskEditorWrite({
+    message: { ...message, text: "Look at this instead" },
+    baseline: baseline!,
+    draftKey: `pending-task:${message.messageId}`,
+  });
+
+  expect(saved).toBe(true);
 });
 
 it.each(["http", "permission"] as const)(

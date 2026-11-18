@@ -62,6 +62,7 @@ import { environmentServerConfigsAtom, serverEnvironment } from "./server";
 import { prepareQueuedThreadCreation } from "./queued-thread-creation";
 import { fetchVcsRefs } from "./vcs";
 import { uploadComposerAttachmentShared } from "./composer-attachment-uploads";
+import { recordQueuedAttachmentUploads } from "./queued-attachment-uploads";
 import { gitEnvironment } from "./git";
 import { environmentSession, readEnvironmentScope, sessionHasScope } from "./session";
 import {
@@ -287,7 +288,6 @@ export const prepareQueuedMessageAttachments = Effect.fn("ThreadOutbox.prepareAt
     const revision = threadOutboxRevision(queuedMessage.messageId);
     if (!isQueuedMessagePayloadCurrent(queuedMessage, revision)) return abandoned;
     let persistedMessage = queuedMessage;
-    let deliveryRevision = revision;
     const result = yield* prepareTurnAttachments({
       environmentId: queuedMessage.environmentId,
       attachments: queuedMessage.attachments,
@@ -297,22 +297,28 @@ export const prepareQueuedMessageAttachments = Effect.fn("ThreadOutbox.prepareAt
         draftAttachments: ReadonlyArray<DraftComposerAttachment>,
       ) {
         if (isEditingQueuedMessage(queuedMessage.messageId)) return "abandon" as const;
-        const updatedMessage = { ...queuedMessage, attachments: draftAttachments };
-        if (!(yield* Effect.promise(() => updateThreadOutboxMessage(updatedMessage, revision)))) {
+        const committed = yield* Effect.promise(() =>
+          recordQueuedAttachmentUploads(queuedMessage.messageId, draftAttachments),
+        );
+        if (committed === null || threadOutboxRevision(queuedMessage.messageId) !== revision) {
           return "abandon" as const;
         }
-        persistedMessage = updatedMessage;
-        deliveryRevision = revision + 1;
+        persistedMessage = committed;
         return "persisted" as const;
       }),
     });
     if (
       result.status === "abandoned" ||
-      !isQueuedMessagePayloadCurrent(persistedMessage, deliveryRevision)
+      !isQueuedMessagePayloadCurrent(persistedMessage, revision)
     ) {
       return abandoned;
     }
-    return { status: "ready", prepared: result, persistedMessage, deliveryRevision } as const;
+    return {
+      status: "ready",
+      prepared: result,
+      persistedMessage,
+      deliveryRevision: revision,
+    } as const;
   },
 );
 

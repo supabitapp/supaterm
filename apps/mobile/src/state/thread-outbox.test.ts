@@ -929,7 +929,7 @@ describe("thread outbox", () => {
     registry.dispose();
   });
 
-  it("composes concurrent modifications of one message instead of rejecting the later one", async () => {
+  it("composes concurrent amendments of one message instead of rejecting the later one", async () => {
     const registry = AtomRegistry.make();
     const stored = new Map<MessageId, QueuedThreadMessage>();
     const manager = createThreadOutboxManager({
@@ -950,8 +950,8 @@ describe("thread outbox", () => {
 
     // Two attachments finishing together each record their upload on the same message.
     const results = await Promise.all([
-      manager.modify(message.messageId, (current) => ({ ...current, text: `${current.text} a` })),
-      manager.modify(message.messageId, (current) => ({ ...current, text: `${current.text} b` })),
+      manager.amend(message.messageId, (current) => ({ ...current, text: `${current.text} a` })),
+      manager.amend(message.messageId, (current) => ({ ...current, text: `${current.text} b` })),
     ]);
 
     expect(results).toEqual([true, true]);
@@ -961,7 +961,7 @@ describe("thread outbox", () => {
     });
     expect(stored.get(message.messageId)).toEqual(composed);
     await manager.remove(composed);
-    await expect(manager.modify(message.messageId, (current) => current)).resolves.toBe(false);
+    await expect(manager.amend(message.messageId, (current) => current)).resolves.toBe(false);
     registry.dispose();
   });
 

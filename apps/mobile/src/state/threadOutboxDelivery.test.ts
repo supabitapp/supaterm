@@ -549,7 +549,7 @@ describe("thread outbox attachment preparation", () => {
     }),
   );
 
-  it.effect("uses the known next revision after persisting uploaded references", () =>
+  it.effect("keeps the delivery revision after persisting uploaded references", () =>
     Effect.gen(function* () {
       const message = queuedMessage({
         messageId: "message-new-upload-revision",
@@ -584,9 +584,12 @@ describe("thread outbox attachment preparation", () => {
       expect(result).toMatchObject({
         status: "ready",
         persistedMessage: { attachments: uploadedAttachments },
-        deliveryRevision: revision + 1,
+        deliveryRevision: revision,
       });
-      expect(harness.manager.revisionOf(message.messageId)).toBe(revision + 1);
+      expect(harness.manager.revisionOf(message.messageId)).toBe(revision);
+      expect(harness.writeOutboxMessage).toHaveBeenLastCalledWith(
+        expect.objectContaining({ attachments: uploadedAttachments }),
+      );
     }),
   );
 
