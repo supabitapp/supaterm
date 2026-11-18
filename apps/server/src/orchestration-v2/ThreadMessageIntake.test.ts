@@ -8,6 +8,7 @@ import {
   ChatAttachmentId,
   CommandId,
   EventId,
+  RunId,
   RuntimeRequestId,
   ThreadId,
   TurnItemId,
@@ -19,7 +20,11 @@ import {
 import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
-import { createPendingAttachmentId, resolveAttachmentPath } from "../attachmentStore.ts";
+import {
+  createAttachmentId,
+  createPendingAttachmentId,
+  resolveAttachmentPath,
+} from "../attachmentStore.ts";
 import * as ServerConfig from "../config.ts";
 import * as ServerSettings from "../serverSettings.ts";
 import {
@@ -36,18 +41,21 @@ const layerIntakeTest = ServerConfig.layerTest(process.cwd(), {
   Layer.provideMerge(ServerSettings.layerTest()),
 );
 
+const layerFailingDispatchHandler =
+  (captured: OrchestrationV2ServerCommand[]) => (command: OrchestrationV2ServerCommand) => {
+    captured.push(command);
+    return Effect.fail(
+      new OrchestratorDispatchError({
+        commandId: command.commandId,
+        commandType: command.type,
+        cause: "Stop after intake",
+      }),
+    );
+  };
+
 const layerFailingDispatch = (captured: OrchestrationV2ServerCommand[]) =>
   Layer.mock(ThreadManagementService.ThreadManagementService)({
-    dispatch: (command) => {
-      captured.push(command);
-      return Effect.fail(
-        new OrchestratorDispatchError({
-          commandId: command.commandId,
-          commandType: command.type,
-          cause: "Stop after intake",
-        }),
-      );
-    },
+    dispatch: layerFailingDispatchHandler(captured),
   });
 
 const NOW = DateTime.makeUnsafe("2026-09-13T00:00:00.000Z");
@@ -361,5 +369,53 @@ it.effect("a retried response re-claims the preserved pending uploads", () =>
         entry.startsWith("thread-retry-"),
       ),
     ).toHaveLength(2);
+  }).pipe(Effect.provide(layerIntakeTest)),
+);
+
+it.effect("refuses a queued edit that keeps a file another edit already deleted", () =>
+  Effect.gen(function* () {
+    const config = yield* ServerConfig.ServerConfig;
+    const storedFile = (name: string) => ({
+      type: "image" as const,
+      id: ChatAttachmentId.make(createAttachmentId("thread-queued-edit")!),
+      name,
+      mimeType: "image/png",
+      sizeBytes: 3,
+    });
+    const kept = storedFile("kept.png");
+    const deleted = storedFile("deleted.png");
+    NodeFS.writeFileSync(
+      NodePath.join(config.attachmentsDir, `${kept.id}.png`),
+      new Uint8Array([1, 2, 3]),
+    );
+    const captured: OrchestrationV2ServerCommand[] = [];
+    const edit = (attachments: ReadonlyArray<typeof kept>) =>
+      dispatchCommand({
+        type: "queued-run.edit",
+        commandId: CommandId.make(`queued-edit-${attachments.length}`),
+        threadId: ThreadId.make("thread-queued-edit"),
+        runId: RunId.make("run-queued-edit"),
+        text: "Edited from a stale view.",
+        attachments,
+      }).pipe(
+        Effect.provide(
+          Layer.mock(ThreadManagementService.ThreadManagementService)({
+            dispatch: layerFailingDispatchHandler(captured),
+            hasReceipt: (commandId) =>
+              Effect.succeed(captured.some((command) => command.commandId === commandId)),
+          }),
+        ),
+        Effect.result,
+      );
+
+    yield* edit([kept]);
+    expect(captured).toHaveLength(1);
+    const result = yield* edit([kept, deleted]);
+    expect(result._tag).toBe("Failure");
+    expect(captured).toHaveLength(1);
+    // A retry of the accepted edit replays its receipt even after a later cleanup removed its file.
+    NodeFS.rmSync(NodePath.join(config.attachmentsDir, `${kept.id}.png`));
+    yield* edit([kept]);
+    expect(captured).toHaveLength(2);
   }).pipe(Effect.provide(layerIntakeTest)),
 );

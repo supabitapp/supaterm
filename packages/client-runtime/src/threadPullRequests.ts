@@ -1,5 +1,6 @@
 import { makeThreadPullRequests } from "@supaterm/source-control-core/shared/threadPullRequests";
 
+import type { EnvironmentThreadShell } from "./state/models.ts";
 import { sourceControlClients } from "./sourceControlClients.ts";
 
 export {
@@ -26,3 +27,15 @@ export const {
   threadPullRequestsOf,
   applyThreadPullRequestLinkUpdate,
 } = makeThreadPullRequests(sourceControlClients);
+
+/** The server refuses new watches on Done, archived, and subagent threads. */
+export function canStartThreadPullRequestWatch(
+  thread: Pick<EnvironmentThreadShell, "archivedAt" | "doneAt" | "doneOverride" | "lineage">,
+): boolean {
+  return (
+    thread.archivedAt === null &&
+    thread.doneAt === null &&
+    thread.doneOverride !== "done" &&
+    thread.lineage.relationshipToParent !== "subagent"
+  );
+}
