@@ -10,7 +10,7 @@ import * as DateTime from "effect/DateTime";
 import { expect, it, vi } from "vite-plus/test";
 
 import { fakeTimers, render } from "../../../test/render";
-import { TimelineRowActivityCtx } from "./timelineRowContext";
+import { TimelineRowActivityCtx, TimelineRowCtx } from "./timelineRowContext";
 import { WorkingTimelineRow } from "./TimelineWorkGroupRows";
 import { V2ItemInspector } from "./V2ItemInspector";
 
@@ -18,22 +18,26 @@ it("counts how long compaction has been running", async () => {
   using _timers = fakeTimers();
   vi.setSystemTime(new Date("2026-01-01T00:00:12.000Z"));
   await using screen = await render(
-    <TimelineRowActivityCtx
-      value={{
-        isWorking: true,
-        isCompacting: true,
-        compactionStartedAt: "2026-01-01T00:00:00.000Z",
-        isRevertingCheckpoint: false,
-        awaitingUser: false,
-        isPreparingWorktree: false,
-        providerStartingLabel: null,
-        worktreeSetupLabel: null,
-        latestRunId: null,
-        backgroundWorktreeSetup: null,
-      }}
+    <TimelineRowCtx
+      value={{ activeThreadEnvironmentId: EnvironmentId.make("environment-local") } as never}
     >
-      <WorkingTimelineRow />
-    </TimelineRowActivityCtx>,
+      <TimelineRowActivityCtx
+        value={{
+          isWorking: true,
+          isCompacting: true,
+          compactionStartedAt: "2026-01-01T00:00:00.000Z",
+          isRevertingCheckpoint: false,
+          awaitingUser: false,
+          isPreparingWorktree: false,
+          providerStartingLabel: null,
+          worktreeSetupLabel: null,
+          latestRunId: null,
+          backgroundWorktreeSetup: null,
+        }}
+      >
+        <WorkingTimelineRow />
+      </TimelineRowActivityCtx>
+    </TimelineRowCtx>,
   );
 
   expect(screen.container.textContent).toContain("Compacting for 12s");
