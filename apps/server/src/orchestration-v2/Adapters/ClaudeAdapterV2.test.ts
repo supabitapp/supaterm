@@ -6595,12 +6595,12 @@ describe("ClaudeAdapterV2 background wake turns", () => {
         { action: "accept", content: { region: "us-east-1" } },
       ],
       [
-        "URL mode as a decline",
+        "URL mode as a cancel",
         { ...approvalOnly, mode: "url", url: "https://example.com/auth" },
-        { action: "decline" },
+        { action: "cancel" },
       ],
       [
-        "a value with no default as a decline",
+        "a value with no default as a cancel",
         {
           ...approvalOnly,
           requestedSchema: {
@@ -6609,7 +6609,7 @@ describe("ClaudeAdapterV2 background wake turns", () => {
             required: ["reason"],
           },
         },
-        { action: "decline" },
+        { action: "cancel" },
       ],
     ] satisfies ReadonlyArray<[string, ElicitationRequest, ElicitationResult]>)(
       "answers %s in Full access without a card",
