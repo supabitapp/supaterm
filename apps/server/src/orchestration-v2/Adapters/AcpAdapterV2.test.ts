@@ -3078,6 +3078,7 @@ describe("AcpAdapterV2", () => {
 
   it.live("replaces and removes identified ACP plans across turns", () =>
     Effect.gen(function* () {
+      const path = yield* Path.Path;
       const instanceId = ProviderInstanceId.make("acp-cross-turn-plans");
       const threadId = ThreadId.make("acp-cross-turn-plans");
       let notify:
@@ -3092,7 +3093,9 @@ describe("AcpAdapterV2", () => {
           capabilities: AcpProviderCapabilitiesV2,
           makeRuntime: makeMockRuntime({
             childProcessSpawner: yield* ChildProcessSpawner.ChildProcessSpawner,
-            mockAgentPath: yield* bundledMockAgentPath,
+            mockAgentPath: yield* path.fromFileUrl(
+              new URL("../../../scripts/acp-mock-agent.ts", import.meta.url),
+            ),
             wrapRuntime: (runtime) => ({
               ...runtime,
               handleSessionUpdate: (handler) =>
