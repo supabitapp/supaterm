@@ -21,17 +21,18 @@ export const ThreadListWorkingStatus = memo(function ThreadListWorkingStatus(pro
 }) {
   const startedMs = props.startedAt === null ? Number.NaN : Date.parse(props.startedAt);
   const { environmentId } = props;
-  const elapsedLabel = () =>
-    formatWorkingDurationLabel(toServerClock(environmentId, Date.now()) - startedMs);
   const [duration, setDuration] = useState(() =>
-    Number.isFinite(startedMs) ? elapsedLabel() : null,
+    Number.isFinite(startedMs)
+      ? formatWorkingDurationLabel(toServerClock(environmentId, Date.now()) - startedMs)
+      : null,
   );
 
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- runs the duration clock interval only while AppState is active and follows app state changes
   useEffect(() => {
     if (!Number.isFinite(startedMs)) return;
     let timer: ReturnType<typeof setInterval> | undefined;
-    const update = () => setDuration(elapsedLabel());
+    const update = () =>
+      setDuration(formatWorkingDurationLabel(toServerClock(environmentId, Date.now()) - startedMs));
     const stop = () => {
       clearInterval(timer);
       timer = undefined;
