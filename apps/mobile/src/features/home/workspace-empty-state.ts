@@ -73,19 +73,21 @@ interface HomeEmptyStateInput {
 }
 
 function resolveHomeContent(input: HomeEmptyStateInput): WorkspaceEmptyState {
-  const state =
-    resolveMissingShellEmptyState(input.phase, {
-      noEnvironments: "Add an environment to load projects and start coding sessions.",
-      connecting: HOME_CONNECTING.detail,
-    }) ??
-    (input.catalogPending ? HOME_CONNECTING : input.projectCount === 0 ? NO_PROJECTS : NO_THREADS);
-  return state.loading && input.phase.type === "connected"
-    ? { ...state, title: "Loading threads" }
-    : state;
+  const missingShell = resolveMissingShellEmptyState(input.phase, {
+    noEnvironments: "Add an environment to load projects and start coding sessions.",
+    connecting: HOME_CONNECTING.detail,
+  });
+  if (missingShell !== null) return missingShell;
+  if (input.catalogPending) return HOME_CONNECTING;
+  return input.projectCount === 0 ? NO_PROJECTS : NO_THREADS;
 }
 
 export function resolveHomeEmptyState(input: HomeEmptyStateInput): HomeEmptyState {
-  const state = resolveHomeContent(input);
+  const content = resolveHomeContent(input);
+  const state =
+    content.loading && input.phase.type === "connected"
+      ? { ...content, title: "Loading threads" }
+      : content;
   return { ...state, showsAddEnvironment: !state.loading && input.phase.type !== "connected" };
 }
 
