@@ -12,6 +12,8 @@ import { expect, it, vi } from "vite-plus/test";
 
 const state = vi.hoisted(() => ({
   prState: "open" as "open" | "closed" | "merged",
+  isDraft: false,
+  pendingAction: null as "ready" | "merge" | null,
   status: "success" as PullRequestCheck["status"],
   extraStatus: null as PullRequestCheck["status"] | null,
   mergeMethods: ["merge"] as Array<"merge" | "squash" | "rebase">,
@@ -47,7 +49,7 @@ const queryData = () => ({
   number: 1,
   title: "Test PR",
   state: state.prState,
-  isDraft: false,
+  isDraft: state.isDraft,
   mergeability: "mergeable",
   headBranch: "feature",
   baseBranch: "main",
@@ -60,8 +62,8 @@ const queryData = () => ({
     description: null,
     url: null,
   })),
-  capabilities: { actions: ["merge"], mergeMethods: state.mergeMethods },
-  viewerPermissions: { actions: ["merge"] },
+  capabilities: { actions: ["merge", "ready"], mergeMethods: state.mergeMethods },
+  viewerPermissions: { actions: ["merge", "ready"] },
   mergeCapabilities: {
     merge: state.mergeMethods.includes("merge"),
     squash: state.mergeMethods.includes("squash"),
@@ -88,8 +90,8 @@ vi.mock(import("~/state/query"), async (importOriginal) => ({
 vi.mock(import("../pullRequest/usePullRequestActions"), async (importOriginal) => ({
   ...(await importOriginal()),
   usePullRequestActionRunner: () => ({
-    actionPending: false,
-    pendingAction: null,
+    actionPending: state.pendingAction !== null,
+    pendingAction: state.pendingAction,
     perform: state.perform,
   }),
   usePullRequestDefaultMergeMethod: ((_environmentId: unknown, projectId: unknown) =>
@@ -220,6 +222,27 @@ it("requires a new merge click after passing checks become pending and pass agai
   expect(state.perform).not.toHaveBeenCalled();
 });
 
+it("keeps Ready pending when refreshed detail becomes mergeable before the action settles", async () => {
+  await using screen = await setup();
+
+  state.isDraft = true;
+  await act(async () => await screen.rerender(renderRow()));
+  const readyButton = [...screen.container.querySelectorAll("button")].find(
+    (button) => button.textContent?.trim() === "Ready",
+  )!;
+  await act(() => readyButton.click());
+  expect(state.perform).toHaveBeenCalledExactlyOnceWith("ready");
+
+  state.pendingAction = "ready";
+  state.isDraft = false;
+  await act(async () => await screen.rerender(renderRow()));
+  await expect.element(screen.getByRole("button", { name: "Marking..." })).toBeDisabled();
+
+  state.pendingAction = null;
+  await act(async () => await screen.rerender(renderRow()));
+  await expect.element(screen.getByRole("button", { name: "Merge", exact: true })).toBeEnabled();
+});
+
 it("drops the checks control once the pull request merges with checks still pending", async () => {
   await using screen = await setup();
   const checksControl = () => screen.container.querySelector('[aria-label^="Open checks"]');
@@ -280,6 +303,8 @@ async function setup() {
   state.updateToast.mockReset();
 
   state.prState = "open";
+  state.isDraft = false;
+  state.pendingAction = null;
   state.status = "success";
   state.extraStatus = null;
   state.mergeMethods = ["merge"];

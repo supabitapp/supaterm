@@ -208,7 +208,10 @@ export function ThreadDetailsPrRow({
     environmentSupported: supportsPullRequests,
   });
 
-  const rowAction = resolveThreadPanelPullRequestAction(detail, canMergeSinglePullRequest);
+  const rowAction =
+    pendingAction === "ready" || pendingAction === "merge"
+      ? pendingAction
+      : resolveThreadPanelPullRequestAction(detail, canMergeSinglePullRequest);
   const menuActions = resolvePullRequestMenuActions({
     detail,
     primaryAction: rowAction,
