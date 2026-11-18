@@ -89,6 +89,7 @@ it.each<{ focus: string; control: ReactNode; toggles: boolean }>([
           questionIndex={0}
           onToggleOption={onToggleOption}
           onAdvance={vi.fn()}
+          onPrevious={vi.fn()}
           onDismiss={vi.fn()}
         />
       </>,
