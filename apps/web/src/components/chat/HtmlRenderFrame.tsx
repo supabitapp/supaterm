@@ -21,6 +21,19 @@ import { HtmlRenderDialog } from "./HtmlRenderDialog";
 import { observeResize } from "~/lib/observeResize";
 
 const MIN_URL_LIFE_MS = 5 * 60_000;
+const MAX_MEASURED_CONTENT_HEIGHTS = 200;
+
+// The height each render's page last reported, so a remounted frame opens at it before its page loads.
+const measuredContentHeights = new Map<string, number>();
+
+function rememberContentHeight(attachmentId: string, height: number) {
+  measuredContentHeights.delete(attachmentId);
+  measuredContentHeights.set(attachmentId, height);
+  if (measuredContentHeights.size > MAX_MEASURED_CONTENT_HEIGHTS) {
+    const oldest = measuredContentHeights.keys().next().value;
+    if (oldest !== undefined) measuredContentHeights.delete(oldest);
+  }
+}
 
 /** What a render's page says about its text selection, and which of its views said it. */
 export interface HtmlRenderSelectionReport {
@@ -47,7 +60,9 @@ export function HtmlRenderFrame(props: {
     });
   };
   // Client fonts can exceed the server-measured height and cause nested scrolling.
-  const [contentHeight, setContentHeight] = useState<number>();
+  const [contentHeight, setContentHeight] = useState(() =>
+    measuredContentHeights.get(attachmentId),
+  );
   const height = htmlRenderFrameHeight(props.htmlRender, width, contentHeight);
   const fileName = htmlRenderFileName(title);
   const resource = {
@@ -87,7 +102,10 @@ export function HtmlRenderFrame(props: {
             title={title}
             threadRef={props.threadRef}
             className="block size-full"
-            onContentHeight={setContentHeight}
+            onContentHeight={(height) => {
+              rememberContentHeight(attachmentId, height);
+              setContentHeight(height);
+            }}
             onSelection={onSelection && ((frame, event) => onSelection({ frame, event }))}
             onFullscreenChange={onFullscreenChange}
           />
