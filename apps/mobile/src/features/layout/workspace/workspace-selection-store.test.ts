@@ -17,15 +17,12 @@ vi.mock("react-native", () => ({
   Platform: { OS: "ios" },
 }));
 // The real createURL, configured as a development build with the dev scheme.
-const expoLinking = await vi.hoisted(async () => {
+const expoLinkingCreateURL = await vi.hoisted(async () => {
   const { createRequire } = await import("node:module");
   const packageJson = createRequire(import.meta.url).resolve("expo-linking/package.json");
-  return {
-    createURL: packageJson.replace(/package\.json$/, "build/createURL.js"),
-    modulesCore: createRequire(packageJson).resolve("expo-modules-core"),
-  };
+  return packageJson.replace(/package\.json$/, "build/createURL.js");
 });
-vi.mock(expoLinking.modulesCore, () => ({
+vi.mock("expo-modules-core", () => ({
   Platform: { select: (options: { readonly ios?: unknown }) => options.ios },
 }));
 vi.mock("expo-constants", () => ({
@@ -33,7 +30,7 @@ vi.mock("expo-constants", () => ({
   ExecutionEnvironment: { Bare: "bare", Standalone: "standalone", StoreClient: "storeClient" },
 }));
 vi.mock("expo/internal/bundle-origin", () => ({ getBundleOrigin: () => null }));
-vi.mock("expo-linking", () => import(expoLinking.createURL));
+vi.mock("expo-linking", () => import(expoLinkingCreateURL));
 vi.mock("../../../persistence/imperative", () => ({
   loadPreferences: async () => ({
     workspaceSelections: { threads: { environmentId: ENVIRONMENT_ID, threadId: MCP_THREAD_ID } },
