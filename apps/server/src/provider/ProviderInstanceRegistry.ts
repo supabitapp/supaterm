@@ -15,6 +15,7 @@ import * as PubSub from "effect/PubSub";
 import * as Ref from "effect/Ref";
 import * as Schema from "effect/Schema";
 import * as Scope from "effect/Scope";
+import * as Semaphore from "effect/Semaphore";
 import * as Stream from "effect/Stream";
 
 import { buildUnavailableProviderSnapshot } from "./unavailableProviderSnapshot.ts";
@@ -154,9 +155,12 @@ const makeReconcile = <R>(input: {
   readonly state: RegistryState;
   readonly driversById: ReadonlyMap<ProviderDriverKind, AnyProviderDriver<R>>;
   readonly parentScope: Scope.Scope;
-}): ((configMap: ProviderInstanceConfigMap) => Effect.Effect<void, never, R>) => {
+}): ((
+  configMap: ProviderInstanceConfigMap,
+  rebuild?: ReadonlySet<ProviderInstanceId>,
+) => Effect.Effect<void, never, R>) => {
   const { state, driversById, parentScope } = input;
-  return (configMap: ProviderInstanceConfigMap) =>
+  return (configMap, rebuild = new Set()) =>
     Effect.gen(function* () {
       const previousEntries = yield* Ref.get(state.entries);
       const previousUnavailable = yield* Ref.get(state.unavailable);
@@ -174,7 +178,10 @@ const makeReconcile = <R>(input: {
           continue;
         }
         const nextEntry = configMap[instanceId];
-        if (nextEntry !== undefined && !entryEqual(live.entry, nextEntry)) {
+        if (
+          nextEntry !== undefined &&
+          (rebuild.has(instanceId) || !entryEqual(live.entry, nextEntry))
+        ) {
           replacedIds.add(instanceId);
         }
       }
@@ -286,8 +293,25 @@ export const makeProviderInstanceRegistry = Effect.fn(
 
   const state: RegistryState = { entries, unavailable, changes };
   const reconcileWithR = makeReconcile({ state, driversById, parentScope });
+  const configMapRef = yield* Ref.make(input.configMap);
+  const semaphore = yield* Semaphore.make(1);
   const reconcile: ProviderInstanceRegistryMutator.ProviderInstanceRegistryMutatorShape["reconcile"] =
-    (configMap) => reconcileWithR(configMap).pipe(Effect.provideContext(driverContext));
+    (configMap) =>
+      semaphore.withPermits(1)(
+        Ref.set(configMapRef, configMap).pipe(
+          Effect.andThen(reconcileWithR(configMap)),
+          Effect.provideContext(driverContext),
+        ),
+      );
+  const rebuild: ProviderInstanceRegistryMutator.ProviderInstanceRegistryMutatorShape["rebuild"] = (
+    instanceIds,
+  ) =>
+    semaphore.withPermits(1)(
+      Ref.get(configMapRef).pipe(
+        Effect.flatMap((configMap) => reconcileWithR(configMap, new Set(instanceIds))),
+        Effect.provideContext(driverContext),
+      ),
+    );
 
   yield* reconcile(input.configMap);
 
@@ -312,6 +336,7 @@ export const makeProviderInstanceRegistry = Effect.fn(
 
   const mutator: ProviderInstanceRegistryMutator.ProviderInstanceRegistryMutatorShape = {
     reconcile,
+    rebuild,
   };
 
   return { registry, mutator };

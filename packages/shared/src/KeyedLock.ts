@@ -1,5 +1,7 @@
 import * as Effect from "effect/Effect";
+import * as FiberSet from "effect/FiberSet";
 import * as Ref from "effect/Ref";
+import type * as Scope from "effect/Scope";
 import * as Semaphore from "effect/Semaphore";
 
 export interface KeyedLock<Key> {
@@ -56,3 +58,31 @@ export const makeUnsafe = <Key>(): KeyedLock<Key> => {
 export const make = Effect.fn("KeyedLock.make")(<Key>(): Effect.Effect<KeyedLock<Key>> =>
   Effect.sync(makeUnsafe<Key>),
 );
+
+export interface KeyedRunner<Key> {
+  /** Forks `effect` to run once every effect passed earlier for `key` has finished. */
+  readonly run: <R>(
+    key: Key,
+    effect: Effect.Effect<void, never, R>,
+  ) => Effect.Effect<void, never, R>;
+}
+
+/**
+ * For a stream consumer whose handler waits on a per-key lock: a busy key delays only its own
+ * later effects. The forked fiber starts immediately, so it queues on the key's FIFO semaphore
+ * before `run` returns; that keeps each key's effects in `run` order.
+ */
+export const makeRunner = Effect.fn("KeyedLock.makeRunner")(function* <Key>(): Effect.fn.Return<
+  KeyedRunner<Key>,
+  never,
+  Scope.Scope
+> {
+  const lock = yield* make<Key>();
+  const fibers = yield* FiberSet.make<void, never>();
+  return {
+    run: (key, effect) =>
+      FiberSet.run(fibers, lock.withLock(key, effect), { startImmediately: true }).pipe(
+        Effect.asVoid,
+      ),
+  } satisfies KeyedRunner<Key>;
+});
