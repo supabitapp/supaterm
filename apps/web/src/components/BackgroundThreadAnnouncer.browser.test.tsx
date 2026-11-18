@@ -25,10 +25,14 @@ const atoms = await vi.hoisted(async () => {
     liveEnvironmentIds: Atom.make<ReadonlySet<string>>(new Set<string>()).pipe(Atom.keepAlive),
   };
 });
-vi.mock("../state/threads", () => ({
+vi.mock("../state/threads", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../state/threads")>()),
   environmentThreadShells: { quietThreadShellsAtom: atoms.shells },
 }));
-vi.mock("../state/shell", () => ({ liveShellEnvironmentIdsAtom: atoms.liveEnvironmentIds }));
+vi.mock("../state/shell", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../state/shell")>()),
+  liveShellEnvironmentIdsAtom: atoms.liveEnvironmentIds,
+}));
 
 const environmentId = EnvironmentId.make("environment-announcer");
 const routeThread = ThreadId.make("route-thread");
