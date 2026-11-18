@@ -5,6 +5,7 @@ import {
   useRef,
   useState,
   type CSSProperties,
+  type ReactNode,
 } from "react";
 import { TextLayer, type PDFDocumentProxy } from "pdfjs-dist";
 import { ChevronDownIcon, ChevronUpIcon, MinusIcon, PlusIcon, ShrinkIcon } from "@supaterm/icons";
@@ -135,6 +136,7 @@ export default function PdfViewer(props: {
   positionKey?: string;
   initialView?: PdfViewState;
   onViewChange?: (view: PdfViewState) => void;
+  actions?: ReactNode;
 }) {
   const [savedPosition] = useState(() =>
     props.positionKey === undefined ? undefined : positions.get(props.positionKey),
@@ -428,6 +430,7 @@ export default function PdfViewer(props: {
             </FileSurfaceAction>
           </>
         ) : null}
+        {props.actions}
       </div>
       <div
         ref={scroll}
