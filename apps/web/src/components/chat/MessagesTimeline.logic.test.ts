@@ -745,7 +745,6 @@ describe("deriveMessagesTimelineRows", () => {
             },
           },
         ],
-        optimisticMessages: [],
       });
       if (notice?.kind !== "work") throw new Error("Expected a notice work entry");
       expect(notice.entry.sourceActivityKind).toBe(
