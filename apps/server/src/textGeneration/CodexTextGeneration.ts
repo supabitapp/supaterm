@@ -57,9 +57,11 @@ const codexMcpServersOff = (names: ReadonlyArray<string>): string | null =>
     : `mcp_servers={${names.map((name) => `${JSON.stringify(name)}={enabled=false}`).join(",")}}`;
 // Codex splits -c keys at the first "=" and on every dot, so only those names take a dotted flag.
 const codexMcpServerOffFlags = (names: ReadonlyArray<string>) =>
-  names
-    .filter((name) => !name.includes(".") && !name.includes("="))
-    .flatMap((name) => ["--config", `mcp_servers.${name}.enabled=false`]);
+  names.flatMap((name) =>
+    name.includes(".") || name.includes("=")
+      ? []
+      : ["--config", `mcp_servers.${name}.enabled=false`],
+  );
 const encodeJsonString = Schema.encodeEffect(Schema.fromJsonString(Schema.Unknown));
 export const makeCodexTextGeneration = Effect.fn("makeCodexTextGeneration")(function* (
   codexConfig: CodexSettings,
