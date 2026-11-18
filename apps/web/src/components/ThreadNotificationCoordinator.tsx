@@ -3,6 +3,7 @@ import {
   type PendingSubagentRequest,
   presentThreadShell,
 } from "@supaterm/client-runtime/state/models";
+import { parseThreadKey, threadKey } from "@supaterm/client-runtime/state/entities";
 import { pendingSubagentRequestsByThread } from "@supaterm/client-runtime/state/threads";
 import type { AnyRouter } from "@tanstack/react-router";
 import {
@@ -11,6 +12,7 @@ import {
   type OrchestrationV2ThreadShell,
   type ThreadId,
 } from "@supaterm/contracts";
+import { monitorHoldsWakeCompletion } from "@supaterm/shared/orchestrationV2PendingBackgroundWork";
 import type { ClientSettings } from "@supaterm/contracts/settings";
 import * as Option from "effect/Option";
 import type { AtomRegistry } from "effect/reactivity";
@@ -33,9 +35,11 @@ import {
   threadNotificationTag,
   unlockNotificationAudio,
 } from "../threadNotifications";
+import { resolveBackgroundThreadRequest } from "./backgroundThreadAnnouncement";
 import { resolveSidebarThreadStatus, type SidebarThreadStatus } from "./Sidebar.logic";
 import {
   createThreadNotificationGate,
+  isSnoozedForNotification,
   type ThreadNotificationKind,
   type ThreadNotificationObservation,
 } from "./ThreadNotificationCoordinator.logic";
@@ -47,6 +51,8 @@ interface NotificationState extends ThreadNotificationObservation {
   readonly thread: EnvironmentThreadShell;
   readonly status: SidebarThreadStatus;
 }
+
+type ToastId = ReturnType<typeof toastManager.add>;
 
 interface WatchedEnvironment {
   unsubscribe: () => void;
@@ -71,6 +77,31 @@ export function startThreadNotifications(
     pending.set(notification.tag, { environmentId, notification });
     setNotificationBadge(pending.size);
   };
+  // Toast ids by thread key, so opening a thread, or removing its environment, closes them.
+  const openToasts = new Map<string, Array<ToastId>>();
+  const forgetToast = (key: string, toastId: ToastId) => {
+    const remaining = (openToasts.get(key) ?? []).filter((id) => id !== toastId);
+    if (remaining.length === 0) openToasts.delete(key);
+    else openToasts.set(key, remaining);
+  };
+  const closeToasts = (shouldClose: (key: string) => boolean) => {
+    for (const [key, toastIds] of openToasts) {
+      if (!shouldClose(key)) continue;
+      for (const toastId of toastIds) toastManager.close(toastId);
+      openToasts.delete(key);
+    }
+  };
+  const activeThread = () =>
+    (router.state.matches.at(-1)?.params ?? {}) as {
+      environmentId?: EnvironmentId;
+      threadId?: ThreadId;
+    };
+  const closeOpenedThreadToasts = () => {
+    const { environmentId, threadId } = activeThread();
+    if (environmentId === undefined || threadId === undefined) return;
+    const opened = threadKey({ environmentId, threadId });
+    closeToasts((key) => key === opened);
+  };
   const clearPending = () => {
     for (const { notification } of pending.values()) notification.close();
     pending.clear();
@@ -85,10 +116,7 @@ export function startThreadNotifications(
   ) => {
     const { thread, status } = state;
     const { notificationMode: mode, inAppNotificationsEnabled } = getClientSettings();
-    const active = (router.state.matches.at(-1)?.params ?? {}) as {
-      environmentId?: string;
-      threadId?: string;
-    };
+    const active = activeThread();
     const title =
       kind === "completion"
         ? "Thread completed"
@@ -110,7 +138,9 @@ export function startThreadNotifications(
       document.hasFocus() &&
       (active.environmentId !== environmentId || active.threadId !== thread.id)
     ) {
-      const toastId = toastManager.add({
+      const toastKey = threadKey({ environmentId, threadId: thread.id });
+      const toastId: ToastId = toastManager.add({
+        onRemove: (): void => forgetToast(toastKey, toastId),
         type: kind === "completion" ? "success" : status === "failed" ? "error" : "warning",
         title,
         description: thread.title,
@@ -140,6 +170,7 @@ export function startThreadNotifications(
           },
         },
       });
+      openToasts.set(toastKey, [...(openToasts.get(toastKey) ?? []), toastId]);
       return;
     }
     if (
@@ -196,18 +227,28 @@ export function startThreadNotifications(
       const thread = presentThreadShell(environmentId, rawThread, subagentRequest);
       let status = resolveSidebarThreadStatus(thread);
       if (status === "ready" && thread.latestRun?.status === "failed") status = "failed";
-      const attention =
-        status === "input" || status === "approval" || status === "failed" || status === "limited"
-          ? `${thread.latestRun?.runId ?? ""}:${status}`
-          : null;
+      const needsAttention =
+        status === "input" || status === "approval" || status === "failed" || status === "limited";
+      const requestId = needsAttention ? resolveBackgroundThreadRequest(thread).requestId : null;
+      // Queued messages become the latest run while a request stays pending, so a request
+      // with an id is keyed by that id alone and announces once.
+      const attention = !needsAttention
+        ? null
+        : requestId !== null
+          ? `${status}:${requestId}`
+          : `${thread.latestRun?.runId ?? ""}:${status}`;
       const completedAt = Date.parse(thread.latestRun?.completedAt ?? "");
-      const settled = status === "ready" && thread.latestRun?.status === "completed";
+      const settled =
+        status === "ready" &&
+        thread.latestRun?.status === "completed" &&
+        !monitorHoldsWakeCompletion(rawThread);
       const state = {
         raw: rawThread,
         subagentRequest,
         thread,
         status,
         attention,
+        requestId,
         settled,
         completedAt: settled && Number.isFinite(completedAt) ? completedAt : null,
       };
@@ -217,10 +258,12 @@ export function startThreadNotifications(
     entry.reconnecting = false;
     entry.previous = next;
     entry.gate.retain(new Set(next.keys()));
+    const now = Date.now();
     for (const [prior, state] of changed) {
       entry.gate.observe(state.thread.id, prior, state, {
         archived: state.thread.archivedAt !== null,
         quiet: state.raw.latestRunStopRequested === true,
+        snoozed: isSnoozedForNotification(state.thread, state.completedAt, now),
       });
     }
   };
@@ -261,6 +304,7 @@ export function startThreadNotifications(
   const syncEnvironments = () => {
     const { notificationMode, inAppNotificationsEnabled } = getClientSettings();
     const enabled = notificationMode !== "off" || inAppNotificationsEnabled;
+    if (!enabled) closeToasts(() => true);
     const environmentIds = enabled ? registry.get(environmentSummaries.environmentIdsAtom) : [];
     const activeIds = new Set(environmentIds);
     for (const [environmentId, entry] of watched) {
@@ -275,6 +319,7 @@ export function startThreadNotifications(
 
   const pruneRemovedEnvironments = () => {
     const activeIds = new Set(registry.get(environmentSummaries.environmentIdsAtom));
+    closeToasts((key) => !activeIds.has(parseThreadKey(key).environmentId));
     const count = pending.size;
     for (const [tag, entry] of pending) {
       if (activeIds.has(entry.environmentId)) continue;
@@ -328,13 +373,16 @@ export function startThreadNotifications(
       syncEnvironments();
     },
   );
+  const unsubscribeRoute = router.subscribe("onResolved", closeOpenedThreadToasts);
   onSettings();
 
   return () => {
     unsubscribeSettings();
     unsubscribeEnvironmentIds();
+    unsubscribeRoute();
     for (const entry of watched.values()) entry.unsubscribe();
     watched.clear();
     stopModeListeners();
+    closeToasts(() => true);
   };
 }

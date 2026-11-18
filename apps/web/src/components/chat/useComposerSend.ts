@@ -11,6 +11,7 @@ import type { VoiceRecordingHandOff } from "@supaterm/client-runtime/voice-input
 import { type ComposerDispatchMode } from "@supaterm/client-runtime/state/composer-dispatch";
 import {
   type ComposerImageAttachment,
+  checkoutPullRequestUrlToLink,
   composerDraftHasUserContent,
   markPromotedDraftThreadByRef,
   useComposerDraftStore,
@@ -47,7 +48,7 @@ import type { VoiceRecording } from "../../voice/webVoiceRecorder";
 import { ensureInlineContextReferences } from "../../lib/composerContextReferences";
 import { settlePromise, squashAtomCommandFailure } from "@supaterm/client-runtime/state/runtime";
 import { isUsageLimitsCommand } from "@supaterm/shared/usageLimits";
-import { isClearComposerCommand } from "@supaterm/shared/composerTrigger";
+import { isClearComposerCommand, parseSideChatCommand } from "@supaterm/shared/composerTrigger";
 import { armFreshSession, disarmFreshSession, readFreshSessionArm } from "./freshSessionArms";
 import { newMessageId, newThreadId } from "~/lib/utils";
 import {
@@ -78,6 +79,7 @@ import type { ProviderInstanceEntry } from "../../providerInstances";
 import type { useLogicalProjectEnvironments } from "../../hooks/useLogicalProjectEnvironments";
 import { usePaneThreadNavigation } from "../../chatPanes/paneScope";
 import { useClientSettingsHydrated } from "../../hooks/useSettings";
+import { useStableCallback } from "../../hooks/useStableCallback";
 import { appAtomRegistry } from "../../rpc/atomRegistry";
 import { environmentPresentations } from "../../state/presentation";
 import {
@@ -120,6 +122,7 @@ interface ComposerSendInput {
   readonly activeThreadKey: string | null;
   readonly activeThreadBranch: string | null;
   readonly activeProject: EnvironmentProject | null;
+  readonly activeProjectIsScratch: boolean;
   readonly isServerThread: boolean;
   readonly isLocalDraftThread: boolean;
   readonly isGitRepo: boolean;
@@ -143,6 +146,7 @@ interface ComposerSendInput {
   readonly threadDetailLoading: boolean;
   readonly activeEnvironmentUnavailable: boolean;
   readonly sendQueuesBehindSetup: boolean;
+  readonly deferredSteering: boolean;
   readonly isDraftHeroState: boolean;
   readonly panelAnimationsActive: boolean;
   readonly panelAnimationDurationMs: number;
@@ -154,10 +158,11 @@ interface ComposerSendInput {
   readonly clearUsageLimitsFor: UsageLimitsPanel["clearFor"];
   readonly needsLoadBalancing: DraftEnvironmentRouting["needsLoadBalancing"];
   readonly loadBalancing: DraftEnvironmentRouting["loadBalancing"];
+  readonly refreshBeforeSend: DraftEnvironmentRouting["refreshBeforeSend"];
   readonly readPendingEnvironmentChange: DraftEnvironmentRouting["readPendingEnvironmentChange"];
   readonly pendingApprovals: PendingThreadRequests["pendingApprovals"];
   readonly respondingRequestIds: PendingThreadRequests["respondingRequestIds"];
-  readonly activePendingProgress: PendingThreadRequests["activePendingProgress"];
+  readonly activePendingUserInput: PendingThreadRequests["activePendingUserInput"];
   readonly onAdvanceActivePendingUserInput: PendingThreadRequests["onAdvanceActivePendingUserInput"];
   readonly onRespondToApproval: PendingThreadRequests["onRespondToApproval"];
   readonly beginWorktreeSetup: ReturnType<typeof useWorktreeSetup>["begin"];
@@ -192,6 +197,7 @@ export function useComposerSend(input: ComposerSendInput) {
     activeThreadKey,
     activeThreadBranch,
     activeProject,
+    activeProjectIsScratch,
     isServerThread,
     isLocalDraftThread,
     isGitRepo,
@@ -212,6 +218,7 @@ export function useComposerSend(input: ComposerSendInput) {
     threadDetailLoading,
     activeEnvironmentUnavailable,
     sendQueuesBehindSetup,
+    deferredSteering,
     isDraftHeroState,
     panelAnimationsActive,
     panelAnimationDurationMs,
@@ -222,10 +229,11 @@ export function useComposerSend(input: ComposerSendInput) {
     clearUsageLimitsFor,
     needsLoadBalancing,
     loadBalancing,
+    refreshBeforeSend,
     readPendingEnvironmentChange,
     pendingApprovals,
     respondingRequestIds,
-    activePendingProgress,
+    activePendingUserInput,
     onAdvanceActivePendingUserInput,
     onRespondToApproval: onRespondToApprovalStable,
     beginWorktreeSetup,
@@ -290,6 +298,24 @@ export function useComposerSend(input: ComposerSendInput) {
       return;
     }
 
+    const sendCtx = composerRef.current?.getSendContext();
+    // `/side` beats an open question and a plan follow-up, which would send the text to main.
+    const sideChatCommand =
+      sendCtx && !directAnnotation && !queuedRunEdit.isEditing
+        ? resolveSideChatCommand(promptAtSend, sideChatDisabledReason)
+        : null;
+    const answeringQuestion =
+      Boolean(activePendingUserInput) && sendCtx?.answeringPendingUserInput !== false;
+    const startsSideChat = onSideChat !== undefined && sideChatCommand?.kind === "start";
+    // An answer responds to the open request rather than starting a turn, so the new-message
+    // guards below (loading, busy, provider) must not swallow it.
+    if (answeringQuestion && !startsSideChat && !directAnnotation) {
+      if (readEnvironmentScope(environmentId, AuthOrchestrationOperateScope) && activeThread) {
+        onAdvanceActivePendingUserInput();
+      }
+      return;
+    }
+
     const notifyDirectAnnotationAttached = () => {
       if (!directAnnotation) return;
       toastManager.add(
@@ -307,10 +333,23 @@ export function useComposerSend(input: ComposerSendInput) {
       !clientSettingsHydrated ||
       (threadDetailLoading && !activeEnvironmentUnavailable) ||
       readPendingEnvironmentChange() !== null ||
-      sendInFlightRef.current ||
       feedbackUploadsInFlightRef.current.has(routeThreadKey)
     ) {
       notifyDirectAnnotationAttached();
+      return;
+    }
+    if (sendInFlightRef.current) {
+      if (directAnnotation) {
+        notifyDirectAnnotationAttached();
+      } else {
+        toastManager.add(
+          stackedThreadToast({
+            type: "info",
+            title: "Still sending your previous message.",
+            description: "Send again once it goes through or fails.",
+          }),
+        );
+      }
       return;
     }
     if (needsLoadBalancing) {
@@ -327,14 +366,6 @@ export function useComposerSend(input: ComposerSendInput) {
       });
       return;
     }
-    const sendCtx = composerRef.current?.getSendContext();
-    // `/side` beats an open question and a plan follow-up, which would send the text to main.
-    const sideChatCommand =
-      sendCtx && !directAnnotation && !queuedRunEdit.isEditing
-        ? resolveSideChatCommand(promptAtSend, sideChatDisabledReason)
-        : null;
-    const answeringQuestion =
-      Boolean(activePendingProgress) && sendCtx?.answeringPendingUserInput !== false;
     // Where side chats are unavailable, `/side` text can still be a literal answer.
     if (sideChatCommand?.kind === "refuse" && !answeringQuestion) {
       toastManager.add(
@@ -475,6 +506,18 @@ export function useComposerSend(input: ComposerSendInput) {
       return;
     }
     if (queuedRunEdit.isEditing) {
+      // A queued message stays in its thread, so saving `/side` would send it to main.
+      if (!directAnnotation && parseSideChatCommand(promptAtSend)) {
+        toastManager.add(
+          stackedThreadToast({
+            type: "warning",
+            title: "Queued message not updated",
+            description:
+              "A queued message can't move to a side chat. Remove /side or /btw to save it.",
+          }),
+        );
+        return;
+      }
       // Edit mode repurposes the composer: sending saves the queued message
       // in place instead of dispatching a new turn.
       await queuedRunEdit.saveEdit(
@@ -488,6 +531,7 @@ export function useComposerSend(input: ComposerSendInput) {
           referenceContexts: composerReferenceContexts,
         },
         setThreadError,
+        { dispatchMode, submissionIntent },
       );
       return;
     }
@@ -613,11 +657,13 @@ export function useComposerSend(input: ComposerSendInput) {
       sendEnvMode,
       worktreePath: activeThread.worktreePath,
       activeThreadBranch,
+      isScratchProject: activeProjectIsScratch,
       worktreeBaseRefsSettled,
       environmentUnavailable: activeEnvironmentUnavailable,
       phase,
       dispatchMode,
       freshContext: freshArm !== undefined,
+      deferredSteering,
     });
     if (missingWorktreeBaseBranch) {
       setThreadError(threadIdForSend, "Select a base branch before sending in New worktree mode.");
@@ -810,6 +856,12 @@ export function useComposerSend(input: ComposerSendInput) {
         fallbackLabels: sendTitleFallbackLabels(sendSnapshot),
       });
       const localAttachments = captureOutboxAttachments(environmentId, composerAttachmentsSnapshot);
+      const linkPullRequestUrl =
+        isLocalDraftThread && forkSideChatFirst === null && multipleModelSelections === null
+          ? checkoutPullRequestUrlToLink(
+              draftId === null ? null : useComposerDraftStore.getState().getDraftSession(draftId),
+            )
+          : null;
       const targets =
         multipleModelSelections === null
           ? [
@@ -836,7 +888,8 @@ export function useComposerSend(input: ComposerSendInput) {
                 ...(startFromOrigin ? { startFromOrigin: true } : {}),
               }
             : undefined;
-          const pendingWorktree = worktree && !activeThreadBranch ? worktree : undefined;
+          const pendingWorktree =
+            worktree && !activeThreadBranch && !activeProjectIsScratch ? worktree : undefined;
           const bootstrap =
             isLocalDraftThread && forkSideChatFirst === null
               ? {
@@ -877,8 +930,12 @@ export function useComposerSend(input: ComposerSendInput) {
               titleSeed: title,
               runtimeMode,
               interactionMode: target.interactionMode,
-              // Like mobile, a delayed steer follows current server state at delivery.
-              dispatchMode: turnDispatchMode === "steer" ? ("auto" as const) : turnDispatchMode,
+              // Like mobile, a delayed steer follows current server state at delivery. A steer
+              // during setup stays a steer, so the server delivers it once the turn runs.
+              dispatchMode:
+                turnDispatchMode === "steer" && !sendQueuesBehindSetup
+                  ? ("auto" as const)
+                  : turnDispatchMode,
               ...(freshArm === undefined ? {} : { freshContext: true }),
               ...(bootstrap ? { bootstrap } : {}),
               createdAt: messageCreatedAt,
@@ -889,6 +946,7 @@ export function useComposerSend(input: ComposerSendInput) {
               ? { branch: localCheckoutBranchMismatch.currentBranch }
               : {}),
             ...(draftId && multipleModelSelections === null ? { draftId } : {}),
+            ...(linkPullRequestUrl ? { linkPullRequestUrl } : {}),
             background: submissionIntent === "background",
           };
         }),
@@ -905,13 +963,15 @@ export function useComposerSend(input: ComposerSendInput) {
         shouldDockDraftHeroForSubmission({ isDraftHeroState, activeThreadKey, submissionIntent }) &&
         activeThreadKey
       ) {
-        await runMobileComposerTransition(
+        const docking = runMobileComposerTransition(
           () => {
             captureDraftHeroLayout();
             setDockedDraftHeroThreadKey(activeThreadKey);
           },
           { active: panelAnimationsActive, durationMs: panelAnimationDurationMs },
         );
+        // Awaiting only a real transition keeps an inline dock in the same render as the send.
+        if (docking) await docking;
       }
       if (!sendQueuesBehindSetup) {
         beginWorktreeSetup(
@@ -921,9 +981,12 @@ export function useComposerSend(input: ComposerSendInput) {
         );
       }
       if (useComposerDraftStore.getState().getComposerDraft(composerDraftTarget) === savedDraft) {
-        promptRef.current = "";
         clearComposerDraftContent(composerDraftTarget);
-        composerRef.current?.resetCursorState();
+        // The prompt ref and cursor belong to the thread on screen, which may no longer be this one.
+        if (currentRouteThreadKeyRef.current === routeThreadKey) {
+          promptRef.current = "";
+          composerRef.current?.resetCursorState();
+        }
       }
       // The outbox owns its own bytes. References recovered without bytes stay owned until delivery.
       releaseDraftAttachments(
@@ -1007,5 +1070,19 @@ export function useComposerSend(input: ComposerSendInput) {
     };
   };
 
-  return { onSend, prepareVoiceSend };
+  const onSendLatest = useStableCallback(onSend);
+  const onSendWithRouting = async (...args: Parameters<typeof onSend>) => {
+    args[0]?.preventDefault();
+    const refresh =
+      args[3] || sendInFlightRef.current || readPendingEnvironmentChange() !== null
+        ? null
+        : refreshBeforeSend();
+    if (refresh === null) return onSend(...args);
+    sendInFlightRef.current = true;
+    const ready = await refresh.finally(() => {
+      sendInFlightRef.current = false;
+    });
+    if (ready) return onSendLatest(...args);
+  };
+  return { onSend: onSendWithRouting, prepareVoiceSend };
 }

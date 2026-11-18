@@ -3,7 +3,7 @@ import type {
   PullRequestRef,
   PullRequestReviewGuideStop,
 } from "@supaterm/contracts";
-import { SparklesIcon, TriangleAlertIcon } from "@supaterm/icons";
+import { ScrollTextIcon, TriangleAlertIcon } from "@supaterm/icons";
 import { useEffect, useEffectEvent } from "react";
 
 import type { ReviewCommentContext } from "~/reviewCommentContext";
@@ -99,7 +99,7 @@ export function PullRequestGuideTab({
   const writeButton = (label: string, size: "sm" | "xs") =>
     canWrite ? (
       <Button size={size} variant="outline" disabled={running} onClick={() => void write()}>
-        {running ? <Spinner /> : <SparklesIcon aria-hidden className="size-3.5" />}
+        {running ? <Spinner /> : <ScrollTextIcon aria-hidden className="size-3.5" />}
         {running ? "Reading the change..." : label}
       </Button>
     ) : null;

@@ -4,6 +4,7 @@ import { resolveAssistantMessageCopyState } from "./MessagesTimeline.logic";
 import { shouldPreserveAssistantLineBreaks } from "@supaterm/shared/markdownPipeline";
 import { MessageId, type RunId } from "@supaterm/contracts";
 import { canForkProjectedAssistantItem } from "@supaterm/client-runtime/state/thread-workflows";
+import { agentWorkingDirectories } from "@supaterm/client-runtime/workspace-basename-lookup";
 import { use, useState, memo } from "react";
 import type { ChatMessage, TurnDiffSummary } from "../../types";
 import ChatMarkdown from "../ChatMarkdown";
@@ -15,7 +16,12 @@ import { McpAppFrame } from "./McpAppFrame";
 import { checkpointFileTotals } from "@supaterm/client-runtime/state/thread-checkpoints";
 import { ChangedFilesCard } from "./ChangedFilesTree";
 import { useFileContextMenuHandler } from "../../fileContextMenu";
-import { useAssistantMessageText, useThreadShell, useProject } from "../../state/entities";
+import {
+  readThreadTurnItems,
+  useAssistantMessageText,
+  useProject,
+  useQuietThreadShell,
+} from "../../state/entities";
 import { MessageCopyButton } from "./MessageCopyButton";
 import { AssistantCitationSource } from "./AssistantCitationSource";
 import { Tooltip, TooltipTrigger, TooltipPopup } from "../ui/tooltip";
@@ -24,6 +30,11 @@ import { useUiStateStore } from "~/uiStateStore";
 import { formatDayAwareTimestamp, formatChatTimestampTooltip } from "../../timestampFormat";
 import { useV2ItemSupport } from "../../state/v2ItemSupport";
 import { isPinnableProjectedItem, MessagePinButton, useMessagePinned } from "./PinnedMessages";
+import { useAtomValue } from "@effect/atom-react";
+import { AsyncResult, Atom } from "effect/reactivity";
+import { vcsEnvironment } from "../../state/vcs";
+
+const NO_VCS_STATUS = Atom.make(AsyncResult.initial());
 
 export function AssistantTimelineRow({ row }: { row: Extract<TimelineRow, { kind: "message" }> }) {
   const ctx = use(TimelineRowCtx);
@@ -33,7 +44,8 @@ export function AssistantTimelineRow({ row }: { row: Extract<TimelineRow, { kind
     row.projectedItem?.item.id,
   );
   const text = liveText ?? row.message.text;
-  const messageText = text || (row.message.streaming ? "" : "(empty response)");
+  const messageText =
+    text || (row.message.streaming || row.suppressEmptyResponse ? "" : "(empty response)");
 
   return (
     <>
@@ -49,7 +61,13 @@ export function AssistantTimelineRow({ row }: { row: Extract<TimelineRow, { kind
           >
             <ChatMarkdown
               text={messageText}
+              renderInsights
               cwd={ctx.markdownCwd}
+              agentDirectories={() =>
+                ctx.threadRef && row.projectedItem
+                  ? agentWorkingDirectories(readThreadTurnItems(ctx.threadRef), row.projectedItem)
+                  : []
+              }
               threadRef={ctx.threadRef ?? undefined}
               isStreaming={Boolean(row.message.streaming)}
               lineBreaks={shouldPreserveAssistantLineBreaks(messageText)}
@@ -67,6 +85,11 @@ export function AssistantTimelineRow({ row }: { row: Extract<TimelineRow, { kind
           resolvedTheme={ctx.resolvedTheme}
           onOpenTurnDiff={ctx.onOpenTurnDiff}
         />
+        {!row.showAssistantMeta && row.projectedItem?.item.status === "interrupted" ? (
+          <div className="mt-1.5 flex">
+            <AssistantStatusBadge status="interrupted" />
+          </div>
+        ) : null}
         {row.showAssistantMeta ? (
           <AssistantMessageMeta
             className="mt-1.5"
@@ -78,6 +101,41 @@ export function AssistantTimelineRow({ row }: { row: Extract<TimelineRow, { kind
         ) : null}
       </div>
     </>
+  );
+}
+
+/** Text an agent sent with `send_to_user`, shown as its own words. */
+export function SentMessageTimelineRow({
+  row,
+}: {
+  row: Extract<TimelineRow, { kind: "sent-message" }>;
+}) {
+  const ctx = use(TimelineRowCtx);
+
+  return (
+    <div className="min-w-0 px-1 py-0.5">
+      <MessageAuthorHeading>Supaterm</MessageAuthorHeading>
+      {/* Sent messages have no message id; citations name their turn item instead. */}
+      <AssistantCitationSource
+        messageId={MessageId.make(row.id)}
+        {...(ctx.threadRef ? { threadRef: ctx.threadRef } : {})}
+        itemKey={row.id}
+        request={ctx.citationRequest}
+        listRef={ctx.listRef}
+      >
+        <ChatMarkdown
+          text={row.text}
+          cwd={ctx.markdownCwd}
+          threadRef={ctx.threadRef ?? undefined}
+          lineBreaks={shouldPreserveAssistantLineBreaks(row.text)}
+          skills={ctx.skills}
+          headingLevelOffset={MESSAGE_HEADING_LEVEL}
+          onUseArtifactTemplate={ctx.onUseArtifactTemplate}
+          onRunShellCommand={ctx.onRunShellCommand}
+          onImageExpand={ctx.onImageExpand}
+        />
+      </AssistantCitationSource>
+    </div>
   );
 }
 
@@ -176,9 +234,7 @@ function AssistantMessageMeta({
       )}
     >
       {projectedItem && projectedItem.item.status !== "completed" ? (
-        <span className="rounded-full border border-border/70 px-1.5 py-0.5 font-mono text-3xs text-muted-foreground">
-          {projectedItem.item.status}
-        </span>
+        <AssistantStatusBadge status={projectedItem.item.status} />
       ) : null}
       <AssistantCopyButton
         message={message}
@@ -202,6 +258,14 @@ function AssistantMessageMeta({
         </Tooltip>
       )}
     </div>
+  );
+}
+
+function AssistantStatusBadge({ status }: { status: string }) {
+  return (
+    <span className="rounded-full border border-border/70 px-1.5 py-0.5 font-mono text-3xs text-muted-foreground">
+      {status}
+    </span>
   );
 }
 
@@ -354,13 +418,22 @@ function AssistantChangedFilesSectionInner({
   const setExpanded = useUiStateStore((store) => store.setThreadChangedFilesExpanded);
   const allDirectoriesExpanded = persistedExpanded ?? false;
 
-  const thread = useThreadShell(ctx.threadRef);
+  const thread = useQuietThreadShell(ctx.threadRef);
   const activeProject = useProject(
     thread && thread.projectId
       ? { environmentId: thread.environmentId, projectId: thread.projectId }
       : null,
   );
   const onFileContextMenu = useFileContextMenuHandler(ctx.activeThreadEnvironmentId);
+  const repositoryRoot = useAtomValue(
+    ctx.workspaceRoot
+      ? vcsEnvironment.status({
+          environmentId: ctx.activeThreadEnvironmentId,
+          input: { cwd: ctx.workspaceRoot },
+        })
+      : NO_VCS_STATUS,
+    (status) => AsyncResult.getOrElse(status, () => null)?.workingTree.rootPath,
+  );
 
   return (
     <ChangedFilesCard
@@ -380,9 +453,10 @@ function AssistantChangedFilesSectionInner({
             filePath,
             workspaceRoot: ctx.workspaceRoot,
             repositoryRoot:
-              thread?.worktreePath == null
+              repositoryRoot ??
+              (thread?.worktreePath == null
                 ? activeProject?.repositoryIdentity?.rootPath
-                : undefined,
+                : undefined),
           },
           event,
         )

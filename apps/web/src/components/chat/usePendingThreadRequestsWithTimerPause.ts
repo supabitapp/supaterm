@@ -19,7 +19,7 @@ import type { PendingUserInput } from "../../session-logic";
 import { serverEnvironment } from "../../state/server";
 import { threadEnvironment } from "../../state/threads";
 import { useAtomCommand } from "../../state/use-atom-command";
-import { usePendingThreadRequests } from "./usePendingThreadRequests";
+import { readPendingUserInputDraft, usePendingThreadRequests } from "./usePendingThreadRequests";
 
 type PendingThreadRequestsInput = Parameters<typeof usePendingThreadRequests>[0];
 
@@ -97,8 +97,8 @@ function changesPendingCustomAnswer(input: {
  */
 export function usePendingThreadRequestsWithTimerPause(input: PendingThreadRequestsInput) {
   const requests = usePendingThreadRequests(input);
-  const { environmentId, activeThreadId, setThreadError } = input;
-  const { activePendingUserInput, activePendingDraftAnswers } = requests;
+  const { environmentId, activeThreadId, setThreadError, supportsQuestionAttachments } = input;
+  const { activePendingUserInput } = requests;
   const pauseUserInputAutoDismiss = useAtomCommand(threadEnvironment.pauseUserInputAutoDismiss, {
     reportFailure: false,
   });
@@ -131,7 +131,12 @@ export function usePendingThreadRequestsWithTimerPause(input: PendingThreadReque
     if (
       changesPendingCustomAnswer({
         activePendingUserInput,
-        activePendingDraftAnswers,
+        activePendingDraftAnswers: readPendingUserInputDraft({
+          environmentId,
+          activeThreadId,
+          activePendingUserInput,
+          supportsQuestionAttachments,
+        }).activePendingDraftAnswers,
         questionId,
         value,
       })

@@ -1,4 +1,8 @@
 import { scopeThreadRef } from "@supaterm/client-runtime/environment";
+import {
+  isAtomCommandInterrupted,
+  squashAtomCommandFailure,
+} from "@supaterm/client-runtime/state/runtime";
 import { deriveThreadQueueWorkflowState } from "@supaterm/client-runtime/state/thread-workflows";
 import { assistantCitationsToPlainText } from "@supaterm/shared/assistantCitations";
 import {
@@ -26,8 +30,9 @@ import { useId, useImperativeHandle, useRef, useState, type Ref } from "react";
 
 import { useAssetUrls } from "../../assets/assetUrls";
 import { threadEnvironment } from "../../state/threads";
-import { useQuietThreadShell, useThreadProjection } from "../../state/entities";
+import { useQuietThreadProjection, useQuietThreadShell } from "../../state/entities";
 import { useAtomCommand } from "../../state/use-atom-command";
+import { isImageAttachment, type ChatImageAttachment } from "../../types";
 
 import { cn } from "~/lib/utils";
 import { ComposerBanner } from "./ComposerBanner";
@@ -35,20 +40,16 @@ import { InlineConfirmButton } from "../InlineConfirm";
 import { Button } from "../ui/button";
 import { Collapsible, CollapsiblePanel } from "../ui/collapsible";
 import { Separator } from "../ui/separator";
+import { toastManager } from "../ui/toast";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { useScheduledTaskTitle } from "./TimelineUserMessageRow";
+import { buildExpandedImagePreview, type ExpandedImagePreview } from "./ExpandedImagePreview";
 
 export interface EditQueuedRunRequest {
   readonly runId: RunId;
   readonly messageId: MessageId;
   readonly text: string;
   readonly attachments: ReadonlyArray<ContractChatAttachment>;
-}
-
-interface QueuedRowThumbnail {
-  readonly key: string;
-  readonly name: string;
-  readonly url: string | null;
 }
 
 export interface QueuedRunsControlHandle {
@@ -62,7 +63,7 @@ function queuedImageResources(projection: ThreadQueueProjection | undefined) {
   if (!projection) return [];
   return deriveThreadQueueWorkflowState(projection).queuedRuns.flatMap(({ attachments }) =>
     attachments.flatMap((attachment) =>
-      attachment.type === "image"
+      isImageAttachment(attachment)
         ? [{ _tag: "attachment" as const, attachmentId: attachment.id }]
         : [],
     ),
@@ -78,14 +79,17 @@ export function QueuedRunsControl({
   readonly editShortcutLabel?: string | null;
   readonly environmentId: EnvironmentId;
   readonly threadId: ThreadId;
+  /** The server advertises `deferredSteering`, so a queued message can steer a turn in setup. */
+  readonly deferredSteering: boolean;
   readonly editingRunId: RunId | null;
   /** Set while something else holds the composer, such as an open question. */
   readonly editBlockedReason: string | null;
   readonly onEditQueuedRun: (request: EditQueuedRunRequest) => void;
   readonly onCancelEdit: () => void;
   readonly onOpenThread: (threadId: ThreadId) => void;
+  readonly onImageExpand: (preview: ExpandedImagePreview) => void;
 }) {
-  const projection = useThreadProjection(
+  const projection = useQuietThreadProjection(
     scopeThreadRef(props.environmentId, props.threadId),
   )?.projection;
   const promote = useAtomCommand(threadEnvironment.promoteQueuedRun);
@@ -100,7 +104,9 @@ export function QueuedRunsControl({
     props.environmentId,
     queuedImageAttachmentResources,
   );
-  const workflow = projection ? deriveThreadQueueWorkflowState(projection) : null;
+  const workflow = projection
+    ? deriveThreadQueueWorkflowState(projection, { deferredSteering: props.deferredSteering })
+    : null;
   const queued = workflow?.queuedRuns ?? [];
   const activeRun = workflow?.activeRun ?? null;
   // A fresh message starts its own turn: it may skip compaction, but not steer into a turn.
@@ -121,13 +127,14 @@ export function QueuedRunsControl({
     freshContext: run.freshContext === true,
     text,
     attachments,
-    thumbnails: attachments
-      .filter((attachment) => attachment.type === "image")
-      .map<QueuedRowThumbnail>((attachment) => ({
-        key: attachment.id,
-        name: attachment.name,
-        url: queuedImageUrlById.get(attachment.id) ?? null,
-      })),
+    thumbnails: attachments.filter(isImageAttachment).map<ChatImageAttachment>((attachment) => {
+      const previewUrl = queuedImageUrlById.get(attachment.id);
+      return {
+        ...attachment,
+        type: "image",
+        ...(previewUrl ? { previewUrl } : {}),
+      };
+    }),
   }));
 
   const sendQueuedMessage = async (queuedRunId: RunId) => {
@@ -137,19 +144,27 @@ export function QueuedRunsControl({
     if (!canSendRun(freshContext) || steerInFlightRef.current) return;
     steerInFlightRef.current = true;
     setBusyRunId(queuedRunId);
-    if (workflow?.canSendNow) {
-      await resume({
-        environmentId: props.environmentId,
-        input: { threadId: props.threadId, runId: queuedRunId },
-      });
-    } else if (activeRun !== null) {
-      await promote({
-        environmentId: props.environmentId,
-        input: { threadId: props.threadId, queuedRunId, targetRunId: activeRun.id },
-      });
-    }
+    const result = workflow?.canSendNow
+      ? await resume({
+          environmentId: props.environmentId,
+          input: { threadId: props.threadId, runId: queuedRunId },
+        })
+      : activeRun !== null
+        ? await promote({
+            environmentId: props.environmentId,
+            input: { threadId: props.threadId, queuedRunId, targetRunId: activeRun.id },
+          })
+        : null;
     steerInFlightRef.current = false;
     setBusyRunId(null);
+    if (result?._tag === "Failure" && !isAtomCommandInterrupted(result)) {
+      const error = squashAtomCommandFailure(result);
+      toastManager.add({
+        type: "error",
+        title: "Could not send queued message",
+        description: error instanceof Error ? error.message : "An error occurred.",
+      });
+    }
   };
 
   useImperativeHandle(ref, () => ({
@@ -217,11 +232,7 @@ export function QueuedRunsControl({
                   const previewText = isAttachmentOnlyBootstrapPrompt(item.text)
                     ? ""
                     : assistantCitationsToPlainText(
-                        replaceComposerContextReferences(item.text, (reference) =>
-                          reference.kind === "image" && item.thumbnails.length > 0
-                            ? ""
-                            : reference.label,
-                        ),
+                        replaceComposerContextReferences(item.text, (reference) => reference.label),
                       ).trim();
                   const isEditing = item.runId === props.editingRunId;
                   return (
@@ -242,13 +253,24 @@ export function QueuedRunsControl({
                         {item.thumbnails.length > 0 ? (
                           <span className="flex shrink-0 items-center gap-0.5">
                             {item.thumbnails.map((thumbnail) => (
-                              <span
-                                key={thumbnail.key}
-                                className="size-4 overflow-hidden rounded border border-border/70 bg-background"
+                              <button
+                                key={thumbnail.id}
+                                type="button"
+                                aria-label={`Preview ${thumbnail.name}`}
+                                disabled={!thumbnail.previewUrl}
+                                className="size-4 overflow-hidden rounded border border-border/70 bg-background enabled:cursor-zoom-in"
+                                onPointerDown={(event) => event.preventDefault()}
+                                onClick={() => {
+                                  const preview = buildExpandedImagePreview(
+                                    item.thumbnails,
+                                    thumbnail.id,
+                                  );
+                                  if (preview) props.onImageExpand(preview);
+                                }}
                               >
-                                {thumbnail.url ? (
+                                {thumbnail.previewUrl ? (
                                   <img
-                                    src={thumbnail.url}
+                                    src={thumbnail.previewUrl}
                                     alt={thumbnail.name}
                                     className="size-full object-cover"
                                   />
@@ -258,7 +280,7 @@ export function QueuedRunsControl({
                                     className="block size-full bg-muted/60"
                                   />
                                 )}
-                              </span>
+                              </button>
                             ))}
                           </span>
                         ) : null}

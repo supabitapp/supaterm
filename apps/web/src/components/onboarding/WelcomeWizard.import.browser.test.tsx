@@ -2,8 +2,12 @@ import { RegistryContext } from "@effect/atom-react";
 import {
   AuthOrchestrationOperateScope,
   AuthOrchestrationReadScope,
+  AuthTerminalOperateScope,
   EnvironmentId,
   ProjectId,
+  ProviderDriverKind,
+  ProviderInstanceId,
+  type ServerProvider,
   type AgentSessionProjectCandidate,
   type AuthEnvironmentScope,
   type AuthSessionState,
@@ -37,6 +41,10 @@ const state = vi.hoisted(() => ({
   scan: vi.fn(),
   refreshScan: vi.fn(),
   waitForProject: vi.fn(),
+  runningTerminalIds: null as unknown,
+  openTerminal: vi.fn(),
+  writeTerminal: vi.fn(),
+  closeTerminal: vi.fn(),
 }));
 
 vi.mock(import("@supaterm/client-runtime/state/session"), async (original) => {
@@ -116,10 +124,41 @@ vi.mock(import("../../connection/onboarding"), async (original) => ({
   ...(await original()),
   connectPairing: "connectPairing" as never,
 }));
+vi.mock(import("../../state/terminal"), async (original) => {
+  const actual = await original();
+  return {
+    ...actual,
+    terminalEnvironment: {
+      ...actual.terminalEnvironment,
+      open: "openTerminal",
+      write: "writeTerminal",
+      close: "closeTerminal",
+    } as never,
+  };
+});
+vi.mock(import("../../state/terminalSessions"), async (original) => {
+  const { useAtomValue } = await import("@effect/atom-react");
+  return {
+    ...(await original()),
+    useThreadRunningTerminalIds: (() =>
+      useAtomValue(state.runningTerminalIds as Atom.Atom<ReadonlyArray<string>>)) as never,
+  };
+});
+vi.mock(import("../ThreadTerminalDrawer"), async (original) => ({
+  ...(await original()),
+  TerminalViewport: () => <div />,
+}));
 vi.mock(import("../../state/use-atom-command"), async (original) => ({
   ...(await original()),
   useAtomCommand: ((
-    command: "createProject" | "importThreads" | "refreshProviders" | "connectPairing",
+    command:
+      | "createProject"
+      | "importThreads"
+      | "refreshProviders"
+      | "connectPairing"
+      | "openTerminal"
+      | "writeTerminal"
+      | "closeTerminal",
   ) => state[command]) as never,
 }));
 vi.mock(import("../settings/ChatGptWelcomeCoordinator"), async (original) => ({
@@ -285,6 +324,10 @@ function setup() {
   state.scan.mockReset();
   state.refreshScan.mockReset();
   state.waitForProject.mockReset().mockImplementation(waitForRecordedProject);
+  state.runningTerminalIds = Atom.make<ReadonlyArray<string>>([]).pipe(Atom.keepAlive);
+  for (const command of [state.openTerminal, state.writeTerminal, state.closeTerminal]) {
+    command.mockReset().mockResolvedValue(AsyncResult.success(undefined));
+  }
   return now;
 }
 
@@ -381,4 +424,51 @@ it("finishes setup without landing when the imported project never reaches the c
   await click("Import 1 project");
   await vi.waitFor(() => expect(state.onDone).toHaveBeenCalledOnce());
   expect(state.onDone).toHaveBeenCalledWith(undefined);
+});
+
+it("checks an agent again once its install command finishes in the setup terminal", async () => {
+  using _now = setup();
+  const claude: ServerProvider = {
+    instanceId: ProviderInstanceId.make("claudeAgent"),
+    driver: ProviderDriverKind.make("claudeAgent"),
+    enabled: true,
+    installed: false,
+    version: "1.0.0",
+    status: "error",
+    auth: { status: "unknown" },
+    checkedAt: "2026-01-01T00:00:00.000Z",
+    models: [],
+    slashCommands: [],
+    skills: [],
+  };
+  appAtomRegistry.set(
+    sessionAtom(primaryId),
+    AsyncResult.success(session([AuthOrchestrationOperateScope, AuthTerminalOperateScope])),
+  );
+  appAtomRegistry.set(state.config as Atom.Writable<unknown>, {
+    cwd: "/Users/dev",
+    environment: { platform: { os: "darwin" } },
+    keybindings: [],
+    settings: { providerInstances: {}, projectSettingsOverrides: {} },
+  });
+  appAtomRegistry.set(state.providers as Atom.Writable<ReadonlyArray<ServerProvider>>, [claude]);
+  await using _screen = await render(
+    <RegistryContext.Provider value={appAtomRegistry}>
+      <WelcomeWizard localAvailable onDone={state.onDone} />
+    </RegistryContext.Provider>,
+  );
+  await click("Continue");
+  await vi.waitFor(() => button("Install"));
+  await click("Install");
+  await vi.waitFor(() => expect(state.writeTerminal).toHaveBeenCalledOnce());
+  const { terminalId } = state.openTerminal.mock.calls[0]![0].input;
+  const runningTerminalIds = state.runningTerminalIds as Atom.Writable<ReadonlyArray<string>>;
+  const recheck = { environmentId: primaryId, input: { instanceId: claude.instanceId } };
+
+  await act(async () => appAtomRegistry.set(runningTerminalIds, [terminalId]));
+  expect(state.refreshProviders).not.toHaveBeenCalledWith(recheck);
+  // The shell stays open at its prompt after the install, so only the command exits.
+  await act(async () => appAtomRegistry.set(runningTerminalIds, []));
+  expect(state.refreshProviders).toHaveBeenCalledWith(recheck);
+  expect(state.closeTerminal).not.toHaveBeenCalled();
 });

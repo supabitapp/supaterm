@@ -1,4 +1,6 @@
 import {
+  DESKTOP_UPDATE_IN_PROGRESS_MARKER_FILE,
+  DESKTOP_UPDATE_IN_PROGRESS_TTL_MS,
   DesktopUpdateChannelSchema,
   type DesktopRuntimeInfo,
   type DesktopUpdateActionResult,
@@ -35,7 +37,11 @@ import * as ElectronUpdater from "../electron/ElectronUpdater.ts";
 import * as ElectronWindow from "../electron/ElectronWindow.ts";
 import * as IpcChannels from "../ipc/channels.ts";
 import * as DesktopAppSettings from "../settings/DesktopAppSettings.ts";
-import { normalizeDesktopUpdateReleaseNotes } from "./releaseNotes.ts";
+import * as DesktopSshEnvironment from "../ssh/DesktopSshEnvironment.ts";
+import {
+  normalizeDesktopUpdateReleaseNotes,
+  releaseNotesOfOfferedVersion,
+} from "./releaseNotes.ts";
 import { desktopUpdateChannelOf } from "@supaterm/shared/cliRelease";
 import { compareSemverVersions } from "@supaterm/shared/semver";
 import {
@@ -55,8 +61,8 @@ import {
 const CHANNEL_CHANGE_RETRY_DELAY = Duration.seconds(1);
 const CHANNEL_CHANGE_RETRIES = 30;
 const AUTO_UPDATE_STARTUP_DELAY = "15 seconds";
-const AUTO_UPDATE_POLL_INTERVAL = "4 minutes";
-const PREPARED_INSTALL_CHECK_WAIT = Duration.seconds(90);
+const AUTO_UPDATE_POLL_INTERVAL = "4 hours";
+const UPDATE_CHECK_WAIT = Duration.seconds(90);
 
 type UpdateAction = "check" | "download" | "install" | "install-recovery" | "channel";
 
@@ -73,6 +79,7 @@ const UpdateInfo = Schema.Struct({
   // fail the decode and block the update state transition. The shape is
   // validated defensively in normalizeDesktopUpdateReleaseNotes.
   releaseNotes: Schema.optional(Schema.Unknown),
+  releaseName: Schema.optional(Schema.NullOr(Schema.String)),
   releaseDate: Schema.optional(Schema.String),
 });
 
@@ -299,6 +306,10 @@ function getCanRetryFromState(state: DesktopUpdateState): boolean {
   return state.availableVersion !== null || state.downloadedVersion !== null;
 }
 
+function isOffered(state: DesktopUpdateState): boolean {
+  return state.status === "available" || state.status === "downloaded";
+}
+
 function shouldBroadcastDownloadProgress(
   currentState: DesktopUpdateState,
   nextPercent: number,
@@ -350,6 +361,7 @@ export const make = Effect.gen(function* () {
   const config = yield* DesktopConfig.DesktopConfig;
   const pool = yield* DesktopBackendPool.DesktopBackendPool;
   const codexMicro = yield* CodexMicro.CodexMicro;
+  const sshEnvironment = yield* DesktopSshEnvironment.DesktopSshEnvironment;
   const desktopState = yield* DesktopState.DesktopState;
   const electronUpdater = yield* ElectronUpdater.ElectronUpdater;
   const electronWindow = yield* ElectronWindow.ElectronWindow;
@@ -478,6 +490,23 @@ export const make = Effect.gen(function* () {
       ),
     );
 
+  // Re-runs admit after each finished action, so a caller waiting on a check decides on its result.
+  const admitAfterCheck = Effect.fn("desktop.updates.admitAfterCheck")(function* (
+    admit: Effect.Effect<"admitted" | "refused" | "wait-for-check">,
+  ) {
+    const actionCompletions = yield* PubSub.subscribe(finishedUpdateActions);
+    let admission = yield* stateMutex.withPermits(1)(admit);
+    while (admission === "wait-for-check") {
+      const finishedAction = yield* PubSub.take(actionCompletions).pipe(
+        Effect.timeoutOption(UPDATE_CHECK_WAIT),
+      );
+      admission = Option.isNone(finishedAction)
+        ? "refused"
+        : yield* stateMutex.withPermits(1)(admit);
+    }
+    return admission;
+  });
+
   const applyAutoUpdaterChannel = Effect.fn("desktop.updates.applyAutoUpdaterChannel")(function* (
     channel: DesktopUpdateChannel,
   ) {
@@ -494,6 +523,17 @@ export const make = Effect.gen(function* () {
       allowPrerelease: allowsPrerelease,
       fullChangelog: allowsPrerelease,
     });
+  });
+
+  // The flag is shared updater state, so callers flip it only while holding a reservation.
+  const runUpdaterCheck = Effect.fn("desktop.updates.runUpdaterCheck")(function* (
+    allowDowngrade: boolean,
+  ) {
+    const restoreDowngrade = yield* electronUpdater.allowDowngrade;
+    if (allowDowngrade) yield* electronUpdater.setAllowDowngrade(true);
+    return yield* electronUpdater.checkForUpdates.pipe(
+      Effect.ensuring(electronUpdater.setAllowDowngrade(restoreDowngrade).pipe(Effect.ignore)),
+    );
   });
 
   const checkForUpdates = Effect.fn("desktop.updates.checkForUpdates")(function* (
@@ -517,15 +557,13 @@ export const make = Effect.gen(function* () {
     if (actionReservation === "acquire" && !(yield* tryStartUpdateAction("check"))) return false;
 
     const check = Effect.gen(function* () {
-      const checkedAt = yield* currentIsoTimestamp;
-      yield* setState(reduceDesktopUpdateStateOnCheckStart(state, checkedAt));
+      // An offer stays on screen while re-checking, so finding it again changes nothing.
+      if (!isOffered(state)) {
+        yield* setState(reduceDesktopUpdateStateOnCheckStart(state, yield* currentIsoTimestamp));
+      }
       yield* logUpdaterInfo("checking for updates", { reason });
 
-      // The flag is shared updater state, so it flips only while this check holds the reservation.
-      const restoreDowngrade = yield* electronUpdater.allowDowngrade;
-      if (allowDowngrade) yield* electronUpdater.setAllowDowngrade(true);
-      return yield* electronUpdater.checkForUpdates.pipe(
-        Effect.ensuring(electronUpdater.setAllowDowngrade(restoreDowngrade).pipe(Effect.ignore)),
+      return yield* runUpdaterCheck(allowDowngrade).pipe(
         Effect.as(true),
         Effect.catchTags({
           ElectronUpdaterCheckForUpdatesError: Effect.fn(
@@ -554,17 +592,56 @@ export const make = Effect.gen(function* () {
         );
   });
 
-  const downloadAvailableUpdate = Effect.gen(function* () {
-    const state = yield* Ref.get(updateStateRef);
-    if (!(yield* Ref.get(updaterConfiguredRef)) || state.status !== "available") {
+  // Install refreshes before downloading, and a second check could pick a stale, older release.
+  const downloadAvailableUpdate = Effect.fn("desktop.updates.downloadAvailableUpdate")(function* (
+    refresh: boolean,
+  ) {
+    const admission = yield* Effect.scoped(
+      admitAfterCheck(
+        Effect.gen(function* () {
+          const state = yield* Ref.get(updateStateRef);
+          if (!(yield* Ref.get(updaterConfiguredRef)) || state.status !== "available") {
+            return "refused" as const;
+          }
+          const activeAction = yield* Ref.get(activeUpdateActionRef);
+          if (Option.isSome(activeAction)) {
+            return activeAction.value === "check"
+              ? ("wait-for-check" as const)
+              : ("refused" as const);
+          }
+          return (yield* tryStartUpdateAction("download"))
+            ? ("admitted" as const)
+            : ("refused" as const);
+        }),
+      ),
+    );
+    if (admission === "refused") {
       return { accepted: false, completed: false };
     }
 
-    if (!(yield* tryStartUpdateAction("download"))) {
-      return { accepted: false, completed: false };
-    }
-
+    const offered = yield* Ref.get(updateStateRef);
+    let state = offered;
     return yield* Effect.gen(function* () {
+      if (refresh) {
+        // electron-updater downloads what its last check found, which can be hours old.
+        yield* logUpdaterInfo("checking for updates", { reason: "download" });
+        yield* runUpdaterCheck(
+          offered.channel !== desktopUpdateChannelOf(environment.appVersion),
+        ).pipe(
+          // A failed check keeps electron-updater's earlier result, so the known offer still downloads.
+          Effect.catchTags({
+            ElectronUpdaterCheckForUpdatesError: (error) =>
+              logUpdaterWarning(error.message, {
+                errorTag: error._tag,
+                cause: describeUpdateErrorCause(error.cause),
+              }),
+          }),
+        );
+      }
+      state = yield* Ref.get(updateStateRef);
+      if (state.status !== "available") {
+        return { accepted: true, completed: false };
+      }
       yield* setState(reduceDesktopUpdateStateOnDownloadStart(state));
       yield* electronUpdater.setDisableDifferentialDownload(
         isArm64HostRunningIntelBuild(environment.runtimeInfo),
@@ -576,12 +653,13 @@ export const make = Effect.gen(function* () {
       Effect.catchTags({
         ElectronUpdaterDownloadUpdateError: Effect.fn("desktop.updates.handleDownloadFailure")(
           function* (error) {
+            const cause = describeUpdateErrorCause(error.cause);
             yield* updateState((current) =>
-              reduceDesktopUpdateStateOnDownloadFailure(current, error.message),
+              reduceDesktopUpdateStateOnDownloadFailure(current, `${error.message} ${cause}`),
             );
             yield* logUpdaterError(error.message, {
               errorTag: error._tag,
-              cause: describeUpdateErrorCause(error.cause),
+              cause,
               channel: error.channel,
             });
             return { accepted: true, completed: false };
@@ -612,9 +690,39 @@ export const make = Effect.gen(function* () {
       }),
       Effect.ensuring(finishUpdateAction("download")),
     );
-  }).pipe(Effect.withSpan("desktop.updates.downloadAvailableUpdate"));
+  });
 
   const installRecordDir = environment.path.join(environment.baseDir, "runtime");
+  const updateInProgressMarkerPath = environment.path.join(
+    installRecordDir,
+    DESKTOP_UPDATE_IN_PROGRESS_MARKER_FILE,
+  );
+  const encodeUpdateMarker = Schema.encodeEffect(
+    Schema.fromJsonString(Schema.Struct({ startedAt: Schema.Number, expiresAt: Schema.Number })),
+  );
+  const updateInProgressTempPath = `${updateInProgressMarkerPath}.tmp`;
+  const writeUpdateInProgressMarker = Effect.gen(function* () {
+    const startedAt = DateTime.toEpochMillis(yield* DateTime.now);
+    const contents = yield* encodeUpdateMarker({
+      startedAt,
+      expiresAt: startedAt + DESKTOP_UPDATE_IN_PROGRESS_TTL_MS,
+    });
+    yield* fileSystem.makeDirectory(installRecordDir, { recursive: true });
+    yield* fileSystem.writeFileString(updateInProgressTempPath, contents);
+    yield* fileSystem.rename(updateInProgressTempPath, updateInProgressMarkerPath);
+  }).pipe(
+    Effect.ensuring(
+      fileSystem.remove(updateInProgressTempPath, { force: true }).pipe(Effect.ignore),
+    ),
+    Effect.catch((error) =>
+      logUpdaterWarning("Could not write the update-in-progress marker.", { errorTag: error._tag }),
+    ),
+  );
+  // Failed or interrupted installs leave no replacement backend to clear it.
+  const removeUpdateInProgressMarker = fileSystem
+    .remove(updateInProgressMarkerPath, { force: true })
+    .pipe(Effect.ignore);
+
   const installRecordPath = environment.path.join(
     installRecordDir,
     DESKTOP_UPDATE_INSTALL_RECORD_FILE,
@@ -663,6 +771,7 @@ export const make = Effect.gen(function* () {
       finishUpdateAction("install"),
       Ref.set(desktopState.quitting, false),
       Ref.set(installRunningBackendsRef, []),
+      removeUpdateInProgressMarker,
       removeInstallRecord,
     ],
     { discard: true },
@@ -679,6 +788,7 @@ export const make = Effect.gen(function* () {
     if (!ownsRecovery) return;
 
     yield* Ref.set(desktopState.quitting, false);
+    yield* removeUpdateInProgressMarker;
     yield* removeInstallRecord;
     yield* Effect.gen(function* () {
       const runningInstances = yield* Ref.getAndSet(installRunningBackendsRef, []);
@@ -705,47 +815,35 @@ export const make = Effect.gen(function* () {
   const installDownloadedUpdate = (expectedVersion?: string) =>
     Effect.scoped(
       Effect.gen(function* () {
-        const actionCompletions = yield* PubSub.subscribe(finishedUpdateActions);
-        let admission: "admitted" | "refused" | "wait-for-check" = "wait-for-check";
-        while (admission === "wait-for-check") {
-          admission = yield* stateMutex.withPermits(1)(
-            Effect.gen(function* () {
-              const state = yield* Ref.get(updateStateRef);
-              const activeAction = yield* Ref.get(activeUpdateActionRef);
-              const hasExpectedDownload =
-                state.downloadedVersion !== null &&
-                (expectedVersion === undefined || state.downloadedVersion === expectedVersion);
-              if (
-                (yield* Ref.get(desktopState.quitting)) ||
-                !(yield* Ref.get(updaterConfiguredRef)) ||
-                !hasExpectedDownload
-              ) {
-                return "refused" as const;
-              }
-              if (Option.isSome(activeAction)) {
-                return activeAction.value === "check" && expectedVersion !== undefined
-                  ? ("wait-for-check" as const)
-                  : ("refused" as const);
-              }
-              const hasInstallableDownload =
-                state.status === "downloaded" ||
-                (state.status === "error" &&
-                  (state.errorContext === null || state.errorContext === "install"));
-              if (!hasInstallableDownload) return "refused" as const;
-              return (yield* tryStartUpdateAction("install"))
-                ? ("admitted" as const)
-                : ("refused" as const);
-            }),
-          );
-          if (admission === "wait-for-check") {
-            const finishedAction = yield* PubSub.take(actionCompletions).pipe(
-              Effect.timeoutOption(PREPARED_INSTALL_CHECK_WAIT),
-            );
-            if (Option.isNone(finishedAction)) {
-              admission = "refused";
+        const admission = yield* admitAfterCheck(
+          Effect.gen(function* () {
+            const state = yield* Ref.get(updateStateRef);
+            const activeAction = yield* Ref.get(activeUpdateActionRef);
+            const hasExpectedDownload =
+              state.downloadedVersion !== null &&
+              (expectedVersion === undefined || state.downloadedVersion === expectedVersion);
+            if (
+              (yield* Ref.get(desktopState.quitting)) ||
+              !(yield* Ref.get(updaterConfiguredRef)) ||
+              !hasExpectedDownload
+            ) {
+              return "refused" as const;
             }
-          }
-        }
+            if (Option.isSome(activeAction)) {
+              return activeAction.value === "check"
+                ? ("wait-for-check" as const)
+                : ("refused" as const);
+            }
+            const hasInstallableDownload =
+              state.status === "downloaded" ||
+              (state.status === "error" &&
+                (state.errorContext === null || state.errorContext === "install"));
+            if (!hasInstallableDownload) return "refused" as const;
+            return (yield* tryStartUpdateAction("install"))
+              ? ("admitted" as const)
+              : ("refused" as const);
+          }),
+        );
         if (admission === "refused") {
           return { accepted: false, completed: false, failed: false };
         }
@@ -754,11 +852,12 @@ export const make = Effect.gen(function* () {
         yield* Ref.set(installRunningBackendsRef, []);
 
         return yield* Effect.gen(function* () {
+          yield* writeUpdateInProgressMarker;
           const { downloadedVersion } = yield* Ref.get(updateStateRef);
           if (downloadedVersion !== null) yield* writeInstallRecord(downloadedVersion);
-          // Stop every pool backend, not just the primary: quitAndInstall's app.quit() exits before
-          // the pool's scope finalizers run, so the WSL child would be hard-killed instead of
-          // getting SIGTERM and grace.
+          // Stop every pool backend, not just the primary, and every SSH tunnel: quitAndInstall's
+          // app.quit() exits before their scope finalizers run, so the WSL child would be
+          // hard-killed instead of getting SIGTERM and grace.
           const instances = yield* pool.list;
 
           const runningInstances = yield* Effect.filter(instances, (instance) =>
@@ -774,6 +873,7 @@ export const make = Effect.gen(function* () {
                 { concurrency: "unbounded", discard: true },
               ),
               codexMicro.pause,
+              sshEnvironment.closeAllTunnels,
             ],
             { concurrency: "unbounded", discard: true },
           );
@@ -829,7 +929,42 @@ export const make = Effect.gen(function* () {
         state: yield* Ref.get(updateStateRef),
       };
     }
-    const result = yield* installDownloadedUpdate(expectedVersion);
+    let installVersion = expectedVersion;
+    // A download can be hours old: a release published since replaces it before restarting.
+    const retained = yield* Ref.get(updateStateRef);
+    if (
+      retained.downloadedVersion !== null &&
+      (expectedVersion === undefined || retained.downloadedVersion === expectedVersion) &&
+      (yield* checkForUpdates(
+        "install",
+        "acquire",
+        retained.channel !== desktopUpdateChannelOf(environment.appVersion),
+      )) &&
+      (yield* Ref.get(updateStateRef)).status === "available"
+    ) {
+      const refreshed = yield* Ref.get(updateStateRef);
+      // electron-updater compares a stale feed with the running build, not the retained download.
+      if (
+        refreshed.availableVersion === null ||
+        compareSemverVersions(refreshed.availableVersion, retained.downloadedVersion) <= 0
+      ) {
+        yield* setState(retained);
+      } else {
+        const download = yield* downloadAvailableUpdate(false);
+        if (!download.completed) {
+          return {
+            accepted: download.accepted,
+            completed: false,
+            failed: download.accepted,
+            state: yield* Ref.get(updateStateRef),
+          };
+        }
+        if (expectedVersion !== undefined) {
+          installVersion = (yield* Ref.get(updateStateRef)).downloadedVersion ?? expectedVersion;
+        }
+      }
+    }
+    const result = yield* installDownloadedUpdate(installVersion);
     return {
       accepted: result.accepted,
       completed: result.completed,
@@ -889,10 +1024,11 @@ export const make = Effect.gen(function* () {
             yield* Ref.set(lastLoggedDownloadMilestoneRef, -1);
             return;
           }
+          if (isOffered(state) && state.availableVersion === info.version) return;
 
           const checkedAt = yield* currentIsoTimestamp;
           const { releaseNotes, omittedReleaseCount } = normalizeDesktopUpdateReleaseNotes(
-            info.releaseNotes,
+            releaseNotesOfOfferedVersion(info),
             info.version,
             state.channel,
             info.releaseDate,
@@ -1066,6 +1202,8 @@ export const make = Effect.gen(function* () {
     disabledReason: resolveDisabledReason,
     configure: Effect.gen(function* () {
       const context = yield* Effect.context<never>();
+      // Runs synchronously up to the first await, so a check's outcome is applied before the
+      // check's promise resolves and wakes the actions waiting on it.
       const runEffect = (effect: Effect.Effect<void>) => {
         void Effect.runPromiseWith(context)(effect);
       };
@@ -1091,6 +1229,7 @@ export const make = Effect.gen(function* () {
 
       const settings = yield* desktopSettings.get;
       const disabledReason = yield* resolveDisabledReason;
+      yield* Ref.set(desktopState.canInstallUpdates, Option.isNone(disabledReason));
       yield* setState(yield* baseUpdateState(settings.updateChannel, disabledReason));
       if (Option.isSome(disabledReason)) {
         return;
@@ -1156,7 +1295,10 @@ export const make = Effect.gen(function* () {
       }
 
       return yield* Effect.gen(function* () {
-        yield* Ref.set(releaseFloorRef, Option.fromNullishOr(options?.minimumVersion));
+        const previousFloor = yield* Ref.getAndSet(
+          releaseFloorRef,
+          Option.fromNullishOr(options?.minimumVersion),
+        );
         const state = yield* Ref.get(updateStateRef);
         const retained = state.downloadedVersion ?? state.availableVersion;
         // A build from another track re-checks, so retrying a track switch finds an older release.
@@ -1169,13 +1311,12 @@ export const make = Effect.gen(function* () {
           return state;
         }
 
-        yield* desktopSettings
-          .setUpdateChannel(nextChannel)
-          .pipe(
-            Effect.mapError(
-              (cause) => new DesktopUpdateChannelPersistenceError({ channel: nextChannel, cause }),
-            ),
-          );
+        yield* desktopSettings.setUpdateChannel(nextChannel).pipe(
+          Effect.onError(() => Ref.set(releaseFloorRef, previousFloor)),
+          Effect.mapError(
+            (cause) => new DesktopUpdateChannelPersistenceError({ channel: nextChannel, cause }),
+          ),
+        );
 
         const disabledReason = yield* resolveDisabledReason;
         yield* setState(yield* baseUpdateState(nextChannel, disabledReason));
@@ -1212,7 +1353,7 @@ export const make = Effect.gen(function* () {
       };
     }),
     download: Effect.gen(function* () {
-      const result = yield* downloadAvailableUpdate;
+      const result = yield* downloadAvailableUpdate(true);
       return {
         accepted: result.accepted,
         completed: result.completed,

@@ -139,7 +139,8 @@ export function commitPaneDrop(target: PaneDropTarget, payload: PaneDragPayload)
     return true;
   }
   if (payload.kind !== "threads" || payload.threads.length !== 1) return false;
-  const thread = { kind: "server" as const, threadRef: payload.threads[0]! };
+  const { environmentId, threadId } = payload.threads[0]!;
+  const thread = { kind: "server" as const, threadRef: { environmentId, threadId } };
   if (target.zone === "center") {
     store.replace(target.paneId, thread, workspaceSize());
     return true;

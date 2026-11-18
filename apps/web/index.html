@@ -15,6 +15,7 @@
         const LIGHT_BACKGROUND = "oklch(1 0 0)";
         const DARK_BACKGROUND = "oklch(0.235659 0.007789 274.606)";
         const CUSTOM_THEMES_STORAGE_KEY = "supaterm:themes:v1";
+        const ENVIRONMENT_THEMES_STORAGE_KEY = "supaterm:environment-themes:v1";
         const THEME_APPEARANCE_MODE_STORAGE_KEY = "supaterm:theme-appearance-mode";
         const THEME_HALVES_STORAGE_KEY = "supaterm:theme-halves:v1";
         const SPLASH_COLORS = {
@@ -296,12 +297,9 @@
               (appearance === value.appearance || isRecord(colors)),
           );
         };
-        const findCustomTheme = (themeId) => {
-          if (RESERVED_THEME_IDS.includes(themeId)) return null;
+        const findStoredTheme = (storageKey, themeId) => {
           try {
-            const parsed = JSON.parse(
-              window.localStorage.getItem(CUSTOM_THEMES_STORAGE_KEY) ?? "null",
-            );
+            const parsed = JSON.parse(window.localStorage.getItem(storageKey) ?? "null");
             if (!Array.isArray(parsed)) return null;
             return (
               parsed.find((value) => isStoredCustomTheme(value) && value.id === themeId) ?? null
@@ -309,6 +307,14 @@
           } catch {
             return null;
           }
+        };
+        // Same precedence as getThemeDefinition: saved custom themes, then published ones.
+        const findCustomTheme = (themeId) => {
+          if (RESERVED_THEME_IDS.includes(themeId)) return null;
+          return (
+            findStoredTheme(CUSTOM_THEMES_STORAGE_KEY, themeId) ??
+            findStoredTheme(ENVIRONMENT_THEMES_STORAGE_KEY, themeId)
+          );
         };
 
         try {

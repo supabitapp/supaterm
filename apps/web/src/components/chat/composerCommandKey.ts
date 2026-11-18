@@ -19,7 +19,9 @@ import type { ComposerPromptEditorHandle } from "../ComposerPromptEditorTiptap";
 import type { ComposerCommandItem } from "./ComposerCommandMenu";
 import {
   buildComposerPromptHistoryEntries,
+  NO_PROMPT_HISTORY_MENTIONS,
   stepComposerPromptHistory,
+  type ComposerPromptHistoryMentions,
   type ComposerPromptHistoryPosition,
 } from "./composerPromptHistory";
 import type { PendingUserInput } from "../../session-logic";
@@ -28,6 +30,7 @@ import {
   type ComposerDispatchMode,
 } from "@supaterm/client-runtime/state/composer-dispatch";
 import type { ReviewCommentContext } from "../../reviewCommentContext";
+import type { ReferenceContextRecord } from "../../lib/composerContextRecords";
 
 /**
  * The composer's key handling inside the editor: send shortcuts, the slash/mention menu,
@@ -37,10 +40,11 @@ import type { ReviewCommentContext } from "../../reviewCommentContext";
  */
 export function composerCommandKeyHandler(input: {
   readonly keybindings: ChatComposerProps["keybindings"];
+  readonly getShortcutContext: ChatComposerProps["getShortcutContext"];
   readonly sendShortcut: ChatComposerProps["settings"]["sendShortcut"];
   readonly routeKind: ChatComposerProps["routeKind"];
-  readonly phase: ChatComposerProps["phase"];
-  readonly isCompacting: boolean;
+  readonly turnRunning: boolean;
+  readonly canSteer: boolean;
   readonly followUpBehavior: ChatComposerProps["settings"]["followUpBehavior"];
   readonly isSoftwareKeyboardOpen: boolean;
   readonly isLiteralPendingAnswer: boolean;
@@ -68,6 +72,10 @@ export function composerCommandKeyHandler(input: {
     target: ChatComposerProps["composerDraftTarget"],
     prompt: string,
   ) => void;
+  readonly setComposerDraftReferenceContexts: (
+    target: ChatComposerProps["composerDraftTarget"],
+    records: ReadonlyArray<ReferenceContextRecord>,
+  ) => void;
   readonly setComposerCursor: Dispatch<SetStateAction<number>>;
   readonly setComposerTrigger: (trigger: ComposerTrigger | null) => void;
   readonly setComposerHighlightedItemId: Dispatch<SetStateAction<string | null>>;
@@ -92,10 +100,11 @@ export function composerCommandKeyHandler(input: {
 }) {
   const {
     keybindings,
+    getShortcutContext,
     sendShortcut,
     routeKind,
-    phase,
-    isCompacting,
+    turnRunning,
+    canSteer,
     followUpBehavior,
     isSoftwareKeyboardOpen,
     isLiteralPendingAnswer,
@@ -116,6 +125,7 @@ export function composerCommandKeyHandler(input: {
     composerMenuItemsRef,
     activeComposerMenuItemRef,
     setComposerDraftPrompt,
+    setComposerDraftReferenceContexts,
     setComposerCursor,
     setComposerTrigger,
     setComposerHighlightedItemId,
@@ -134,9 +144,13 @@ export function composerCommandKeyHandler(input: {
   // otherwise turn B's own draft into a browsing position.
   const promptHistoryTargetKey = composerTargetKey(composerDraftTarget);
 
-  const replacePromptFromHistory = (nextPrompt: string) => {
+  const replacePromptFromHistory = (
+    nextPrompt: string,
+    mentions: ComposerPromptHistoryMentions,
+  ) => {
     promptRef.current = nextPrompt;
     setComposerDraftPrompt(composerDraftTarget, nextPrompt);
+    setComposerDraftReferenceContexts(composerDraftTarget, mentions.referenceContexts);
     setComposerCursor(collapseExpandedComposerCursor(nextPrompt, nextPrompt.length));
     setComposerTrigger(null);
     setComposerHighlightedItemId(null);
@@ -190,7 +204,7 @@ export function composerCommandKeyHandler(input: {
     promptHistoryPositionRef.current = step.position
       ? { targetKey: promptHistoryTargetKey, position: step.position }
       : null;
-    replacePromptFromHistory(step.prompt);
+    replacePromptFromHistory(step.prompt, step.mentions);
     return true;
   };
 
@@ -217,9 +231,10 @@ export function composerCommandKeyHandler(input: {
     const submissionIntent = composerSubmissionIntentForKey({
       event,
       keybindings,
+      context: getShortcutContext(event.target),
       isSoftwareKeyboardOpen,
       isDraftThread: routeKind === "draft",
-      isRunning: phase === "running",
+      isRunning: turnRunning,
       sendShortcut,
       prompt: promptRef.current,
     });
@@ -242,7 +257,7 @@ export function composerCommandKeyHandler(input: {
     ) {
       // Accepting only fills the draft; the user still reads it and sends.
       if (key === "Tab" || key === "ArrowRight") {
-        replacePromptFromHistory(promptSuggestion.text);
+        replacePromptFromHistory(promptSuggestion.text, NO_PROMPT_HISTORY_MENTIONS);
         return true;
       }
       if (key === "Escape") {
@@ -285,10 +300,10 @@ export function composerCommandKeyHandler(input: {
       submitComposer(
         undefined,
         resolveComposerDispatchMode({
-          running: phase === "running",
+          running: turnRunning,
           alternateModifier: submissionIntent === "alternate",
           activeTurnDefault: followUpBehavior,
-          canSteer: !isCompacting,
+          canSteer,
         }),
         submissionIntent,
       );
@@ -304,7 +319,8 @@ export function composerCommandKeyHandler(input: {
   return {
     onComposerCommandKey,
     acceptPromptSuggestion: () => {
-      if (promptSuggestion !== null) replacePromptFromHistory(promptSuggestion.text);
+      if (promptSuggestion !== null)
+        replacePromptFromHistory(promptSuggestion.text, NO_PROMPT_HISTORY_MENTIONS);
     },
   };
 }

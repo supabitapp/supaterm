@@ -1,5 +1,6 @@
 import {
   TimelineRowCtx,
+  type WorkGroupViewedImage,
   type TimelineWorkEntry,
   WorkGroupViewCtx,
   type TimelineRow,
@@ -15,6 +16,7 @@ import {
 import {
   THINKING_PREVIEW_PLUGINS,
   THOUGHT_PREVIEW_PLUGINS,
+  THOUGHT_PREVIEW_SOURCE_MAX_LENGTH,
   workEntryIconName,
   toolGroupSummaryIconName,
 } from "./TimelineWorkEntryRow.logic";
@@ -34,8 +36,14 @@ import {
 } from "./MessagesTimeline.logic";
 import { WorkLogList, WorkLogRow, WorkLogButton } from "./WorkLog";
 import type { WorktreeSetupSnapshot, ToolActivityIcon } from "@supaterm/contracts";
-import { liveThoughtLine } from "@supaterm/client-runtime/work-log/presentation";
+import {
+  liveThoughtLine,
+  resolveViewedImageAsset,
+  workEntriesViewedImagePaths,
+} from "@supaterm/client-runtime/work-log/presentation";
 import { resolveWorkGroupScrollAnchor } from "@supaterm/client-runtime/work-log/scroll-anchor";
+import { toServerClock } from "@supaterm/client-runtime/clock";
+import { useAssetUrls } from "~/assets/assetUrls";
 import { observeResize } from "~/lib/observeResize";
 import { tickTextContent } from "~/lib/tickTextContent";
 import { formatElapsedSeconds } from "./AgentElapsed";
@@ -44,6 +52,7 @@ import { memo, use, useRef, useEffect, useState, useLayoutEffect, type ReactNode
 import { type LegendListRef, LegendList } from "@legendapp/list/react";
 import { workEntryDisplayIndicatesToolFailure } from "../../session-logic";
 import ChatMarkdown from "../ChatMarkdown";
+import { assetMediaActionsSource } from "./ChatMarkdownMedia";
 import { ShrinkIcon, XIcon } from "@supaterm/icons";
 import { Button } from "../ui/button";
 import { getVirtualizedScrollFadeClassName } from "../ui/scroll-area";
@@ -68,9 +77,8 @@ export const WorkGroupSection = memo(function WorkGroupSection({
   isExpandedToolGroup: boolean;
   displayLabel?: string | undefined;
 }) {
-  const { workspaceRoot, routeThreadKey, onToggleWorkEntry } = use(TimelineRowCtx);
-  const onToggleStandaloneEntry = (collapsed: boolean) =>
-    onToggleWorkEntry(disclosureAnchorKey, collapsed);
+  const { workspaceRoot, routeThreadKey, onToggleWorkEntry, onWorkEntryContentReady } =
+    use(TimelineRowCtx);
   const nonEmptyEntries = groupedEntries.filter((entry) =>
     workEntryIsVisibleInGroup(entry, isExpandedToolGroup),
   );
@@ -86,6 +94,7 @@ export const WorkGroupSection = memo(function WorkGroupSection({
         anchorKey={anchorKey}
         disclosureAnchorKey={disclosureAnchorKey}
         entries={nonEmptyEntries}
+        groupedEntries={groupedEntries}
         workspaceRoot={workspaceRoot}
       />
     );
@@ -99,7 +108,10 @@ export const WorkGroupSection = memo(function WorkGroupSection({
           workEntry={workEntry}
           workspaceRoot={workspaceRoot}
           displayLabel={displayLabel}
-          onToggleEntry={onToggleStandaloneEntry}
+          onToggleEntry={(collapsed) =>
+            onToggleWorkEntry(disclosureAnchorKey, collapsed, workEntry.id)
+          }
+          onContentReady={() => onWorkEntryContentReady?.(disclosureAnchorKey, workEntry.id)}
         />
       ))}
     </section>
@@ -111,18 +123,67 @@ const compactWorkEntryHeight = 24;
 // Outlasts the collapsible panel's 150ms close.
 const closingWorkEntryRoomMs = 300;
 
+// The thumbnail strip below the group is its own virtualized row, so the gallery an expanded
+// entry opens is built from the same entries rather than from the strip's mounted images.
+function useWorkGroupViewedImages(
+  groupedEntries: ReadonlyArray<TimelineWorkEntry>,
+): ReadonlyArray<WorkGroupViewedImage> {
+  const { threadRef, workspaceRoot, activeThreadEnvironmentId } = use(TimelineRowCtx);
+  const viewed = threadRef
+    ? workEntriesViewedImagePaths(groupedEntries).flatMap((path) => {
+        const asset = resolveViewedImageAsset(path, {
+          threadId: threadRef.threadId,
+          workspaceRoot,
+        });
+        return asset ? [{ path, asset }] : [];
+      })
+    : [];
+  const environmentId = threadRef?.environmentId ?? activeThreadEnvironmentId;
+  const urls = useAssetUrls(
+    environmentId,
+    viewed.map(({ asset }) => asset.resource),
+  );
+  return viewed.map(({ path, asset }, index) => {
+    const url = urls[index];
+    if (!url) return { path, item: null };
+    const src = url + asset.srcFragment;
+    const name = asset.alt.trim() || "image";
+    return {
+      path,
+      item: {
+        src,
+        name,
+        actionsSource: assetMediaActionsSource({
+          environmentId,
+          resource: asset.resource,
+          kind: "image",
+          name: asset.alt || "image",
+          src,
+          workspaceRoot,
+        }),
+      },
+    };
+  });
+}
+
 function ExpandedWorkGroupEntries({
   anchorKey,
   disclosureAnchorKey,
   entries,
+  groupedEntries,
   workspaceRoot,
 }: {
   anchorKey: string;
   disclosureAnchorKey: string;
   entries: TimelineWorkEntry[];
+  groupedEntries: ReadonlyArray<TimelineWorkEntry>;
   workspaceRoot: string | undefined;
 }) {
-  const { workGroupViewState: viewState, onToggleWorkEntry } = use(TimelineRowCtx);
+  const {
+    workGroupViewState: viewState,
+    onToggleWorkEntry,
+    onWorkEntryContentReady,
+  } = use(TimelineRowCtx);
   const [initialScrollIndex] = useState(() =>
     resolveWorkGroupScrollIndex(entries, viewState.scrollPositions.get(anchorKey)),
   );
@@ -167,8 +228,10 @@ function ExpandedWorkGroupEntries({
     setExpandedContentHeight(height);
   };
 
+  const viewedImages = useWorkGroupViewedImages(groupedEntries);
   const groupView = {
     state: viewState,
+    viewedImages,
     onToggleEntry: (entryId: string, collapsed: boolean) => {
       const timers = closingEntryTimersRef.current;
       window.clearTimeout(timers.get(entryId));
@@ -180,8 +243,9 @@ function ExpandedWorkGroupEntries({
         }, closingWorkEntryRoomMs);
         timers.set(entryId, timer);
       }
-      onToggleWorkEntry(disclosureAnchorKey, collapsed);
+      onToggleWorkEntry(disclosureAnchorKey, collapsed, entryId);
     },
+    onContentReady: (entryId: string) => onWorkEntryContentReady?.(disclosureAnchorKey, entryId),
   };
   const updateScrollFades = () => {
     const element = listRef.current?.getScrollableNode();
@@ -356,6 +420,7 @@ function BackgroundWorktreeSetupChip({ snapshot }: { snapshot: WorktreeSetupSnap
 }
 
 function CompactingLabel({ startedAt }: { startedAt: string | null }) {
+  const { activeThreadEnvironmentId } = use(TimelineRowCtx);
   const startedAtMs = startedAt === null ? Number.NaN : Date.parse(startedAt);
   return (
     <span className="inline-flex items-center gap-1.5">
@@ -365,7 +430,10 @@ function CompactingLabel({ startedAt }: { startedAt: string | null }) {
           Compacting for{" "}
           <span
             ref={tickTextContent(
-              (nowMs) => formatElapsedSeconds((nowMs - startedAtMs) / 1000),
+              (nowMs) =>
+                formatElapsedSeconds(
+                  (toServerClock(activeThreadEnvironmentId, nowMs) - startedAtMs) / 1000,
+                ),
               true,
             )}
             className="tabular-nums"
@@ -380,10 +448,15 @@ function CompactingLabel({ startedAt }: { startedAt: string | null }) {
 
 export function ThinkingTimelineRow({ row }: { row: Extract<TimelineRow, { kind: "thinking" }> }) {
   const ctx = use(TimelineRowCtx);
-  const { isCompacting, isPreparingWorktree } = use(TimelineRowActivityCtx);
+  const { isCompacting, isPreparingWorktree, providerStartingLabel } = use(TimelineRowActivityCtx);
   if (isPreparingWorktree || isCompacting) return <WorkLogRow label="" />;
   const activity = (
-    <LiveActivityRow label="Thinking" iconName="brain" active={row.active} shimmer={row.active} />
+    <LiveActivityRow
+      label={providerStartingLabel ?? row.label ?? "Thinking"}
+      iconName="brain"
+      active={row.active}
+      shimmer={row.active}
+    />
   );
   const { groupId } = row;
   if (groupId === undefined) return activity;
@@ -515,7 +588,9 @@ export function LiveWorkEntryTimelineRow({
 
   const failed = workEntryDisplayIndicatesToolFailure(row.entry);
 
-  const thoughtLine = row.thought ? liveThoughtLine(row.thought.detail ?? "") : "";
+  const thoughtLine = row.thought
+    ? liveThoughtLine((row.thought.detail ?? "").slice(0, THOUGHT_PREVIEW_SOURCE_MAX_LENGTH))
+    : "";
   const thoughtShown = thoughtLine !== "" && !row.expanded;
 
   const thoughtIsStatus = thoughtShown && row.entry === row.thought;
@@ -587,7 +662,7 @@ export function LiveWorkEntryTimelineRow({
           ) : row.entry.itemType === "reasoning" ? (
             <ChatMarkdown
               inline
-              text={row.entry.detail ?? label}
+              text={(row.entry.detail ?? label).slice(0, THOUGHT_PREVIEW_SOURCE_MAX_LENGTH)}
               cwd={ctx.markdownCwd}
               parseRawHtml={false}
               extraRemarkPlugins={row.active ? THINKING_PREVIEW_PLUGINS : THOUGHT_PREVIEW_PLUGINS}

@@ -1,5 +1,6 @@
 import type {
   EnvironmentId,
+  PullRequestActor,
   PullRequestDiffSide,
   PullRequestRef,
   PullRequestReviewPosition,
@@ -16,13 +17,14 @@ import {
   CircleCheckIcon,
 } from "@supaterm/icons";
 
-import { useRef, useState } from "react";
+import { type ReactNode, useRef, useState } from "react";
 import { settlePromise, squashAtomCommandFailure } from "@supaterm/client-runtime/state/runtime";
 
 import { RelativeTime } from "~/components/RelativeTime";
 import { cn } from "~/lib/utils";
 
 import { Button } from "../ui/button";
+import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { PullRequestEditButton } from "./PullRequestEditButton";
 import { isCommentSubmitShortcut } from "../diffs/commentSubmitShortcut";
 import {
@@ -30,7 +32,7 @@ import {
   mergePullRequestThreadComments,
   visibleBody,
 } from "./pullRequestDetail.logic";
-import { PullRequestActorLabel } from "./pullRequestPresentation";
+import { PullRequestActorAvatar, PullRequestActorLabel } from "./pullRequestPresentation";
 import { PullRequestMarkdown } from "./PullRequestMarkdown";
 import { PullRequestMarkdownEditor } from "./PullRequestMarkdownEditor";
 import { PullRequestReactionBar } from "./PullRequestReactions";
@@ -114,6 +116,66 @@ export function PendingReviewCommentCard({
   );
 }
 
+/** The conversations on one diff line. Resolved ones hide behind their authors' avatars. */
+export function InlineReviewThreads({
+  threads,
+  renderThread,
+}: {
+  threads: ReadonlyArray<PullRequestReviewThread>;
+  renderThread: (thread: PullRequestReviewThread, hidden: boolean) => ReactNode;
+}) {
+  const [shown, setShown] = useState<ReadonlySet<string>>(() => new Set());
+  // A conversation seen open stays shown once resolved, so it does not vanish under the reader.
+  const open = threads.filter((thread) => !thread.isResolved);
+  if (open.some((thread) => !shown.has(thread.id))) {
+    setShown(new Set([...shown, ...open.map((thread) => thread.id)]));
+  }
+  const resolved = threads.filter((thread) => thread.isResolved);
+  const expanded = resolved.every((thread) => shown.has(thread.id));
+  const authors = new Map<string, PullRequestActor | null>();
+  for (const comment of resolved.flatMap((thread) => thread.comments)) {
+    authors.set(comment.author?.login ?? "ghost", comment.author);
+  }
+  if (authors.size === 0) authors.set("ghost", null);
+  const label =
+    resolved.length === 1 ? "Resolved conversation" : `${resolved.length} resolved conversations`;
+  return (
+    <>
+      {resolved.length > 0 ? (
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <button
+                type="button"
+                data-resolved-threads
+                aria-label={label}
+                aria-expanded={expanded}
+                // Sits on the commented line, which is the row above this annotation.
+                className="absolute right-3 bottom-full flex h-[var(--diffs-line-height,20px)] cursor-pointer items-center -space-x-1 rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+                contentEditable={false}
+                onPointerDown={(event) => event.stopPropagation()}
+                onClick={() =>
+                  setShown(new Set((expanded ? open : threads).map((thread) => thread.id)))
+                }
+              />
+            }
+          >
+            {[...authors].slice(0, 3).map(([login, author]) => (
+              <PullRequestActorAvatar
+                key={login}
+                actor={author}
+                className="ring-1 ring-background"
+              />
+            ))}
+          </TooltipTrigger>
+          <TooltipPopup side="left">{label}</TooltipPopup>
+        </Tooltip>
+      ) : null}
+      {threads.map((thread) => renderThread(thread, thread.isResolved && !shown.has(thread.id)))}
+    </>
+  );
+}
+
 export function ReviewThreadCard({
   thread,
   workspaceRoot,
@@ -134,6 +196,7 @@ export function ReviewThreadCard({
   onEditComment,
   onToggleResolved,
   onReacted,
+  hidden,
 }: {
   thread: PullRequestReviewThread;
   workspaceRoot: string;
@@ -158,8 +221,10 @@ export function ReviewThreadCard({
   onEditComment: (commentId: string, body: string) => Promise<boolean>;
   onToggleResolved: () => void;
   onReacted: () => void;
+  /** Set on a diff line. Hidden draws nothing but stays mounted, so an unsent reply survives. */
+  hidden?: boolean;
 }) {
-  const [expanded, setExpanded] = useState(!thread.isResolved);
+  const [expanded, setExpanded] = useState(hidden !== undefined || !thread.isResolved);
   const [replying, setReplying] = useState(false);
   const [reply, setReply] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -231,14 +296,16 @@ export function ReviewThreadCard({
     }));
   };
 
+  if (hidden) return null;
+
   const Icon = thread.isResolved ? CircleCheckIcon : CircleIcon;
   return (
     <div
-      className={CARD_CLASS}
+      className={cn(CARD_CLASS, !expanded && "py-1")}
       contentEditable={false}
       onPointerDown={(event) => event.stopPropagation()}
     >
-      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+      <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
         <Icon className={cn("size-3.5", thread.isResolved && "text-success-foreground")} />
         <button
           type="button"
@@ -252,7 +319,7 @@ export function ReviewThreadCard({
         {thread.isOutdated ? <span>outdated</span> : null}
         {onFix ? (
           <Button
-            size="xs"
+            size="compact"
             variant="ghost"
             className="ml-auto"
             disabled={pending || fixPending}
@@ -264,7 +331,7 @@ export function ReviewThreadCard({
         ) : null}
         {onAddToChat && comments.some((comment) => visibleBody(comment.body) !== null) ? (
           <Button
-            size="xs"
+            size="compact"
             variant="ghost"
             className={onFix ? undefined : "ml-auto"}
             onClick={() => onAddToChat({ ...thread, comments })}
@@ -275,7 +342,7 @@ export function ReviewThreadCard({
         ) : null}
         {canResolve ? (
           <Button
-            size="xs"
+            size="compact"
             variant="ghost"
             className={onFix || onAddToChat ? undefined : "ml-auto"}
             disabled={pending}

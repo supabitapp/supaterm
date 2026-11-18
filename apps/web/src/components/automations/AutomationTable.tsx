@@ -47,6 +47,8 @@ export interface AutomationTableEntry {
   readonly environmentId: EnvironmentId;
   readonly environmentLabel: string;
   readonly task: ScheduledTask;
+  /** The server's IANA zone for fixed-time schedules; absent from older servers. */
+  readonly timeZone: string | undefined;
   readonly project: SidebarProjectSnapshot | null;
 }
 
@@ -120,7 +122,7 @@ export function AutomationTable({
 }
 
 function AutomationRow({
-  entry: { environmentId, environmentLabel, task, project },
+  entry: { environmentId, environmentLabel, task, timeZone, project },
   showProject,
   showEnvironment,
   now,
@@ -171,7 +173,7 @@ function AutomationRow({
   };
   const titleTone = task.enabled ? "text-foreground" : "text-muted-foreground";
   const projectLabel = project?.displayName ?? "Project removed";
-  const schedule = scheduleSummary(task.schedule);
+  const schedule = scheduleSummary(task.schedule, timeZone, task.nextRunAt);
   const details = [
     showProject ? projectLabel : null,
     showEnvironment ? environmentLabel : null,

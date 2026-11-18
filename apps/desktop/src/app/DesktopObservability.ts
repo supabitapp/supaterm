@@ -224,7 +224,7 @@ const refreshFileSize = (
     Effect.orElseSucceed(() => 0),
   );
 
-const makeRotatingLogFileWriter = Effect.fn("makeRotatingLogFileWriter")(function* (input: {
+export const makeRotatingLogFileWriter = Effect.fn("makeRotatingLogFileWriter")(function* (input: {
   readonly filePath: string;
   readonly maxBytes?: number;
   readonly maxFiles?: number;
@@ -263,8 +263,10 @@ const makeRotatingLogFileWriter = Effect.fn("makeRotatingLogFileWriter")(functio
     const entries = yield* fileSystem.readDirectory(directory).pipe(Effect.orElseSucceed(() => []));
     for (const entry of entries) {
       if (!entry.startsWith(`${baseName}.`)) continue;
-      const suffix = Number(entry.slice(baseName.length + 1));
-      if (!Number.isInteger(suffix) || suffix <= maxFiles) continue;
+      const suffixText = entry.slice(baseName.length + 1);
+      const suffix = Number(suffixText);
+      if (!Number.isInteger(suffix) || String(suffix) !== suffixText || suffix <= maxFiles)
+        continue;
       yield* fileSystem.remove(path.join(directory, entry), { force: true }).pipe(Effect.ignore);
     }
   });
@@ -654,6 +656,8 @@ const layerTelemetry = Layer.unwrap(
           maxFiles: DESKTOP_LOG_FILE_MAX_FILES,
           batchWindowMs: DESKTOP_TRACE_BATCH_WINDOW_MS,
         });
+        // Unscoped: Electron can exit without closing the app scope, e.g. when the display drops.
+        process.once("exit", sink.flushSync);
         const delegate =
           endpoints.traces === undefined
             ? undefined

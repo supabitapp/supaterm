@@ -1,7 +1,11 @@
 import type { ProviderDriverKind, ServerProvider } from "@supaterm/contracts";
 import { BotIcon, type IconComponent } from "@supaterm/icons";
 import { cn } from "../../lib/utils";
-import { shouldShowInstanceBadge, type ProviderInstanceEntry } from "../../providerInstances";
+import {
+  hasInstanceBadge,
+  shouldShowInstanceBadge,
+  type ProviderInstanceEntry,
+} from "../../providerInstances";
 import { ProviderInstanceIcon } from "./ProviderInstanceIcon";
 
 export function threadRelationshipStatusLabel(status: string | null): string {
@@ -61,6 +65,7 @@ export function ThreadRelationshipIcon({
     ? providerEntries.find((candidate) => candidate.instanceId === provider?.instanceId)
     : undefined;
   const showInstanceBadge = entry !== undefined && shouldShowInstanceBadge(entry, providerEntries);
+  const anyInstanceBadge = hasInstanceBadge(providerEntries);
   return (
     <span className="relative inline-flex size-3.5 shrink-0 items-center justify-center">
       {driver ? (
@@ -80,8 +85,8 @@ export function ThreadRelationshipIcon({
       )}
       <span
         className={cn(
-          "absolute size-2 rounded-full border-2 border-card",
-          showInstanceBadge ? "-left-1 -top-1" : "-bottom-1 -right-1",
+          "absolute -right-1 size-2 rounded-full border-2 border-card",
+          anyInstanceBadge ? "-top-1" : "-bottom-1",
           status === "running" ||
             status === "in_progress" ||
             status === "pending" ||

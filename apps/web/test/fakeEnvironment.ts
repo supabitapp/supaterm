@@ -15,6 +15,7 @@ import {
   ProviderInstanceId,
   RunId,
   ServerConfig,
+  type ServerConfigStreamEvent,
   ThreadId,
   TurnItemId,
   WS_METHODS,
@@ -30,6 +31,7 @@ import {
   type OrchestrationV2ThreadStreamItem,
   type OrchestrationV2TurnItem,
   type TerminalMetadataStreamEvent,
+  type ResolvedKeybindingsConfig,
 } from "@supaterm/contracts";
 import type {
   ConnectionAttemptError,
@@ -69,7 +71,7 @@ const auth = {
   sessionCookieName: "supaterm_session",
 };
 
-const serverConfig: ServerConfig = {
+const baseServerConfig: ServerConfig = {
   ...Schema.decodeUnknownSync(ServerConfig)({
     environment: descriptor,
     auth,
@@ -107,6 +109,12 @@ const serverConfig: ServerConfig = {
   }),
   keybindings: DEFAULT_RESOLVED_KEYBINDINGS,
 };
+// A server only leaves threads out of the shell when it serves their families.
+const serverConfig = (): ServerConfig => ({
+  ...baseServerConfig,
+  keybindings,
+  ...(threads.some((thread) => thread.olderDone) ? { shellThreadFamilies: true } : {}),
+});
 
 const project: OrchestrationProjectShell = {
   id: PROJECT_ID,
@@ -190,10 +198,14 @@ function run(threadId: ThreadId, id: RunId, ordinal: number, userMessageId: stri
 export interface FakeThread {
   /** Makes this a side chat of that thread. */
   readonly sideChatOf?: ThreadId;
+  /** Makes this an older Done thread the shell leaves out; only its family read returns it. */
+  readonly olderDone?: true;
   readonly id: ThreadId;
   readonly title: string;
   readonly runs: ReadonlyArray<OrchestrationV2Run>;
   readonly items: ReadonlyArray<OrchestrationV2TurnItem>;
+  readonly runtimeRequests?: OrchestrationV2ThreadProjection["runtimeRequests"];
+  readonly modelSelection?: OrchestrationV2ThreadShell["modelSelection"];
 }
 
 /** A thread of `turns` user prompts, each answered in markdown with a list and inline code. */
@@ -221,12 +233,13 @@ export function threadWithHistory(name: string, turns: number): FakeThread {
 
 function shellOf(thread: FakeThread): OrchestrationV2ThreadShell {
   const latest = thread.runs.at(-1);
+  const modelSelection = thread.modelSelection ?? MODEL;
   return {
     id: thread.id,
     projectId: PROJECT_ID,
     title: thread.title,
-    providerInstanceId: CODEX,
-    modelSelection: MODEL,
+    providerInstanceId: modelSelection.instanceId,
+    modelSelection,
     runtimeMode: "full-access",
     interactionMode: "default",
     branch: "main",
@@ -254,8 +267,8 @@ function shellOf(thread: FakeThread): OrchestrationV2ThreadShell {
     createdAt: AT,
     updatedAt: AT,
     archivedAt: null,
-    doneOverride: null,
-    doneAt: null,
+    doneOverride: thread.olderDone ? "done" : null,
+    doneAt: thread.olderDone ? AT : null,
     lastVisitedAt: AT,
     deletedAt: null,
   };
@@ -291,8 +304,8 @@ function projectionOf(thread: FakeThread): OrchestrationV2ThreadProjection {
       createdAt: AT,
       updatedAt: AT,
       archivedAt: null,
-      doneOverride: null,
-      doneAt: null,
+      doneOverride: shell.doneOverride,
+      doneAt: shell.doneAt,
       lastVisitedAt: AT,
       deletedAt: null,
     },
@@ -303,7 +316,7 @@ function projectionOf(thread: FakeThread): OrchestrationV2ThreadProjection {
     providerSessions: [],
     providerThreads: [],
     providerTurns: [],
-    runtimeRequests: [],
+    runtimeRequests: [...(thread.runtimeRequests ?? [])],
     messages: [],
     plans: [],
     turnItems: [...thread.items],
@@ -325,8 +338,11 @@ let terminalMetadataSubscriber: Queue.Queue<TerminalMetadataStreamEvent> | null 
 let threads: ReadonlyArray<FakeThread> = [];
 let dispatched: OrchestrationV2Command[] = [];
 let acceptCommands = false;
+let keybindings: ResolvedKeybindingsConfig = DEFAULT_RESOLVED_KEYBINDINGS;
+let projects: ReadonlyArray<OrchestrationProjectShell> = [project];
 let sequence = 1;
 let vcsStatusSubscriber: Queue.Queue<VcsStatusStreamEvent> | null = null;
+const serverConfigSubscribers = new Set<Queue.Queue<ServerConfigStreamEvent>>();
 
 const subscribe = <A>(first: ReadonlyArray<A>, register?: (queue: Queue.Queue<A>) => () => void) =>
   Stream.unwrap(
@@ -341,11 +357,35 @@ const subscribe = <A>(first: ReadonlyArray<A>, register?: (queue: Queue.Queue<A>
     }),
   );
 
+// The app's config subscription outlives a test's render, so a later fake pushes its keybindings.
+const subscribeServerConfig = () =>
+  subscribe<ServerConfigStreamEvent>(
+    [{ version: 1, type: "snapshot", config: serverConfig() }],
+    (queue) => {
+      serverConfigSubscribers.add(queue);
+      return () => serverConfigSubscribers.delete(queue);
+    },
+  );
+
+function setKeybindings(next: ResolvedKeybindingsConfig): void {
+  if (next === keybindings) return;
+  keybindings = next;
+  for (const queue of serverConfigSubscribers) {
+    Effect.runSync(
+      Queue.offer(queue, {
+        version: 1,
+        type: "keybindingsUpdated",
+        payload: { keybindings: next, issues: [] },
+      }),
+    );
+  }
+}
+
 const shellSnapshot = (): OrchestrationV2ShellSnapshot => ({
   schemaVersion: 1,
   snapshotSequence: sequence,
-  projects: [project],
-  threads: threads.map(shellOf),
+  projects,
+  threads: threads.filter((thread) => !thread.olderDone).map(shellOf),
   archivedThreads: [],
 });
 
@@ -387,6 +427,16 @@ const handlers: Record<string, (input: never) => unknown> = {
       },
     );
   },
+  [ORCHESTRATION_V2_WS_METHODS.getThreadFamily]: (input: { readonly threadId: ThreadId }) => {
+    const rootOf = (thread: FakeThread) => thread.sideChatOf ?? thread.id;
+    const requested = threads.find((candidate) => candidate.id === input.threadId);
+    return Effect.succeed({
+      snapshotSequence: sequence,
+      threads: requested
+        ? threads.filter((thread) => rootOf(thread) === rootOf(requested)).map(shellOf)
+        : [],
+    });
+  },
   [WS_METHODS.subscribeVcsStatus]: () =>
     subscribe<VcsStatusStreamEvent>([], (queue) => {
       vcsStatusSubscriber = queue;
@@ -394,8 +444,7 @@ const handlers: Record<string, (input: never) => unknown> = {
         if (vcsStatusSubscriber === queue) vcsStatusSubscriber = null;
       };
     }),
-  [WS_METHODS.subscribeServerConfig]: () =>
-    subscribe([{ version: 1 as const, type: "snapshot" as const, config: serverConfig }]),
+  [WS_METHODS.subscribeServerConfig]: subscribeServerConfig,
 };
 
 // Unanswered calls stay pending, like a server that has not replied yet.
@@ -410,10 +459,9 @@ const client = new Proxy(handlers, {
 
 const session: EnvironmentConnectionLease["session"] = {
   client: client as unknown as WsRpcProtocolClient,
-  initialConfig: Effect.succeed(serverConfig),
+  initialConfig: Effect.sync(serverConfig),
   configChanges: Stream.never,
-  subscribeServerConfig: () =>
-    subscribe([{ version: 1 as const, type: "snapshot" as const, config: serverConfig }]),
+  subscribeServerConfig,
   opened: Effect.void,
   ready: Effect.void,
   probe: Effect.void,
@@ -436,6 +484,7 @@ export const fakeDriver = {
         target: entry.target,
       },
       session,
+      refusedRouteIds: [],
     }),
   checkRoute: () => Effect.succeed("answered" as const),
   preflight: () => Effect.succeedNone,
@@ -454,11 +503,24 @@ const BOUNDED_SNAPSHOT_PATH = /^\/api\/orchestration\/threads\/([^/]+)\/bounded$
 /** Serves the environment's HTTP API and these threads until disposed. */
 export function installFakeEnvironment(
   fixtures: ReadonlyArray<FakeThread>,
-  options?: { readonly acceptCommands?: boolean },
+  options?: {
+    readonly acceptCommands?: boolean;
+    readonly keybindings?: ResolvedKeybindingsConfig;
+    readonly extraProjects?: ReadonlyArray<Pick<OrchestrationProjectShell, "id" | "title">>;
+  },
 ): Disposable {
   threads = fixtures;
+  setKeybindings(options?.keybindings ?? DEFAULT_RESOLVED_KEYBINDINGS);
   dispatched = [];
   acceptCommands = options?.acceptCommands === true;
+  projects = [
+    project,
+    ...(options?.extraProjects ?? []).map((extra) => ({
+      ...project,
+      ...extra,
+      workspaceRoot: `/workspace/${extra.title}`,
+    })),
+  ];
   globalThis.fetch = async (input, init) => {
     const url = new URL(input instanceof Request ? input.url : String(input), window.location.href);
     if (url.origin !== window.location.origin) return realFetch(input, init);
@@ -497,8 +559,10 @@ export function installFakeEnvironment(
     [Symbol.dispose]: () => {
       globalThis.fetch = realFetch;
       threads = [];
+      setKeybindings(DEFAULT_RESOLVED_KEYBINDINGS);
       dispatched = [];
       acceptCommands = false;
+      projects = [project];
     },
   };
 }

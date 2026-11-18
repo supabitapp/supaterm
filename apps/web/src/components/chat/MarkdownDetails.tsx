@@ -1,5 +1,6 @@
 import { Children, isValidElement, use, type ComponentProps, type ReactNode } from "react";
 
+import { cn } from "~/lib/utils";
 import { Collapsible, CollapsiblePanel, CollapsibleTrigger } from "../ui/collapsible";
 import { DisclosureChevron } from "../ui/disclosure-chevron";
 import { findRevealRef, MarkdownFindContext } from "./markdownFindContext";
@@ -8,7 +9,8 @@ import { useTimelineDisclosure } from "./timelineDisclosure";
 export function MarkdownDetails({
   children,
   open = false,
-}: Pick<ComponentProps<"details">, "children" | "open">) {
+  dir,
+}: Pick<ComponentProps<"details">, "children" | "open" | "dir">) {
   const [isOpen, toggle, setIsOpen] = useTimelineDisclosure(open);
   const searching = use(MarkdownFindContext);
   const expanded = isOpen;
@@ -26,7 +28,7 @@ export function MarkdownDetails({
   const content = childNodes.filter((_, index) => index !== summaryIndex);
 
   return (
-    <div className="my-2 border-y border-border/60">
+    <div className="my-2 border-y border-border/60" dir={dir}>
       <Collapsible
         open={isOpen}
         onOpenChange={(_, details) => toggle(details.event)}
@@ -34,10 +36,15 @@ export function MarkdownDetails({
         data-markdown-details-open={expanded ? "true" : "false"}
       >
         <CollapsibleTrigger
-          className="flex w-full items-center gap-2 py-2 text-left text-sm font-medium text-foreground"
+          className="flex w-full items-center gap-2 py-2 text-start text-sm font-medium text-foreground"
           data-markdown-details-summary=""
         >
-          <span className="flex shrink-0 text-muted-foreground">
+          <span
+            className={cn(
+              "flex shrink-0 text-muted-foreground transition-transform duration-150 ease-out motion-reduce:transition-none",
+              !isOpen && "rtl:rotate-180",
+            )}
+          >
             <DisclosureChevron open={isOpen} size="sm" />
           </span>
           <span>{summary}</span>

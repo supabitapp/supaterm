@@ -1,3 +1,5 @@
+import { readHtmlRenderContentHeight } from "@supaterm/shared/htmlRender";
+
 import { observeKeyDown } from "../../shortcuts/dispatcher";
 import {
   eventPathContainsSelector,
@@ -61,6 +63,8 @@ export interface TimelineViewport {
 
 const UP_KEYS = new Set(["PageUp", "Home", "ArrowUp"]);
 const DOWN_KEYS = new Set(["PageDown", "End", "ArrowDown", " "]);
+// Wide enough for an overlay scrollbar, which takes no layout space (macOS Firefox).
+const SCROLLBAR_HIT_PX = 16;
 
 /**
  * Owns the timeline scroll node's input listeners for as long as the node is
@@ -71,6 +75,7 @@ export function attachTimelineViewport(
   options: {
     /** Split panes each own a viewport; keys typed outside every list belong to the focused one. */
     readonly isInputOwner?: () => boolean;
+    readonly onFrameResize?: (frame: HTMLIFrameElement) => void;
   } = {},
 ): TimelineViewport & {
   readonly dispose: () => void;
@@ -82,14 +87,21 @@ export function attachTimelineViewport(
     for (const listener of listeners) listener(navigation);
   };
   const handleWheel = (event: WheelEvent) => {
-    if (event.ctrlKey || !isTimelineScrollTarget(event.target, scrollNode, event.deltaY)) return;
+    if (event.ctrlKey || !isTimelineScrollTarget(event.target, scrollNode, event.deltaY, event))
+      return;
     emit({ source: "wheel", direction: event.deltaY < 0 ? "up" : "down" });
   };
   const handleTouchMove = () => emit({ source: "touch" });
-  // Scrollbar drags produce no wheel/touch events; they are the only
-  // pointerdowns whose target is the scroll node itself rather than a row.
+  // Scrollbar drags produce no wheel/touch events. The scroll node's own padding
+  // also targets it, so only a press at its trailing edge counts.
   const handlePointerDown = (event: PointerEvent) =>
-    emit({ source: "pointer", onScrollbar: event.target === scrollNode });
+    emit({
+      source: "pointer",
+      onScrollbar:
+        event.target === scrollNode &&
+        scrollNode.getBoundingClientRect().right - event.clientX <=
+          Math.max(SCROLLBAR_HIT_PX, scrollNode.offsetWidth - scrollNode.clientWidth),
+    });
   // Clicking message text can leave DOM focus on body, and keyboard scrolling
   // bypasses wheel and pointer events, so scroll keys are heard app-wide.
   const handleKeyDown = (event: KeyboardEvent, consumed: boolean) => {
@@ -145,6 +157,23 @@ export function attachTimelineViewport(
       emit({ source: "scroll" });
     }
   };
+  const frameHeights = new WeakMap<HTMLIFrameElement, number>();
+  const handleFrameResize = (event: MessageEvent) => {
+    const height = readHtmlRenderContentHeight(event.data);
+    if (height === undefined) return;
+    const frame = [...scrollNode.querySelectorAll("iframe")].find(
+      (frame) => frame.contentWindow === event.source,
+    );
+    if (!frame) return;
+    const previous = frameHeights.get(frame);
+    frameHeights.set(frame, height);
+    if (previous !== undefined && previous !== height && document.activeElement === frame) {
+      emit({ source: "command", releasesFollow: true });
+      options.onFrameResize?.(frame);
+    }
+  };
+  // Run before frame listeners resize rows, so an accordion cannot drag the reader to the end.
+  window.addEventListener("message", handleFrameResize, true);
   scrollNode.addEventListener("scroll", handleScroll, { passive: true });
   scrollNode.addEventListener("wheel", handleWheel, { passive: true });
   scrollNode.addEventListener("touchmove", handleTouchMove, { passive: true });
@@ -174,6 +203,7 @@ export function attachTimelineViewport(
       return () => followReleasedListeners.delete(listener);
     },
     dispose: () => {
+      window.removeEventListener("message", handleFrameResize, true);
       listeners.clear();
       followReleasedListeners.clear();
       scrollNode.removeEventListener("scroll", handleScroll);

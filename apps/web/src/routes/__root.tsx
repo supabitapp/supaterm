@@ -47,6 +47,7 @@ import { useAtomValue } from "@effect/atom-react";
 import { primaryServerWelcomeAtom } from "../state/server";
 
 import { getDesktopSnapShotBridge } from "../lib/desktopSnapShot";
+import { isChunkLoadError } from "../lib/chunkReloadGuard";
 import { shouldResumeSnapShotSetupOnStartup } from "../lib/snapShotSetupResume";
 
 const CodexMicroCoordinator = lazy(() =>
@@ -225,7 +226,12 @@ function RootRouteErrorView({ error }: ErrorComponentProps) {
       <StandalonePageHeader title="Something went wrong." description={message} />
 
       <div className="mt-5 flex flex-wrap gap-2">
-        <Button size="sm" onClick={() => void router.invalidate()}>
+        <Button
+          size="sm"
+          onClick={() =>
+            isChunkLoadError(error) ? window.location.reload() : void router.invalidate()
+          }
+        >
           Try again
         </Button>
         <Button size="sm" variant="outline" onClick={() => window.location.reload()}>

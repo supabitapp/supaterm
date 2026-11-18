@@ -10,13 +10,7 @@ import {
   isAtomCommandInterrupted,
   squashAtomCommandFailure,
 } from "@supaterm/client-runtime/state/runtime";
-import {
-  ChevronDownIcon,
-  ChevronUpIcon,
-  GlobeIcon,
-  LoaderCircleIcon,
-  SquareIcon,
-} from "@supaterm/icons";
+import { ChevronDownIcon, ChevronUpIcon, GlobeIcon, SquareIcon } from "@supaterm/icons";
 import { type MouseEvent, useState } from "react";
 
 import { resolveDiscoveredServerUrl } from "../../browser/browserTargetResolver";
@@ -28,6 +22,7 @@ import { previewEnvironment } from "../../state/preview";
 import { useEnvironmentScope } from "../../state/session";
 import { useAtomCommand } from "../../state/use-atom-command";
 import { openDiscoveredPort } from "../preview/openDiscoveredPort";
+import { Spinner } from "../ui/spinner";
 import { stackedThreadToast, toastManager } from "../ui/toast";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { ThreadDetailsControl } from "./ThreadDetailsControl";
@@ -170,7 +165,7 @@ function ThreadServersList(props: ThreadServersPanelProps) {
                       }
                     >
                       {stoppingKey === key ? (
-                        <LoaderCircleIcon aria-hidden className="size-3 animate-spin" />
+                        <Spinner aria-hidden size="xs" />
                       ) : (
                         <SquareIcon weight="fill" aria-hidden className="size-3" />
                       )}

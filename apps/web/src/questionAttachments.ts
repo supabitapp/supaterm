@@ -1,12 +1,31 @@
-import { scopedThreadKey } from "@supaterm/client-runtime/environment";
+import { scopedThreadKey, scopeThreadRef } from "@supaterm/client-runtime/environment";
+import type { PendingUserInputDraftAnswer } from "@supaterm/client-runtime/state/pending-user-input";
 import {
   onThreadRequestsResolved,
+  pruneResolvedUserInputDrafts,
   resolvedQuestionDraftKeys,
+  userInputDraftKey,
 } from "@supaterm/client-runtime/state/thread-requests";
-import type { EnvironmentId, ScopedThreadRef, ThreadId } from "@supaterm/contracts";
+import type {
+  EnvironmentId,
+  RuntimeRequestId,
+  ScopedThreadRef,
+  ThreadId,
+} from "@supaterm/contracts";
 import { create } from "zustand";
 import { DraftId, useComposerDraftStore } from "./composerDraftStore";
 import { releaseDraftAttachments } from "./lib/attachmentUploadQueue";
+import type { ReferenceContextRecord } from "./lib/composerContextRecords";
+import {
+  carryDisplacedCustomAnswerIntoPrompt,
+  referenceContextsReferencedByAnswer,
+} from "./pendingUserInput";
+
+/** Edited question answers, keyed by `userInputDraftKey`; suggested answers are not stored. */
+export const usePendingUserInputAnswers = create<
+  Record<string, Record<string, PendingUserInputDraftAnswer>>
+>(() => ({}));
+export const usePendingUserInputQuestionIndex = create<Record<string, number>>(() => ({}));
 
 export function questionAttachmentDraftPrefix(
   environmentId: EnvironmentId,
@@ -113,8 +132,58 @@ function pruneResolvedQuestionAttachmentDrafts(
   }
 }
 
-// Attachment drafts persist across reloads, so a request resolved while this
-// client was away is pruned when its thread's projection first synchronizes.
-onThreadRequestsResolved(({ environmentId, threadId, pendingRequestIds }) =>
-  pruneResolvedQuestionAttachmentDrafts(environmentId, threadId, pendingRequestIds),
-);
+/**
+ * Stop cancels an open question and a provider timeout expires it; neither sent
+ * the typed answers, so they move to the thread's own draft (not a queued-message
+ * edit the composer may be showing) with the thread chips they reference.
+ */
+function returnUnsentAnswersToThreadDraft(
+  environmentId: EnvironmentId,
+  threadId: ThreadId,
+  unansweredRequestIds: ReadonlyArray<RuntimeRequestId>,
+): void {
+  const answers = usePendingUserInputAnswers.getState();
+  const store = useComposerDraftStore.getState();
+  const target = scopeThreadRef(environmentId, threadId);
+  const currentPrompt = store.getComposerDraft(target)?.prompt ?? "";
+  let prompt = currentPrompt;
+  const referenceContexts: ReferenceContextRecord[] = [];
+  for (const requestId of unansweredRequestIds) {
+    const drafts = answers[userInputDraftKey(environmentId, threadId, requestId)] ?? {};
+    for (const [questionId, { customAnswer }] of Object.entries(drafts)) {
+      const nextPrompt = carryDisplacedCustomAnswerIntoPrompt(prompt, customAnswer);
+      if (nextPrompt === prompt) continue;
+      prompt = nextPrompt;
+      const questionDraft = store.getComposerDraft(
+        questionAttachmentDraftId(environmentId, threadId, requestId, questionId),
+      );
+      referenceContexts.push(
+        ...referenceContextsReferencedByAnswer(
+          customAnswer ?? "",
+          questionDraft?.referenceContexts ?? [],
+        ),
+      );
+    }
+  }
+  if (prompt === currentPrompt) return;
+  store.setPrompt(target, prompt);
+  store.addReferenceContexts(target, referenceContexts, { appendReference: false });
+}
+
+// Resolution can come from anywhere: another device, an interrupt, the turn
+// ending, or a reload over drafts for requests resolved meanwhile. One listener,
+// so unsent answers and their chips are read before their drafts are pruned.
+onThreadRequestsResolved(({ environmentId, threadId, pendingRequestIds, unansweredRequestIds }) => {
+  returnUnsentAnswersToThreadDraft(environmentId, threadId, unansweredRequestIds);
+  usePendingUserInputAnswers.setState(
+    (existing) =>
+      pruneResolvedUserInputDrafts(existing, environmentId, threadId, pendingRequestIds),
+    true,
+  );
+  usePendingUserInputQuestionIndex.setState(
+    (existing) =>
+      pruneResolvedUserInputDrafts(existing, environmentId, threadId, pendingRequestIds),
+    true,
+  );
+  pruneResolvedQuestionAttachmentDrafts(environmentId, threadId, pendingRequestIds);
+});

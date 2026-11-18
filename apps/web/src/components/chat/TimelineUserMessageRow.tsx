@@ -9,9 +9,13 @@ import {
   userMessageFileLabel,
 } from "./TimelineUserMessageRow.logic";
 import { UserMessageContextReferenceChip } from "./UserMessageContextChips";
-import { shouldCollapseUserMessage } from "./MessagesTimeline.logic";
+import { copySnapshot as copySnapshotToClipboard } from "./copySnapshot";
 import { InlineAudioPreview } from "../files/InlineAudioPreview";
 import { filePreviewKind } from "@supaterm/shared/filePreview";
+import {
+  CHAT_USER_MARKDOWN_REMARK_PLUGINS,
+  remarkEnableOrderedListNumbers,
+} from "@supaterm/shared/markdownPipeline";
 import { findRevealRef } from "./markdownFindContext";
 import {
   type EnvironmentId,
@@ -90,6 +94,7 @@ import { formatDayAwareTimestamp, formatChatTimestampTooltip } from "../../times
 import { AnimatedHeight } from "../AnimatedHeight";
 import { useTimelineDisclosure } from "./timelineDisclosure";
 import { WorkflowOpeningBlock } from "./WorkflowOpeningBlock";
+import { useTallEnoughToFold } from "./useTallEnoughToFold";
 import { isPinnableProjectedItem, MessagePinButton, useMessagePinned } from "./PinnedMessages";
 
 // Drawn inside the media so dark screenshots keep an edge on the dark background.
@@ -97,7 +102,7 @@ const MEDIA_EDGE_CLASS_NAME =
   "relative after:pointer-events-none after:absolute after:inset-0 after:z-10 after:rounded-[inherit] after:ring-1 after:ring-inset after:ring-black/9 dark:after:ring-white/12";
 
 const BUBBLE_CHIP_CLASS_NAME =
-  "[&_[data-slot=context-chip]]:[--context-chip-ink:var(--context-chip-message,var(--context-chip-accent))]";
+  "[&_[data-slot=context-chip]]:[--context-chip-message-ink:var(--context-chip-message)]";
 
 function UserFileCard({
   file,
@@ -567,6 +572,25 @@ function UserTimelineRow({ row }: { row: Extract<TimelineRow, { kind: "message" 
         });
   const copyText =
     resolvedContext.text || mediaCopyRecords.map(formatComposerContextReference).join("\n");
+  const copySnapshot = async (id: string) => {
+    const image = userImages.find((candidate) => candidate.id === id);
+    const record = resolvedContext.records
+      .map(asKnownContextRecord)
+      .find((candidate) => candidate?.kind === "image" && candidate.attachmentId === id);
+    if (!image?.previewUrl || record?.kind !== "image")
+      throw new Error("Snapshot is no longer available.");
+    const fragment = encodeComposerContextFragment({
+      version: 1,
+      source: { environmentId: ctx.activeThreadEnvironmentId, messageId: row.message.id },
+      records: [{ ...record, ...(image.source ? { source: image.source } : {}) }],
+    });
+    if (!fragment) throw new Error("The snapshot is too large to copy.");
+    await copySnapshotToClipboard(
+      image.previewUrl,
+      formatComposerContextReference(record),
+      fragment,
+    );
+  };
   const onBodyCopyCapture = (event: React.ClipboardEvent<HTMLDivElement>) => {
     if (resolvedContext.records.length === 0 || !event.clipboardData) return;
     const selection = window.getSelection();
@@ -631,7 +655,7 @@ function UserTimelineRow({ row }: { row: Extract<TimelineRow, { kind: "message" 
           annotationImage={annotationImage}
           attachment={attachment}
           onExpandImage={(image) => {
-            const preview = buildExpandedImagePreview(userImages, image.id);
+            const preview = buildExpandedImagePreview(userImages, image.id, copySnapshot);
             if (preview) onImageExpand(preview);
           }}
           onOpenFile={onFileOpen}
@@ -707,7 +731,7 @@ function UserTimelineRow({ row }: { row: Extract<TimelineRow, { kind: "message" 
                 className="block h-full w-full cursor-zoom-in"
                 aria-label={`Preview ${image.name}`}
                 onClick={() => {
-                  const preview = buildExpandedImagePreview(regularImages, image.id);
+                  const preview = buildExpandedImagePreview(regularImages, image.id, copySnapshot);
                   if (!preview) return;
                   ctx.onImageExpand(preview);
                 }}
@@ -742,7 +766,10 @@ function UserTimelineRow({ row }: { row: Extract<TimelineRow, { kind: "message" 
               </div>
             )}
             {image.previewUrl && image.source?.kind === "snap-shot" ? (
-              <SnapShotAttachmentDetails source={image.source} />
+              <SnapShotAttachmentDetails
+                source={image.source}
+                onCopySnapshot={() => copySnapshot(image.id)}
+              />
             ) : null}
           </div>
         ))}
@@ -1066,8 +1093,8 @@ const CollapsibleUserMessageBody = memo(function CollapsibleUserMessageBody(prop
   const revealForFind = () => setExpanded(true);
   const revealRef = findRevealRef(revealForFind);
   const hasVisibleBody = props.text.trim().length > 0;
-  const canCollapse =
-    props.collapsible !== false && hasVisibleBody && shouldCollapseUserMessage(props.text);
+  const foldable = props.collapsible !== false && hasVisibleBody;
+  const { ref: contentRef, tallEnough: canCollapse } = useTallEnoughToFold(foldable);
   const isCollapsed = canCollapse && !expanded;
   const showCollapseControl = canCollapse;
   const body = hasVisibleBody ? (
@@ -1089,18 +1116,20 @@ const CollapsibleUserMessageBody = memo(function CollapsibleUserMessageBody(prop
           : undefined
       }
     >
-      <UserMessageBody
-        text={props.text}
-        renderContextReference={props.renderContextReference}
-        skills={props.skills}
-        markdownCwd={props.markdownCwd}
-      />
+      <div ref={contentRef}>
+        <UserMessageBody
+          text={props.text}
+          renderContextReference={props.renderContextReference}
+          skills={props.skills}
+          markdownCwd={props.markdownCwd}
+        />
+      </div>
     </div>
   ) : null;
 
   return (
     <div>
-      {canCollapse ? <AnimatedHeight animateKey={expanded}>{body}</AnimatedHeight> : body}
+      {foldable ? <AnimatedHeight animateKey={expanded}>{body}</AnimatedHeight> : body}
       {showCollapseControl ? (
         <div className="mt-1.5 flex items-center justify-end gap-2" data-user-message-footer="true">
           {showCollapseControl ? (
@@ -1121,6 +1150,11 @@ const CollapsibleUserMessageBody = memo(function CollapsibleUserMessageBody(prop
   );
 });
 
+const USER_MESSAGE_REMARK_PLUGINS = [
+  ...CHAT_USER_MARKDOWN_REMARK_PLUGINS,
+  remarkEnableOrderedListNumbers,
+];
+
 const UserMessageBody = memo(function UserMessageBody(props: {
   text: string;
   renderContextReference?: (reference: ChatMarkdownContextReference) => ReactNode;
@@ -1137,9 +1171,10 @@ const UserMessageBody = memo(function UserMessageBody(props: {
       cwd={props.markdownCwd}
       threadRef={ctx.threadRef ?? undefined}
       skills={props.skills}
-      className="text-message-foreground"
+      className="text-message-foreground user-message-markdown"
       lineBreaks
       parseRawHtml={false}
+      extraRemarkPlugins={USER_MESSAGE_REMARK_PLUGINS}
       renderContextReference={props.renderContextReference}
       headingLevelOffset={MESSAGE_HEADING_LEVEL}
     />

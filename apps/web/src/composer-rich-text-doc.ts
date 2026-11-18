@@ -90,7 +90,9 @@ type ListLinePrefix =
   | ({ kind: "task" } & TaskLinePrefix)
   | { kind: "bullet" | "ordered"; indent: string; marker: string; space: string };
 
-function parseListPrefix(line: string): { prefix: ListLinePrefix; markerLength: number } | null {
+export function parseListPrefix(
+  line: string,
+): { prefix: ListLinePrefix; markerLength: number } | null {
   const task = parseTaskPrefix(line);
   if (task) return { prefix: { kind: "task", ...task.prefix }, markerLength: task.markerLength };
   const ordered = /^([ \t]*)(\d+[.)])((?:[ \t]+)|$)/.exec(line);
@@ -394,7 +396,12 @@ export function buildTiptapContent(
     });
     openQuote = null;
   };
-  for (const entry of entries) {
+  const isProseLine = (entry: (typeof entries)[number] | undefined, empty: boolean) =>
+    entry !== undefined &&
+    "line" in entry &&
+    !entry.line.list &&
+    (entry.line.inline.length === 0) === empty;
+  for (const [entryIndex, entry] of entries.entries()) {
     if ("quote" in entry) {
       flushLists();
       if (openQuote && openQuote.prefix !== entry.quote.prefix) flushQuote();
@@ -402,7 +409,11 @@ export function buildTiptapContent(
       openQuote.content.push(entry.quote.inline);
       continue;
     }
+    // The serializer separates a quote from the prose after it with one blank line; it is not an empty paragraph.
+    const quoteSeparator =
+      openQuote !== null && isProseLine(entry, true) && isProseLine(entries[entryIndex + 1], false);
     flushQuote();
+    if (quoteSeparator) continue;
     if ("code" in entry) {
       flushLists();
       blocks.push(entry.code);

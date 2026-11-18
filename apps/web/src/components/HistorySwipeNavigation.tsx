@@ -1,12 +1,16 @@
 import { ArrowLeftIcon, ArrowRightIcon } from "@supaterm/icons";
 import { useEffect, useState } from "react";
 
-import { cn } from "../lib/utils";
+import { cn, isMacPlatform } from "../lib/utils";
 import { canNavigateHistory, navigateHistory, type HistoryDirection } from "../navigationHistory";
 
 const SWIPE_TRIGGER_DISTANCE = 120;
 // Movement needed before the gesture picks an axis; first events are often diagonal.
 const SWIPE_AXIS_LOCK_DISTANCE = 8;
+// Vertical scrolls drift sideways, so a swipe's horizontal travel must clearly dominate once
+// it has moved far enough for its direction to be more than noise.
+const SWIPE_HORIZONTAL_DOMINANCE = 2;
+const SWIPE_DOMINANCE_DISTANCE = 30;
 const MOMENTUM_SAMPLE_SIZE = 5;
 // Modals and their backdrops, the terminal and browser previews keep horizontal wheel input.
 const SWIPE_EXCLUDED = [
@@ -26,6 +30,8 @@ type SwipeGesture =
       direction: HistoryDirection;
       distance: number;
       deltas: number[];
+      travelX: number;
+      travelY: number;
       y: number;
       bounds: SwipeBounds;
     }
@@ -61,11 +67,19 @@ function canScrollHorizontally(path: readonly EventTarget[], deltaX: number): bo
   return false;
 }
 
+function isVerticalScroll(travelX: number, travelY: number): boolean {
+  return (
+    travelX + travelY >= SWIPE_DOMINANCE_DISTANCE && travelX <= SWIPE_HORIZONTAL_DOMINANCE * travelY
+  );
+}
+
 function lockSwipeAxis(
   pending: Extract<SwipeGesture, { kind: "pending" }>,
 ): Exclude<SwipeGesture, { kind: "pending" }> {
   const { path, sumX, sumY } = pending;
-  if (Math.abs(sumX) <= Math.abs(sumY)) return { kind: "ignored" };
+  if (Math.abs(sumX) <= Math.abs(sumY) || isVerticalScroll(Math.abs(sumX), Math.abs(sumY))) {
+    return { kind: "ignored" };
+  }
   if (path.some((node) => node instanceof Element && node.matches(SWIPE_EXCLUDED))) {
     return { kind: "ignored" };
   }
@@ -77,6 +91,8 @@ function lockSwipeAxis(
     direction,
     distance: Math.abs(sumX),
     deltas: [],
+    travelX: Math.abs(sumX),
+    travelY: Math.abs(sumY),
     y: pending.y,
     bounds: readMainContentBounds(),
   };
@@ -97,12 +113,16 @@ export function isMomentumTail(deltas: readonly number[]): boolean {
   );
 }
 
-/** Two-finger horizontal trackpad swipes go back and forward, like a browser. */
+/**
+ * Two-finger horizontal trackpad swipes go back and forward, like a browser.
+ * macOS only: on Windows and Linux a mouse tilt wheel is indistinguishable from a trackpad swipe.
+ */
 export function HistorySwipeNavigation() {
   const [swipe, setSwipe] = useState<SwipeIndicatorState | null>(null);
 
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- window wheel and desktop gesture listeners track trackpad swipes
   useEffect(() => {
+    if (!isMacPlatform(navigator.platform)) return;
     let gesture: SwipeGesture | null = null;
     const hideIndicator = () =>
       setSwipe((current) => (current === null ? null : { ...current, tracking: false }));
@@ -139,6 +159,12 @@ export function HistorySwipeNavigation() {
       } else {
         const delta = gesture.direction === "back" ? -event.deltaX : event.deltaX;
         if (event.deltaX === 0 && event.deltaY === 0) return release();
+        gesture.travelX += Math.abs(event.deltaX);
+        gesture.travelY += Math.abs(event.deltaY);
+        if (isVerticalScroll(gesture.travelX, gesture.travelY)) {
+          gesture = { kind: "ignored" };
+          return hideIndicator();
+        }
         gesture.deltas = [...gesture.deltas.slice(1 - MOMENTUM_SAMPLE_SIZE), delta];
         if (isMomentumTail(gesture.deltas)) return release();
         gesture.distance = Math.max(0, gesture.distance + delta);

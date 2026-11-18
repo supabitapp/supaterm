@@ -1,7 +1,9 @@
+import { ConnectionCatalogDocument as RuntimeConnectionCatalogDocument } from "@supaterm/client-runtime/platform";
 import { fromLenientJson } from "@supaterm/shared/schemaJson";
 import * as Context from "effect/Context";
 import * as SecureRandom from "effect/crypto/SecureRandom";
 import * as Effect from "effect/Effect";
+import * as Clock from "effect/Clock";
 import * as Base64 from "effect/encoding/Base64";
 import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
@@ -25,12 +27,17 @@ const decodeEncryptedConnectionCatalogDocumentJson = Schema.decodeEffect(
 const encodeEncryptedConnectionCatalogDocumentJson = Schema.encodeEffect(
   EncryptedConnectionCatalogDocumentJson,
 );
+const decodeRuntimeConnectionCatalogDocumentJson = Schema.decodeEffect(
+  Schema.fromJsonString(RuntimeConnectionCatalogDocument),
+);
+
 const DesktopConnectionCatalogStoreWriteOperation = Schema.Literals([
   "create-temporary-file-name",
   "encode-document",
   "create-directory",
   "write-temporary-file",
   "replace-catalog-file",
+  "keep-unreadable-catalog",
 ]);
 
 const DesktopConnectionCatalogStoreProtectionOperation = Schema.Literals([
@@ -254,6 +261,57 @@ export const make = Effect.gen(function* () {
     ),
   );
 
+  const decryptDocument = (document: EncryptedConnectionCatalogDocument) =>
+    decodeSecretBytes(catalogPath, document.encryptedCatalog).pipe(
+      Effect.flatMap((encryptedCatalog) =>
+        safeStorage.decryptString(encryptedCatalog).pipe(
+          Effect.mapError(
+            (cause) =>
+              new DesktopConnectionCatalogStoreProtectionError({
+                operation: "decrypt-catalog",
+                catalogPath,
+                cause,
+              }),
+          ),
+        ),
+      ),
+    );
+
+  // A catalog this build cannot decrypt or decode may still hold another build's saved
+  // environments and credentials, so a save copies it aside instead of destroying it.
+  const keepUnreadableCatalog = Effect.gen(function* () {
+    const readable = yield* readDocument(fileSystem, catalogPath).pipe(
+      Effect.flatMap(
+        Option.match({
+          onNone: () => Effect.succeed(true),
+          onSome: (document) =>
+            decryptDocument(document).pipe(
+              Effect.flatMap(decodeRuntimeConnectionCatalogDocumentJson),
+              Effect.as(true),
+            ),
+        }),
+      ),
+      Effect.orElseSucceed(() => false),
+    );
+    if (readable) {
+      return;
+    }
+    const keptPath = `${catalogPath}.unreadable-${yield* Clock.currentTimeMillis}`;
+    yield* fileSystem.copyFile(catalogPath, keptPath).pipe(
+      Effect.mapError(
+        (cause) =>
+          new DesktopConnectionCatalogStoreWriteError({
+            operation: "keep-unreadable-catalog",
+            path: keptPath,
+            cause,
+          }),
+      ),
+    );
+    yield* Effect.logWarning("Kept an unreadable connection catalog before replacing it.", {
+      keptPath,
+    });
+  });
+
   const writeCatalog = Effect.fn("desktop.connectionCatalogStore.writeCatalog")(function* (
     catalog: string,
   ) {
@@ -288,26 +346,13 @@ export const make = Effect.gen(function* () {
       if (!(yield* encryptionAvailable)) {
         return Option.none<string>();
       }
-      const decrypted = yield* decodeSecretBytes(catalogPath, document.value.encryptedCatalog).pipe(
-        Effect.flatMap((encryptedCatalog) =>
-          safeStorage.decryptString(encryptedCatalog).pipe(
-            Effect.mapError(
-              (cause) =>
-                new DesktopConnectionCatalogStoreProtectionError({
-                  operation: "decrypt-catalog",
-                  catalogPath,
-                  cause,
-                }),
-            ),
-          ),
-        ),
-      );
-      return Option.some(decrypted);
+      return Option.some(yield* decryptDocument(document.value));
     }).pipe(Effect.withSpan("desktop.connectionCatalogStore.get")),
     set: Effect.fn("desktop.connectionCatalogStore.set")(function* (catalog) {
       if (!(yield* encryptionAvailable)) {
         return false;
       }
+      yield* keepUnreadableCatalog;
       yield* writeCatalog(catalog);
       return true;
     }),

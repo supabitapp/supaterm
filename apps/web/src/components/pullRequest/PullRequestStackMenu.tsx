@@ -73,6 +73,7 @@ export function PullRequestStackMenu({
     mergeHasClosed ||
     mergeLayers.length === 0 ||
     mergeLayers.some((layer) => layer.isDraft);
+  const staleReason = notice ?? "Checking the stack with the host…";
   const rebaseDisabled = pending || stale || hasUnknownHead || hasClosed || unmerged.length === 0;
   const run = async (action: "merge" | "update-branch") => {
     if (pending || (action === "merge" ? !canMerge || mergeDisabled : !canRebase || rebaseDisabled))
@@ -212,7 +213,7 @@ export function PullRequestStackMenu({
           render={<span className="inline-flex" />}
           tip={
             stale
-              ? notice
+              ? staleReason
               : `Merge stack through #${reference.number} into ${stack.base} (${mergeCountLabel})`
           }
           armedTip={`Click again to merge ${mergeCountLabel} into ${stack.base} using ${mergeMethod}`}
@@ -223,7 +224,7 @@ export function PullRequestStackMenu({
             size="xs"
             disabled={mergeDisabled && !stale}
             aria-disabled={mergeDisabled || undefined}
-            aria-description={stale ? (notice ?? undefined) : undefined}
+            aria-description={stale ? staleReason : undefined}
           >
             <InlineConfirmIcon armed={confirm.armed === "merge"}>
               <PullRequestGlyph.merged aria-hidden className="size-3.5" />

@@ -125,16 +125,13 @@ function createVoiceRuntime(onStateChange: (state: VoiceInputState) => void) {
     if (options === null) throw new Error("Voice input was used before its composer mounted.");
     return options;
   };
-  let lastText: string | null = null;
-  let revision = 0;
   const readDraft = (): VoiceDraftSnapshot => {
     const current = read();
-    const text = current.readPrompt();
-    if (text !== lastText) {
-      lastText = text;
-      revision += 1;
-    }
-    return { ownerKey: current.ownerKey, text, selection: current.readSelection(), revision };
+    return {
+      ownerKey: current.ownerKey,
+      text: current.readPrompt(),
+      selection: current.readSelection(),
+    };
   };
   let phase = IDLE_STATE.phase;
   const recorder: WebVoiceRecorder = new WebVoiceRecorder({

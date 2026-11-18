@@ -1,10 +1,7 @@
 import type { EnvironmentId } from "@supaterm/contracts";
 import { splitFilePathPosition } from "@supaterm/shared/fileLinks";
 
-import {
-  shouldOpenMarkdownFileLinkInBrowserByDefault,
-  type MarkdownFileLinkMeta,
-} from "../../markdown-links";
+import type { MarkdownFileLinkMeta } from "../../markdown-links";
 import type { RemoteOpenMode } from "../../remoteOpen";
 
 export function canUseMarkdownFileShellActions(
@@ -49,14 +46,9 @@ export function markdownFileCopyMenuItems({
 }
 
 export function shouldUseMarkdownFileBrowserPrimaryAction(input: {
-  iconPath: string;
   canOpenInEditor: boolean;
   canOpenInBrowser: boolean;
   canOpenInPanel: boolean;
 }): boolean {
-  return (
-    input.canOpenInBrowser &&
-    (shouldOpenMarkdownFileLinkInBrowserByDefault(input.iconPath) ||
-      (!input.canOpenInEditor && !input.canOpenInPanel))
-  );
+  return input.canOpenInBrowser && !input.canOpenInEditor && !input.canOpenInPanel;
 }

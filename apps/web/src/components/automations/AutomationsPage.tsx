@@ -194,6 +194,7 @@ interface AutomationEnvironmentState {
   readonly environment: EnvironmentPresentation;
   readonly connected: boolean;
   readonly tasks: readonly ScheduledTask[] | undefined;
+  readonly timeZone: string | undefined;
   readonly error: string | null;
 }
 
@@ -222,6 +223,7 @@ function useAutomationEnvironmentStates(
           tasks: data?.tasks.filter((task) =>
             matchesAutomationScope(scope, environment.environmentId, task.projectId),
           ),
+          timeZone: data?.timeZone,
           error: query?._tag === "Failure" ? formatEnvironmentQueryError(query.cause) : null,
         };
       }),
@@ -254,14 +256,15 @@ function AutomationEnvironmentList({
   onEdit,
 }: AutomationListProps & { readonly states: readonly AutomationEnvironmentState[] }) {
   const environments = states.map((state) => state.environment);
-  const loaded = states.flatMap(({ environment, connected, tasks, error }) =>
-    connected && error === null && tasks ? [{ environment, tasks }] : [],
+  const loaded = states.flatMap(({ environment, connected, tasks, timeZone, error }) =>
+    connected && error === null && tasks ? [{ environment, tasks, timeZone }] : [],
   );
-  const entries = loaded.flatMap(({ environment, tasks }) =>
+  const entries = loaded.flatMap(({ environment, tasks, timeZone }) =>
     tasks.map((task) => ({
       environmentId: environment.environmentId,
       environmentLabel: settingsScopeEnvironmentLabel(environment, environments),
       task,
+      timeZone,
       project: projectByKey.get(`${environment.environmentId}:${task.projectId}`) ?? null,
     })),
   );
@@ -332,7 +335,7 @@ function AutomationEnvironmentList({
 }
 
 function AutomationEnvironmentSection({
-  state: { environment, connected, tasks, error },
+  state: { environment, connected, tasks, timeZone, error },
   projectByKey,
   showProject,
   linkUnavailable,
@@ -373,6 +376,7 @@ function AutomationEnvironmentSection({
               environmentId: environment.environmentId,
               environmentLabel: environment.label,
               task,
+              timeZone,
               project: projectByKey.get(`${environment.environmentId}:${task.projectId}`) ?? null,
             }))}
             showProject={showProject}

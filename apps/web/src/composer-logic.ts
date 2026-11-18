@@ -20,6 +20,7 @@ import {
   resolveShortcutCommand,
   shortcutLabelForCommand,
   type ShortcutEventLike,
+  type ShortcutMatchContext,
 } from "./keybindings";
 import { isMacPlatform } from "./lib/utils";
 
@@ -56,6 +57,8 @@ export function composerRequiresModifier(
 export function composerSubmissionIntentForKey(input: {
   event: ShortcutEventLike & { isComposing?: boolean; keyCode?: number; repeat?: boolean };
   keybindings: ResolvedKeybindingsConfig;
+  /** The when-clause context ChatView's shortcut listeners see, so both resolve Enter alike. */
+  context: Partial<ShortcutMatchContext>;
   platform?: string;
   isSoftwareKeyboardOpen: boolean;
   isDraftThread: boolean;
@@ -70,6 +73,7 @@ export function composerSubmissionIntentForKey(input: {
   const command = resolveShortcutCommand(event, input.keybindings, {
     ...(input.platform === undefined ? {} : { platform: input.platform }),
     context: {
+      ...input.context,
       composerFocus: true,
       draftThreadRoute: input.isDraftThread,
       turnRunning: input.isRunning === true,
@@ -123,6 +127,7 @@ export function composerSendShortcutLabels(input: {
         altKey: false,
       },
       keybindings,
+      context: {},
       platform,
       isSoftwareKeyboardOpen: input.isSoftwareKeyboardOpen,
       isDraftThread,

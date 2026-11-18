@@ -138,7 +138,7 @@ it.layer(NodeServices.layer)("DesktopCliCommand", (it) => {
       expect(yield* fs.readFileString(launcher)).toContain(DesktopCliShim.MARKER);
       expect((yield* fs.stat(launcher)).mode & 0o777).toBe(0o755);
       expect(yield* fs.readDirectory(path.dirname(launcher))).toEqual(["supaterm"]);
-    }).pipe(Effect.scoped),
+    }),
   );
 
   it.effect.each(["linux", "win32"] as const)(
@@ -177,7 +177,7 @@ it.layer(NodeServices.layer)("DesktopCliCommand", (it) => {
         const enabledAgain = yield* commandIn({ home, platform }, spawner);
         yield* enabledAgain.installAutomatically;
         expect(yield* enabledAgain.state).toEqual(installed);
-      }).pipe(Effect.scoped),
+      }),
   );
 
   it.effect.each(["linux", "win32"] as const)(
@@ -201,7 +201,7 @@ it.layer(NodeServices.layer)("DesktopCliCommand", (it) => {
         expect(yield* fs.readFileString(theirs)).toBe("existing supaterm\n");
         expect(yield* fs.exists(path.join(home, ".supaterm", "bin"))).toBe(false);
         expect(registry).toMatchObject({ path: directory, writes: 0 });
-      }).pipe(Effect.scoped),
+      }),
   );
 
   it.effect("continues startup when its launcher cannot be installed", () =>
@@ -217,7 +217,7 @@ it.layer(NodeServices.layer)("DesktopCliCommand", (it) => {
       yield* command.installAutomatically;
       expect((yield* command.state).installedPath).toBeNull();
       expect(yield* fs.readFileString(launcher)).toBe("user-owned launcher\n");
-    }).pipe(Effect.scoped),
+    }),
   );
 
   it.effect("links the launcher onto PATH and removes only that link", () =>
@@ -259,7 +259,7 @@ it.layer(NodeServices.layer)("DesktopCliCommand", (it) => {
       expect(yield* fs.exists(link)).toBe(false);
 
       expect(yield* fs.exists(path.join(home, ".supaterm", "bin", "supaterm"))).toBe(true);
-    }).pipe(Effect.scoped),
+    }),
   );
 
   it.effect("never replaces or removes a supaterm it did not create", () =>
@@ -301,7 +301,7 @@ it.layer(NodeServices.layer)("DesktopCliCommand", (it) => {
       expect((yield* Effect.flip(command.install)).message).toContain("Could not set up");
       yield* command.uninstall;
       expect(yield* fs.readFileString(launcher)).toBe("npm's supaterm\n");
-    }).pipe(Effect.scoped),
+    }),
   );
 
   it.effect("finds and removes a link left by a previous Supaterm home", () =>
@@ -360,7 +360,7 @@ it.layer(NodeServices.layer)("DesktopCliCommand", (it) => {
       );
       expect(yield* fs.exists(path.join(home, ".local", "bin", "supaterm"))).toBe(false);
       expect(yield* fs.readFileString(path.join(home, "bin", "supaterm.staging"))).toBe("mine");
-    }).pipe(Effect.scoped),
+    }),
   );
 
   it.effect("refuses to install behind another supaterm that runs first", () =>
@@ -407,7 +407,7 @@ it.layer(NodeServices.layer)("DesktopCliCommand", (it) => {
         installedPath: path.join(home, ".local", "bin", "supaterm"),
       });
       expect(installed.shadowedBy).toBeUndefined();
-    }).pipe(Effect.scoped),
+    }),
   );
 
   it.effect.each(["directory", "non-executable"])(
@@ -428,7 +428,7 @@ it.layer(NodeServices.layer)("DesktopCliCommand", (it) => {
         expect(installed.onPath).toBe(true);
         expect(installed.shadowedBy).toBeUndefined();
         expect(installed.installedPath).toBe(path.join(home, ".local", "bin", "supaterm"));
-      }).pipe(Effect.scoped),
+      }),
   );
 
   it.effect(
@@ -458,7 +458,7 @@ it.layer(NodeServices.layer)("DesktopCliCommand", (it) => {
         expect(yield* command.state).toEqual(removed);
         expect(yield* fs.exists(installed.installedPath!)).toBe(false);
         expect(yield* fs.exists(launcher)).toBe(true);
-      }).pipe(Effect.scoped),
+      }),
   );
 
   it.effect("leaves the Windows PATH alone when it cannot be read", () =>
@@ -506,7 +506,7 @@ it.layer(NodeServices.layer)("DesktopCliCommand", (it) => {
       const reader = yield* commandIn({ home, platform: "win32" }, inherited.spawner);
       yield* reader.install;
       expect(inherited.registry).toMatchObject({ path: `${userPath};${launcherDir}`, writes: 1 });
-    }).pipe(Effect.scoped),
+    }),
   );
 
   it.effect("preserves a user-added duplicate after removing its Windows PATH entry", () =>
@@ -524,7 +524,7 @@ it.layer(NodeServices.layer)("DesktopCliCommand", (it) => {
       expect(registry.path).toBe(installedPath);
       yield* command.uninstall;
       expect(registry.path).toBe(installedPath);
-    }).pipe(Effect.scoped),
+    }),
   );
 
   it.effect("does not claim or remove a Windows PATH entry the user added", () =>
@@ -557,7 +557,7 @@ it.layer(NodeServices.layer)("DesktopCliCommand", (it) => {
       yield* (yield* commandIn({ home: besideHome, platform: "win32" }, beside.spawner))
         .installAutomatically;
       expect(beside.registry).toMatchObject({ path: "C:\\Tools", writes: 0 });
-    }).pipe(Effect.scoped),
+    }),
   );
 
   it.effect("offers nothing for a development build", () =>
@@ -572,6 +572,6 @@ it.layer(NodeServices.layer)("DesktopCliCommand", (it) => {
       yield* command.installAutomatically;
       expect((yield* command.state).supported).toBe(false);
       expect(yield* fs.exists(path.join(home, ".supaterm", "bin"))).toBe(false);
-    }).pipe(Effect.scoped),
+    }),
   );
 });

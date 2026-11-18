@@ -1,3 +1,4 @@
+import { ensureClientSettingsHydrated, getClientSettings } from "~/hooks/useSettings";
 import { readLocalApi } from "~/localApi";
 
 let pendingConfirmations = 0;
@@ -7,7 +8,7 @@ export interface TerminalCloseTarget {
   readonly hasRunningSubprocess: boolean;
 }
 
-/** Whether a close confirmation from this module is currently waiting on the user. */
+/** Whether a terminal-close action is waiting on settings or user confirmation. */
 export function isTerminalCloseConfirmPending(): boolean {
   return pendingConfirmations > 0;
 }
@@ -25,6 +26,19 @@ export async function confirmClose(message: string) {
   }
 }
 
+async function terminalCloseConfirmationEnabled(): Promise<boolean> {
+  pendingConfirmations += 1;
+  try {
+    await ensureClientSettingsHydrated();
+    return getClientSettings().confirmTerminalClose;
+  } catch {
+    // If saved settings cannot be read, keep the destructive confirmation.
+    return true;
+  } finally {
+    pendingConfirmations -= 1;
+  }
+}
+
 /**
  * Confirmation for terminal close actions: drawer buttons, panel buttons, the
  * `terminal.close` keybinding, and closing terminal surfaces from the tab strip,
@@ -36,6 +50,7 @@ export async function confirmTerminalClose(
 ): Promise<boolean> {
   const runningTargets = targets.filter((target) => target.hasRunningSubprocess);
   if (runningTargets.length === 0) return true;
+  if (!(await terminalCloseConfirmationEnabled())) return true;
 
   return confirmClose(
     runningTargets.length === 1

@@ -25,7 +25,13 @@ import { toastManager } from "../ui/toast";
 import { Input } from "../ui/input";
 import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "../ui/select";
 import { Switch } from "../ui/switch";
-import { DaysField } from "./DaysField";
+import {
+  NumberField,
+  NumberFieldDecrement,
+  NumberFieldGroup,
+  NumberFieldIncrement,
+  NumberFieldInput,
+} from "../ui/number-field";
 import { SettingResetButton, SettingsRow, SettingsSection } from "./settingsLayout";
 import { DatabaseStorageNotice } from "./DatabaseStorageNotice";
 import { SettingsScopeNotice } from "./SettingsScopeNotice";
@@ -94,6 +100,8 @@ export function WorktreesDirectoryRow() {
   );
 }
 
+type SaveOptions = Parameters<ReturnType<typeof useUpdateScopedSettings>>[1];
+
 function RetentionControl({
   label,
   value,
@@ -102,20 +110,141 @@ function RetentionControl({
 }: {
   label: string;
   value: number | null;
-  onChange: (value: number | null) => void;
+  onChange: (value: number | null, onFailed: () => void) => void;
   minimum?: number;
 }) {
+  const [draft, setDraft] = useState(value);
+  const [savedValue, setSavedValue] = useState(value);
+  // Saving an age can start a cleanup sweep, so turning a rule on only opens a draft.
+  // While its first save is in flight this holds that submission.
+  const [enabling, setEnabling] = useState<"draft" | "edited" | { days: number } | null>(null);
+  // Holds an age until Enter or focus leaves the row: one edited before focus moved to the
+  // switch, so switching off never saves it first, or one stepped toward a rule's first age,
+  // so raising it from 8 never saves a shorter age on the way.
+  const [held, setHeld] = useState(false);
+  // Hides a saved rule's age once it is switched off, so no blur can save it after null.
+  const [switchedOff, setSwitchedOff] = useState(false);
+  if (savedValue !== value) {
+    setSavedValue(value);
+    setDraft(value);
+    setEnabling(null);
+    setHeld(false);
+    setSwitchedOff(false);
+  }
+  const pending = typeof enabling === "object" ? enabling : null;
+  const on = (value !== null && !switchedOff) || enabling !== null;
+  const row = useRef<HTMLDivElement>(null);
+
+  const commit = (next: number) => {
+    const days = Math.min(3650, Math.max(minimum, Math.round(next)));
+    setDraft(days);
+    setHeld(false);
+    if (days === pending?.days) return;
+    if (value !== null) {
+      onChange(days, () => {});
+      return;
+    }
+    const submission = { days };
+    setEnabling(submission);
+    onChange(days, () => setEnabling((current) => (current === submission ? null : current)));
+  };
+
+  const switchOff = () => {
+    setDraft(value);
+    setHeld(false);
+    setEnabling(null);
+    if (value === null && pending === null) return;
+    setSwitchedOff(true);
+    onChange(null, () => setSwitchedOff(false));
+  };
+
   return (
-    <>
-      {value !== null ? (
-        <DaysField label={label} value={value} min={minimum} max={3650} onCommit={onChange} />
+    <div
+      ref={row}
+      className="flex items-center gap-2"
+      onBlur={(event) => {
+        if (event.currentTarget.contains(event.relatedTarget)) return;
+        if (held && draft !== null) commit(draft);
+        else setEnabling((current) => (typeof current === "string" ? null : current));
+      }}
+    >
+      {on ? (
+        <NumberField
+          value={draft}
+          min={minimum}
+          max={3650}
+          step={1}
+          size="sm"
+          className="w-auto"
+          onValueChange={(next) => {
+            setDraft(next);
+            setEnabling((current) => (current === "draft" ? "edited" : current));
+          }}
+          onValueCommitted={(next, { reason, event }) => {
+            if (next === null) setDraft(value);
+            else if (
+              reason === "input-blur"
+                ? event instanceof FocusEvent &&
+                  event.relatedTarget instanceof Node &&
+                  row.current?.contains(event.relatedTarget)
+                : value === null
+            ) {
+              setDraft(next);
+              setHeld(true);
+            } else commit(next);
+          }}
+        >
+          <NumberFieldGroup>
+            <NumberFieldDecrement aria-label={`Decrease ${label}`} />
+            <NumberFieldInput
+              aria-label={`${label} in days`}
+              autoFocus={value === null}
+              size={5}
+              className="w-auto grow-0 text-right"
+              // Any typed or pasted edit replaces a held age: NumberField commits it on blur itself,
+              // and text it cannot parse yet must not leave the held age to be saved.
+              onChange={() => setHeld(false)}
+              onPaste={() => setHeld(false)}
+              onKeyDown={(event) => {
+                if (event.nativeEvent.isComposing || event.keyCode === 229) return;
+                if (event.key === "Enter") {
+                  // Blurring lets NumberField parse the visible text and commit it once. It
+                  // skips an unedited value, so an untouched draft is committed here.
+                  const input = event.currentTarget;
+                  const shown =
+                    draft !== null && input.value === new Intl.NumberFormat().format(draft);
+                  if (enabling === "draft" && shown) commit(draft);
+                  input.blur();
+                } else if (event.key === "Escape" && (held || typeof enabling === "string")) {
+                  // An unhandled Escape closes the settings page.
+                  event.preventDefault();
+                  event.stopPropagation();
+                  setDraft(pending?.days ?? value);
+                  setHeld(false);
+                  setEnabling((current) => (typeof current === "string" ? null : current));
+                }
+              }}
+            />
+            <span aria-hidden="true" className="self-center pr-2 text-xs">
+              days
+            </span>
+            <NumberFieldIncrement aria-label={`Increase ${label}`} />
+          </NumberFieldGroup>
+        </NumberField>
       ) : null}
       <Switch
         aria-label={label}
-        checked={value !== null}
-        onCheckedChange={(enabled) => onChange(enabled ? 8 : null)}
+        checked={on}
+        // Keeps focus in the age field, so switching off never commits an edited age first.
+        onMouseDown={(event) => event.preventDefault()}
+        onCheckedChange={(enabled) => {
+          if (enabled) {
+            setDraft(8);
+            setEnabling("draft");
+          } else switchOff();
+        }}
       />
-    </>
+    </div>
   );
 }
 
@@ -421,12 +550,12 @@ export function WorktreeCleanupSection() {
     )
       ? "Mixed across selected machines"
       : undefined;
-  const update = (patch: Partial<StorageCleanupSettings>) =>
-    updateSettings({ storageCleanup: patch });
-  const updateWorktree = (patch: Partial<WorktreeCleanupRules>) =>
+  const update = (patch: Partial<StorageCleanupSettings>, options?: SaveOptions) =>
+    updateSettings({ storageCleanup: patch }, options);
+  const updateWorktree = (patch: Partial<WorktreeCleanupRules>, options?: SaveOptions) =>
     isProjectScope
-      ? updateSettings({ worktreeCleanup: { mode: "custom", rules: patch } })
-      : update(patch);
+      ? updateSettings({ worktreeCleanup: { mode: "custom", rules: patch } }, options)
+      : update(patch, options);
 
   if (hasUnconfiguredEnvironment(connectedEnvironments)) {
     return (
@@ -511,7 +640,9 @@ export function WorktreeCleanupSection() {
               <RetentionControl
                 label="Delete inactive worktrees"
                 value={settings.worktreeAfterDays}
-                onChange={(worktreeAfterDays) => updateWorktree({ worktreeAfterDays })}
+                onChange={(worktreeAfterDays, onFailed) =>
+                  updateWorktree({ worktreeAfterDays }, { onFailed })
+                }
               />
             }
           />
@@ -525,7 +656,9 @@ export function WorktreeCleanupSection() {
                 label="Delete done worktrees"
                 value={settings.worktreeDoneAfterDays}
                 minimum={0}
-                onChange={(worktreeDoneAfterDays) => updateWorktree({ worktreeDoneAfterDays })}
+                onChange={(worktreeDoneAfterDays, onFailed) =>
+                  updateWorktree({ worktreeDoneAfterDays }, { onFailed })
+                }
               />
             }
           />
@@ -631,8 +764,8 @@ export function StorageCleanupSections() {
       ? "Mixed across selected machines"
       : undefined;
   if (scope.kind === "project" || scope.kind === "checkout") return null;
-  const update = (patch: Partial<StorageCleanupSettings>) =>
-    updateSettings({ storageCleanup: patch });
+  const update = (patch: Partial<StorageCleanupSettings>, options: SaveOptions) =>
+    updateSettings({ storageCleanup: patch }, options);
   if (hasUnconfiguredEnvironment(connectedEnvironments)) {
     return (
       <SettingsSection id="storage-artifacts" title="Artifacts and logs" variant="plain">
@@ -655,7 +788,9 @@ export function StorageCleanupSections() {
               <RetentionControl
                 label="Delete old browser artifacts"
                 value={settings.browserArtifactsAfterDays}
-                onChange={(browserArtifactsAfterDays) => update({ browserArtifactsAfterDays })}
+                onChange={(browserArtifactsAfterDays, onFailed) =>
+                  update({ browserArtifactsAfterDays }, { onFailed })
+                }
               />
             }
           />
@@ -670,7 +805,7 @@ export function StorageCleanupSections() {
               <RetentionControl
                 label="Delete old rotated logs"
                 value={settings.logsAfterDays}
-                onChange={(logsAfterDays) => update({ logsAfterDays })}
+                onChange={(logsAfterDays, onFailed) => update({ logsAfterDays }, { onFailed })}
               />
             }
           />
