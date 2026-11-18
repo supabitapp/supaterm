@@ -128,6 +128,7 @@ overrides:
   expo-network: 58.0.4
   expo-sharing: 58.0.22
   expo-video: 58.0.13
+  expo-widgets: 58.0.27
   "@ff-labs/fff-node": 0.11.0
   "@legendapp/list": 3.7.2
   "@pierre/diffs": 1.6.1
@@ -235,6 +236,8 @@ patchedDependencies:
   expo-video@58.0.13: patches/expo-video@58.0.13.patch
   expo-network@58.0.4: patches/expo-network@58.0.4.patch
   expo-sharing@58.0.22: patches/expo-sharing@58.0.22.patch
+  # Android: a home-screen widget reads its current size (width and height in dp) from its environment.
+  expo-widgets@58.0.27: patches/expo-widgets@58.0.27.patch
   # Android: an RNHostView without a scrolling descendant (an app bar's buttons) is no longer the
   # scroll target a Material bottom sheet picks, so sheet content can sit below its header.
   "@expo/ui@58.0.27": patches/@expo__ui@58.0.27.patch
