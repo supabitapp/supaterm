@@ -113,17 +113,17 @@ describe("materializedPreviewAtom", () => {
       sizeBytes: 3,
       previewUri: "data:image/jpeg;base64,AAAA",
     };
-    const read = () => {
+    const read = async () => {
       const registry = AtomRegistry.make();
       const atom = materializedPreviewAtom(new MaterializedPreviewKey(attachment));
       const unmount = registry.mount(atom);
-      return vi
-        .waitFor(() => {
-          const result = registry.get(atom);
-          expect(AsyncResult.isSuccess(result)).toBe(true);
-          return AsyncResult.isSuccess(result) ? result.value : undefined;
-        })
-        .finally(unmount);
+      try {
+        await vi.waitFor(() => expect(AsyncResult.isSuccess(registry.get(atom))).toBe(true));
+        const result = registry.get(atom);
+        return AsyncResult.isSuccess(result) ? result.value : undefined;
+      } finally {
+        unmount();
+      }
     };
 
     expect(await Promise.all([read(), read()])).toEqual([
