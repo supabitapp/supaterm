@@ -2410,7 +2410,7 @@ describe("CursorAdapterV2", () => {
         const workspace = path.join(scratch, "workspace");
         const home = path.join(scratch, "home");
         const loadServers = () =>
-          cursorWorkspaceMcpServers(cwd, { MCP_TYPE: "stdio" }).pipe(
+          cursorWorkspaceMcpServers(cwd, { MCP_TYPE: "stdio" }, true).pipe(
             Effect.provideService(HostProcess.HomeDirectory, home),
             Effect.provideService(HostProcess.Environment, {}),
           );
@@ -2533,13 +2533,13 @@ describe("CursorAdapterV2", () => {
             Effect.provideService(HostProcess.Environment, {}),
           );
         const now = yield* DateTime.now;
-        const sendTurn = (ordinal: number) =>
+        const sendTurn = (ordinal: number, turnPolicy = runtimePolicy) =>
           runtime
             .startTurn({
               threadId,
               providerThread,
               modelSelection,
-              runtimePolicy,
+              runtimePolicy: turnPolicy,
               runId: RunId.make(`cursor-mcp-run-${ordinal}`),
               runOrdinal: ordinal,
               providerTurnOrdinal: ordinal,
@@ -2614,6 +2614,23 @@ describe("CursorAdapterV2", () => {
         );
         yield* sendTurn(3);
         assert.deepEqual(sentWith[2], supatermServers);
+        // Outside Full access the repository's servers stay off and the user's still start.
+        yield* fileSystem.writeFileString(
+          path.join(home, ".cursor", "projects", projectDirectory, "mcp-disabled.json"),
+          JSON.stringify(["off"]),
+        );
+        yield* sendTurn(
+          4,
+          ProviderAdapter.ProviderAdapterV2RuntimePolicy.make({
+            runtimeMode: "auto-accept-edits",
+            interactionMode: "default",
+            cwd,
+          }),
+        );
+        assert.deepEqual(sentWith[3], {
+          repro: { command: "node", args: [`${home}/shadowed.mjs`], cwd: projectRoot },
+          ...supatermServers,
+        });
         yield* fileSystem.writeFileString(
           path.join(workspace, ".cursor", "mcp.json"),
           JSON.stringify({ mcpServers: { plain: { command: "node", args: ["server.mjs"] } } }),

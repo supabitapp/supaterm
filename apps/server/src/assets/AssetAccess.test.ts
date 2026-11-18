@@ -1125,6 +1125,26 @@ describe("AssetAccess", () => {
       expect(yield* resolveAsset(token, "../secret.txt")).toBeNull();
       expect(yield* resolveAsset(token, ".env")).toBeNull();
       expect(yield* resolveAsset(`${token}tampered`, "report.html")).toBeNull();
+      const dotDirectoryHtmlPath = path.join(root, ".github", "report.html");
+      yield* fileSystem.makeDirectory(path.dirname(dotDirectoryHtmlPath));
+      yield* fileSystem.writeFileString(dotDirectoryHtmlPath, "<p>report</p>");
+      yield* fileSystem.writeFileString(path.join(root, ".github", "report.css"), "body {}");
+      const dotDirectoryUrl = yield* issueAssetUrl({
+        resource: {
+          _tag: "workspace-file",
+          threadId: ThreadId.make("thread-1"),
+          path: dotDirectoryHtmlPath,
+        },
+        workspaceRoot: root,
+      });
+      const dotDirectorySuffix = dotDirectoryUrl.relativeUrl.slice(`${ASSET_ROUTE_PREFIX}/`.length);
+      const dotDirectoryToken = dotDirectorySuffix.slice(0, dotDirectorySuffix.indexOf("/"));
+      expect(yield* resolveAsset(dotDirectoryToken, "report.html")).toEqual({
+        kind: "file",
+        path: yield* fileSystem.realPath(dotDirectoryHtmlPath),
+        renderIntent: "file-preview",
+      });
+      expect(yield* resolveAsset(dotDirectoryToken, "report.css")).toBeNull();
       for (const extension of [
         "odt",
         "ods",
