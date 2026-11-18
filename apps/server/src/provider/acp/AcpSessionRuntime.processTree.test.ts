@@ -833,7 +833,7 @@ describe("terminatePosixOwnedProcessTree", () => {
             path: "/proc/4563",
           });
         }
-        return Reflect.apply(realReaddirSync, fs, [path, options]);
+        return realReaddirSync(path, options as Parameters<typeof NodeFS.readdirSync>[1]);
       }) as typeof NodeFS.readdirSync;
       NodeModule.syncBuiltinESMExports();
       try {
