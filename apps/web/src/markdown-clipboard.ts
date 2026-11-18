@@ -159,13 +159,12 @@ function serializeListItem(
 function numberedListItems(list: Element): { item: Element; number: number }[] {
   const start = Number.parseInt(list.getAttribute("start") ?? "1", 10);
   let next = Number.isNaN(start) ? 1 : start;
-  return [...list.children]
-    .filter((child) => child.tagName === "LI")
-    .map((item) => {
-      const value = Number.parseInt(item.getAttribute("value") ?? "", 10);
-      if (!Number.isNaN(value)) next = value;
-      return { item, number: next++ };
-    });
+  return [...list.children].flatMap((item) => {
+    if (item.tagName !== "LI") return [];
+    const value = Number.parseInt(item.getAttribute("value") ?? "", 10);
+    if (!Number.isNaN(value)) next = value;
+    return [{ item, number: next++ }];
+  });
 }
 
 function serializeList(list: Element, ordered: boolean, inTableCell: boolean): string {
