@@ -15,6 +15,7 @@ import * as Effect from "effect/Effect";
 import * as Fiber from "effect/Fiber";
 import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
+import * as Option from "effect/Option";
 import * as Path from "effect/Path";
 import { ChildProcess, ChildProcessSpawner } from "effect/process";
 import * as TestClock from "effect/testing/TestClock";
@@ -30,7 +31,13 @@ import {
 } from "../serverRuntimeState.ts";
 import { CliServerVersionMismatchError } from "./config.ts";
 import { CliServerNotRunningError, resolveProject, type ServerTools } from "./serverTools.ts";
-import { readLatestMessages, threadCommand, titleFromMessage, waitForRun } from "./thread.ts";
+import {
+  launchModelSelection,
+  readLatestMessages,
+  threadCommand,
+  titleFromMessage,
+  waitForRun,
+} from "./thread.ts";
 
 vi.mock("../auth/EnvironmentAuth.ts", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../auth/EnvironmentAuth.ts")>();
@@ -370,6 +377,50 @@ it.effect("--wait reports its run's result when a later run is the one waiting",
       status: "completed",
     });
   }),
+);
+
+it.effect("start sends each --option as a typed model option", () =>
+  Effect.gen(function* () {
+    const selection = yield* launchModelSelection({
+      provider: Option.some("codex"),
+      model: Option.some("gpt-6.1-sol"),
+      option: ["reasoningEffort=high", " fastMode = false ", "note=a=b"],
+    });
+
+    assert.deepStrictEqual(selection, {
+      instanceId: "codex",
+      model: "gpt-6.1-sol",
+      options: [
+        { id: "reasoningEffort", value: "high" },
+        { id: "fastMode", value: false },
+        { id: "note", value: "a=b" },
+      ],
+    });
+  }),
+);
+
+it.effect("start rejects a repeated --option before reaching the server", () =>
+  Effect.gen(function* () {
+    const error = yield* Command.runWith(threadCommand, { version: "0.0.0" })([
+      "start",
+      ".",
+      "hi",
+      "--provider",
+      "codex",
+      "--model",
+      "gpt-6.1-sol",
+      "--option",
+      "reasoningEffort=high",
+      "--option",
+      "reasoningEffort=low",
+    ]).pipe(Effect.flip);
+
+    assert.strictEqual(error.message, "--option reasoningEffort is given more than once.");
+  }).pipe(
+    Effect.provide(
+      Layer.mergeAll(NodeServices.layer, NodeCrypto.layer, NetService.layer, TestConsole.layer),
+    ),
+  ),
 );
 
 // Minting a session opens the target database with this checkout's migrations,

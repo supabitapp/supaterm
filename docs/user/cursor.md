@@ -17,7 +17,9 @@ not expose yet.
 
 Custom Cursor MCP servers and plugins are not configured in Supaterm. They load from the environment
 machine's Cursor config when the agent opens: project `.cursor/mcp.json`, user `~/.cursor/mcp.json`,
-and installed plugins under `~/.cursor/plugins`. Plugin tools
+and installed plugins under `~/.cursor/plugins`. The project `.cursor` layer (rules, skills, hooks,
+and `.cursor/mcp.json`) loads only in Full access with sandbox and auto-review off, so a cloned
+repository cannot run its hooks without your approval. Plugin tools
 can appear without a login; OAuth MCP servers still need credentials. Run `agent mcp login <server>`
 with the cwd set to the Supaterm project root (tokens land in
 `~/.cursor/projects/<folder-slug>/mcp-auth.json`). Cursor desktop Connections auth does not write

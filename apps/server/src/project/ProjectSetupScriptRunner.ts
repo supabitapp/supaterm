@@ -498,6 +498,8 @@ export const make = Effect.gen(function* () {
       // Setup can run before a client attaches. Truecolor probes in tools such
       // as Vite+ wait for terminal replies that nobody can send at that point.
       COLORTERM: "",
+      // Project scripts keep the default shell; the preference is for interactive terminals only.
+      SUPATERM_TERMINAL_SHELL: "",
     };
     const observe = input.observeCompletion;
     const completionToken = observe ? (yield* random.uuidV4()).replaceAll("-", "") : null;

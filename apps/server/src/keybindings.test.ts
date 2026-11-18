@@ -13,7 +13,7 @@ import * as Stream from "effect/Stream";
 import * as ServerConfig from "./config.ts";
 import * as Keybindings from "./keybindings.ts";
 import * as SharedKeybindings from "@supaterm/shared/keybindings";
-import { KeybindingsConfigError } from "@supaterm/contracts";
+import { KeybindingsConfigError, MAX_KEYBINDINGS_COUNT } from "@supaterm/contracts";
 
 const KeybindingsConfigJson = Schema.fromJsonString(KeybindingsConfig);
 const encodeKeybindingsConfigJson = Schema.encodeEffect(KeybindingsConfigJson);
@@ -468,6 +468,53 @@ it.layer(NodeServices.layer)("keybindings", (it) => {
       const persisted = yield* readKeybindingsConfig(keybindingsConfigPath);
       const persistedView = persisted.map(({ key, command }) => ({ key, command }));
       assert.deepEqual(persistedView, [{ key: "mod+shift+r", command: "script.run-tests.run" }]);
+    }).pipe(Effect.provide(layerKeybindings())),
+  );
+
+  it.effect("unassigns a shortcut without restoring it on startup and can reassign it", () =>
+    Effect.gen(function* () {
+      const { keybindingsConfigPath } = yield* ServerConfig.ServerConfig;
+      yield* writeKeybindingsConfig(
+        keybindingsConfigPath,
+        Array.from({ length: MAX_KEYBINDINGS_COUNT }, (_, index) => ({
+          key: "mod+alt+f1",
+          command: `script.filler-${index}.run` as const,
+        })),
+      );
+      const keybindings = yield* Keybindings.Keybindings;
+      const target = SharedKeybindings.DEFAULT_KEYBINDINGS.find(
+        (rule) => rule.command === "composer.sendBackground",
+      )!;
+      const siblings = SharedKeybindings.DEFAULT_KEYBINDINGS.filter(
+        (rule) => rule.command === target.command && rule !== target,
+      );
+      const removed = yield* keybindings.upsertKeybindingRule({
+        ...target,
+        when: "false",
+        replace: target,
+      });
+      const expected = SharedKeybindings.compileResolvedKeybindingsConfig([
+        ...siblings,
+        { ...target, when: "false" },
+      ]);
+      assert.deepEqual(
+        removed.keybindings.filter((rule) => rule.command === target.command),
+        expected,
+      );
+      yield* keybindings.syncDefaultKeybindingsOnStartup;
+      const snapshot = yield* keybindings.getSnapshot;
+      assert.deepEqual(
+        snapshot.keybindings.filter((rule) => rule.command === target.command),
+        expected,
+      );
+      const restored = yield* keybindings.upsertKeybindingRule({
+        ...target,
+        replace: { ...target, when: "false" },
+      });
+      assert.deepEqual(
+        restored.keybindings.filter((rule) => rule.command === target.command),
+        SharedKeybindings.compileResolvedKeybindingsConfig([...siblings, target]),
+      );
     }).pipe(Effect.provide(layerKeybindings())),
   );
 

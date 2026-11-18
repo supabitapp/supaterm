@@ -130,6 +130,15 @@ itself, or **Skip** to leave them for a setup script. It resolves in the same or
 workspace default: a `"worktreeSubmodules"` value in the `supaterm.json` of the branch being checked out
 applies when the project and environment are both on **Inherit**.
 
+New worktrees check out every file. For a large repository, set `"worktreeSparsePatternsPath"` in
+`supaterm.json` to a repository-relative file of git sparse-checkout patterns in non-cone syntax. New
+worktrees then check out only the matching files, before any other file is written. Both files are
+read from the branch being checked out, so the patterns can leave out `supaterm.json` and `.gitmodules`.
+If the pattern file is missing, creating the worktree fails instead of checking out everything.
+Submodules still follow **Submodules** above, also under excluded paths; set it to **Skip** to leave
+them empty. The first sparse worktree turns on Git's `extensions.worktreeConfig` for the repository.
+This needs Git 2.35 or newer.
+
 ## Worktree location
 
 New worktrees go in the `worktrees` folder of the Supaterm home directory. To put them somewhere else,

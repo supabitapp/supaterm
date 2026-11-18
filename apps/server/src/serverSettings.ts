@@ -489,6 +489,8 @@ const make = Effect.gen(function* () {
         settings = {
           ...settings,
           continueThreadsAfterServerUpdate: false,
+          // An unreadable file may hold a longer retention; never prune usage on a guess.
+          usageHistoryRetentionDays: "unlimited",
           publicRelayEnabled:
             metadata._tag === "Success" && metadata.value.publicRelayEnabled === true,
         };

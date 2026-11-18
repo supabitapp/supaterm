@@ -6789,6 +6789,62 @@ it.layer(layerTest)("GitVcsDriver core integration", (it) => {
       }),
     );
 
+    it.effect("sparse worktrees read .gitmodules and supaterm.json from HEAD", () =>
+      Effect.gen(function* () {
+        const fileSystem = yield* FileSystem.FileSystem;
+        const pathService = yield* Path.Path;
+        const previousAllowedProtocol = process.env.GIT_ALLOW_PROTOCOL;
+        process.env.GIT_ALLOW_PROTOCOL = "file";
+        yield* Effect.addFinalizer(() =>
+          Effect.sync(() => {
+            if (previousAllowedProtocol === undefined) {
+              delete process.env.GIT_ALLOW_PROTOCOL;
+            } else {
+              process.env.GIT_ALLOW_PROTOCOL = previousAllowedProtocol;
+            }
+          }),
+        );
+        const submoduleRepo = yield* makeTmpDir("git-submodule-");
+        yield* initRepoWithCommit(submoduleRepo);
+        yield* writeTextFile(submoduleRepo, "SHARED.md", "# shared\n");
+        yield* git(submoduleRepo, ["add", "."]);
+        yield* git(submoduleRepo, ["commit", "-m", "shared"]);
+        const cwd = yield* makeTmpDir();
+        const { initialBranch } = yield* initRepoWithCommit(cwd);
+        yield* git(cwd, ["submodule", "add", NodeURL.pathToFileURL(submoduleRepo).href, "shared"]);
+        yield* writeTextFile(cwd, "sparse-patterns.txt", "/shared/\n");
+        const driver = yield* GitVcsDriver.GitVcsDriver;
+        const worktrees = yield* makeTmpDir("git-worktrees-");
+
+        const createSparse = Effect.fn(function* (projectFile: string, branch: string) {
+          yield* writeTextFile(cwd, "supaterm.json", projectFile);
+          yield* git(cwd, ["add", "."]);
+          yield* git(cwd, ["commit", "-m", branch]);
+          const sparsePath = pathService.join(worktrees, branch);
+          // A relative path also covers the git commands that run inside the new worktree.
+          yield* driver.createWorktree({
+            cwd,
+            path: pathService.relative(cwd, sparsePath),
+            refName: initialBranch,
+            newRefName: branch,
+          });
+          assert.isFalse(yield* fileSystem.exists(pathService.join(sparsePath, ".gitmodules")));
+          assert.isFalse(yield* fileSystem.exists(pathService.join(sparsePath, "supaterm.json")));
+          return yield* fileSystem.exists(pathService.join(sparsePath, "shared", "SHARED.md"));
+        });
+
+        assert.isTrue(
+          yield* createSparse(`{ "worktreeSparsePatternsPath": "sparse-patterns.txt" }`, "sparse"),
+        );
+        assert.isFalse(
+          yield* createSparse(
+            `{ "worktreeSparsePatternsPath": "sparse-patterns.txt", "worktreeSubmodules": "none" }`,
+            "sparse-none",
+          ),
+        );
+      }),
+    );
+
     it.effect("still creates the worktree when submodule checkout fails", () =>
       Effect.gen(function* () {
         const fileSystem = yield* FileSystem.FileSystem;
@@ -7066,6 +7122,113 @@ it.layer(layerTest)("GitVcsDriver core integration", (it) => {
           nested: false,
         });
       }),
+    );
+
+    it.effect("checks out only the supaterm.json sparse patterns in a new worktree", () =>
+      Effect.gen(function* () {
+        const fileSystem = yield* FileSystem.FileSystem;
+        const pathService = yield* Path.Path;
+        const repo = yield* makeTmpDir();
+        const { initialBranch } = yield* initRepoWithCommit(repo);
+        yield* writeTextFile(repo, "src/app.ts", "export {};\n");
+        yield* writeTextFile(repo, "assets/large.bin", "large\n");
+        yield* writeTextFile(repo, "sparse-patterns.txt", "/*\n!/assets/\n");
+        yield* writeTextFile(
+          repo,
+          "supaterm.json",
+          `{ "worktreeSparsePatternsPath": "./sparse-patterns.txt" }`,
+        );
+        yield* git(repo, ["add", "."]);
+        yield* git(repo, ["commit", "-m", "sparse patterns"]);
+        yield* git(repo, ["checkout", "-q", "-b", "previous"]);
+        yield* git(repo, ["checkout", "-q", initialBranch]);
+        const driver = yield* GitVcsDriver.GitVcsDriver;
+        const worktrees = yield* makeTmpDir("git-worktrees-");
+        // A project opened at a subdirectory still reads both files from the repository root.
+        const cwd = pathService.join(repo, "src");
+
+        const assertSparse = Effect.fn(function* (worktreePath: string, branch: string) {
+          assert.isTrue(yield* fileSystem.exists(pathService.join(worktreePath, "src", "app.ts")));
+          assert.isFalse(
+            yield* fileSystem.exists(pathService.join(worktreePath, "assets", "large.bin")),
+          );
+          assert.equal(yield* git(worktreePath, ["sparse-checkout", "list"]), "/*\n!/assets/");
+          assert.equal(yield* git(worktreePath, ["branch", "--show-current"]), branch);
+        });
+
+        const sparse = pathService.join(worktrees, "sparse");
+        yield* driver.createWorktree({
+          cwd,
+          path: pathService.relative(cwd, sparse),
+          refName: initialBranch,
+          newRefName: "feature/sparse",
+        });
+        yield* assertSparse(sparse, "feature/sparse");
+
+        const fromPrevious = pathService.join(worktrees, "from-previous");
+        yield* driver.createWorktree({
+          cwd,
+          path: fromPrevious,
+          refName: "-",
+          newRefName: "feature/from-previous",
+        });
+        yield* assertSparse(fromPrevious, "feature/from-previous");
+        assert.notInclude(yield* git(repo, ["worktree", "list", "--porcelain"]), "locked");
+
+        // Only the sparse checkout runs the hook, so its failure removes the locked registration.
+        yield* writeTextFile(repo, ".git/hooks/post-checkout", "#!/bin/sh\nexit 1\n");
+        yield* fileSystem.chmod(pathService.join(repo, ".git/hooks/post-checkout"), 0o755);
+        const failed = pathService.join(worktrees, "failed");
+        yield* Effect.flip(
+          driver.createWorktree({
+            cwd,
+            path: failed,
+            refName: initialBranch,
+            newRefName: "feature/failed",
+          }),
+        );
+        assert.isFalse(yield* fileSystem.exists(failed));
+        assert.notInclude(yield* git(repo, ["worktree", "list", "--porcelain"]), "feature/failed");
+        assert.equal(yield* git(repo, ["branch", "--list", "feature/failed"]), "");
+      }),
+    );
+
+    it.effect(
+      "fails without a worktree when the supaterm.json sparse pattern path is not a file",
+      () =>
+        Effect.gen(function* () {
+          const fileSystem = yield* FileSystem.FileSystem;
+          const pathService = yield* Path.Path;
+          const cwd = yield* makeTmpDir();
+          const { initialBranch } = yield* initRepoWithCommit(cwd);
+          yield* writeTextFile(cwd, "patterns/keep.txt", "/*\n");
+          const driver = yield* GitVcsDriver.GitVcsDriver;
+          const worktrees = yield* makeTmpDir("git-worktrees-");
+          for (const patternsPath of ["missing.txt", "patterns"]) {
+            yield* writeTextFile(
+              cwd,
+              "supaterm.json",
+              JSON.stringify({ worktreeSparsePatternsPath: patternsPath }),
+            );
+            yield* git(cwd, ["add", "."]);
+            yield* git(cwd, ["commit", "-m", "missing sparse patterns"]);
+            const worktreePath = pathService.join(worktrees, patternsPath);
+
+            const error = yield* Effect.flip(
+              driver.createWorktree({
+                cwd,
+                path: worktreePath,
+                refName: initialBranch,
+                newRefName: `feature/${patternsPath}`,
+              }),
+            );
+
+            assert.include(error.detail, patternsPath);
+            assert.isFalse(yield* fileSystem.exists(worktreePath));
+            assert.notInclude(yield* git(cwd, ["worktree", "list"]), worktreePath);
+            assert.equal(yield* git(cwd, ["branch", "--list", `feature/${patternsPath}`]), "");
+          }
+        }),
     );
 
     it.effect("still creates the worktree when the base-ref config stays locked", () =>
