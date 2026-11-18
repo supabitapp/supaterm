@@ -128,6 +128,7 @@ const AssetClaimsSchema = Schema.Union([
     kind: Schema.Literal("workspace-file"),
     workspaceRoot: Schema.String,
     baseRelativePath: Schema.String,
+    entryFileName: Schema.optionalKey(Schema.String),
     expiresAt: Schema.Number,
   }),
   Schema.Struct({
@@ -316,7 +317,7 @@ const resolveCanonicalWorkspaceFile = Effect.fn("AssetAccess.resolveCanonicalWor
   function* (input: {
     readonly workspaceRoot: string;
     readonly relativePath: string;
-    readonly previewDependency?: true;
+    readonly previewDependency?: boolean;
   }) {
     const fileSystem = yield* FileSystem.FileSystem;
     const workspacePaths = yield* WorkspacePaths.WorkspacePaths;
@@ -350,7 +351,7 @@ const resolveCanonicalWorkspaceFile = Effect.fn("AssetAccess.resolveCanonicalWor
 const resolveCanonicalWorkspaceFileForRequest = (input: {
   readonly workspaceRoot: string;
   readonly relativePath: string;
-  readonly previewDependency?: true;
+  readonly previewDependency?: boolean;
 }) =>
   resolveCanonicalWorkspaceFile(input).pipe(
     Effect.tapError((cause) =>
@@ -554,6 +555,7 @@ const finalizeWorkspaceFileAsset = Effect.fn("AssetAccess.finalizeWorkspaceFileA
             kind: "workspace-file" as const,
             workspaceRoot: canonicalWorkspaceRoot,
             baseRelativePath: path.dirname(resolved.relativePath),
+            entryFileName: path.basename(resolved.relativePath),
             expiresAt: input.expiresAt,
           },
       fileName: path.basename(resolved.relativePath),
@@ -1052,13 +1054,14 @@ export const resolveAsset = Effect.fn("AssetAccess.resolveAsset")(function* (
       ? ({ kind: "file", path: exactWorkspaceFile } satisfies ResolvedAsset)
       : null;
   }
-  if (!isPreviewDependencyPath(decodedPath, path)) return null;
+  const isEntry = decodedPath === claims.entryFileName;
+  if (!isEntry && !isPreviewDependencyPath(decodedPath, path)) return null;
   const joinedRelativePath =
     claims.baseRelativePath === "." ? decodedPath : path.join(claims.baseRelativePath, decodedPath);
   const workspaceFile = yield* resolveCanonicalWorkspaceFileForRequest({
     workspaceRoot: claims.workspaceRoot,
     relativePath: joinedRelativePath,
-    previewDependency: true,
+    previewDependency: !isEntry,
   });
   return workspaceFile
     ? ({ kind: "file", path: workspaceFile, renderIntent: "file-preview" } satisfies ResolvedAsset)
