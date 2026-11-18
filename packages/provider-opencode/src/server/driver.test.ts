@@ -312,7 +312,7 @@ it.layer(layer)("OpenCodeDriver", (it) => {
         assert.strictEqual(maintenance.packageName, "@opencode/cli");
         assert.isNotEmpty(probeOffline);
         assert.isTrue(probeOffline.every((offline) => offline === "1"));
-      }).pipe(Effect.scoped),
+      }),
   );
 
   it.effect("skips the installed CLI probe when a localhost provider is disabled", () =>
@@ -333,7 +333,7 @@ it.layer(layer)("OpenCodeDriver", (it) => {
       const snapshot = yield* instance.snapshot.refresh;
       assert.isFalse(snapshot.enabled);
       assert.deepStrictEqual(probed, []);
-    }).pipe(Effect.scoped),
+    }),
   );
 
   it.effect("opens a session through OpenCode 2 that a lazy mise shim installs on first use", () =>
@@ -354,7 +354,7 @@ it.layer(layer)("OpenCodeDriver", (it) => {
         })
         .pipe(Effect.scoped, Effect.flip);
       assert.deepStrictEqual(serverStarts, ["start"], "the OpenCode 2 adapter starts its server");
-    }).pipe(Effect.scoped),
+    }),
   );
 
   it.effect.each([
@@ -390,7 +390,7 @@ it.layer(layer)("OpenCodeDriver", (it) => {
         capabilities.turns.supportsNativeGoals === true,
         version.endsWith("2.2.5") || version.endsWith("2.2.6"),
       );
-    }).pipe(Effect.scoped),
+    }),
   );
 
   it.effect("uses the connected OpenCode version for goal support after an upgrade", () =>
@@ -465,7 +465,7 @@ it.layer(layer)("OpenCodeDriver", (it) => {
       assert.isTrue(
         (yield* instance.orchestrationAdapter.getCapabilities()).turns.supportsNativeGoals,
       );
-    }).pipe(Effect.scoped),
+    }),
   );
 
   it.effect("answers capability reads without waiting on an unreachable server", () =>
@@ -862,7 +862,7 @@ it.layer(layer)("OpenCodeDriver", (it) => {
         } else {
           assert.deepStrictEqual(snapshot?.usageLimits?.windows, []);
         }
-      }).pipe(Effect.scoped),
+      }),
   );
 
   it.effect.each(
@@ -1162,7 +1162,7 @@ it.layer(layerUpdate)("OpenCodeDriver updates", (it) => {
         const v2 = yield* instance.snapshot.resolveMaintenance({ fresh: true });
         assert.strictEqual(v2.packageName, "@opencode/cli");
         assert.isNull(v2.update);
-      }).pipe(Effect.scoped),
+      }),
   );
 
   it.effect(
@@ -1201,6 +1201,6 @@ it.layer(layerUpdate)("OpenCodeDriver updates", (it) => {
         versionOutput.current = "opencode v2.2.4\n";
         yield* openSession;
         assert.deepStrictEqual(serverStarts, ["start"], "the OpenCode 2 adapter starts its server");
-      }).pipe(Effect.scoped),
+      }),
   );
 });

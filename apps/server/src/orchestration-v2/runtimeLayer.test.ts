@@ -4498,122 +4498,120 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
   it.effect(
     "reads a watched pull request when the host reports a change, and wakes once per change",
     () =>
-      Effect.scoped(
-        Effect.gen(function* () {
-          const orchestrator = yield* Orchestrator.OrchestratorV2;
-          const threadId = ThreadId.make("runtime-pull-request-watch-host-event");
-          const projectId = ProjectId.make("pr-watch-host-event-project");
-          yield* seedProject({
-            projectId,
-            title: "Watch host events",
-            workspaceRoot: "/workspace/watch-host-event",
-            defaultModelSelection: null,
-            createdAt: "2026-10-01T00:00:00.000Z",
-          });
-          yield* orchestrator.dispatch({
-            type: "thread.create",
-            createdBy: "user",
-            creationSource: "web",
-            commandId: CommandId.make("pr-watch-host-event-create"),
-            threadId,
-            projectId,
-            title: "Watch host events",
-            modelSelection,
-            runtimeMode: "full-access",
-            interactionMode: "default",
-            branch: null,
-            worktreePath: null,
-          });
-          const key = { host: "github.com", repository: "supabitapp/supaterm", number: 15 };
-          yield* orchestrator.dispatch({
-            type: "thread.pull-request.watch",
-            commandId: CommandId.make("pr-watch-host-event-start"),
-            threadId,
-            ...key,
-            watching: true,
-            link: { url: "https://github.com/supabitapp/supaterm/pull/15", source: "agent" },
-          });
+      Effect.gen(function* () {
+        const orchestrator = yield* Orchestrator.OrchestratorV2;
+        const threadId = ThreadId.make("runtime-pull-request-watch-host-event");
+        const projectId = ProjectId.make("pr-watch-host-event-project");
+        yield* seedProject({
+          projectId,
+          title: "Watch host events",
+          workspaceRoot: "/workspace/watch-host-event",
+          defaultModelSelection: null,
+          createdAt: "2026-10-01T00:00:00.000Z",
+        });
+        yield* orchestrator.dispatch({
+          type: "thread.create",
+          createdBy: "user",
+          creationSource: "web",
+          commandId: CommandId.make("pr-watch-host-event-create"),
+          threadId,
+          projectId,
+          title: "Watch host events",
+          modelSelection,
+          runtimeMode: "full-access",
+          interactionMode: "default",
+          branch: null,
+          worktreePath: null,
+        });
+        const key = { host: "github.com", repository: "supabitapp/supaterm", number: 15 };
+        yield* orchestrator.dispatch({
+          type: "thread.pull-request.watch",
+          commandId: CommandId.make("pr-watch-host-event-start"),
+          threadId,
+          ...key,
+          watching: true,
+          link: { url: "https://github.com/supabitapp/supaterm/pull/15", source: "agent" },
+        });
 
-          let checks: PullRequestDetail["checks"] = [
-            { name: "lint", status: "pending", description: null, url: null, required: true },
-          ];
-          let fingerprints = 0;
-          const events = yield* Queue.unbounded<void>();
-          const following = yield* Deferred.make<void>();
-          const detailReads = yield* Queue.unbounded<void>();
-          const host = Layer.mergeAll(
-            NodeServices.layer,
-            NodeCrypto.layer,
-            Layer.mock(PullRequestService.PullRequestService)({
-              detail: () =>
-                Queue.offer(detailReads, undefined).pipe(
-                  Effect.as({
-                    ...watchedPullRequestDetail({
-                      projectId,
-                      number: 15,
-                      at: "2026-10-02T12:00:00.000Z",
-                    }),
-                    headSha: "aaaaaaaaaa",
-                    checks,
+        let checks: PullRequestDetail["checks"] = [
+          { name: "lint", status: "pending", description: null, url: null, required: true },
+        ];
+        let fingerprints = 0;
+        const events = yield* Queue.unbounded<void>();
+        const following = yield* Deferred.make<void>();
+        const detailReads = yield* Queue.unbounded<void>();
+        const host = Layer.mergeAll(
+          NodeServices.layer,
+          NodeCrypto.layer,
+          Layer.mock(PullRequestService.PullRequestService)({
+            detail: () =>
+              Queue.offer(detailReads, undefined).pipe(
+                Effect.as({
+                  ...watchedPullRequestDetail({
+                    projectId,
+                    number: 15,
+                    at: "2026-10-02T12:00:00.000Z",
                   }),
-                ),
-              activity: () =>
-                Effect.succeed({
-                  comments: [],
-                  commentCount: 0,
-                  commentsTruncated: false,
-                  reviewThreads: [],
-                  commits: [],
+                  headSha: "aaaaaaaaaa",
+                  checks,
                 }),
-              // A fresh fingerprint every time, so every pass reads the detail.
-              watchFingerprint: () =>
-                Effect.sync(() => ({ status: String(++fingerprints), remarks: "" })),
-              invalidate: () => Effect.void,
-              changes: () =>
-                Stream.fromEffectDrain(Deferred.succeed(following, undefined)).pipe(
-                  Stream.concat(Stream.fromQueue(events)),
-                ),
-            }),
-          );
-          const wakes = Effect.map(
-            orchestrator.getThreadRecords(threadId, ["messages"]),
-            ({ messages }) =>
-              messages.filter(
-                (message) => message.notification !== undefined && message.notification !== null,
               ),
-          );
-          const reactor = yield* PullRequestWatchReactor.make.pipe(Effect.provide(host));
-          const worker = yield* EffectWorker.OrchestrationEffectWorkerV2;
-          yield* reactor.start();
-          // The feed starts after the first sweep has read the pull request.
-          yield* Deferred.await(following);
-          yield* Queue.take(detailReads);
+            activity: () =>
+              Effect.succeed({
+                comments: [],
+                commentCount: 0,
+                commentsTruncated: false,
+                reviewThreads: [],
+                commits: [],
+              }),
+            // A fresh fingerprint every time, so every pass reads the detail.
+            watchFingerprint: () =>
+              Effect.sync(() => ({ status: String(++fingerprints), remarks: "" })),
+            invalidate: () => Effect.void,
+            changes: () =>
+              Stream.fromEffectDrain(Deferred.succeed(following, undefined)).pipe(
+                Stream.concat(Stream.fromQueue(events)),
+              ),
+          }),
+        );
+        const wakes = Effect.map(
+          orchestrator.getThreadRecords(threadId, ["messages"]),
+          ({ messages }) =>
+            messages.filter(
+              (message) => message.notification !== undefined && message.notification !== null,
+            ),
+        );
+        const reactor = yield* PullRequestWatchReactor.make.pipe(Effect.provide(host));
+        const worker = yield* EffectWorker.OrchestrationEffectWorkerV2;
+        yield* reactor.start();
+        // The feed starts after the first sweep has read the pull request.
+        yield* Deferred.await(following);
+        yield* Queue.take(detailReads);
 
-          checks = [
-            { name: "lint", status: "failure", description: null, url: null, required: true },
-          ];
-          yield* Queue.offer(events, undefined);
-          // The clock never moves, so no sweep can be the one that reads the failure.
-          yield* Queue.take(detailReads);
-          // Nothing new: this read must compare against the watch the last one recorded.
-          yield* Queue.offer(events, undefined);
-          yield* Queue.take(detailReads);
-          // A sweep waits for the change read in flight.
-          yield* reactor.sweep;
-          yield* worker.drain();
-          const woken = yield* wakes;
-          assert.lengthOf(woken, 1);
-          assert.include(woken[0]!.notification?.summary ?? "", "checks finished");
+        checks = [
+          { name: "lint", status: "failure", description: null, url: null, required: true },
+        ];
+        yield* Queue.offer(events, undefined);
+        // The clock never moves, so no sweep can be the one that reads the failure.
+        yield* Queue.take(detailReads);
+        // Nothing new: this read must compare against the watch the last one recorded.
+        yield* Queue.offer(events, undefined);
+        yield* Queue.take(detailReads);
+        // A sweep waits for the change read in flight.
+        yield* reactor.sweep;
+        yield* worker.drain();
+        const woken = yield* wakes;
+        assert.lengthOf(woken, 1);
+        assert.include(woken[0]!.notification?.summary ?? "", "checks finished");
 
-          yield* orchestrator.dispatch({
-            type: "thread.pull-request.watch",
-            commandId: CommandId.make("pr-watch-host-event-end"),
-            threadId,
-            ...key,
-            watching: false,
-          });
-        }),
-      ),
+        yield* orchestrator.dispatch({
+          type: "thread.pull-request.watch",
+          commandId: CommandId.make("pr-watch-host-event-end"),
+          threadId,
+          ...key,
+          watching: false,
+        });
+      }),
   );
 
   it.effect("wakes for checks that complete after the no-checks notice on the same head", () =>
@@ -9736,6 +9734,19 @@ it.layer(layerSharedApplicationDataPlaneTest)("visited projection", (it) => {
       assert.isNotNull(visited.thread.lastVisitedAt);
       assert.equal(DateTime.formatIso(visited.thread.lastVisitedAt!), visitedAt);
       assert.deepEqual(visited.thread.updatedAt, createdUpdatedAt);
+      const sql = yield* SqlClient.SqlClient;
+      const visitPayloadKeys = (commandId: string) =>
+        sql<{ readonly payload_json: string }>`
+          SELECT payload_json FROM orchestration_events WHERE command_id = ${commandId}
+        `.pipe(
+          Effect.map((rows) =>
+            rows.map((row) => Object.keys(JSON.parse(row.payload_json)).toSorted()),
+          ),
+        );
+      // A visit stores read state, not a copy of the thread.
+      for (const keys of yield* visitPayloadKeys("runtime-layer-visited-thread-visit")) {
+        assert.includeMembers(["lastVisitedAt", "opens", "threadId"], keys);
+      }
 
       yield* orchestrator.dispatch({
         type: "thread.visit",
@@ -9745,6 +9756,8 @@ it.layer(layerSharedApplicationDataPlaneTest)("visited projection", (it) => {
       });
       const afterStaleVisit = yield* orchestrator.getThreadProjection(threadId);
       assert.equal(DateTime.formatIso(afterStaleVisit.thread.lastVisitedAt!), visitedAt);
+      // A stale visit with no open changes nothing, so it stores nothing.
+      assert.deepEqual(yield* visitPayloadKeys("runtime-layer-visited-thread-visit-stale"), []);
 
       const shell = yield* orchestrator.getShellSnapshot();
       const thread = shell.threads.find((candidate) => candidate.id === threadId);
@@ -9761,7 +9774,6 @@ it.layer(layerSharedApplicationDataPlaneTest)("visited projection", (it) => {
         .pipe(Effect.flip);
       assert.instanceOf(markUnread, Orchestrator.OrchestratorDispatchError);
 
-      const sql = yield* SqlClient.SqlClient;
       yield* sql`INSERT INTO orchestration_v2_projection_turn_items (
         turn_item_id, thread_id, ordinal, type, status, updated_at, payload_json
       ) VALUES (
@@ -10186,12 +10198,12 @@ it.layer(Layer.fresh(layerSharedApplicationDataPlaneTest))("compact PR events", 
       );
 
       // A later visit is read state only: clients keep updatedAt from the
-      // rename, so compaction must keep the rename. Two visits supersede each
-      // other, and a later rename supersedes a visit.
+      // rename, so compaction must keep the rename. A visit carries no whole
+      // thread, so it supersedes nothing, and a later rename supersedes it.
       const threadEvents = () => sql<{ event_type: string }>`
         SELECT event_type FROM orchestration_events
         WHERE stream_id = ${threadId}
-          AND event_type IN ('thread.metadata-updated', 'thread.visited')
+          AND event_type IN ('thread.metadata-updated', 'thread.visited', 'thread.visit-recorded')
         ORDER BY sequence
       `;
       yield* orchestrator.dispatch({
@@ -10214,7 +10226,7 @@ it.layer(Layer.fresh(layerSharedApplicationDataPlaneTest))("compact PR events", 
       yield* maintenance.compactEventStore();
       assert.deepEqual(
         (yield* threadEvents()).map((row) => row.event_type),
-        ["thread.metadata-updated", "thread.visited"],
+        ["thread.metadata-updated", "thread.visit-recorded", "thread.visit-recorded"],
       );
       yield* orchestrator.dispatch({
         type: "thread.metadata.update",

@@ -27,59 +27,55 @@ const layerAuth = (allowed: boolean) =>
 const makeClient = HttpApiTest.groups(EnvironmentHttpApi, ["relay"]);
 
 it.effect("authorizes preparation before activating and returns the ready relay address", () =>
-  Effect.scoped(
-    Effect.gen(function* () {
-      let activations = 0;
-      const relay = Layer.mock(RelayAccess.RelayAccess, {
-        prepare: Effect.sync(() => {
-          activations++;
-          return relayInfo;
-        }),
-      });
-      const run = (allowed: boolean) =>
-        Effect.gen(function* () {
-          const client = yield* makeClient;
-          return yield* client.relay.prepare({ headers: {} }).pipe(Effect.result);
-        }).pipe(
-          Effect.provide(
-            Layer.mergeAll(
-              RelayHttp.layer.pipe(Layer.provide(relay), Layer.provideMerge(layerAuth(allowed))),
-              HttpServer.layerServices,
-            ),
+  Effect.gen(function* () {
+    let activations = 0;
+    const relay = Layer.mock(RelayAccess.RelayAccess, {
+      prepare: Effect.sync(() => {
+        activations++;
+        return relayInfo;
+      }),
+    });
+    const run = (allowed: boolean) =>
+      Effect.gen(function* () {
+        const client = yield* makeClient;
+        return yield* client.relay.prepare({ headers: {} }).pipe(Effect.result);
+      }).pipe(
+        Effect.provide(
+          Layer.mergeAll(
+            RelayHttp.layer.pipe(Layer.provide(relay), Layer.provideMerge(layerAuth(allowed))),
+            HttpServer.layerServices,
           ),
-        );
-      const denied = yield* run(false);
-      expect(denied).toMatchObject({
-        _tag: "Failure",
-        failure: { _tag: "EnvironmentScopeRequiredError", requiredScope: AuthAccessWriteScope },
-      });
-      expect(activations).toBe(0);
-      const allowed = yield* run(true);
-      expect(allowed).toMatchObject({ _tag: "Success", success: relayInfo });
-      expect(activations).toBe(1);
-    }),
-  ),
+        ),
+      );
+    const denied = yield* run(false);
+    expect(denied).toMatchObject({
+      _tag: "Failure",
+      failure: { _tag: "EnvironmentScopeRequiredError", requiredScope: AuthAccessWriteScope },
+    });
+    expect(activations).toBe(0);
+    const allowed = yield* run(true);
+    expect(allowed).toMatchObject({ _tag: "Success", success: relayInfo });
+    expect(activations).toBe(1);
+  }),
 );
 
 it.effect("returns a typed preparation failure for an unavailable relay", () =>
-  Effect.scoped(
-    Effect.gen(function* () {
-      const client = yield* makeClient;
-      const failure = yield* client.relay.prepare({ headers: {} }).pipe(Effect.flip);
-      expect(failure).toMatchObject({ _tag: "RelayPreparationError", reason: "timeout" });
-    }).pipe(
-      Effect.provide(
-        Layer.mergeAll(
-          RelayHttp.layer.pipe(
-            Layer.provide(
-              Layer.mock(RelayAccess.RelayAccess, {
-                prepare: Effect.fail(new RelayPreparationError({ reason: "timeout" })),
-              }),
-            ),
-            Layer.provideMerge(layerAuth(true)),
+  Effect.gen(function* () {
+    const client = yield* makeClient;
+    const failure = yield* client.relay.prepare({ headers: {} }).pipe(Effect.flip);
+    expect(failure).toMatchObject({ _tag: "RelayPreparationError", reason: "timeout" });
+  }).pipe(
+    Effect.provide(
+      Layer.mergeAll(
+        RelayHttp.layer.pipe(
+          Layer.provide(
+            Layer.mock(RelayAccess.RelayAccess, {
+              prepare: Effect.fail(new RelayPreparationError({ reason: "timeout" })),
+            }),
           ),
-          HttpServer.layerServices,
+          Layer.provideMerge(layerAuth(true)),
         ),
+        HttpServer.layerServices,
       ),
     ),
   ),

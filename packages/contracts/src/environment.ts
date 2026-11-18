@@ -118,6 +118,8 @@ export const ExecutionEnvironmentCapabilities = Schema.Struct({
   /** Server keeps `pinned` and `archived` from project.update. Older servers drop them. */
   projectOrganization: Schema.optionalKey(Schema.Boolean),
   ignoredFileListing: Schema.optionalKey(Schema.Boolean),
+  /** projects.listIgnoredFiles honors `query`. Older servers ignore it. */
+  ignoredFileSearch: Schema.optionalKey(Schema.Boolean),
   /** The desktop app supervising this server can be driven over RPC:
       server.updateServer runs its check -> download -> relaunch. Absent on
       servers the desktop app does not supervise, where clients tell the user
@@ -146,6 +148,8 @@ export const ExecutionEnvironmentCapabilities = Schema.Struct({
    */
   shellThreadFamilies: Schema.optionalKey(Schema.Boolean),
   shellOlderDone: Schema.optionalKey(Schema.Boolean),
+  /** Publishes a pull request refresh when linked-thread answers change; older servers need polling. */
+  linkedThreadRefreshes: Schema.optionalKey(Schema.Boolean),
 });
 export type ExecutionEnvironmentCapabilities = typeof ExecutionEnvironmentCapabilities.Type;
 

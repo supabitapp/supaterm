@@ -1196,6 +1196,9 @@ const make = Effect.gen(function* () {
           doneFor !== null &&
           settings.worktreeDoneAfterDays !== null &&
           doneFor >= settings.worktreeDoneAfterDays * DAY_MS;
+        // A worktree is unchanged before its first commit, so only finished threads qualify.
+        const unchangedApplies =
+          settings.worktreeUnchanged && (doneThread !== undefined || thread.archivedAt !== null);
         let eligible = deleted || old || doneLongEnough;
         let removalReason = deleted
           ? "thread was deleted"
@@ -1211,12 +1214,13 @@ const make = Effect.gen(function* () {
                 : `done for ${doneDays} of ${settings.worktreeDoneAfterDays} days`
               : settings.worktreeOnMerge
                 ? "not merged"
-                : settings.worktreeUnchanged
+                : unchangedApplies
                   ? "has commits beyond the default branch"
-                  : "no rules apply";
+                  : settings.worktreeUnchanged
+                    ? "not done"
+                    : "no rules apply";
         // Only Git-based rules can make a not-yet-due worktree eligible, so skip Git otherwise.
-        if (!eligible && !settings.worktreeUnchanged && !settings.worktreeOnMerge)
-          return keep(notDueReason);
+        if (!eligible && !unchangedApplies && !settings.worktreeOnMerge) return keep(notDueReason);
         const pathReason = yield* worktreePathReason(worktreePath);
         if (pathReason !== null) return keep(pathReason);
         if (yield* containsProjectRoot(worktreePaths, [project, ...snapshot.projects]))
@@ -1240,8 +1244,12 @@ const make = Effect.gen(function* () {
           let branch: string | null | undefined;
           let defaultRef: string;
           if (remote === null) {
-            if (!settings.worktreeUnchanged)
-              return keep("no remote is configured for merged-worktree cleanup");
+            if (!unchangedApplies)
+              return keep(
+                settings.worktreeUnchanged
+                  ? notDueReason
+                  : "no remote is configured for merged-worktree cleanup",
+              );
             const projectHead = yield* git.execute({
               operation: "StorageCleanup.resolveProjectBranch",
               cwd: repositoryCwd,
@@ -1300,7 +1308,7 @@ const make = Effect.gen(function* () {
             allowNonZeroExit: true,
           });
           const integrated = ancestor.exitCode === 0;
-          eligible = integrated && settings.worktreeUnchanged;
+          eligible = integrated && unchangedApplies;
           if (eligible)
             removalReason =
               remote === null
@@ -1319,7 +1327,8 @@ const make = Effect.gen(function* () {
             });
             if (eligible) removalReason = "pull request was merged";
           }
-          if (!eligible && remote === null) return keep("has commits beyond the project branch");
+          if (!eligible && remote === null)
+            return keep(integrated ? notDueReason : "has commits beyond the project branch");
         }
         if (!eligible) return keep(notDueReason);
         // Threads, queued deletion work and provider sessions as they are now, so a

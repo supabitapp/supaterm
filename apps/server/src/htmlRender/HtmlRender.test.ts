@@ -671,6 +671,6 @@ fs.createReadStream(null, { fd: 3 }).on("end", quit).on("data", (chunk) => {
       }).pipe(Effect.provide(layerHtmlRender(executable)));
       expect(requests).toEqual([]);
       expect(datagrams).toEqual([]);
-    }).pipe(Effect.scoped),
+    }),
   );
 });
