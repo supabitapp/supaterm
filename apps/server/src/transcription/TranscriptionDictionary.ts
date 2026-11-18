@@ -1,8 +1,11 @@
 import type { TranscriptionDictionaryEntry } from "@supaterm/contracts";
 
+// These scripts are written without spaces, so a neighbor in one of them still ends a word.
+const UNSPACED_SCRIPTS = "\\p{scx=Han}\\p{scx=Hiragana}\\p{scx=Katakana}";
 // Marks count as part of a word, so a Devanagari vowel sign keeps its word whole.
-const NOT_WORD_BEFORE = "(?<![\\p{L}\\p{M}\\p{N}_])";
-const NOT_WORD_AFTER = "(?![\\p{L}\\p{M}\\p{N}_])";
+const WORD_CHARACTER = `[[\\p{L}\\p{M}\\p{N}_]--[${UNSPACED_SCRIPTS}]]`;
+const NOT_WORD_BEFORE = `(?<!${WORD_CHARACTER})`;
+const NOT_WORD_AFTER = `(?!${WORD_CHARACTER})`;
 
 const escapeRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
@@ -28,14 +31,14 @@ export function applyDictionary(
       // A spelling with no words would match the empty string everywhere.
       if (key.length === 0) continue;
       if (!spellings.has(key)) spellings.set(key, entry.term);
-      alternatives.push(words.map(escapeRegex).join("[\\s-]*"));
+      alternatives.push(words.map(escapeRegex).join("[\\s\\-]*"));
     }
   }
   if (alternatives.length === 0) return text;
   alternatives.sort((left, right) => right.length - left.length);
   const pattern = new RegExp(
     `${NOT_WORD_BEFORE}(?:${alternatives.join("|")})${NOT_WORD_AFTER}`,
-    "giu",
+    "giv",
   );
   return text.replace(pattern, (match) => spellings.get(spokenKey(match)) ?? match);
 }
