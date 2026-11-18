@@ -385,28 +385,33 @@ export function useComposerContextImport(input: {
           rewritten.set(record.contextId, previewAnnotationContextId(annotation.id));
           break;
         }
-        case "thread":
-        case "model": {
+        case "thread": {
           // The agent can only read threads on its own server; a pasted foreign one is dropped.
-          if (record.kind === "thread" && record.environmentId !== environmentId) break;
-          const references = getComposerDraft(referenceDraftTarget)?.referenceContexts ?? [];
+          if (record.environmentId !== environmentId) break;
           // Threads reuse their destination record by identity, reminting only on an ID collision.
+          const references = getComposerDraft(referenceDraftTarget)?.referenceContexts ?? [];
+          const attached = references.find(
+            (reference) =>
+              reference.kind === "thread" &&
+              reference.environmentId === record.environmentId &&
+              reference.threadId === record.threadId,
+          );
           const imported =
-            record.kind === "thread"
-              ? (references.find(
-                  (reference) =>
-                    reference.kind === "thread" &&
-                    reference.environmentId === record.environmentId &&
-                    reference.threadId === record.threadId,
-                ) ??
-                (references.some((reference) => reference.contextId === record.contextId)
-                  ? { ...record, contextId: toKindScopedComposerContextId("thread", randomUUID()) }
-                  : record))
-              : record;
+            attached ??
+            (references.some((reference) => reference.contextId === record.contextId)
+              ? { ...record, contextId: toKindScopedComposerContextId("thread", randomUUID()) }
+              : record);
           addComposerDraftReferenceContexts(referenceDraftTarget, [imported], {
             appendReference: false,
           });
           rewritten.set(record.contextId, imported.contextId);
+          break;
+        }
+        case "model": {
+          addComposerDraftReferenceContexts(referenceDraftTarget, [record], {
+            appendReference: false,
+          });
+          rewritten.set(record.contextId, record.contextId);
           break;
         }
         case "image":
