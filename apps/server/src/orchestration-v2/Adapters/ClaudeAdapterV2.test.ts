@@ -1814,6 +1814,15 @@ describe("ClaudeAdapterV2 resumeThread", () => {
           },
         });
         assert.equal(missing.nativeThreadRef?.nativeId, "native-thread-missing");
+
+        // An imported session's history lives only in its transcript.
+        const missingImport = yield* Effect.flip(
+          runtime.resumeThread({
+            providerThread: { ...missing, id: providerThread.id },
+            importedNativeSession: true,
+          }),
+        );
+        assert.equal(missingImport._tag, "ProviderAdapterResumeThreadError");
       }),
     ).pipe(
       Effect.provide(

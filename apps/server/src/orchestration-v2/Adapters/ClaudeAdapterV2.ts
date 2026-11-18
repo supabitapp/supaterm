@@ -13781,41 +13781,41 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
         });
         yield* Effect.addFinalizer(() => closeSession());
 
-        const hasEmptyClaudeTranscript = Effect.fn("ClaudeAdapterV2.hasEmptyClaudeTranscript")(
-          function* (nativeThreadId: string) {
-            const configuredDir = adapterOptions.environment.CLAUDE_CONFIG_DIR?.trim() ?? "";
-            const projectsDir = path.join(
-              configuredDir.length > 0
-                ? path.resolve(session.cwd, configuredDir)
-                : path.join(yield* HostProcess.HomeDirectory, ".claude"),
-              "projects",
-            );
+        const claudeTranscriptState = Effect.fn("ClaudeAdapterV2.claudeTranscriptState")(function* (
+          nativeThreadId: string,
+        ) {
+          const configuredDir = adapterOptions.environment.CLAUDE_CONFIG_DIR?.trim() ?? "";
+          const projectsDir = path.join(
+            configuredDir.length > 0
+              ? path.resolve(session.cwd, configuredDir)
+              : path.join(yield* HostProcess.HomeDirectory, ".claude"),
+            "projects",
+          );
 
-            let found = false;
-            for (const project of yield* fileSystem.readDirectory(projectsDir)) {
-              const transcriptPath = path.join(projectsDir, project, `${nativeThreadId}.jsonl`);
+          let found = false;
+          for (const project of yield* fileSystem.readDirectory(projectsDir)) {
+            const transcriptPath = path.join(projectsDir, project, `${nativeThreadId}.jsonl`);
 
-              if (
-                !(yield* fileSystem.exists(transcriptPath).pipe(Effect.orElseSucceed(() => false)))
-              ) {
-                continue;
-              }
-              const conversationLine = yield* fileSystem
-                .stream(transcriptPath)
-                .pipe(
-                  Stream.decodeText,
-                  Stream.splitLines,
-                  Stream.filter(isClaudeConversationLine),
-                  Stream.runHead,
-                );
-              if (Option.isSome(conversationLine)) {
-                return false;
-              }
-              found = true;
+            if (
+              !(yield* fileSystem.exists(transcriptPath).pipe(Effect.orElseSucceed(() => false)))
+            ) {
+              continue;
             }
-            return found;
-          },
-        );
+            const conversationLine = yield* fileSystem
+              .stream(transcriptPath)
+              .pipe(
+                Stream.decodeText,
+                Stream.splitLines,
+                Stream.filter(isClaudeConversationLine),
+                Stream.runHead,
+              );
+            if (Option.isSome(conversationLine)) {
+              return "conversation" as const;
+            }
+            found = true;
+          }
+          return found ? ("empty" as const) : ("missing" as const);
+        });
 
         const runtime: ProviderAdapter.ProviderAdapterV2SessionRuntime = {
           instanceId: adapterOptions.instanceId,
@@ -13913,7 +13913,10 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
               ),
           ),
           resumeThread: Effect.fn("ClaudeAdapterV2.resumeThread")(
-            function* (threadInput: { readonly providerThread: OrchestrationV2ProviderThread }) {
+            function* (threadInput: {
+              readonly providerThread: OrchestrationV2ProviderThread;
+              readonly importedNativeSession?: boolean;
+            }) {
               const nativeThreadId = threadInput.providerThread.nativeThreadRef?.nativeId;
               if (nativeThreadId !== undefined && nativeThreadId !== null) {
                 const recordedTitle = threadInput.providerThread.nativeMetadata?.title;
@@ -13932,10 +13935,13 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
                     detail: `Claude Code has no conversation ${nativeThreadId} to resume.`,
                   });
                 }
+                const transcript = yield* claudeTranscriptState(nativeThreadId).pipe(
+                  Effect.orElseSucceed(() => "missing" as const),
+                );
+                // Opening a missing imported session would start an empty one under its id.
                 if (
-                  yield* hasEmptyClaudeTranscript(nativeThreadId).pipe(
-                    Effect.orElseSucceed(() => false),
-                  )
+                  transcript === "empty" ||
+                  (transcript === "missing" && threadInput.importedNativeSession === true)
                 ) {
                   return yield* new ProviderAdapter.ProviderAdapterProtocolError({
                     driver: CLAUDE_PROVIDER,
