@@ -211,19 +211,13 @@ it("resolves the <picture> source for the current theme like any other image", a
 
 it("sizes a raw HTML image by width and height written with px units", async () => {
   setup();
-  const largeImage = `data:image/svg+xml,${encodeURIComponent(
-    '<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200"/>',
-  )}`;
+  const largeImage = `${window.location.origin}/icon-192x192.png`;
   await using screen = await render(
-    <HostImageUrlContext value={() => largeImage}>
-      <ChatMarkdown
-        cwd={undefined}
-        parseRawHtml
-        text={
-          '### PR Review in progress <img src="/work/spinner.gif" alt="spinner" width="14px" height="7px" />'
-        }
-      />
-    </HostImageUrlContext>,
+    <ChatMarkdown
+      cwd={undefined}
+      parseRawHtml
+      text={`### PR Review in progress <img src="${largeImage}" alt="spinner" width="14px" height="7px" />`}
+    />,
   );
   const image = screen.getByAltText("spinner");
   await expect.element(image).toHaveAttribute("src", largeImage);
