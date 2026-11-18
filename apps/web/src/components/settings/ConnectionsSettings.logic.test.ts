@@ -6,6 +6,7 @@ import {
   isServerNetworkAccessible,
   parseManualDesktopSshTarget,
   resolveAccessEnvironmentId,
+  resolveCurrentOriginPairingUrl,
   resolveTailscaleServeBaseUrl,
   selectQrEndpointOption,
   togglePairingScopeSelection,
@@ -70,6 +71,18 @@ describe("parseManualDesktopSshTarget", () => {
     expect(() => parseManualDesktopSshTarget({ host: "devbox", username: "", port })).toThrow(
       "SSH port must be between 1 and 65535.",
     );
+  });
+});
+
+describe("resolveCurrentOriginPairingUrl", () => {
+  it.each([
+    ["supaterm://app/settings/connections", null],
+    ["http://127.0.0.1:3774/settings", null],
+    ["http://localhost:5173/", null],
+    ["https://host.example.ts.net/settings", "https://host.example.ts.net/pair#token=abc"],
+    ["http://192.168.1.20:3773/", "http://192.168.1.20:3773/pair#token=abc"],
+  ])("from %s", (href, expected) => {
+    expect(resolveCurrentOriginPairingUrl("abc", {}, href)).toBe(expected);
   });
 });
 
