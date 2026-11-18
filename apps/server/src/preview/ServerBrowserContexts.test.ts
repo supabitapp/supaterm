@@ -63,6 +63,25 @@ const options = () => ({
   env: {},
 });
 
+// Chromium writes DevToolsActivePort after the launched context is usable, so the file can trail the launch.
+const devToolsPort = async (userDataDir: string) => {
+  const file = NodePath.join(userDataDir, "DevToolsActivePort");
+  if (!NodeFS.existsSync(file)) {
+    await new Promise<void>((resolve) => {
+      const watcher = NodeFS.watch(userDataDir, () => {
+        if (!NodeFS.existsSync(file)) return;
+        watcher.close();
+        resolve();
+      });
+      if (NodeFS.existsSync(file)) {
+        watcher.close();
+        resolve();
+      }
+    });
+  }
+  return NodeFS.readFileSync(file, "utf8").split("\n")[0];
+};
+
 const withLauncher = () => {
   const release = vi.fn(async () => {});
   return {
@@ -365,10 +384,7 @@ describe("ServerBrowserContexts", () => {
         args: ["--remote-debugging-port=0"],
       });
       try {
-        const [port] = NodeFS.readFileSync(
-          NodePath.join(userDataDir, "DevToolsActivePort"),
-          "utf8",
-        ).split("\n");
+        const port = await devToolsPort(userDataDir);
         const { browser, page } = await pool.connectDesktopPage(`http://127.0.0.1:${port}`);
         try {
           const file = NodePath.join(directory, "large.bin");
