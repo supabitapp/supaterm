@@ -99,28 +99,59 @@ describe("AcpClientTerminals", () => {
 
   it.live("resolves terminal environment from the requesting ACP session", () =>
     Effect.gen(function* () {
+      const inheritedEnvironment = yield* HostProcess.Environment;
       const terminals = yield* makeAcpClientTerminals({
         defaultCwd: process.cwd(),
-        environmentForSession: (sessionId) => ({
-          SUPATERM_TEST_ACP_SESSION_TOKEN: sessionId === "session-a" ? "token-a" : "token-b",
-        }),
+        environmentForSession: (sessionId) =>
+          sessionId === "unknown"
+            ? undefined
+            : {
+                SUPATERM_ACP_MCP_AUTHORIZATION: sessionId === "session-a" ? "token-a" : "token-b",
+                SUPATERM_THREAD_ID: sessionId,
+              },
       });
       yield* Effect.addFinalizer(() => terminals.disposeAll);
+      inheritedEnvironment.SUPATERM_TEST_INHERITED = "refreshed";
 
       for (const [sessionId, expected] of [
-        ["session-a", "token-a"],
-        ["session-b", "token-b"],
+        ["session-a", "token-a||session-a|refreshed|SUPATERM_TEST_OVERRIDE=request"],
+        ["session-b", "token-b||session-b|refreshed|SUPATERM_TEST_OVERRIDE=request"],
+        ["unknown", "|||refreshed|SUPATERM_TEST_OVERRIDE=inherited"],
       ] as const) {
         const created = yield* terminals.create({
           sessionId,
           command: process.execPath,
-          args: ["-e", "process.stdout.write(process.env.SUPATERM_TEST_ACP_SESSION_TOKEN ?? '')"],
+          args: [
+            "-e",
+            "const env = process.env; process.stdout.write([env.SUPATERM_ACP_MCP_AUTHORIZATION ?? '', env.supaterm_Acp_Mcp_Endpoint ?? '', env.SUPATERM_THREAD_ID ?? '', env.SUPATERM_TEST_INHERITED, ...Object.keys(env).filter((name) => name.toUpperCase() === 'SUPATERM_TEST_OVERRIDE').map((name) => name + '=' + env[name])].join('|'))",
+          ],
+          ...(sessionId === "unknown"
+            ? {}
+            : {
+                env: [
+                  { name: "SUPATERM_TEST_OVERRIDE", value: "first" },
+                  { name: "supaterm_Test_Override", value: "second" },
+                  { name: "SUPATERM_TEST_OVERRIDE", value: "request" },
+                ],
+              }),
         });
         yield* terminals.waitForExit({ sessionId, terminalId: created.terminalId });
         const output = yield* terminals.output({ sessionId, terminalId: created.terminalId });
         expect(output.output).toBe(expected);
       }
-    }).pipe(Effect.provide(NodeServices.layer)),
+    }).pipe(
+      Effect.provideService(HostProcess.Environment, {
+        ...process.env,
+        SUPATERM_ACP_MCP_AUTHORIZATION: "launching-thread-token",
+        supaterm_Acp_Mcp_Endpoint: "launching-thread-endpoint",
+        SUPATERM_THREAD_ID: "launching-thread",
+        SUPATERM_TEST_INHERITED: "kept",
+        SUPATERM_TEST_OVERRIDE: "inherited",
+      }),
+      // Exercise Windows' case-insensitive variable names on every OS.
+      Effect.provideService(HostProcess.Platform, "win32"),
+      Effect.provide(NodeServices.layer),
+    ),
   );
 
   it.live("runs Devin shell source with arguments, pipes, and session fallback variables", () =>
