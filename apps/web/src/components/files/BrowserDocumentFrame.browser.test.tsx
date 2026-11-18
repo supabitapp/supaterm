@@ -397,7 +397,7 @@ describe("BrowserDocumentFrame", () => {
     await vi.waitFor(() => expect(iframes().map((element) => element.src)).toEqual([second]));
     const shown = iframes()[0]!.contentWindow;
     expect(
-      reports.filter((report) => report.source === shown).map((report) => report.y),
+      reports.flatMap((report) => (report.source === shown ? [report.y] : [])),
       "the next revision was uncovered before it took the reader's position",
     ).toContain(1200);
   });
