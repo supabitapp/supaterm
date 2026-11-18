@@ -771,7 +771,7 @@ function latestTerminalResultRun(
   supersede(awaitingContinuationRun?.id);
   for (const run of projection.runs) {
     if (
-      !ThreadManagementService.isTerminalRunStatus(run.status) ||
+      !isOrchestrationV2RunSettled(run.status) ||
       (run.status !== "rolled_back" && run.startedAt !== null)
     )
       supersede(run.restartContinuationOfRunId);
