@@ -413,7 +413,7 @@ describe("buildProjectGroups", () => {
     const root = makeProject("NewCo", "/work/NewCo");
     const lowercasedClone = makeProject("NewCo", "/remote/NewCo", {
       environmentId: EnvironmentId.make("remote"),
-      repositoryIdentity: { ...repositoryIdentity, name: "SUPATERM", displayName: "supaterm" },
+      repositoryIdentity: { ...repositoryIdentity, name: "SUPATERM", displayName: "SupaTerm" },
     });
 
     const groups = buildProjectGroups({
@@ -422,7 +422,7 @@ describe("buildProjectGroups", () => {
       preferredEnvironmentId: environmentId,
     });
     expect(groups).toHaveLength(1);
-    expect(groups[0]?.label).toBe("Supaterm");
+    expect(groups[0]?.label).toBe("supaterm");
 
     // A subfolder group in repository_path mode keeps its own title.
     const localIdentity = { ...repositoryIdentity, rootPath: "/work/supaterm" };
@@ -439,7 +439,7 @@ describe("buildProjectGroups", () => {
             ...repositoryIdentity,
             rootPath: "/remote/supaterm",
             name: "SUPATERM",
-            displayName: "supaterm",
+            displayName: "SupaTerm",
           },
         }),
         makeProject("supaterm", "/work/supaterm", { repositoryIdentity: localIdentity }),
