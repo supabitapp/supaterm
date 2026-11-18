@@ -5249,7 +5249,9 @@ describe("AcpAdapterV2", () => {
         const harness = yield* makePromptInactivityHarness({
           followAgentWorkState,
           environment: (runtimeOrdinal) =>
-            runtimeOrdinal === 1 ? { Supaterm_ACP_EMIT_TRACKED_TOOL_CALL_KIND_THEN_HANG: "execute" } : {},
+            runtimeOrdinal === 1
+              ? { SUPATERM_ACP_EMIT_TRACKED_TOOL_CALL_KIND_THEN_HANG: "execute" }
+              : {},
         });
         yield* harness.startTurn(1);
         let exited = false;
