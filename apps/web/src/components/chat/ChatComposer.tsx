@@ -3114,7 +3114,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
       (!pastedContext &&
         activeThreadId &&
         files.length > 0 &&
-        shouldHandleComposerAttachmentPaste({ files, plainText }))
+        shouldHandleComposerAttachmentPaste({ files, plainText, bypassAutoAttachment }))
     ) {
       event.preventDefault();
       event.stopPropagation();
