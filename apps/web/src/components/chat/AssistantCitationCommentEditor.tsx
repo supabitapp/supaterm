@@ -5,6 +5,7 @@ import { textDirection } from "~/textDirection";
 
 import { Button } from "../ui/button";
 import { TextFieldVoiceInput } from "./TextFieldVoiceInput";
+import { isImeComposing } from "~/lib/imeComposition";
 
 export function AssistantCitationCommentEditor({
   citation,
@@ -46,7 +47,7 @@ export function AssistantCitationCommentEditor({
       data-citation-comment-editor="true"
       onKeyDown={(event) => {
         event.stopPropagation();
-        if (event.nativeEvent.isComposing || event.keyCode === 229) return;
+        if (isImeComposing(event)) return;
         if (event.key === "Escape") {
           event.preventDefault();
           onCancel();

@@ -61,7 +61,6 @@ import {
   Fragment,
   type ReactNode,
   useEffect,
-  useEffectEvent,
   useId,
   useImperativeHandle,
   useLayoutEffect,
@@ -3149,60 +3148,57 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
       },
     });
 
-  const attachDroppedThreadFile = useEffectEvent((file: File) => addComposerAttachments([file]));
-  const importDroppedThread = useEffectEvent(
-    async (ref: ScopedThreadRef, isActive: () => boolean) => {
-      const targetKey = attachmentTargetKey;
-      pendingDraftWork.begin(targetKey);
-      const loadingToast = toastManager.add({
-        type: "loading",
-        title: "Loading thread context…",
-        timeout: 0,
-        data: { threadRef: routeThreadRef, hideCopyButton: true },
+  const attachDroppedThreadFile = useStableCallback((file: File) => addComposerAttachments([file]));
+  const importDroppedThread = async (ref: ScopedThreadRef, isActive: () => boolean) => {
+    const targetKey = attachmentTargetKey;
+    pendingDraftWork.begin(targetKey);
+    const loadingToast = toastManager.add({
+      type: "loading",
+      title: "Loading thread context…",
+      timeout: 0,
+      data: { threadRef: routeThreadRef, hideCopyButton: true },
+    });
+    const importResult = await settlePromise(() =>
+      importComposerThreadAttachment({
+        targetKey,
+        pendingImports: pendingThreadImportsRef.current,
+        countReservedAttachments: countReservedAttachmentsStable,
+        load: async () => {
+          const result = await loadThreadTranscript({
+            environmentId: ref.environmentId,
+            input: { threadId: ref.threadId },
+          });
+          if (result._tag !== "Success") {
+            throw squashAtomCommandFailure(result);
+          }
+          return threadContextAttachment(ref.environmentId, result.value);
+        },
+        isActive,
+        attach: attachDroppedThreadFile,
+        onLimitReached: () => {
+          if (activeThreadId) {
+            setThreadError(
+              activeThreadId,
+              `You can attach up to ${PROVIDER_SEND_TURN_MAX_ATTACHMENTS} files per message.`,
+            );
+          }
+        },
+      }),
+    );
+    if (importResult._tag === "Failure" && isActive()) {
+      const error = squashAtomCommandFailure(importResult);
+      toastManager.add({
+        type: "error",
+        title: "Unable to read the dropped thread",
+        description:
+          isEnvironmentRequestInvalidError(error) && error.reason === "thread_transcript_too_large"
+            ? "This thread exceeds the attachment size limit. Try a shorter thread."
+            : "Check that its environment is connected and up to date, then try again.",
       });
-      const importResult = await settlePromise(() =>
-        importComposerThreadAttachment({
-          targetKey,
-          pendingImports: pendingThreadImportsRef.current,
-          countReservedAttachments: countReservedAttachmentsStable,
-          load: async () => {
-            const result = await loadThreadTranscript({
-              environmentId: ref.environmentId,
-              input: { threadId: ref.threadId },
-            });
-            if (result._tag !== "Success") {
-              throw squashAtomCommandFailure(result);
-            }
-            return threadContextAttachment(ref.environmentId, result.value);
-          },
-          isActive,
-          attach: attachDroppedThreadFile,
-          onLimitReached: () => {
-            if (activeThreadId) {
-              setThreadError(
-                activeThreadId,
-                `You can attach up to ${PROVIDER_SEND_TURN_MAX_ATTACHMENTS} files per message.`,
-              );
-            }
-          },
-        }),
-      );
-      if (importResult._tag === "Failure" && isActive()) {
-        const error = squashAtomCommandFailure(importResult);
-        toastManager.add({
-          type: "error",
-          title: "Unable to read the dropped thread",
-          description:
-            isEnvironmentRequestInvalidError(error) &&
-            error.reason === "thread_transcript_too_large"
-              ? "This thread exceeds the attachment size limit. Try a shorter thread."
-              : "Check that its environment is connected and up to date, then try again.",
-        });
-      }
-      toastManager.close(loadingToast);
-      pendingDraftWork.end(targetKey);
-    },
-  );
+    }
+    toastManager.close(loadingToast);
+    pendingDraftWork.end(targetKey);
+  };
 
   useThreadContextDrop(composerFormRef, environmentId, attachmentTargetKey, (refs, isActive) => {
     const records = refs.flatMap((ref) => {
@@ -3340,321 +3336,260 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
   };
   const openModelPickerStable = useStableCallback(openModelPicker);
 
-  useImperativeHandle(
-    composerRef,
-    () => ({
-      focusAtEnd: () => {
-        composerEditorRef.current?.focusAtEnd();
-      },
-      focusAt: (cursor: number) => {
-        composerEditorRef.current?.focusAt(cursor);
-      },
-      restoreAfterTimelineReachedEnd,
-      collapseForTimelineScrollKey: (key) => {
-        const scrollNode = getTimelineScrollableNode();
-        if (
-          composerScrollCollapseEligibleRef.current &&
-          scrollNode &&
-          shouldCollapseComposerForScrollKey({
-            key,
-            scrollTop: scrollNode.scrollTop,
-            scrollHeight: scrollNode.scrollHeight,
-            clientHeight: scrollNode.clientHeight,
-            isAtLogicalEnd: isTimelineAtLogicalEnd(),
-          })
-        ) {
-          setIsComposerScrollCollapsed(true);
-        }
-      },
-      addDroppedFiles: (files: File[]) => {
-        void addComposerAttachments(files).then((inserted) => {
-          if (!inserted) focusComposer();
-        });
-      },
-      addDroppedFolders: addComposerFoldersStable,
-      hasPendingAttachments: () =>
-        countPreparingComposerImages(attachmentTargetKey) > 0 ||
-        pendingDraftWork.has(attachmentTargetKey),
-      insertTextAtEnd: insertComposerTextAtEndStable,
-      pasteTextAtEnd: (text: string, options) => {
-        const shortcutArmed = consumePasteAsTextShortcut(pasteAsTextShortcutUntilRef);
-        const bypassAutoAttachment = options?.bypassAutoAttachment === true || shortcutArmed;
-        const promptLength = promptRef.current.length;
-        if (
-          !foldPastedText(text, bypassAutoAttachment, {
-            start: promptLength,
-            end: promptLength,
-          })
-        ) {
-          return false;
-        }
-        focusComposer();
-        return true;
-      },
-      citeAssistantText: (citation, sourceAnchor) =>
-        insertComposerTextStable(
-          formatAssistantCitationForComposer(citation, citation.comment),
-          "cursor",
-          { ensureLeadingBoundary: true, citationComment: { sourceAnchor } },
-        ),
-      openModelPicker: openModelPickerStable,
-      stepReasoningEffort: (direction) => {
-        if (
-          noProviderAvailable ||
-          pendingUserInputs.length > 0 ||
-          // A queued-message edit draft is discarded when the edit ends.
-          isEditingQueuedMessage
-        ) {
-          return;
-        }
-        const change = getComposerReasoningStep({
-          provider: selectedProvider,
+  useImperativeHandle(composerRef, () => ({
+    focusAtEnd: () => {
+      composerEditorRef.current?.focusAtEnd();
+    },
+    focusAt: (cursor: number) => {
+      composerEditorRef.current?.focusAt(cursor);
+    },
+    restoreAfterTimelineReachedEnd,
+    collapseForTimelineScrollKey: (key) => {
+      const scrollNode = getTimelineScrollableNode();
+      if (
+        composerScrollCollapseEligibleRef.current &&
+        scrollNode &&
+        shouldCollapseComposerForScrollKey({
+          key,
+          scrollTop: scrollNode.scrollTop,
+          scrollHeight: scrollNode.scrollHeight,
+          clientHeight: scrollNode.clientHeight,
+          isAtLogicalEnd: isTimelineAtLogicalEnd(),
+        })
+      ) {
+        setIsComposerScrollCollapsed(true);
+      }
+    },
+    addDroppedFiles: (files: File[]) => {
+      void addComposerAttachments(files).then((inserted) => {
+        if (!inserted) focusComposer();
+      });
+    },
+    addDroppedFolders: addComposerFoldersStable,
+    hasPendingAttachments: () =>
+      countPreparingComposerImages(attachmentTargetKey) > 0 ||
+      pendingDraftWork.has(attachmentTargetKey),
+    insertTextAtEnd: insertComposerTextAtEndStable,
+    pasteTextAtEnd: (text: string, options) => {
+      const shortcutArmed = consumePasteAsTextShortcut(pasteAsTextShortcutUntilRef);
+      const bypassAutoAttachment = options?.bypassAutoAttachment === true || shortcutArmed;
+      const promptLength = promptRef.current.length;
+      if (
+        !foldPastedText(text, bypassAutoAttachment, {
+          start: promptLength,
+          end: promptLength,
+        })
+      ) {
+        return false;
+      }
+      focusComposer();
+      return true;
+    },
+    citeAssistantText: (citation, sourceAnchor) =>
+      insertComposerTextStable(
+        formatAssistantCitationForComposer(citation, citation.comment),
+        "cursor",
+        { ensureLeadingBoundary: true, citationComment: { sourceAnchor } },
+      ),
+    openModelPicker: openModelPickerStable,
+    stepReasoningEffort: (direction) => {
+      if (
+        noProviderAvailable ||
+        pendingUserInputs.length > 0 ||
+        // A queued-message edit draft is discarded when the edit ends.
+        isEditingQueuedMessage
+      ) {
+        return;
+      }
+      const change = getComposerReasoningStep({
+        provider: selectedProvider,
+        instanceId: selectedInstanceId,
+        model: selectedModel,
+        models: selectedProviderModels,
+        modelOptions: composerModelOptions?.[selectedInstanceId],
+        reportedModelSelection,
+        prompt: promptRef.current,
+        cursor: readComposerSnapshotStable().expandedCursor,
+        direction,
+      });
+      if (!change) return;
+      useComposerDraftStore
+        .getState()
+        .setProviderModelOptions(composerDraftTarget, selectedProvider, change.modelOptions, {
           instanceId: selectedInstanceId,
           model: selectedModel,
-          models: selectedProviderModels,
-          modelOptions: composerModelOptions?.[selectedInstanceId],
-          reportedModelSelection,
-          prompt: promptRef.current,
-          cursor: readComposerSnapshotStable().expandedCursor,
-          direction,
+          persistSticky: true,
         });
-        if (!change) return;
-        useComposerDraftStore
-          .getState()
-          .setProviderModelOptions(composerDraftTarget, selectedProvider, change.modelOptions, {
-            instanceId: selectedInstanceId,
-            model: selectedModel,
-            persistSticky: true,
-          });
-        applyThreadModelPick(composerDraftTarget);
-        if (change.prompt !== promptRef.current) {
-          applyPromptReplacementStable(0, promptRef.current.length, change.prompt, {
-            expandedCursorAfterReplace: change.cursor,
-          });
-        }
-      },
-      toggleFastMode: () => {
-        if (noProviderAvailable || isEditingQueuedMessage) return null;
-        const change = getComposerSpeedToggleChange({
-          provider: selectedProvider,
-          models: selectedProviderModels,
-          model: selectedModel,
-          prompt: promptRef.current,
-          modelOptions: composerModelOptions?.[selectedInstanceId],
+      applyThreadModelPick(composerDraftTarget);
+      if (change.prompt !== promptRef.current) {
+        applyPromptReplacementStable(0, promptRef.current.length, change.prompt, {
+          expandedCursorAfterReplace: change.cursor,
         });
-        if (!change) return null;
-        useComposerDraftStore
-          .getState()
-          .setProviderModelOptions(composerDraftTarget, selectedProvider, change.modelOptions, {
-            instanceId: selectedInstanceId,
-            model: selectedModel,
-            persistSticky: true,
-          });
-        applyThreadModelPick(composerDraftTarget);
-        return change.level;
-      },
-      submit: () => submitComposerStable(),
-      toggleVoiceInput: voice.toggle,
-      toggleModelPicker: () => {
-        if (isComposerModelPickerOpen) {
-          setIsComposerModelPickerOpen(false);
-        } else {
-          openModelPickerStable();
-        }
-      },
-      openControl: (command) => {
-        if (composerBlurFrameRef.current !== null) {
-          window.cancelAnimationFrame(composerBlurFrameRef.current);
-          composerBlurFrameRef.current = null;
-        }
-        flushSync(() => {
-          setIsComposerScrollCollapsed(false);
-          setIsComposerFocused(true);
-        });
-        const shell = composerFormRef.current?.closest('[data-slot="composer-shell"]');
-        const trigger = Array.from(
-          shell?.querySelectorAll<HTMLButtonElement>(
-            `button[data-composer-shortcut~="${command}"]:not(:disabled)`,
-          ) ?? [],
-        ).find(
-          (element) =>
-            !element.closest("[inert]") && element.checkVisibility({ visibilityProperty: true }),
-        );
-        if (!trigger) return;
-        trigger.focus({ preventScroll: true });
-        trigger.click();
-      },
-      compactContext: compactThreadContextStable,
-      isModelPickerOpen: () => isComposerModelPickerOpen,
-      isCaretAtStart: () => {
-        const range = composerEditorRef.current?.readSelectionRange();
-        return range !== undefined && range.start === 0 && range.end === 0;
-      },
-      readSnapshot: () => {
-        return readComposerSnapshotStable();
-      },
-      resetCursorState: (options?: {
-        cursor?: number;
-        prompt?: string;
-        detectTrigger?: boolean;
-      }) => {
-        const promptForState = options?.prompt ?? promptRef.current;
-        const cursor = clampCollapsedComposerCursor(
-          promptForState,
-          options?.cursor ?? 0,
-          isLiteralPendingAnswer,
-        );
-        setComposerHighlightedItemId(null);
-        setComposerCursor(cursor);
-        resetComposerTrigger(
-          options?.detectTrigger && !isLiteralPendingAnswer
-            ? detectComposerTrigger(
-                promptForState,
-                expandCollapsedComposerCursor(promptForState, cursor),
-              )
-            : null,
-        );
-      },
-      addTerminalContext: (selection: TerminalContextSelection) => {
-        if (!activeThread) return;
-        // Answers are plain text, so a terminal excerpt cannot ride along with one. Writing it
-        // to the thread draft instead would hide it until the question closes.
-        if (activePendingProgress) {
-          toastManager.add({
-            type: "info",
-            title: "Terminal output can't be added to a question answer.",
-            description: "Answer or dismiss the question first, then add it to chat.",
-          });
-          return;
-        }
-        const snapshot = readComposerSnapshotStable();
-        const context = {
-          id: randomUUID(),
-          threadId: activeThread.id,
-          createdAt: new Date().toISOString(),
-          ...selection,
-        };
-        const insertion = insertInlineContextReference(
-          snapshot.value,
-          snapshot.expandedCursor,
-          terminalContextReference(context),
-        );
-        const nextCollapsedCursor = collapseExpandedComposerCursor(
-          insertion.prompt,
-          insertion.cursor,
-        );
-        const inserted = insertComposerDraftTerminalContext(
-          composerDraftTarget,
-          insertion.prompt,
-          context,
-          composerTerminalContexts.length,
-        );
-        if (!inserted) return;
-        promptRef.current = insertion.prompt;
-        setComposerCursor(nextCollapsedCursor);
-        setComposerTrigger(detectComposerTrigger(insertion.prompt, insertion.cursor));
-        window.requestAnimationFrame(() => {
-          composerEditorRef.current?.focusAt(nextCollapsedCursor);
-        });
-      },
-      getSendContext: () => ({
-        answeringPendingUserInput: activePendingProgress !== null,
-        shownPendingApprovalIds: pendingApprovals
-          .map((approval) => approval.requestId)
-          .filter((requestId) => !heldRequestIds.has(requestId)),
+      }
+    },
+    toggleFastMode: () => {
+      if (noProviderAvailable || isEditingQueuedMessage) return null;
+      const change = getComposerSpeedToggleChange({
+        provider: selectedProvider,
+        models: selectedProviderModels,
+        model: selectedModel,
         prompt: promptRef.current,
-        images: composerImagesRef.current,
-        files: composerFilesRef.current,
-        terminalContexts: composerTerminalContextsRef.current,
-        previewAnnotations: composerPreviewAnnotations,
-        reviewComments: composerReviewComments,
-        referenceContexts: composerReferenceContexts,
-        selectedPromptEffort,
-        selectedModelSelection,
-        multipleModelSelections:
-          routeKind === "draft" && multipleModelSelections !== null
-            ? multipleModelSelections.map((selection) =>
-                selection.instanceId === selectedModelSelection.instanceId &&
-                selection.model === selectedModelSelection.model
-                  ? selectedModelSelection
-                  : selection,
-              )
-            : null,
-        providerAvailable:
-          multipleModelSelections !== null ||
-          (canQueueSelectedProvider && providerSendBlockReason === null),
-        selectedProvider,
-        selectedModel,
-        selectedProviderModels,
-        interactionMode,
-      }),
-      setMultipleModelSelections,
-      validateProviderInput: (providerInput: string) => {
-        const validationMessage = getComposerSubmissionValidationMessage({
-          prompt: promptRef.current,
-          providerInput,
-          submissionTarget: "provider-turn",
+        modelOptions: composerModelOptions?.[selectedInstanceId],
+      });
+      if (!change) return null;
+      useComposerDraftStore
+        .getState()
+        .setProviderModelOptions(composerDraftTarget, selectedProvider, change.modelOptions, {
+          instanceId: selectedInstanceId,
+          model: selectedModel,
+          persistSticky: true,
         });
-        providerInputRejectedRef.current = validationMessage !== null;
-        setProviderInputSubmissionError(validationMessage);
-        return validationMessage === null;
-      },
-    }),
-    [
-      activeThread,
-      addComposerAttachments,
-      addComposerFoldersStable,
-      foldPastedText,
-      composerDraftTarget,
-      composerModelOptions,
-      isEditingQueuedMessage,
-      composerCursor,
-      activePendingProgress,
-      pendingApprovals,
-      heldRequestIds,
-      composerTerminalContexts,
-      insertComposerDraftTerminalContext,
-      insertComposerTextStable,
-      insertComposerTextAtEndStable,
-      promptRef,
-      composerImagesRef,
-      composerFilesRef,
-      composerTerminalContextsRef,
-      composerPreviewAnnotations,
-      composerReviewComments,
-      composerReferenceContexts,
-      focusComposer,
-      environmentId,
-      primaryEnvironmentId,
-      isLiteralPendingAnswer,
-      pendingUserInputs.length,
-      projectSelectionRequired,
-      applyPromptReplacementStable,
-      isComposerModelPickerOpen,
-      openModelPickerStable,
-      readComposerSnapshotStable,
-      resetComposerTrigger,
-      setComposerTrigger,
-      selectedModel,
-      selectedInstanceId,
-      reportedModelSelection,
-      selectedModelSelection,
-      multipleModelSelections,
-      setMultipleModelSelections,
-      routeKind,
-      canQueueSelectedProvider,
-      providerSendBlockReason,
+      applyThreadModelPick(composerDraftTarget);
+      return change.level;
+    },
+    submit: () => submitComposerStable(),
+    toggleVoiceInput: voice.toggle,
+    toggleModelPicker: () => {
+      if (isComposerModelPickerOpen) {
+        setIsComposerModelPickerOpen(false);
+      } else {
+        openModelPickerStable();
+      }
+    },
+    openControl: (command) => {
+      if (composerBlurFrameRef.current !== null) {
+        window.cancelAnimationFrame(composerBlurFrameRef.current);
+        composerBlurFrameRef.current = null;
+      }
+      flushSync(() => {
+        setIsComposerScrollCollapsed(false);
+        setIsComposerFocused(true);
+      });
+      const shell = composerFormRef.current?.closest('[data-slot="composer-shell"]');
+      const trigger = Array.from(
+        shell?.querySelectorAll<HTMLButtonElement>(
+          `button[data-composer-shortcut~="${command}"]:not(:disabled)`,
+        ) ?? [],
+      ).find(
+        (element) =>
+          !element.closest("[inert]") && element.checkVisibility({ visibilityProperty: true }),
+      );
+      if (!trigger) return;
+      trigger.focus({ preventScroll: true });
+      trigger.click();
+    },
+    compactContext: compactThreadContextStable,
+    isModelPickerOpen: () => isComposerModelPickerOpen,
+    isCaretAtStart: () => {
+      const range = composerEditorRef.current?.readSelectionRange();
+      return range !== undefined && range.start === 0 && range.end === 0;
+    },
+    readSnapshot: () => {
+      return readComposerSnapshotStable();
+    },
+    resetCursorState: (options?: { cursor?: number; prompt?: string; detectTrigger?: boolean }) => {
+      const promptForState = options?.prompt ?? promptRef.current;
+      const cursor = clampCollapsedComposerCursor(
+        promptForState,
+        options?.cursor ?? 0,
+        isLiteralPendingAnswer,
+      );
+      setComposerHighlightedItemId(null);
+      setComposerCursor(cursor);
+      resetComposerTrigger(
+        options?.detectTrigger && !isLiteralPendingAnswer
+          ? detectComposerTrigger(
+              promptForState,
+              expandCollapsedComposerCursor(promptForState, cursor),
+            )
+          : null,
+      );
+    },
+    addTerminalContext: (selection: TerminalContextSelection) => {
+      if (!activeThread) return;
+      // Answers are plain text, so a terminal excerpt cannot ride along with one. Writing it
+      // to the thread draft instead would hide it until the question closes.
+      if (activePendingProgress) {
+        toastManager.add({
+          type: "info",
+          title: "Terminal output can't be added to a question answer.",
+          description: "Answer or dismiss the question first, then add it to chat.",
+        });
+        return;
+      }
+      const snapshot = readComposerSnapshotStable();
+      const context = {
+        id: randomUUID(),
+        threadId: activeThread.id,
+        createdAt: new Date().toISOString(),
+        ...selection,
+      };
+      const insertion = insertInlineContextReference(
+        snapshot.value,
+        snapshot.expandedCursor,
+        terminalContextReference(context),
+      );
+      const nextCollapsedCursor = collapseExpandedComposerCursor(
+        insertion.prompt,
+        insertion.cursor,
+      );
+      const inserted = insertComposerDraftTerminalContext(
+        composerDraftTarget,
+        insertion.prompt,
+        context,
+        composerTerminalContexts.length,
+      );
+      if (!inserted) return;
+      promptRef.current = insertion.prompt;
+      setComposerCursor(nextCollapsedCursor);
+      setComposerTrigger(detectComposerTrigger(insertion.prompt, insertion.cursor));
+      window.requestAnimationFrame(() => {
+        composerEditorRef.current?.focusAt(nextCollapsedCursor);
+      });
+    },
+    getSendContext: () => ({
+      answeringPendingUserInput: activePendingProgress !== null,
+      shownPendingApprovalIds: pendingApprovals
+        .map((approval) => approval.requestId)
+        .filter((requestId) => !heldRequestIds.has(requestId)),
+      prompt: promptRef.current,
+      images: composerImagesRef.current,
+      files: composerFilesRef.current,
+      terminalContexts: composerTerminalContextsRef.current,
+      previewAnnotations: composerPreviewAnnotations,
+      reviewComments: composerReviewComments,
+      referenceContexts: composerReferenceContexts,
       selectedPromptEffort,
+      selectedModelSelection,
+      multipleModelSelections:
+        routeKind === "draft" && multipleModelSelections !== null
+          ? multipleModelSelections.map((selection) =>
+              selection.instanceId === selectedModelSelection.instanceId &&
+              selection.model === selectedModelSelection.model
+                ? selectedModelSelection
+                : selection,
+            )
+          : null,
+      providerAvailable:
+        multipleModelSelections !== null ||
+        (canQueueSelectedProvider && providerSendBlockReason === null),
       selectedProvider,
+      selectedModel,
       selectedProviderModels,
       interactionMode,
-      compactThreadContextStable,
-      restoreAfterTimelineReachedEnd,
-      getTimelineScrollableNode,
-      isTimelineAtLogicalEnd,
-      setIsComposerScrollCollapsed,
-    ],
-  );
+    }),
+    setMultipleModelSelections,
+    validateProviderInput: (providerInput: string) => {
+      const validationMessage = getComposerSubmissionValidationMessage({
+        prompt: promptRef.current,
+        providerInput,
+        submissionTarget: "provider-turn",
+      });
+      providerInputRejectedRef.current = validationMessage !== null;
+      setProviderInputSubmissionError(validationMessage);
+      return validationMessage === null;
+    },
+  }));
 
   const composerAttachmentMediaRow =
     !isComposerCollapsedMobile &&

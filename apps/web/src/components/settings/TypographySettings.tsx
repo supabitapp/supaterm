@@ -18,10 +18,10 @@ import { isMacPlatform } from "../../lib/utils";
 import { Input } from "../ui/input";
 import {
   DEFAULT_CODE_FONT_FAMILY,
-  DEFAULT_SANS_FONT_STACK,
+  DEFAULT_SANS_FONT_FAMILY,
+  fontFamilyLabel,
   isFontFamilyAvailable,
   isMonospaceFamily,
-  resolveDefaultFamilyLabel,
   resolveTerminalFontPreference,
   resolveTerminalFontSizePreference,
   TYPOGRAPHY_ADVANCED_STORAGE_KEY,
@@ -41,38 +41,16 @@ import {
   revealSettingsSearchTarget,
   searchableSetting,
 } from "./settingsSearch";
-
-let fontDefaultFamilies: { readonly sans: string; readonly code: string } | undefined;
-
-function resolveFontDefaultFamilies() {
-  if (fontDefaultFamilies !== undefined) return fontDefaultFamilies;
-  const families = {
-    sans: resolveDefaultFamilyLabel(DEFAULT_SANS_FONT_STACK) ?? "System default",
-    code: DEFAULT_CODE_FONT_FAMILY,
-  };
-  if (document.fonts.status === "loaded") fontDefaultFamilies = families;
-  return families;
-}
-
-function useFontDefaultFamilies() {
-  const settings = useScopedSettings();
-  const [defaults] = useState(resolveFontDefaultFamilies);
-  return {
-    sans: defaults.sans,
-    code: defaults.code,
-    interfaceFamily: settings.fontFamilySans.trim() || defaults.sans,
-  };
-}
+import { isImeComposing } from "~/lib/imeComposition";
 
 function InterfaceFontRow({ preview }: { preview?: ReactNode }) {
   const settings = useScopedSettings();
   const updateSettings = useUpdateScopedSettings();
-  const defaults = useFontDefaultFamilies();
   return (
     <FontFamilySettingsRow
       {...searchableSetting("interface-font")}
       description="Everything outside code blocks and the terminal."
-      defaultFamily={defaults.sans}
+      defaultFamily={DEFAULT_SANS_FONT_FAMILY}
       defaultValue={DEFAULT_UNIFIED_SETTINGS.fontFamilySans}
       value={settings.fontFamilySans}
       onValueChange={(fontFamilySans) => updateSettings({ fontFamilySans })}
@@ -98,12 +76,11 @@ function InterfaceFontRow({ preview }: { preview?: ReactNode }) {
 function PromptFontRow() {
   const settings = useScopedSettings();
   const updateSettings = useUpdateScopedSettings();
-  const defaults = useFontDefaultFamilies();
   return (
     <FontFamilySettingsRow
       {...searchableSetting("prompt-font")}
       description="Applies to the box you write prompts in."
-      defaultFamily={defaults.interfaceFamily}
+      defaultFamily={settings.fontFamilySans.trim() || DEFAULT_SANS_FONT_FAMILY}
       defaultValue={DEFAULT_UNIFIED_SETTINGS.fontFamilyComposer}
       value={settings.fontFamilyComposer}
       onValueChange={(fontFamilyComposer) => updateSettings({ fontFamilyComposer })}
@@ -137,13 +114,12 @@ function CodeFontRow({
 }) {
   const settings = useScopedSettings();
   const updateSettings = useUpdateScopedSettings();
-  const defaults = useFontDefaultFamilies();
   return (
     <FontFamilySettingsRow
       {...searchableSetting("code-font")}
       {...(title !== undefined ? { title } : {})}
       description={description}
-      defaultFamily={defaults.code}
+      defaultFamily={DEFAULT_CODE_FONT_FAMILY}
       defaultValue={DEFAULT_UNIFIED_SETTINGS.fontFamilyCode}
       value={settings.fontFamilyCode}
       onValueChange={(fontFamilyCode) => updateSettings({ fontFamilyCode })}
@@ -170,12 +146,11 @@ function CodeFontRow({
 function TerminalFontRow() {
   const settings = useScopedSettings();
   const updateSettings = useUpdateScopedSettings();
-  const defaults = useFontDefaultFamilies();
   return (
     <FontFamilySettingsRow
       {...searchableSetting("terminal-font")}
       description="Terminal output, independent from code blocks and diffs."
-      defaultFamily={defaults.code}
+      defaultFamily={DEFAULT_CODE_FONT_FAMILY}
       defaultValue={DEFAULT_UNIFIED_SETTINGS.fontFamilyTerminal}
       value={settings.fontFamilyTerminal}
       onValueChange={(fontFamilyTerminal) => updateSettings({ fontFamilyTerminal })}
@@ -474,6 +449,7 @@ function FontFamilySettingsRow({
           }, 400);
         }}
         onKeyDown={(event) => {
+          if (isImeComposing(event)) return;
           if (event.key === "Enter") flushDraft();
           if (event.key === "Escape") {
             // Discard uncommitted typing without closing the settings page,
@@ -488,7 +464,7 @@ function FontFamilySettingsRow({
             setDraftSettled(true);
           }
         }}
-        placeholder={defaultFamily}
+        placeholder={fontFamilyLabel(defaultFamily)}
         spellCheck={false}
         value={draft}
       />

@@ -94,6 +94,7 @@ import { Dialog } from "../ui/dialog";
 import { toastManager } from "../ui/toast";
 import { cn } from "../../lib/utils";
 import { formatRelativeTime } from "../../timestampFormat";
+import { isImeComposing } from "~/lib/imeComposition";
 
 /**
  * Shown at `/welcome` on a fresh install (no completed-onboarding flag, empty workspace). Every
@@ -489,10 +490,7 @@ function PairingForm({
             value={pairingUrl}
             onChange={(event) => setPairingUrl(event.currentTarget.value)}
             onKeyDown={(event) => {
-              if (
-                event.key === "Enter" &&
-                (event.nativeEvent.isComposing || event.keyCode === 229)
-              ) {
+              if (event.key === "Enter" && isImeComposing(event)) {
                 event.preventDefault();
               }
             }}

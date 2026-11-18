@@ -67,6 +67,7 @@ import { useSettingsProjectGroups } from "./useSettingsProjectGroups";
 import { readUnloadedThreadCount } from "../../state/olderDoneShelf";
 import { settingsScopeEnvironmentLabels } from "./settingsScopeAxis";
 import { MiddleTruncate } from "../ui/middle-truncate";
+import { isImeComposing } from "~/lib/imeComposition";
 
 const ProjectIconPickerDialog = lazy(() =>
   import("./ProjectIconPickerDialog").then((module) => ({
@@ -572,7 +573,7 @@ function ProjectDetail({
                   void renameGroup(event.currentTarget.value, wasEdited);
                 }}
                 onKeyDown={(event) => {
-                  if (event.nativeEvent.isComposing || event.keyCode === 229) return;
+                  if (isImeComposing(event)) return;
                   if (event.key === "Enter") event.currentTarget.blur();
                 }}
               />

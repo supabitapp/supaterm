@@ -36,6 +36,7 @@ import {
 import { Input } from "./ui/input";
 import { Spinner } from "./ui/spinner";
 import { toastManager } from "./ui/toast";
+import { isImeComposing } from "~/lib/imeComposition";
 
 interface PullRequestThreadDialogProps {
   open: boolean;
@@ -235,7 +236,7 @@ export function PullRequestThreadDialog({
                 if (event.key !== "Enter") {
                   return;
                 }
-                if (event.nativeEvent.isComposing || event.keyCode === 229) {
+                if (isImeComposing(event)) {
                   return;
                 }
                 event.preventDefault();

@@ -89,7 +89,7 @@ export default function Spreadsheet(props: {
       .call("show", { sheet }, { signal: controller.signal })
       .then((layout) => {
         setError("");
-        setOpened({ ...opened, layout, target });
+        setOpened((current) => current && { ...current, layout, target });
       })
       .catch(() => {
         if (!controller.signal.aborted) setError("This sheet could not be opened.");

@@ -68,6 +68,7 @@ import {
 import { providerModelKey, sortProviderModelItems } from "../../modelOrdering";
 import { usePaneInputOwner } from "../../chatPanes/paneScope";
 import { hasRuntimeModelCatalog } from "../../providerModels";
+import { isImeComposing } from "~/lib/imeComposition";
 
 type ModelPickerItem = {
   slug: string;
@@ -927,7 +928,7 @@ export const ModelPickerContent = memo(function ModelPickerContent(props: {
                 setSearchQuery(e.target.value);
               }}
               onKeyDown={(e) => {
-                if (e.nativeEvent.isComposing || e.keyCode === 229) {
+                if (isImeComposing(e)) {
                   (e as typeof e & { preventBaseUIHandler?: () => void }).preventBaseUIHandler?.();
                   e.stopPropagation();
                   return;

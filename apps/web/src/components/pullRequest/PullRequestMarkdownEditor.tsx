@@ -16,6 +16,7 @@ import {
   PullRequestMarkdownTextarea,
   type PullRequestCompletionScope,
 } from "./PullRequestMarkdownTextarea";
+import { isImeComposing } from "~/lib/imeComposition";
 
 export function PullRequestMarkdownEditor({
   value,
@@ -61,7 +62,7 @@ export function PullRequestMarkdownEditor({
     <div
       className={cn("space-y-2", className)}
       onKeyDown={(event) => {
-        if (event.nativeEvent.isComposing || event.keyCode === 229) return;
+        if (isImeComposing(event)) return;
         if (
           event.key === "Enter" &&
           (event.metaKey || event.ctrlKey) &&

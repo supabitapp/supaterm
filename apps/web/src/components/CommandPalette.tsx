@@ -287,6 +287,7 @@ import { useThreadRouteTarget } from "../hooks/useThreadRouteTarget";
 import { useChatPaneStore } from "../chatPanes/store";
 import { focusAdjacentPaneFromKeyboard } from "../chatPanes/actions";
 import { threadRecentUse } from "@supaterm/shared/paletteSearch";
+import { isImeComposing } from "~/lib/imeComposition";
 
 const EMPTY_BROWSE_ENTRIES: FilesystemBrowseResult["entries"] = [];
 const ADD_PROJECT_ENTRY_GROUP = "add-project";
@@ -2681,7 +2682,7 @@ function OpenCommandPaletteDialog(props: {
   }
 
   function handleKeyDown(event: KeyboardEvent<HTMLInputElement>): void {
-    if (event.key === "Enter" && (event.nativeEvent.isComposing || event.keyCode === 229)) {
+    if (event.key === "Enter" && isImeComposing(event)) {
       // Confirming an IME candidate must not submit a path or select a row.
       (event as typeof event & { preventBaseUIHandler?: () => void }).preventBaseUIHandler?.();
       return;
@@ -2830,7 +2831,7 @@ function OpenCommandPaletteDialog(props: {
     if (event.ctrlKey || event.shiftKey || event.altKey || event.metaKey) return;
 
     if (event.key === "Tab" && isBrowsing && !relativePathNeedsActiveProject) {
-      if (event.nativeEvent.isComposing || event.keyCode === 229) return;
+      if (isImeComposing(event)) return;
       (event as typeof event & { preventBaseUIHandler?: () => void }).preventBaseUIHandler?.();
       event.preventDefault();
       if (highlightedItemValue === "browse:up") {

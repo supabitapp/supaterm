@@ -22,6 +22,7 @@ import {
   ComboboxStatus,
 } from "./ui/combobox";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "./ui/tooltip";
+import { isImeComposing } from "~/lib/imeComposition";
 
 export function BranchPicker({
   items,
@@ -130,8 +131,7 @@ export function BranchPicker({
             void branchListRef.current?.scrollToOffset?.({ offset: 0, animated: false });
           }}
           onKeyDown={(event) => {
-            if (event.key !== "Enter" || event.nativeEvent.isComposing || event.keyCode === 229)
-              return;
+            if (event.key !== "Enter" || isImeComposing(event)) return;
             const highlightedValue = highlightedValueRef.current;
             if (highlightedValue === null || !filteredItems.includes(highlightedValue)) return;
             (

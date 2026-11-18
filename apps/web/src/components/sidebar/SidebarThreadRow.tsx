@@ -123,6 +123,7 @@ import { SidebarSnoozeButton } from "./SidebarSnoozeButton";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { MiddleTruncate } from "../ui/middle-truncate";
 import { useThreadHasUnsentDraft } from "../../composerDraftStore";
+import { isImeComposing } from "~/lib/imeComposition";
 
 // The fields thread rows show. Provider status pushes refresh `checkedAt`,
 // status and auth on every provider; leaving those out keeps each
@@ -641,7 +642,7 @@ function ThreadRenameInput(props: {
   const settledRef = useRef(false);
   const handleKeyDown = (event: ReactKeyboardEvent<HTMLInputElement>) => {
     event.stopPropagation();
-    if (event.nativeEvent.isComposing || event.keyCode === 229) return;
+    if (isImeComposing(event)) return;
     if (event.key === "Enter") {
       event.preventDefault();
       settledRef.current = true;

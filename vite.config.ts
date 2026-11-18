@@ -2,6 +2,7 @@ import "vite-plus/test/config";
 import { defineConfig } from "vite-plus";
 import * as NodeURL from "node:url";
 import antiSlop from "ultracite/oxlint/anti-slop";
+import { reactDoctorOverrides, reactDoctorSettings } from "./oxlint-react-doctor.ts";
 
 const TEST_EXCLUDE = [
   "**/.supacode/**",
@@ -208,9 +209,11 @@ export default defineConfig({
       "./oxlint-plugin-supaterm/array-guardrails.ts",
       "./oxlint-plugin-supaterm/test-waits.ts",
       "@shadcn/lint",
+      "oxlint-plugin-react-doctor",
     ],
     settings: {
       shadcn: { ui: "~/components/ui" },
+      "react-doctor": reactDoctorSettings,
     },
     categories: {
       correctness: "error",
@@ -694,6 +697,42 @@ export default defineConfig({
           "supaterm/no-mobile-uniwind-theme-escape-hatches": ["error", { allowUniwindTheme: true }],
         },
       },
+      {
+        files: [
+          "apps/web/src/**",
+          "apps/mobile/src/**",
+          "packages/client-runtime/src/**",
+          "packages/icons/src/**",
+        ],
+        excludeFiles: ["**/*.{test,spec}.{ts,tsx,js,jsx,mts,cts,mjs,cjs}"],
+        plugins: ["jsx-a11y"],
+        rules: {
+          "react/button-has-type": "error",
+          "react/checked-requires-onchange-or-readonly": "error",
+          "react/jsx-no-target-blank": "error",
+          // oxlint files this under pedantic, so the categories above leave it off.
+          "react/rules-of-hooks": "error",
+          // These still report in this code. Delete a line once its hits are fixed.
+          "jsx-a11y/alt-text": "off",
+          "jsx-a11y/anchor-has-content": "off",
+          "jsx-a11y/click-events-have-key-events": "off",
+          "jsx-a11y/heading-has-content": "off",
+          "jsx-a11y/interactive-supports-focus": "off",
+          "jsx-a11y/label-has-associated-control": "off",
+          "jsx-a11y/media-has-caption": "off",
+          "jsx-a11y/no-autofocus": "off",
+          "jsx-a11y/no-noninteractive-element-interactions": "off",
+          "jsx-a11y/no-noninteractive-tabindex": "off",
+          "jsx-a11y/no-redundant-roles": "off",
+          "jsx-a11y/no-static-element-interactions": "off",
+          "jsx-a11y/role-has-required-aria-props": "off",
+          "jsx-a11y/role-supports-aria-props": "off",
+          // Outside the plugin's own recommended set.
+          "jsx-a11y/control-has-associated-label": "off",
+          "jsx-a11y/prefer-tag-over-role": "off",
+        },
+      },
+      ...reactDoctorOverrides,
     ],
     options: {
       denyWarnings: true,

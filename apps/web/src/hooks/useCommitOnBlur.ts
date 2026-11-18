@@ -1,4 +1,5 @@
 import { type ChangeEvent, type KeyboardEvent, useRef, useState } from "react";
+import { isImeComposing } from "~/lib/imeComposition";
 
 export function useCommitOnBlur(
   value: string,
@@ -26,7 +27,7 @@ export function useCommitOnBlur(
       }
     },
     onKeyDown: (event: KeyboardEvent<HTMLInputElement>) => {
-      if (event.nativeEvent.isComposing || event.keyCode === 229) return;
+      if (isImeComposing(event)) return;
       if (event.key === "Enter") {
         event.preventDefault();
         (event.target as HTMLInputElement).blur();

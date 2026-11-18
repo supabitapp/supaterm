@@ -80,6 +80,7 @@ import {
 } from "../../state/use-model-option-memory";
 import { ChatGptSharingStatus } from "./ChatGptSharingStatus";
 import { scopedThreadKey } from "../../lib/scopedEntities";
+import { useStableCallback } from "../../lib/useStableCallback";
 import {
   setComposerDraftText,
   updateComposerDraftSettings,
@@ -1236,7 +1237,7 @@ function ThreadSettingsModelsScreen() {
   const presentation = useThreadSettingsPickerPresentation();
   const navigation = useNavigation<NativeStackNavigationProp<ThreadSettingsPickerStackParams>>();
   const hasCustomCatalogFilter = session.providerFilter !== null || session.showLegacy;
-  const commitAndClose = useEffectEvent(() => {
+  const commitAndClose = useStableCallback(() => {
     if (!session.commitPendingModel()) return;
     presentation.onClose();
   });

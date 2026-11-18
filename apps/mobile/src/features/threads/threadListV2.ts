@@ -394,7 +394,6 @@ export interface ThreadListV2PendingListItem {
   readonly type: "v2-pending";
   readonly key: string;
   readonly pendingTask: PendingNewTask;
-  /** The first draft or queued row draws its section's divider. */
   readonly showPendingDivider: boolean;
   readonly showTrailingDivider: boolean;
 }
@@ -609,29 +608,29 @@ export function buildThreadListV2ListItems(
         queuedThreadKeys?.has(`${item.thread.environmentId}:${item.thread.id}`) === true,
     };
   });
-  const pendingItems: ThreadListV2PendingListItem[] = [];
   const draftItems: ThreadListV2PendingListItem[] = [];
+  const queuedItems: ThreadListV2PendingListItem[] = [];
   for (const pendingTask of input.pendingTasks) {
-    const sectionItems = pendingTask.kind === "draft" ? draftItems : pendingItems;
+    const sectionItems = pendingTask.kind === "draft" ? draftItems : queuedItems;
     sectionItems.push({
       type: "v2-pending",
       key: `v2-${pendingTask.key}`,
       pendingTask,
-      showPendingDivider: sectionItems.length === 0,
+      showPendingDivider: input.kind === "shelves" && sectionItems.length === 0,
       showTrailingDivider: false,
     });
   }
+  const pendingItems = [...draftItems, ...queuedItems];
   return withTrailingDividers(
     input.kind === "search"
-      ? [...draftItems, ...pendingItems, ...threadItems]
-      : buildShelfListItems(input, threadItems, draftItems, pendingItems),
+      ? [...pendingItems, ...threadItems]
+      : buildShelfListItems(input, threadItems, pendingItems),
   );
 }
 
 function buildShelfListItems(
   input: ThreadListV2ShelfListInput,
   threadItems: ReadonlyArray<ThreadListV2ThreadListItem>,
-  draftItems: ReadonlyArray<ThreadListV2PendingListItem>,
   pendingItems: ReadonlyArray<ThreadListV2PendingListItem>,
 ): ThreadListV2ListItem[] {
   const {
@@ -661,16 +660,15 @@ function buildShelfListItems(
     });
     result.push(...threadItems.slice(0, pinnedEnd));
   }
-  result.push(...draftItems);
-  if (activeCount > 0 || pendingItems.length > 0) {
+  result.push(...pendingItems);
+  if (activeCount > 0) {
     result.push({
       type: "v2-active-header",
       key: "v2-active-header",
-      count: activeCount + pendingItems.length,
+      count: activeCount,
       expanded: input.activeShelfExpanded !== false,
       disabled: shelfDisabled,
     });
-    if (input.activeShelfExpanded !== false) result.push(...pendingItems);
     if (input.inboxGroups === null) {
       result.push(...threadItems.slice(pinnedEnd, activeEnd));
     } else {

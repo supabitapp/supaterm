@@ -10,8 +10,11 @@ import {
   MIN_PROMPT_FONT_SIZE,
 } from "@supaterm/contracts";
 
-export const DEFAULT_SANS_FONT_STACK =
-  '-apple-system, BlinkMacSystemFont, "Inter Variable", "Segoe UI", system-ui, sans-serif';
+export const DEFAULT_SANS_FONT_FAMILY = "Allo";
+
+export const SYSTEM_SANS_FONT_FAMILY = "system-ui";
+
+const DEFAULT_SANS_FONT_STACK = `"${DEFAULT_SANS_FONT_FAMILY}", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif`;
 
 export const DEFAULT_CODE_FONT_FAMILY = "JetBrains Mono";
 
@@ -53,6 +56,10 @@ function cssFontFamilies(input: string): string | null {
     .map(quoteFontFamilyName)
     .filter((name) => name.length > 0);
   return families.length > 0 ? families.join(", ") : null;
+}
+
+export function fontFamilyLabel(family: string): string {
+  return family === SYSTEM_SANS_FONT_FAMILY ? "System" : family;
 }
 
 export function appearanceFontStack(custom: string, defaultStack: string): string {
@@ -209,113 +216,6 @@ export function isMonospaceFamily(family: string): boolean {
   } catch {
     return true;
   }
-}
-
-const SANS_GENERIC_CANDIDATES = [
-  "Segoe UI",
-  "Roboto",
-  "Noto Sans",
-  "Ubuntu",
-  "Cantarell",
-  "DejaVu Sans",
-  "Liberation Sans",
-  "Helvetica Neue",
-  "Arial",
-] as const;
-const MONO_GENERIC_CANDIDATES = [
-  "Menlo",
-  "Consolas",
-  "Cascadia Mono",
-  "DejaVu Sans Mono",
-  "Ubuntu Mono",
-  "Liberation Mono",
-  "Noto Sans Mono",
-  "Roboto Mono",
-  "Monaco",
-  "Courier New",
-] as const;
-
-const GENERIC_PROBE_TEXT = "RagIl10O@ fjord quiz";
-
-/**
- * Advance width of the probe text laid out by the DOM - not canvas, whose
- * generic-family mapping diverges from real rendering (this engine draws
- * `ui-monospace` as the proportional UI font on canvas but not in CSS).
- */
-function measureDomProbeWidth(fontFamily: string): number | null {
-  try {
-    const body = document.body;
-    if (!body) return null;
-    const span = document.createElement("span");
-    span.style.cssText =
-      "position:absolute;left:-9999px;top:0;visibility:hidden;white-space:pre;font-size:100px;";
-    span.style.fontFamily = fontFamily;
-    span.textContent = GENERIC_PROBE_TEXT;
-    body.appendChild(span);
-    const width = span.getBoundingClientRect().width;
-    span.remove();
-    return width > 0 ? width : null;
-  } catch {
-    return null;
-  }
-}
-
-function widthsMatch(left: number, right: number): boolean {
-  return Math.abs(left - right) < 0.01;
-}
-
-function resolveGenericFamilyLabel(generic: string): string | null {
-  const lower = generic.toLowerCase();
-  if (lower === "serif") return null;
-  const monoLike = lower === "ui-monospace" || lower === "monospace";
-  const genericWidth = measureDomProbeWidth(generic);
-  if (genericWidth === null) return null;
-  for (const candidate of monoLike ? MONO_GENERIC_CANDIDATES : SANS_GENERIC_CANDIDATES) {
-    if (!isFontFamilyAvailable(candidate)) continue;
-    const candidateWidth = measureDomProbeWidth(`"${candidate}"`);
-    if (candidateWidth !== null && widthsMatch(genericWidth, candidateWidth)) {
-      return candidate;
-    }
-  }
-  // No nameable face matched; on Apple platforms that means one of the San
-  // Francisco faces, which CSS cannot name. Comparing against -apple-system
-  // tells the UI face apart from SF Mono.
-  if (/mac|iphone|ipad|ipod/i.test(navigator.platform)) {
-    const systemWidth = measureDomProbeWidth("-apple-system");
-    if (systemWidth !== null && widthsMatch(genericWidth, systemWidth)) return "SF Pro";
-    return monoLike ? "SF Mono" : "SF Pro";
-  }
-  return null;
-}
-
-// Synthetic Apple labels are not necessarily available as named CSS families.
-export function displayFontFamily(family: string): string {
-  const label = family
-    .trim()
-    .replace(/^(['"])(.*)\1$/, "$2")
-    .trim()
-    .toLowerCase();
-  if (label === "sf pro") return appearanceFontStack(family, DEFAULT_SANS_FONT_STACK);
-  if (label === "sf mono") return DEFAULT_CODE_FONT_STACK;
-  return cssFontFamilies(family) ?? "";
-}
-
-export function resolveDefaultFamilyLabel(stack: string): string | null {
-  for (const raw of stack.split(",")) {
-    const family = raw.trim().replace(/^(['"])(.*)\1$/, "$2");
-    if (family.length === 0) continue;
-    if (
-      /^(system-ui|sans-serif|serif|monospace|ui-monospace|-apple-system|BlinkMacSystemFont)$/i.test(
-        family,
-      )
-    ) {
-      const resolved = resolveGenericFamilyLabel(family);
-      if (resolved !== null) return resolved;
-      continue;
-    }
-    if (isFontFamilyAvailable(family)) return family;
-  }
-  return null;
 }
 
 export interface InstalledFontFamiliesResult {

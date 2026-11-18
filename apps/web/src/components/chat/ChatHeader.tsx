@@ -46,6 +46,7 @@ import { textDirection } from "~/textDirection";
 import { subscribeThreadRename } from "./threadRenameActionBus";
 import { PinnedMessagesMenu } from "./PinnedMessages";
 import { useClientSettings } from "../../hooks/useSettings";
+import { isImeComposing } from "~/lib/imeComposition";
 
 interface ChatHeaderProps {
   activeThreadEnvironmentId: EnvironmentId;
@@ -258,7 +259,7 @@ export const ChatHeader = memo(function ChatHeader({
     openMenu({ x: event.clientX, y: event.clientY });
   };
   const handleRenameKeyDown = (event: ReactKeyboardEvent<HTMLInputElement>) => {
-    if (event.nativeEvent.isComposing || event.keyCode === 229) return;
+    if (isImeComposing(event)) return;
     if (event.key === "Enter") {
       renameCommittedRef.current = true;
       commitRename(event.currentTarget.value);

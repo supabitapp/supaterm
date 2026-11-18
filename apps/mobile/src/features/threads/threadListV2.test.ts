@@ -365,12 +365,18 @@ describe("search lists ranked matches", () => {
     });
     const list = buildThreadListV2ListItems({
       ...layout,
-      pendingTasks: [],
+      pendingTasks: [makeDraftTask("draft"), makePendingTask("queued")],
       activeShelfExpanded: false,
     });
     expect(
-      list.map((entry) => (entry.type === "v2-thread" ? entry.item.thread.id : entry.type)),
-    ).toEqual(["pinned", "active"]);
+      list.map((entry) =>
+        entry.type === "v2-thread"
+          ? entry.item.thread.id
+          : entry.type === "v2-pending"
+            ? [entry.pendingTask.title, entry.showPendingDivider, entry.showTrailingDivider]
+            : entry.type,
+      ),
+    ).toEqual([["draft", false, true], ["queued", false, true], "pinned", "active"]);
   });
 });
 
@@ -424,7 +430,7 @@ describe("getThreadListV2OrderedSection", () => {
 });
 
 describe("buildThreadListV2Items", () => {
-  it("collapses Active while keeping its count and selected thread reachable", () => {
+  it("collapses Active while keeping its count, queued tasks, and selected thread reachable", () => {
     const threads = ["active-one", "active-two"].map((id) =>
       makeThread({ id: ThreadId.make(id), title: id }),
     );
@@ -437,10 +443,11 @@ describe("buildThreadListV2Items", () => {
     });
     expect(collapsed.items).toEqual([]);
     expect(list).toEqual([
+      expect.objectContaining({ type: "v2-pending" }),
       {
         type: "v2-active-header",
         key: "v2-active-header",
-        count: 3,
+        count: 2,
         expanded: false,
         disabled: false,
       },
@@ -1383,9 +1390,9 @@ describe("buildThreadListV2ListItems", () => {
       ),
     ).toEqual([
       "unsent",
-      "v2-active-header",
       "queued-1",
       "queued-2",
+      "v2-active-header",
       "active",
       "v2-done-shelf",
       "done",
@@ -1397,7 +1404,7 @@ describe("buildThreadListV2ListItems", () => {
       items.map((item) =>
         item.type === "v2-thread" || item.type === "v2-pending" ? item.showTrailingDivider : null,
       ),
-    ).toEqual([false, null, true, true, false, null, false]);
+    ).toEqual([false, true, false, null, false, null, false]);
   });
 
   it("puts queued tasks above active rows when nothing has done yet", () => {
@@ -1412,10 +1419,10 @@ describe("buildThreadListV2ListItems", () => {
       pendingTasks: [makePendingTask("queued-1")],
     });
 
-    expect(items.map((item) => item.type)).toEqual(["v2-active-header", "v2-pending", "v2-thread"]);
+    expect(items.map((item) => item.type)).toEqual(["v2-pending", "v2-active-header", "v2-thread"]);
   });
 
-  it("puts Drafts between Pinned and Active while queued tasks stay in Active", () => {
+  it("puts Drafts, then queued tasks, between Pinned and Active", () => {
     const pinnedLayout = buildThreadListV2Items({
       threads: [
         makeThread({ id: ThreadId.make("pinned"), title: "pinned", pinnedAt: NOW }),
@@ -1454,9 +1461,9 @@ describe("buildThreadListV2ListItems", () => {
       "pinned",
       "draft-1",
       "draft-2",
-      "v2-active-header",
       "queued-1",
       "queued-2",
+      "v2-active-header",
       "active",
       "v2-done-shelf",
       "done",
@@ -1469,25 +1476,8 @@ describe("buildThreadListV2ListItems", () => {
       ["draft", true, true],
       ["draft", false, false],
       ["pending", true, true],
-      ["pending", false, true],
+      ["pending", false, false],
     ]);
-  });
-
-  it("puts Drafts above Active when nothing is pinned", () => {
-    const items = buildThreadListV2ListItems({
-      ...layout,
-      pendingTasks: [makeDraftTask("draft"), makePendingTask("queued")],
-    });
-
-    expect(
-      items.map((item) =>
-        item.type === "v2-thread"
-          ? item.item.thread.id
-          : item.type === "v2-pending"
-            ? item.pendingTask.title
-            : item.type,
-      ),
-    ).toEqual(["draft", "v2-active-header", "queued", "active", "v2-done-shelf", "done"]);
   });
 
   it("places Done below Active when nothing is queued", () => {
@@ -1532,8 +1522,8 @@ describe("buildThreadListV2ListItems", () => {
     });
 
     expect(items.map((item) => item.type)).toEqual([
-      "v2-active-header",
       "v2-pending",
+      "v2-active-header",
       "v2-thread",
       "v2-snoozed-shelf",
       "v2-done-shelf",
@@ -1613,7 +1603,6 @@ describe("buildThreadListV2ListItems empty Active block", () => {
       "v2-done-shelf",
     ]);
     expect(listTypes([done], { pendingTasks: [makePendingTask("queued")] })).toEqual([
-      "v2-active-header",
       "v2-pending",
       "v2-done-shelf",
     ]);
@@ -2463,7 +2452,7 @@ describe("buildThreadListV2ListItems trailing dividers", () => {
     const dividers = items.map((item) =>
       item.type === "v2-thread" || item.type === "v2-pending" ? item.showTrailingDivider : "n/a",
     );
-    expect(dividers).toEqual(["n/a", true, true, true, false]);
+    expect(dividers).toEqual([true, false, "n/a", true, false]);
   });
 });
 
@@ -2706,8 +2695,8 @@ describe("Working section", () => {
             : item.type,
       ),
     ).toEqual([
-      "v2-active-header",
       "queued",
+      "v2-active-header",
       "active",
       "v2-working-shelf",
       "working",

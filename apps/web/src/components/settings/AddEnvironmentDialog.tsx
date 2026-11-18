@@ -62,6 +62,7 @@ import {
   threadJumpCommandForIndex,
   threadJumpIndexFromCommand,
 } from "../../keybindings";
+import { isImeComposing } from "~/lib/imeComposition";
 
 const EMPTY_DISCOVERED_SSH_HOSTS: ReadonlyArray<DesktopDiscoveredSshHost> = [];
 // known_hosts can list one host on several ports. Its own bracketed form keeps an IPv6
@@ -257,7 +258,7 @@ export function AddEnvironmentDialog({
   };
 
   const handleSavedBackendSshFieldKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
-    if (event.nativeEvent.isComposing || event.keyCode === 229) return;
+    if (isImeComposing(event)) return;
     if (event.key === "Enter" && savedBackendSshHost.trim().length > 0) {
       event.preventDefault();
       void handleAddSavedBackend();
@@ -292,7 +293,7 @@ export function AddEnvironmentDialog({
   };
 
   const handleSavedBackendSshHostKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
-    if (event.nativeEvent.isComposing || event.keyCode === 229) return;
+    if (isImeComposing(event)) return;
 
     const isSshHostPopupVisible = sshHostSuggestionsOpen && hasSshHostSuggestionContent;
     if (isSshHostPopupVisible) {
