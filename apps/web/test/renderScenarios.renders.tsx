@@ -88,7 +88,10 @@ const versionedProps = { onManualNavigation: () => {}, onJumpToPinnedMessage: ()
 // The callbacks and lists stay the same across renders too, as ChatView's do: new ones change
 // the rows' shared context, which re-renders every row and hides a row that re-renders alone.
 function timelineFor() {
-  const props: Omit<TimelineProps, "timelineEntries" | "routeThreadKey"> = {
+  const props: Omit<
+    TimelineProps,
+    "timelineEntries" | "routeThreadKey" | keyof typeof versionedProps
+  > = {
     isWorking: false,
     listRef: createRef<LegendListRef | null>(),
     latestRun: null,
