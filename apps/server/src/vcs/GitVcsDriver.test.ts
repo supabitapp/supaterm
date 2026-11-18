@@ -868,7 +868,9 @@ it.effect("a branch switch landing after the snapshot belongs to the next checkp
     const path = yield* Path.Path;
     const liveProcess = yield* VcsProcess.VcsProcess;
     const driver = yield* GitVcsDriver.makeVcsDriverShape();
-    const cwd = yield* fileSystem.makeTempDirectoryScoped({ prefix: "supaterm-checkpoint-switch-race-" });
+    const cwd = yield* fileSystem.makeTempDirectoryScoped({
+      prefix: "supaterm-checkpoint-switch-race-",
+    });
     const git = (args: ReadonlyArray<string>) =>
       driver.execute({ operation: "checkpoint-test", cwd, args });
     yield* git(["init"]);
@@ -1353,7 +1355,9 @@ it.effect("restores edits to skip-worktree files whose checkpoint content matche
     const fileSystem = yield* FileSystem.FileSystem;
     const path = yield* Path.Path;
     const driver = yield* GitVcsDriver.makeVcsDriverShape();
-    const cwd = yield* fileSystem.makeTempDirectoryScoped({ prefix: "supaterm-skip-worktree-restore-" });
+    const cwd = yield* fileSystem.makeTempDirectoryScoped({
+      prefix: "supaterm-skip-worktree-restore-",
+    });
     const { git, checkpointRef } = yield* makeCheckpointFixture(driver, cwd);
     const skippedPath = path.join(cwd, "skipped.txt");
     yield* fileSystem.writeFileString(skippedPath, "original\n");
