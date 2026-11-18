@@ -1,10 +1,11 @@
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { assert, it } from "@effect/vitest";
+import * as HostProcess from "@supaterm/shared/HostProcess";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
 import * as Path from "effect/Path";
 
-import { NativeClientError, prebuildAndroid } from "./mobile-native-client.ts";
+import { androidSdk, NativeClientError, prebuildAndroid } from "./mobile-native-client.ts";
 
 const caches = [".gradle/history", "app/.cxx/object"];
 
@@ -58,6 +59,28 @@ it.layer(NodeServices.layer)("prebuildAndroid", (it) => {
 
       assert.strictEqual(error, failure);
       yield* assertCachesRestored;
+    }),
+  );
+});
+
+it.layer(NodeServices.layer)("androidSdk", (it) => {
+  it.effect("skips a configured SDK path that holds no SDK", () =>
+    Effect.gen(function* () {
+      const fs = yield* FileSystem.FileSystem;
+      const path = yield* Path.Path;
+      const home = yield* fs.makeTempDirectoryScoped({ prefix: "android-sdk-home-" });
+      const sdk = path.join(home, "sdk");
+      yield* fs.makeDirectory(path.join(sdk, "platform-tools"), { recursive: true });
+
+      const resolved = yield* androidSdk.pipe(
+        Effect.provideService(HostProcess.Environment, {
+          HOME: home,
+          ANDROID_HOME: path.join(home, "stale"),
+          ANDROID_SDK_ROOT: sdk,
+        }),
+      );
+
+      assert.strictEqual(resolved, sdk);
     }),
   );
 });

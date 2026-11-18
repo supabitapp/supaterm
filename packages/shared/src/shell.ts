@@ -213,6 +213,12 @@ function envCaptureEnd(name: string): string {
 }
 
 const DEBUG_TRAP_SHELLS = new Set(["bash", "zsh", "sh", "ksh", "ksh93"]);
+const POSIX_CAPTURE_SYNTAX = { assignment: "__SUPATERM_PRINTENV=$(", orElse: " || " };
+const PRINTENV_CAPTURE_SYNTAX = new Map(
+  [...DEBUG_TRAP_SHELLS, "dash", "ash"].map((shell) => [shell, POSIX_CAPTURE_SYNTAX] as const),
+).set("fish", { assignment: "set -l __SUPATERM_PRINTENV (", orElse: "; or " });
+// Network PATH entries must be probed inside the shell's deadline, away from the desktop thread.
+const PRINTENV_LOOKUP_COMMAND = `/bin/sh -c 'command -v printenv || { [ -n "$1" ] && PATH="$1" command -v printenv; } || printf %s /usr/bin/printenv' supaterm`;
 
 export function buildEnvironmentCaptureCommand(
   shell: string,
@@ -220,6 +226,16 @@ export function buildEnvironmentCaptureCommand(
 ): string {
   const executableName = NodePath.basename(shell).toLowerCase();
   const isNushell = executableName.startsWith("nu");
+  const syntax = PRINTENV_CAPTURE_SYNTAX.get(executableName);
+  const supportsFallback = syntax !== undefined;
+  const inheritedPath = resolvePathEnvironmentVariable(process.env)
+    .split(POSIX_PATH_DELIMITER)
+    .filter(Boolean)
+    .map((entry) => NodePath.posix.resolve(entry))
+    .join(POSIX_PATH_DELIMITER);
+  const lookupPrintenv = `${PRINTENV_LOOKUP_COMMAND} '${inheritedPath.replaceAll("'", "'\\''")}'`;
+  const { assignment, orElse } = syntax ?? POSIX_CAPTURE_SYNTAX;
+  const resolvePrintenv = `${assignment}${lookupPrintenv}); `;
 
   const capture = names
     .map((name) => {
@@ -250,7 +266,9 @@ export function buildEnvironmentCaptureCommand(
 
       return [
         `printf '%s\\n' '${envCaptureStart(name)}'`,
-        `printenv ${name} || true`,
+        supportsFallback
+          ? `printenv ${name}${orElse}"$__SUPATERM_PRINTENV" ${name}${orElse}true`
+          : `printenv ${name} || true`,
         `printf '%s\\n' '${envCaptureEnd(name)}'`,
       ].join("; ");
     })
@@ -258,9 +276,10 @@ export function buildEnvironmentCaptureCommand(
 
   // A DEBUG trap that echoes each command (e.g. into the terminal title) would print the markers.
   // OpenBSD ksh (also its /bin/sh) exits on `trap - DEBUG`, so try it in a subshell first.
+  const command = supportsFallback ? resolvePrintenv + capture : capture;
   return DEBUG_TRAP_SHELLS.has(executableName)
-    ? `(trap - DEBUG) 2>/dev/null && trap - DEBUG; ${capture}`
-    : capture;
+    ? `(trap - DEBUG) 2>/dev/null && trap - DEBUG; ${command}`
+    : command;
 }
 
 function buildWindowsEnvironmentCaptureCommand(names: ReadonlyArray<string>): string {
@@ -627,6 +646,47 @@ const isExecutableFile = Effect.fnUntraced(function* (
   return canExecuteFile(filePath);
 });
 
+// Called within the traced command resolvers.
+const findOnPath = Effect.fnUntraced(function* (
+  pathValue: string,
+  commandCandidates: ReadonlyArray<string>,
+  platform: NodeJS.Platform,
+  windowsPathExtensions: ReadonlyArray<string>,
+  isLast: (match: string) => boolean,
+): Effect.fn.Return<ReadonlyArray<string>, never, FileSystem.FileSystem | Path.Path> {
+  const path = yield* Path.Path;
+  // Keep case variants: Windows can make PATH directories case-sensitive.
+  const pathEntries: string[] = [];
+  const seenPathEntries = new Set<string>();
+  for (const entry of pathValue.split(pathDelimiterForPlatform(platform))) {
+    const pathEntry = stripWrappingQuotes(entry.trim());
+    if (pathEntry.length === 0 || seenPathEntries.has(pathEntry)) continue;
+
+    seenPathEntries.add(pathEntry);
+    pathEntries.push(pathEntry);
+  }
+
+  const listings = yield* PathDirectoryListings;
+  const matches: string[] = [];
+  for (const pathEntry of pathEntries) {
+    let listing = listings && (yield* Cache.get(listings, pathEntry));
+    if (listings && listing?.names && listing.modified !== (yield* directoryMtime(pathEntry))) {
+      yield* Cache.invalidate(listings, pathEntry);
+      listing = yield* Cache.get(listings, pathEntry);
+    }
+    for (const candidate of commandCandidates) {
+      if (listing?.names && !listing.names.has(candidate.toLowerCase())) continue;
+      const candidatePath = path.join(pathEntry, candidate);
+      if (yield* isExecutableFile(candidatePath, platform, windowsPathExtensions)) {
+        matches.push(candidatePath);
+        if (isLast(candidatePath)) return matches;
+        break;
+      }
+    }
+  }
+  return matches;
+});
+
 const resolveCommandPathForPlatform = Effect.fn("shell.resolveCommandPathForPlatform")(function* (
   command: string,
   options: CommandAvailabilityOptions & { readonly platform: NodeJS.Platform },
@@ -666,35 +726,15 @@ const resolveCommandPathForPlatform = Effect.fn("shell.resolveCommandPathForPlat
     return cached.resolvedPath;
   }
 
-  // Keep case variants: Windows can make PATH directories case-sensitive.
-  const pathEntries: string[] = [];
-  const seenPathEntries = new Set<string>();
-  for (const entry of pathValue.split(pathDelimiterForPlatform(platform))) {
-    const pathEntry = stripWrappingQuotes(entry.trim());
-    if (pathEntry.length === 0 || seenPathEntries.has(pathEntry)) continue;
-
-    seenPathEntries.add(pathEntry);
-    pathEntries.push(pathEntry);
-  }
-
-  const listings = yield* PathDirectoryListings;
-  for (const pathEntry of pathEntries) {
-    let listing = listings && (yield* Cache.get(listings, pathEntry));
-    if (listings && listing?.names && listing.modified !== (yield* directoryMtime(pathEntry))) {
-      yield* Cache.invalidate(listings, pathEntry);
-      listing = yield* Cache.get(listings, pathEntry);
-    }
-    for (const candidate of commandCandidates) {
-      if (listing?.names && !listing.names.has(candidate.toLowerCase())) continue;
-      const candidatePath = path.join(pathEntry, candidate);
-      if (yield* isExecutableFile(candidatePath, platform, windowsPathExtensions)) {
-        cacheCommandResolution(cache, cacheKey, candidatePath, nowNanos);
-        return candidatePath;
-      }
-    }
-  }
-  cacheCommandResolution(cache, cacheKey, null, nowNanos);
-  return null;
+  const [resolvedPath = null] = yield* findOnPath(
+    pathValue,
+    commandCandidates,
+    platform,
+    windowsPathExtensions,
+    () => true,
+  );
+  cacheCommandResolution(cache, cacheKey, resolvedPath, nowNanos);
+  return resolvedPath;
 });
 
 export const resolveCommandPath = Effect.fn("shell.resolveCommandPath")(function* (
@@ -705,6 +745,24 @@ export const resolveCommandPath = Effect.fn("shell.resolveCommandPath")(function
     env: options.env ?? (yield* HostProcess.Environment),
     platform: yield* HostProcess.Platform,
   });
+});
+
+// Matches for a bare command in PATH order, up to the first one `until` accepts; not cached.
+export const resolveCommandPaths = Effect.fn("shell.resolveCommandPaths")(function* (
+  command: string,
+  options: CommandAvailabilityOptions & { readonly until: (match: string) => boolean },
+) {
+  const path = yield* Path.Path;
+  const platform = yield* HostProcess.Platform;
+  const env = options.env ?? (yield* HostProcess.Environment);
+  const windowsPathExtensions = platform === "win32" ? resolveWindowsPathExtensions(env) : [];
+  return yield* findOnPath(
+    resolvePathEnvironmentVariable(env),
+    resolveCommandCandidates(command, platform, windowsPathExtensions, path.extname),
+    platform,
+    windowsPathExtensions,
+    options.until,
+  );
 });
 
 // Git for Windows 2.56 moved x64 builds from mingw64 to ucrt64; ARM64 builds

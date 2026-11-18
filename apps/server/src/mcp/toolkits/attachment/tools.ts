@@ -34,9 +34,12 @@ const shared = {
 const AttachmentUploadTool = Tool.make("supaterm_attachment_prepare_upload", {
   ...shared,
   description:
-    "Get an upload URL. POST the file's exact bytes to `relativeUrl` on this MCP server's HTTP origin, then send via `supaterm_thread_send_attachments` with the returned `attachmentId`.",
+    "Get an upload URL. POST the file's exact bytes to `uploadUrl` (else this server's `relativeUrl`), then send via `supaterm_thread_send_attachments` with the returned `attachmentId`.",
   parameters: Schema.Struct({ upload: AttachmentCreateUploadUrlInput }),
-  success: AttachmentCreateUploadUrlResult,
+  success: Schema.Struct({
+    ...AttachmentCreateUploadUrlResult.fields,
+    uploadUrl: Schema.optionalKey(Schema.String),
+  }),
 }).annotate(Tool.Destructive, true);
 const AttachmentDiscardTool = Tool.make("supaterm_attachment_discard", {
   ...shared,

@@ -6188,7 +6188,7 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
     }),
   );
 
-  it.effect("marks done past held automatic runs but not held user messages", () =>
+  it.effect("marks done past held automatic messages but preserves a held user queue", () =>
     Effect.gen(function* () {
       const orchestrator = yield* Orchestrator.OrchestratorV2;
       const eventSink = yield* EventSink.EventSinkV2;
@@ -6220,20 +6220,33 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
         modelSelection,
         dispatchMode: { type: "start_immediately" },
       });
-      const queueMessage = (id: string, automatic: boolean) =>
+      const queueMessage = (id: string, sender: "notification" | "agent" | "scheduled" | "user") =>
         orchestrator.dispatch({
           type: "message.dispatch",
-          createdBy: automatic ? "agent" : "user",
-          creationSource: automatic ? "provider" : "web",
-          ...(automatic
-            ? {
+          ...(
+            {
+              notification: {
+                createdBy: "agent",
+                creationSource: "provider",
                 notification: {
-                  source: { kind: "background_task" as const },
-                  outcome: "updated" as const,
+                  source: { kind: "background_task" },
+                  outcome: "updated",
                   summary: "Background activity updated",
                 },
-              }
-            : {}),
+              },
+              agent: {
+                createdBy: "agent",
+                creationSource: "mcp",
+                senderThreadId: ThreadId.make("mark-done-automatic-sender"),
+              },
+              scheduled: {
+                createdBy: "user",
+                creationSource: "web",
+                scheduledTaskId: ScheduledTaskId.make("mark-done-automatic-schedule"),
+              },
+              user: { createdBy: "user", creationSource: "web" },
+            } as const
+          )[sender],
           commandId: CommandId.make(id),
           threadId,
           messageId: MessageId.make(id),
@@ -6242,7 +6255,9 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
           modelSelection,
           dispatchMode: { type: "queue_after_active" },
         });
-      yield* queueMessage("mark-done-automatic-notification", true);
+      yield* queueMessage("mark-done-automatic-notification", "notification");
+      yield* queueMessage("mark-done-automatic-agent", "agent");
+      yield* queueMessage("mark-done-automatic-scheduled", "scheduled");
 
       const holdQueueAfterRestart = (commandId: string) =>
         Effect.gen(function* () {
@@ -6316,7 +6331,8 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
         modelSelection,
         dispatchMode: { type: "start_immediately" },
       });
-      yield* queueMessage("mark-done-automatic-user-queued", false);
+      yield* queueMessage("mark-done-automatic-user-queued", "user");
+      yield* queueMessage("mark-done-automatic-agent-queued-2", "agent");
       yield* holdQueueAfterRestart("mark-done-automatic-restart-2");
       const error = yield* orchestrator
         .dispatch({
@@ -6329,6 +6345,12 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
       assert.equal(
         error.cause,
         `Thread ${threadId} has a queued message. Send it or remove it from the queue before marking it as Done.`,
+      );
+      const blocked = yield* orchestrator.getThreadProjection(threadId);
+      assert.isNull(blocked.thread.doneAt);
+      assert.deepEqual(
+        blocked.runs.filter((run) => run.status === "queued").map((run) => run.userMessageId),
+        ["mark-done-automatic-user-queued", "mark-done-automatic-agent-queued-2"],
       );
     }),
   );

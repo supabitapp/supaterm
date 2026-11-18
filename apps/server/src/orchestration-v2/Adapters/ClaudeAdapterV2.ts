@@ -179,6 +179,7 @@ import { expandHomePath } from "@supaterm/provider-core/server/pathExpansion";
 import { spawnAndCollect } from "@supaterm/provider-core/server/snapshotProbe";
 import { signalProcessGroup } from "@supaterm/provider-core/server/processGroup";
 import {
+  claudeLocalSettingsDirectory,
   claudeSignedOutMessage,
   hasClaudeTranscript,
   makeClaudeEnvironment,
@@ -1879,7 +1880,8 @@ function canApplyClaudeSelectionLive(
 ): boolean {
   return (
     live.settings.alwaysThinkingEnabled === next.settings.alwaysThinkingEnabled &&
-    (next.effort !== undefined || live.effort === undefined)
+    (next.effort !== undefined || live.effort === undefined) &&
+    live.pinnedAlias === next.pinnedAlias
   );
 }
 
@@ -1975,8 +1977,6 @@ const subagentDeviceInstructions: HookCallback = () =>
     },
   });
 
-const CLAUDE_CODE_MODEL_ALIASES = new Set(["opus", "sonnet", "haiku", "fable"]);
-
 export function makeClaudeQueryOptions(input: {
   readonly modelSelection: ModelSelection;
   readonly compiledSelection?: CompiledClaudeModelSelection;
@@ -2060,12 +2060,13 @@ export function makeClaudeQueryOptions(input: {
         } as ClaudeSdkSettings);
   // Claude Code expands a bare alias to its own model, so a custom model with an alias's name
   // pins the alias to itself.
-  const aliasOverrideEnv = CLAUDE_CODE_MODEL_ALIASES.has(compiledSelection.apiModelId)
-    ? {
-        [`ANTHROPIC_DEFAULT_${compiledSelection.apiModelId.toUpperCase()}_MODEL`]:
-          compiledSelection.apiModelId,
-      }
-    : undefined;
+  const aliasOverrideEnv =
+    compiledSelection.pinnedAlias === undefined
+      ? undefined
+      : {
+          [`ANTHROPIC_DEFAULT_${compiledSelection.pinnedAlias.toUpperCase()}_MODEL`]:
+            compiledSelection.pinnedAlias,
+        };
   // A settings file path cannot take extra keys, so it goes through unchanged.
   const effectiveQuerySettings =
     (input.toolSearchOverride === undefined &&
@@ -5189,6 +5190,15 @@ export interface ClaudeAdapterV2Options {
   readonly fastModeBlocked?: Effect.Effect<boolean>;
   /** Read when a CLI process starts; the SDK cannot turn suggestions on or off mid-process. */
   readonly promptSuggestionsEnabled?: Effect.Effect<boolean>;
+  /**
+   * Applies Claude Code's reported model ids for a turn's cwd, so turns send ids its backend
+   * accepts. Defaults to the catalog unchanged.
+   */
+  readonly routeModelCatalog?: (
+    catalog: ClaudeModelCatalog,
+    cwd: string | null,
+    launchSettings?: ClaudeSdkSettings,
+  ) => Effect.Effect<ClaudeModelCatalog>;
   readonly continuationRequests?: {
     readonly offer: (
       request: ProviderContinuationRequests.ProviderContinuationRequest,
@@ -5230,6 +5240,8 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
   const customHome =
     adapterOptions.settings.homePath.trim().length > 0 ||
     adapterOptions.environment.CLAUDE_CONFIG_DIR !== hostEnvironment.CLAUDE_CONFIG_DIR;
+  const routeModelCatalog = adapterOptions.routeModelCatalog ?? Effect.succeed;
+
   // Claude Code's own subagent TTL setting, in its precedence order. Unset or unreadable means
   // Anthropic's default applies.
   const resolveSubagentPromptCacheTtl = Effect.fn("ClaudeAdapterV2.resolveSubagentPromptCacheTtl")(
@@ -5263,44 +5275,15 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
       }),
       Effect.orElseSucceed(() => undefined),
     );
-  // A worktree's .git file points at <main>/.git/worktrees/<name>, whose commondir leads back to
-  // <main>/.git. A bare repository has no main checkout, so its worktree keeps its own file.
-  const mainCheckoutRoot = (checkout: string) =>
-    fileSystem.readFileString(path.join(checkout, ".git")).pipe(
-      Effect.flatMap((pointer) => {
-        const gitDir = /^gitdir:\s*(.+)$/m.exec(pointer)?.[1]?.trim();
-        if (gitDir === undefined) return Effect.succeed(checkout);
-        const worktreeGitDir = path.resolve(checkout, gitDir);
-        return fileSystem.readFileString(path.join(worktreeGitDir, "commondir")).pipe(
-          Effect.map((commonDir) => {
-            const common = path.resolve(worktreeGitDir, commonDir.trim());
-            return path.basename(common) === ".git" ? path.dirname(common) : checkout;
-          }),
-        );
-      }),
-      Effect.orElseSucceed(() => checkout),
-    );
-  // Claude Code keeps .claude/settings.local.json at the repository root, or in cwd outside a
-  // repository, on Windows, or when the root is home. Its owner check is skipped: missing it only
-  // leaves tool search on, Claude Code's default.
-  const localSettingsDirectory = Effect.fn("ClaudeAdapterV2.localSettingsDirectory")(function* (
-    cwd: string,
-  ) {
-    if ((yield* HostProcess.Platform) === "win32") return cwd;
-    for (let directory = cwd; ; directory = path.dirname(directory)) {
-      const isCheckout = yield* fileSystem
-        .exists(path.join(directory, ".git"))
-        .pipe(Effect.orElseSucceed(() => false));
-      if (isCheckout) {
-        const root = yield* mainCheckoutRoot(directory);
-        return root === (yield* HostProcess.HomeDirectory) ? cwd : root;
-      }
-      if (path.dirname(directory) === directory) return cwd;
-    }
-  });
   const settingsFilesByPrecedence = Effect.fn("ClaudeAdapterV2.settingsFilesByPrecedence")(
     function* (cwd: string | null) {
-      const localDirectory = cwd === null ? null : yield* localSettingsDirectory(cwd);
+      const localDirectory =
+        cwd === null
+          ? null
+          : yield* claudeLocalSettingsDirectory(cwd).pipe(
+              Effect.provideService(FileSystem.FileSystem, fileSystem),
+              Effect.provideService(Path.Path, path),
+            );
       return [
         ...(cwd === null || localDirectory === null
           ? []
@@ -11977,6 +11960,9 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
           return false;
         });
 
+        const routedCatalogFor = (live: ClaudeLiveQueryContext) =>
+          routeModelCatalog(modelCatalog, live.settingsCwd, live.launchArgSettings);
+
         const applySelectionLive = Effect.fnUntraced(function* (
           live: ClaudeLiveQueryContext,
           selection: CompiledClaudeModelSelection,
@@ -12015,14 +12001,10 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
               : { allowedTools: queryPolicy.allowedTools }),
           });
           const queryPolicyKey = claudeEffectiveQueryPolicyKey(queryPolicy, mcpOverrides);
-          const compiledSelection = compileClaudeModelSelection(
-            turnInput.modelSelection,
-            modelCatalog,
-            {
-              fastModeBlocked: yield* adapterOptions.fastModeBlocked ?? Effect.succeed(false),
-              customModels: adapterOptions.settings.customModels,
-            },
-          );
+          const compileOptions = {
+            fastModeBlocked: yield* adapterOptions.fastModeBlocked ?? Effect.succeed(false),
+            customModels: adapterOptions.settings.customModels,
+          };
           const resumeSessionAt = yield* getNativeConversationHeadId(turnInput.providerThread);
           const existing = yield* Ref.get(queryContext);
           // A continuation prompts nothing: it drains output the live process
@@ -12035,6 +12017,30 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
           ) {
             return existing;
           }
+          const reuseLaunchSettings =
+            existing !== null &&
+            existing.nativeThreadId === nativeThreadId &&
+            existing.queryPolicyKey === queryPolicyKey &&
+            !existing.stopping;
+          const readLaunchSettings = readClaudeLaunchArgSettings({
+            settings: adapterOptions.settings,
+            cwd: turnInput.runtimePolicy.cwd,
+            fileSystem,
+            path,
+          });
+          let launchArgSettings = reuseLaunchSettings
+            ? existing.launchArgSettings
+            : yield* readLaunchSettings;
+          let catalog = yield* routeModelCatalog(
+            modelCatalog,
+            turnInput.runtimePolicy.cwd,
+            launchArgSettings,
+          );
+          let compiledSelection = compileClaudeModelSelection(
+            turnInput.modelSelection,
+            catalog,
+            compileOptions,
+          );
           if (
             existing !== null &&
             existing.nativeThreadId === nativeThreadId &&
@@ -12086,19 +12092,33 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
             return yield* new ClaudeBackgroundWorkBlocksQueryReplacementError();
           }
 
+          if (reuseLaunchSettings) {
+            launchArgSettings = yield* readLaunchSettings;
+            catalog = yield* routeModelCatalog(
+              modelCatalog,
+              turnInput.runtimePolicy.cwd,
+              launchArgSettings,
+            );
+            compiledSelection = compileClaudeModelSelection(
+              turnInput.modelSelection,
+              catalog,
+              compileOptions,
+            );
+          }
+
           // Read before closing the live process so a bad path leaves it running.
-          const appendSystemPromptFileText = yield* readClaudeAppendSystemPromptFile({
-            settings: adapterOptions.settings,
-            cwd: turnInput.runtimePolicy.cwd,
-            fileSystem,
-            path,
-          });
-          const launchArgSettings = yield* readClaudeLaunchArgSettings({
-            settings: adapterOptions.settings,
-            cwd: turnInput.runtimePolicy.cwd,
-            fileSystem,
-            path,
-          });
+          const [appendSystemPromptFileText, toolSearchOverride] = yield* Effect.all(
+            [
+              readClaudeAppendSystemPromptFile({
+                settings: adapterOptions.settings,
+                cwd: turnInput.runtimePolicy.cwd,
+                fileSystem,
+                path,
+              }),
+              resolveToolSearchOverride(turnInput.runtimePolicy.cwd, launchArgSettings),
+            ],
+            { concurrency: "unbounded" },
+          );
           const closedExistingNativeThreadId = existing !== null ? existing.nativeThreadId : null;
           clearedNativeSessions.delete(nativeThreadId);
           if (existing !== null) {
@@ -12131,14 +12151,10 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
               Effect.provideService(FileSystem.FileSystem, fileSystem),
               Effect.provideService(Path.Path, path),
             ));
-          const toolSearchOverride = yield* resolveToolSearchOverride(
-            turnInput.runtimePolicy.cwd,
-            launchArgSettings,
-          );
           const queryOptions = makeClaudeQueryOptions({
             modelSelection: turnInput.modelSelection,
             compiledSelection,
-            modelCatalog,
+            modelCatalog: catalog,
             nativeThreadId,
             title: turnInput.appThread.title,
             resume: shouldResume,
@@ -12407,6 +12423,10 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
               const used = turnInput.providerThread.nativeMetadata?.claudeAttachmentBudget;
               pdfBudgets.set(nativeThreadId, makeClaudeAttachmentBudget(used));
             }
+            const skills =
+              promptUuid === null
+                ? undefined
+                : yield* userInvocableSkills(turnInput.runtimePolicy.cwd);
             const pdfReservation = yield* reserveClaudePdfBudget(
               pdfBudgets.get(nativeThreadId)!,
               persistAttachmentBudget(nativeThreadId),
@@ -12433,7 +12453,7 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
                     attachmentsDir,
                     fileSystem,
                     pdfReservation,
-                    skills: yield* userInvocableSkills(turnInput.runtimePolicy.cwd),
+                    ...(skills === undefined ? {} : { skills }),
                     uuid: promptUuid,
                   }).pipe(
                     Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, spawner),
@@ -12890,7 +12910,10 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
             const steerSelection =
               turnInput.modelSelection === undefined
                 ? undefined
-                : compileClaudeModelSelection(turnInput.modelSelection, modelCatalog);
+                : compileClaudeModelSelection(
+                    turnInput.modelSelection,
+                    yield* routedCatalogFor(existing),
+                  );
             const liveSteerSelection =
               steerSelection !== undefined &&
               existing.selection.queryIdentity !== steerSelection.queryIdentity &&
@@ -13292,12 +13315,19 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
             modelSelection,
           }) {
             const live = yield* Ref.get(queryContext);
-            const selection = compileClaudeModelSelection(modelSelection, modelCatalog);
-            // A model change still waits for the next turn, which checks it against the turn's permission mode.
             if (
               live === null ||
               live.stopping ||
-              live.nativeThreadId !== providerThread.nativeThreadRef?.nativeId ||
+              live.nativeThreadId !== providerThread.nativeThreadRef?.nativeId
+            ) {
+              return;
+            }
+            const selection = compileClaudeModelSelection(
+              modelSelection,
+              yield* routedCatalogFor(live),
+            );
+            // A model change still waits for the next turn, which checks it against the turn's permission mode.
+            if (
               live.selection.queryIdentity === selection.queryIdentity ||
               live.selection.apiModelId !== selection.apiModelId ||
               !canApplyClaudeSelectionLive(live.selection, selection)
@@ -13744,6 +13774,7 @@ export const createClaudeAdapterV2 = Effect.fn("ClaudeAdapterV2Driver.create")(
       | "fastModeBlocked"
       | "promptSuggestionsEnabled"
       | "modelCatalog"
+      | "routeModelCatalog"
     > = {},
   ) {
     const { instanceId, environment, enabled, config } = input;
