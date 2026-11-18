@@ -56,7 +56,11 @@ import { useUniwindTheme } from "../../lib/useUniwindTheme";
 import { themeColorWithAlpha } from "../../lib/mobileTheme";
 import { scopedThreadKey } from "../../lib/scopedEntities";
 import {
+  appendComposerDraftAttachments,
+  clearComposerDraftContent,
   getComposerDraftSnapshot,
+  mergeComposerDraftContent,
+  scheduleUnusedComposerAttachmentCleanup,
   setComposerDraftText,
   composerContextImportsAtom,
   countComposerDraftAttachmentsAfterSelection,
@@ -712,14 +716,26 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
     }
     if (sideChatCommand.kind === "start") {
       const draft = getComposerDraftSnapshot(composerDraftKey);
-      if (draft.attachments.length > 0 || (draft.context?.records.length ?? 0) > 0) {
-        Dialog.alert(
-          "Side chats take text only",
-          "Remove the attachments and context, then send it again.",
-        );
+      if (draft.attachments.length === 0 && (draft.context?.records.length ?? 0) === 0) {
+        if (await sideChat.send(sideChatCommand.prompt)) onChangeDraftMessage("");
         return;
       }
-      if (await sideChat.send(sideChatCommand.prompt)) onChangeDraftMessage("");
+      // Cleared at send, like a queued message; a side chat that did not start gets it back.
+      clearComposerDraftContent(composerDraftKey, { deferAttachmentCleanup: true });
+      const started = await sideChat.send(sideChatCommand.prompt, {
+        attachments: draft.attachments,
+        context: draft.context,
+      });
+      if (started) {
+        scheduleUnusedComposerAttachmentCleanup(draft.attachments);
+        return;
+      }
+      await mergeComposerDraftContent(composerDraftKey, {
+        text: draft.text,
+        context: draft.context,
+        attachments: [],
+      }).catch(() => undefined);
+      appendComposerDraftAttachments(composerDraftKey, draft.attachments, { restore: true });
       return;
     }
     const threadKey = scopedThreadKey(props.environmentId, props.selectedThread.id);

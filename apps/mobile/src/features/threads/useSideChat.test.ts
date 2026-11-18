@@ -63,12 +63,13 @@ vi.mock("./threadForkNavigation", () => ({ waitForThreadShellReady: vi.fn() }));
 
 import { startSideChat } from "./useSideChat";
 
-const start = () =>
+const start = (content?: Parameters<typeof startSideChat>[0]["content"]) =>
   startSideChat({
     environmentId: EnvironmentId.make("primary"),
     parentThreadId: ThreadId.make("parent"),
     targetThreadId: ThreadId.make("side"),
     text: "why does this fail?",
+    ...(content ? { content } : {}),
   });
 
 it("starts a side chat with the mode and model the parent's composer shows", async () => {
@@ -97,4 +98,16 @@ it("starts a side chat with the mode and model the parent's composer shows", asy
   expect(await start()).toBeNull();
   expect(state.enqueue).not.toHaveBeenCalled();
   expect(state.alert).toHaveBeenCalledOnce();
+});
+
+it("sends the parent composer's attachments and context with the first message", async () => {
+  state.draft = {};
+  state.serverConfig = null;
+  const attachments = [{ id: "image-1", type: "image" }] as never;
+  const context = { version: 1, records: [{ kind: "image", attachmentId: "image-1" }] } as never;
+
+  expect(await start({ attachments, context })).toBe("queued");
+  expect(state.enqueue).toHaveBeenLastCalledWith(
+    expect.objectContaining({ text: "why does this fail?", attachments, context }),
+  );
 });

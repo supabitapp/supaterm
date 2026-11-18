@@ -362,14 +362,15 @@ of the thread's last side chat, or of the thread itself if none is open.
 The pane stays with its thread: switching to another thread from either pane puts
 the side chat away, and it comes back beside the thread when you return. Closing
 the thread's pane puts it away too, unless the side chat would be the only pane left.
-A bare `/side` opens an empty side chat; nothing is created until you send its first
-message. Side chats do not show in the sidebar or in search. Find one again under
-**Side chats** in thread details.
+A bare `/side` with nothing attached opens an empty side chat; nothing is created
+until you send its first message. Side chats do not show in the sidebar or in search.
+Find one again under **Side chats** in thread details.
 
 On mobile, type `/side` or `/btw` in the composer, or choose **Start side chat** in
 the command palette. A thread lists its side chats above the composer; tap one to
 open it.
 
+Attachments and context in the composer go to the side chat with your question.
 A side chat starts with the permissions, model, and reasoning level shown in the
 thread's composer, including for its first reply, and works in the same folder as the
 thread. Its agent cannot start or message other threads, and it cannot be forked.

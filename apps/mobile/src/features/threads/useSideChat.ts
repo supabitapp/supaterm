@@ -12,6 +12,7 @@ import {
   MessageId,
   ThreadId,
   type EnvironmentId,
+  type OrchestrationMessageContext,
   type ScopedThreadRef,
 } from "@supaterm/contracts";
 import { Atom } from "effect/reactivity";
@@ -30,6 +31,7 @@ import { useEnvironmentServerConfig } from "../../state/entities";
 import { serverEnvironment } from "../../state/server";
 import { useEnvironmentScope } from "../../state/session";
 import { enqueueThreadOutboxMessage } from "../../state/thread-outbox";
+import type { DraftComposerAttachment } from "../../lib/composerImages";
 import { getComposerDraftSnapshot } from "../../state/use-composer-drafts";
 import {
   environmentThreadDetails,
@@ -70,6 +72,12 @@ export function useSideChatDisabledReason(
   });
 }
 
+/** The attachments and context `/side` carries from the parent's composer. */
+export interface SideChatComposerContent {
+  readonly attachments: ReadonlyArray<DraftComposerAttachment>;
+  readonly context: OrchestrationMessageContext | undefined;
+}
+
 /**
  * Sends a side chat's first message under `targetThreadId`, forking `parentThreadId` unless that
  * side chat exists. Resolves whether it has reached this device, or null after telling the user
@@ -81,6 +89,7 @@ export async function startSideChat(input: {
   readonly parentThreadId: ThreadId;
   readonly targetThreadId: ThreadId;
   readonly text: string;
+  readonly content?: SideChatComposerContent;
 }): Promise<"opened" | "queued" | null> {
   const readThread = (ref: ScopedThreadRef) =>
     appAtomRegistry.get(environmentThreadShells.threadShellAtom(ref));
@@ -121,7 +130,8 @@ export async function startSideChat(input: {
         messageId: MessageId.make(metadata.messageId),
         commandId: CommandId.make(metadata.commandId),
         text: input.text,
-        attachments: [],
+        attachments: input.content?.attachments ?? [],
+        ...(input.content?.context ? { context: input.content.context } : {}),
         ...(draft.modelSelection ? { modelSelection: draft.modelSelection } : {}),
         ...(draft.runtimeMode ? { runtimeMode: draft.runtimeMode } : {}),
         createdAt: metadata.createdAt,
@@ -144,7 +154,8 @@ export function alertSideChatQueued() {
 /**
  * Side chats of `parent`. `openDraft` pushes a side chat draft that forks on its first send;
  * `send` starts one with `prompt` at once and opens it, or opens the draft holding `prompt` and
- * its thread id when it did not start, so retrying there never forks twice.
+ * its thread id when it did not start, so retrying there never forks twice. The draft holds only
+ * text, so a start with composer content that fails resolves false and leaves it to the caller.
  */
 export function useSideChat(
   environmentId: EnvironmentId | null,
@@ -172,11 +183,11 @@ export function useSideChat(
     pushDraft(parent, { sideChatId: ThreadId.make(uuidv4()), prompt: "" });
   };
 
-  const send = async (prompt: string): Promise<boolean> => {
+  const send = async (prompt: string, content?: SideChatComposerContent): Promise<boolean> => {
     if (parent === null || disabledReason !== null || pendingRef.current) return false;
     const text = prompt.trim();
     const sideChatId = ThreadId.make(uuidv4());
-    if (text === "") {
+    if (text === "" && content === undefined) {
       pushDraft(parent, { sideChatId, prompt: "" });
       return true;
     }
@@ -186,11 +197,14 @@ export function useSideChat(
       parentThreadId: parent.id,
       targetThreadId: sideChatId,
       text,
+      ...(content ? { content } : {}),
     }).finally(() => {
       pendingRef.current = false;
     });
-    if (started === null) pushDraft(parent, { sideChatId, prompt: text });
-    else if (started === "queued") alertSideChatQueued();
+    if (started === null) {
+      if (content !== undefined) return false;
+      pushDraft(parent, { sideChatId, prompt: text });
+    } else if (started === "queued") alertSideChatQueued();
     else {
       navigation.dispatch(
         StackActions.push("Thread", { environmentId: parent.environmentId, threadId: sideChatId }),

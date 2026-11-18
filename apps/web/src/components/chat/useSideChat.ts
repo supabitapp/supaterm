@@ -9,6 +9,7 @@ import {
   AuthOrchestrationOperateScope,
   type EnvironmentId,
   type ModelSelection,
+  type OrchestrationMessageContext,
   type RuntimeMode,
   type ScopedThreadRef,
   type ThreadId,
@@ -22,11 +23,19 @@ import { appAtomRegistry } from "../../rpc/atomRegistry";
 import { usePaneThreadNavigation } from "../../chatPanes/paneScope";
 import { useChatPaneStore } from "../../chatPanes/store";
 import type { DraftId } from "../../draftId";
-import { markPromotedDraftThreadByRef, useComposerDraftStore } from "../../composerDraftStore";
+import {
+  type ComposerFileAttachment,
+  type ComposerImageAttachment,
+  type ComposerThreadTarget,
+  markPromotedDraftThreadByRef,
+  useComposerDraftStore,
+} from "../../composerDraftStore";
 import { useStableCallback } from "../../hooks/useStableCallback";
+import { releaseDraftAttachments } from "../../lib/attachmentUploadQueue";
 import { readThreadShell, useServerConfigs, waitForThreadShell } from "../../state/entities";
 import { useEnvironmentScope } from "../../state/session";
 import { enqueueThreadOutboxTurn } from "../../state/threadOutbox";
+import { captureOutboxAttachments } from "../../state/threadOutboxEditing";
 import { environmentThreadDetails, threadEnvironment } from "../../state/threads";
 
 const NOT_PENDING_ATOM = Atom.make(false).pipe(Atom.withLabel("side-chat:worktree-not-pending"));
@@ -86,10 +95,22 @@ export async function sendSideChatDraftMessage<A>(input: {
 }
 
 /**
+ * The attachments and context `/side` carries from the composer in `from`. They move into the
+ * side chat's draft, so a first message that fails keeps them there for the retry.
+ */
+export interface SideChatComposerContent {
+  readonly from: ComposerThreadTarget;
+  readonly text: string;
+  readonly context: OrchestrationMessageContext | undefined;
+  readonly titleSeed: string;
+  readonly attachments: ReadonlyArray<ComposerImageAttachment | ComposerFileAttachment>;
+}
+
+/**
  * Side chats of `parent`, or none when it is null. Each one opens as a draft beside its parent
  * that holds its thread id and first message, so a start that fails is retried from the draft.
- * The draft starts with the parent composer's settings. `send` with a prompt also starts
- * sending that first message; it resolves false when nothing opened.
+ * The draft starts with the parent composer's settings. `send` with a prompt or composer content
+ * also starts sending that first message; it resolves false when nothing opened.
  */
 export function useSideChat(input: {
   readonly parent: Pick<
@@ -112,7 +133,7 @@ export function useSideChat(input: {
 }) {
   const openPaneThread = usePaneThreadNavigation();
 
-  const openDraft = (prompt = "") => {
+  const openDraft = (prompt = "", from?: ComposerThreadTarget) => {
     const { parent } = input;
     if (!parent) return null;
     const settings = input.readSettings();
@@ -126,19 +147,20 @@ export function useSideChat(input: {
       threadId,
       parent: { ...parent, runtimeMode, modelSelection },
     });
-    if (prompt !== "") store.setPrompt(draftId, prompt);
+    if (from !== undefined) store.moveComposerContent(from, draftId);
+    if (prompt !== "" || from !== undefined) store.setPrompt(draftId, prompt);
     const target = { kind: "draft", draftId } as const;
     const parentRef = scopeThreadRef(parent.environmentId, parent.id);
     if (!openSideChatBeside(target, { parentRef, sideChat: target })) void openPaneThread(target);
     return { parent, draftId, threadId, runtimeMode, modelSelection };
   };
 
-  const send = async (prompt: string) => {
+  const send = async (prompt: string, content?: SideChatComposerContent) => {
     const text = prompt.trim();
-    const draft = openDraft(text);
+    const draft = openDraft(text, content?.from);
     if (draft === null) return false;
-    if (text === "") return true;
-    void sendFirstMessage(draft, text);
+    if (text === "" && content === undefined) return true;
+    void sendFirstMessage(draft, text, content);
     return true;
   };
 
@@ -151,6 +173,7 @@ export function useSideChat(input: {
       modelSelection,
     }: NonNullable<ReturnType<typeof openDraft>>,
     text: string,
+    content: SideChatComposerContent | undefined,
   ) => {
     const result = await sendSideChatDraftMessage({
       parentRef: scopeThreadRef(parent.environmentId, parent.id),
@@ -163,14 +186,28 @@ export function useSideChat(input: {
           environmentId: parent.environmentId,
           input: {
             threadId,
-            message: { messageId: newMessageId(), role: "user", text, attachments: [] },
+            message: {
+              messageId: newMessageId(),
+              role: "user",
+              text: content?.text ?? text,
+              attachments: [],
+              ...(content?.context ? { context: content.context } : {}),
+            },
             modelSelection,
-            titleSeed: deriveThreadTitleSeed({ text, attachments: [] }),
+            titleSeed: content?.titleSeed ?? deriveThreadTitleSeed({ text, attachments: [] }),
             runtimeMode,
             interactionMode: modes.interactionMode,
             dispatchMode: "auto",
             createdAt: new Date().toISOString(),
           },
+          ...(content
+            ? {
+                localAttachments: captureOutboxAttachments(
+                  parent.environmentId,
+                  content.attachments,
+                ),
+              }
+            : {}),
           draftId,
         });
       },
@@ -179,6 +216,9 @@ export function useSideChat(input: {
     if (result.kind === "queued") {
       const store = useComposerDraftStore.getState();
       if (store.getComposerDraft(draftId)?.prompt === text) store.clearComposerContent(draftId);
+      // The outbox owns its own bytes. References recovered without bytes stay owned until delivery.
+      if (content)
+        releaseDraftAttachments(content.attachments.filter((item) => item.file !== null));
       markPromotedDraftThreadByRef(scopeThreadRef(parent.environmentId, threadId));
     }
   };
