@@ -732,9 +732,9 @@ export const make = Effect.gen(function* () {
     // lists nothing while spending a GraphQL call. A bare branch also lists same-named branches
     // on other forks, so read a full page and let the owner check pick the right head. A default
     // branch collides with most forks, so its owner-qualified lookup has GitHub filter by owner.
-    headBranchProbe: ({ headSelectors, defaultBranchHeadSelector }) => ({
-      headSelectors: defaultBranchHeadSelector
-        ? [defaultBranchHeadSelector]
+    headBranchProbe: ({ headSelectors, ownerHeadSelector }) => ({
+      headSelectors: ownerHeadSelector
+        ? [ownerHeadSelector]
         : headSelectors.filter((selector) => !selector.includes(":")),
       limit: 100,
     }),

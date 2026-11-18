@@ -1149,12 +1149,22 @@ it.layer(layerTest)("ThreadSearch.searchOlderDone", (it) => {
           thread(id("elsewhere"), other, { title: "Kestrel nest", doneAt: old }),
           thread(id("note"), project, { title: "Unrelated", doneAt: old }),
           thread(id("new-note"), project, { title: "Unrelated", doneAt: at(50) }),
+          thread(id("archived"), project, {
+            title: "Kestrel nest",
+            doneAt: old,
+            archivedAt: old,
+          }),
+          thread(id("archived-note"), project, {
+            title: "Unrelated",
+            doneAt: old,
+            archivedAt: old,
+          }),
         ],
         projections.apply,
         { discard: true },
       );
       const before = DateTime.formatIso(at(30));
-      const messageThreadIds = [id("new-note"), id("note"), id("old")];
+      const messageThreadIds = [id("new-note"), id("note"), id("archived-note"), id("old")];
       assert.sameMembers(
         [...(yield* search.searchOlderDone({ query: "kestrel", before, messageThreadIds }))],
         [id("old"), id("elsewhere"), id("note")],

@@ -323,6 +323,9 @@ function mergeClaudeStreamUsage(
   };
 }
 export const CLAUDE_DEFAULT_INSTANCE_ID = defaultInstanceIdForDriver(CLAUDE_PROVIDER);
+// The Claude CLI takes the next token as this flag's value even when it starts with `--`.
+const claudeLaunchArgParseOptions = { valueFlags: ["append-system-prompt"] };
+
 // Entry extensions the Claude SDK runs through node instead of executing.
 const CLAUDE_SCRIPT_EXTENSIONS = [".js", ".mjs", ".tsx", ".ts", ".jsx"];
 // The SDK puts no deadline on control requests. The CLI answers
@@ -1331,6 +1334,26 @@ const forkClaudeSessionInWorker = Effect.fn("forkClaudeSessionInWorker")(functio
   );
 });
 
+const CLAUDE_CAN_USE_TOOL_SHADOWED_WARNING = "CLAUDE_SDK_CAN_USE_TOOL_SHADOWED";
+
+// query() warns when canUseTool meets bypassPermissions or bare allowedTools. Supaterm installs
+// canUseTool in every mode on purpose (AskUserQuestion, ask rules), so it is per-session noise.
+export function withoutClaudeCanUseToolShadowedWarning<A>(run: () => A): A {
+  const emitWarning = process.emitWarning;
+  process.emitWarning = function (this: NodeJS.Process, ...args: Parameters<typeof emitWarning>) {
+    const [, options] = args;
+    if (typeof options === "object" && options.code === CLAUDE_CAN_USE_TOOL_SHADOWED_WARNING) {
+      return;
+    }
+    return emitWarning.apply(this, args);
+  } as typeof emitWarning;
+  try {
+    return run();
+  } finally {
+    process.emitWarning = emitWarning;
+  }
+}
+
 export const layerQueryRunner: Layer.Layer<
   ClaudeAgentSdkQueryRunner,
   never,
@@ -1540,7 +1563,13 @@ export const layerQueryRunner: Layer.Layer<
           };
           const queryRuntime = yield* Effect.uninterruptibleMask((restore) =>
             Effect.try({
-              try: () => query({ prompt, options: { ...options, spawnClaudeCodeProcess } }),
+              try: () =>
+                withoutClaudeCanUseToolShadowedWarning(() =>
+                  query({
+                    prompt,
+                    options: { ...options, spawnClaudeCodeProcess },
+                  }),
+                ),
               catch: (cause) => queryRunnerError(cause, "query"),
             }).pipe(
               Effect.tap((queryRuntime) =>
@@ -2145,7 +2174,9 @@ export function makeClaudeQueryOptions(input: {
     // The SDK replaces this flag with options.settings, so it arrives read as sdkSettings.
     settings: _launchArgSettings,
     ...extraArgs
-  } = input.settings === undefined ? {} : parseCliArgs(input.settings.launchArgs).flags;
+  } = input.settings === undefined
+    ? {}
+    : parseCliArgs(input.settings.launchArgs, claudeLaunchArgParseOptions).flags;
   // Claude Code overwrites its CLI append text with the SDK's initialize
   // appendSystemPrompt, so launch-argument text has to travel in that value.
   // The CLI puts file text before inline text and trims one trailing newline.
@@ -2310,7 +2341,7 @@ const readClaudeAppendSystemPromptFile = Effect.fnUntraced(function* (input: {
   readonly path: Path.Path;
 }) {
   if (input.settings === undefined) return undefined;
-  const flags = parseCliArgs(input.settings.launchArgs).flags;
+  const flags = parseCliArgs(input.settings.launchArgs, claudeLaunchArgParseOptions).flags;
   // parseCliArgs gives null for a flag with no following value. An explicit
   // `--append-system-prompt ""` is a value the CLI accepts, so it stays.
   if (flags["append-system-prompt"] === null) {
@@ -2347,7 +2378,7 @@ const decodeClaudeLaunchArgSettings = Schema.decodeUnknownEffect(
  * relative to the thread's cwd (the project or its worktree).
  * makeClaudeQueryOptions merges the result beneath Supaterm's own settings.
  */
-const readClaudeLaunchArgSettings = Effect.fn("ClaudeAdapterV2.readLaunchArgSettings")(
+export const readClaudeLaunchArgSettings = Effect.fn("ClaudeAdapterV2.readLaunchArgSettings")(
   function* (input: {
     readonly settings: ClaudeSettings | undefined;
     readonly cwd: string | null;
@@ -2355,7 +2386,8 @@ const readClaudeLaunchArgSettings = Effect.fn("ClaudeAdapterV2.readLaunchArgSett
     readonly path: Path.Path;
   }) {
     if (input.settings === undefined) return undefined;
-    const value = parseCliArgs(input.settings.launchArgs).flags.settings;
+    const value = parseCliArgs(input.settings.launchArgs, claudeLaunchArgParseOptions).flags
+      .settings;
     if (value === undefined) return undefined;
     const trimmed = value?.trim() ?? "";
     if (trimmed.length === 0) return yield* new ClaudeSettingsLaunchArgError({});
@@ -4161,13 +4193,14 @@ export function permissionResultFromDecision(input: {
     };
   }
 
+  const feedback = input.feedback?.trim();
   return {
     behavior: "deny",
-    message:
-      input.feedback?.trim() ||
-      (input.decision === "cancel"
+    message: feedback
+      ? `The user declined this tool call and said:\n${feedback}`
+      : input.decision === "cancel"
         ? "User cancelled tool execution."
-        : "User declined tool execution."),
+        : "User declined tool execution.",
     toolUseID: input.toolUseID,
     decisionClassification: "user_reject",
     ...(input.decision === "cancel" ? { interrupt: true } : {}),
@@ -6486,11 +6519,23 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
             nativeThreadId: string,
             task: OrchestrationV2PendingBackgroundTask,
           ) {
-            yield* SubscriptionRef.update(pendingBackgroundTasksByNativeThread, (current) => {
-              const roster = new Map(rosterForNativeThread(current, nativeThreadId));
-              roster.set(task.taskId, task);
-              return new Map(current).set(nativeThreadId, roster);
-            });
+            const startedMonitor = yield* SubscriptionRef.modify(
+              pendingBackgroundTasksByNativeThread,
+              (current) => {
+                const roster = new Map(rosterForNativeThread(current, nativeThreadId));
+                const startedMonitor =
+                  task.kind === "monitor" && roster.get(task.taskId)?.kind !== "monitor";
+                roster.set(task.taskId, task);
+                return [startedMonitor, new Map(current).set(nativeThreadId, roster)] as const;
+              },
+            );
+            if (startedMonitor) {
+              yield* addTaskIdsToNativeThreadSet(
+                awaitedBackgroundTasksByNativeThread,
+                nativeThreadId,
+                [task.taskId],
+              );
+            }
             yield* rememberOpaqueTasks([task]);
             yield* markWakeEligibleOpaqueBackgroundTasks(nativeThreadId, [task.taskId]);
           });

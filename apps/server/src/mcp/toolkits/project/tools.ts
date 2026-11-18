@@ -89,7 +89,11 @@ const ProjectDeleteTool = Tool.make("supaterm_project_delete", {
   ...shared,
   description: "Delete one project. Nonempty needs `force: true`. Folder on disk stays.",
   parameters: Schema.Struct({ projectId: ProjectId, force: Schema.optionalKey(Schema.Boolean) }),
-  dependencies: [...shared.dependencies, ProjectCloneTracker.ProjectCloneTracker],
+  dependencies: [
+    ...shared.dependencies,
+    ProjectCloneTracker.ProjectCloneTracker,
+    ManagedProjectFolders.ManagedProjectFolders,
+  ],
 }).annotate(Tool.Destructive, true);
 const ProjectCloneTool = Tool.make("supaterm_project_clone", {
   ...shared,

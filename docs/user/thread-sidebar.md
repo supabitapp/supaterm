@@ -172,8 +172,8 @@ You can also change it in Settings â†’ General on web and desktop, or Settings â
 
 In Default grouping, threads that are working or waiting on work they will resume from fold into a
 collapsed **Working** section. That includes subagents, watched pull requests with checks still
-running, and background commands or monitors the agent says it is waiting on. A dev server or other process an agent leaves
-running does not keep a thread there. A thread returns to the top of the active list when it
+running, Claude monitors, and background commands or other monitors the agent says it is waiting on.
+A dev server or other process an agent leaves running does not keep a thread there. A thread returns to the top of the active list when it
 finishes, fails, or needs an approval or answer.
 The Working section lists the thread you last sent work to first. Pinned threads stay in the
 pinned section.
