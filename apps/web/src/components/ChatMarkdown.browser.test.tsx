@@ -619,7 +619,7 @@ describe("ChatMarkdown streaming", () => {
     const details = container.querySelector<HTMLElement>("[data-markdown-details]")!;
     expect(details.dataset.markdownDetailsOpen).toBe("true");
     expect(container.textContent).toContain("Details content");
-    expect(writeText).toHaveBeenCalledWith("First code block\n");
+    expect(writeText).toHaveBeenCalledWith("First code block");
     expect(highlight).toHaveBeenCalledTimes(1);
 
     for (let index = 0; index < 10; index += 1) {
@@ -643,7 +643,7 @@ describe("ChatMarkdown streaming", () => {
       ...buttonsLabelled(container, "Copy code"),
     ][0]!;
     await act(async () => copy.click());
-    expect(writeText).toHaveBeenLastCalledWith("Updated code block\n");
+    expect(writeText).toHaveBeenLastCalledWith("Updated code block");
     expect(highlight).toHaveBeenCalledTimes(2);
   });
 
