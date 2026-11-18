@@ -1270,6 +1270,34 @@ describe("thread outbox recovery rollback", () => {
       expect(appAtomRegistry.get(threadComposerErrorsAtom)[draftKey]?.message).toBe("too large");
     }),
   );
+
+  it.effect("keeps text typed while a failed recovery merge was persisting", () =>
+    Effect.gen(function* () {
+      const message = queuedMessage({
+        messageId: "message-typed-mid-restore",
+        text: "queued text",
+      });
+      const draftKey = `${message.environmentId}:${message.threadId}`;
+      appAtomRegistry.set(composerDrafts.composerDraftsAtom, {
+        [draftKey]: { text: "typed offline", attachments: [] },
+      });
+      yield* Effect.promise(() => harness.manager.enqueue(message));
+      const unsubscribe = appAtomRegistry.subscribe(composerDrafts.composerDraftsAtom, (drafts) => {
+        if (drafts[draftKey]?.text === "typed offline\n\nqueued text") {
+          unsubscribe();
+          queueMicrotask(() =>
+            composerDrafts.setComposerDraftText(draftKey, "typed offline\n\nqueued text, again"),
+          );
+        }
+      });
+
+      harness.draftFile.setWriteError(new Error("disk full"));
+      expect(yield* restoreRejectedQueuedMessage(message, "too large")).toBe("retry");
+
+      expect(composerDrafts.getComposerDraftSnapshot(draftKey).text).toBe("typed offline, again");
+      expect(remainingMessages()).toEqual([message]);
+    }),
+  );
 });
 
 describe("queued voice message delivery", () => {

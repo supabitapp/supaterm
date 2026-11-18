@@ -168,6 +168,14 @@ vi.mock("./use-composer-drafts", async () => {
   return {
     composerDraftsAtom: Atom.make({}),
     appendComposerDraftAttachments: vi.fn(),
+    applyComposerDraftContent: vi.fn((_key: string, input: { text: string }) => {
+      state.draftText += `\n${input.text}`;
+      return 0;
+    }),
+    captureComposerDraftMerge: vi.fn((_key: string, merge: () => void) => {
+      merge();
+      return { snapshot: { text: "", attachments: [] }, merged: { text: "", attachments: [] } };
+    }),
     flushComposerDrafts: vi.fn(async () => {}),
     scheduleUnusedComposerAttachmentCleanup: vi.fn(),
     getComposerDraftSnapshot: vi.fn(() => ({ text: state.draftText, attachments: [] })),

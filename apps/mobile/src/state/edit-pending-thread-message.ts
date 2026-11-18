@@ -8,9 +8,11 @@ import {
 } from "./thread-outbox";
 import { removeThreadOutboxMessage } from "./thread-outbox-removal";
 import {
+  applyComposerDraftContent,
+  captureComposerDraftMerge,
+  type ComposerDraftMergeReceipt,
   flushComposerDrafts,
   getComposerDraftSnapshot,
-  mergeComposerDraftContent,
   undoComposerDraftMerge,
   updateComposerDraftSettings,
   waitForComposerDraftsLoaded,
@@ -34,30 +36,25 @@ export async function editPendingThreadMessage(message: QueuedThreadMessage): Pr
   }
   holdEditingQueuedMessage(message.messageId);
   const draftKey = scopedThreadKey(message.environmentId, message.threadId);
-  let rollback: {
-    snapshot: ReturnType<typeof getComposerDraftSnapshot>;
-    merged: ReturnType<typeof getComposerDraftSnapshot>;
-  } | null = null;
+  let rollback: ComposerDraftMergeReceipt | null = null;
   try {
     if (!(await confirmThreadOutboxMessageQueued(message))) return false;
     const revision = threadOutboxRevision(message.messageId);
     await waitForComposerDraftsLoaded();
-    const snapshot = getComposerDraftSnapshot(draftKey);
-    const attachmentIds = new Set(snapshot.attachments.map((attachment) => attachment.id));
+    const attachmentIds = new Set(
+      getComposerDraftSnapshot(draftKey).attachments.map((attachment) => attachment.id),
+    );
     for (const attachment of message.attachments) attachmentIds.add(attachment.id);
     if (attachmentIds.size > PROVIDER_SEND_TURN_MAX_ATTACHMENTS) {
       throw new Error("Remove attachments from the composer before editing this message.");
     }
-    try {
-      await mergeComposerDraftContent(draftKey, message);
-    } finally {
-      rollback = { snapshot, merged: getComposerDraftSnapshot(draftKey) };
-    }
-    updateComposerDraftSettings(draftKey, {
-      ...(message.modelSelection ? { modelSelection: message.modelSelection } : {}),
-      ...(message.runtimeMode ? { runtimeMode: message.runtimeMode } : {}),
+    rollback = captureComposerDraftMerge(draftKey, () => {
+      applyComposerDraftContent(draftKey, message);
+      updateComposerDraftSettings(draftKey, {
+        ...(message.modelSelection ? { modelSelection: message.modelSelection } : {}),
+        ...(message.runtimeMode ? { runtimeMode: message.runtimeMode } : {}),
+      });
     });
-    rollback = { snapshot, merged: getComposerDraftSnapshot(draftKey) };
     await flushComposerDrafts();
     if (!(await removeThreadOutboxMessage(message, revision))) return false;
     rollback = null;
