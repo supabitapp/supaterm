@@ -58,7 +58,10 @@ function setup() {
   const root = createRoot(document.createElement("div"));
   let latest: ReturnType<typeof useComposerPathSearch> | null = null;
   function Probe({ target }: { readonly target: ComposerPathSearchTarget }) {
-    latest = useComposerPathSearch(target);
+    const result = useComposerPathSearch(target);
+    useLayoutEffect(() => {
+      latest = result;
+    });
     return null;
   }
 
