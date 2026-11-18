@@ -260,7 +260,6 @@ it.effect("installs the build the update action downloaded, not the one it offer
       yield* SubscriptionRef.set(state.primaryBackendStartup, {
         _tag: "Failing",
         reason: "Server failed before readiness",
-        managedPolicy: false,
         output: "Failure details",
       });
       yield* Deferred.await(shown);
