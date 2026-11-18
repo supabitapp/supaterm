@@ -22,7 +22,10 @@ import { toastManager } from "../ui/toast";
 import { act, render } from "../../../test/render";
 import { useComposerDraftStore, useComposerThreadDraft } from "../../composerDraftStore";
 import { formatInlineContextReference } from "../../lib/composerContextReferences";
-import { INLINE_TERMINAL_CONTEXT_PLACEHOLDER } from "../../lib/terminalContext";
+import {
+  formatTerminalContextReference,
+  type TerminalContextDraft,
+} from "../../lib/terminalContext";
 import { referenceContextReference } from "../../lib/composerContextRecords";
 import { deriveComposerSendState } from "../ChatView.logic";
 import { ComposerPrimaryActions } from "./ComposerPrimaryActions";
@@ -342,21 +345,24 @@ describe("useQueuedRunEdit", () => {
     await using _screen = await render(view(THREAD_A, "queued", hook));
     await beginChangedEdit(hook);
     const target = requireHook(hook).draftTarget;
-    const inserted = useComposerDraftStore.getState().insertTerminalContext(
-      target,
-      `changed${INLINE_TERMINAL_CONTEXT_PLACEHOLDER}`,
-      {
-        id: "terminal-context-1",
-        threadId: THREAD_A.threadId,
-        createdAt: "2026-01-01T00:00:00.000Z",
-        terminalId: "default",
-        terminalLabel: "Terminal 1",
-        lineStart: 3,
-        lineEnd: 3,
-        text: "hello",
-      },
-      0,
-    );
+    const context: TerminalContextDraft = {
+      id: "terminal-context-1",
+      threadId: THREAD_A.threadId,
+      createdAt: "2026-01-01T00:00:00.000Z",
+      terminalId: "default",
+      terminalLabel: "Terminal 1",
+      lineStart: 3,
+      lineEnd: 3,
+      text: "hello",
+    };
+    const inserted = useComposerDraftStore
+      .getState()
+      .insertTerminalContext(
+        target,
+        `changed ${formatTerminalContextReference(context)}`,
+        context,
+        0,
+      );
     expect(inserted).toBe(true);
     expect(
       useComposerDraftStore.getState().getComposerDraft(target)?.terminalContexts,
