@@ -65,6 +65,13 @@ const canonicalUrl = new URL(Astro.url.pathname, Astro.site);
     <link rel="icon" type="image/png" href="/favicon-16x16.png" sizes="16x16" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <title>{title}</title>
+    <script
+      is:inline
+      async
+      crossorigin="anonymous"
+      src="https://ingest.supaterm.com/static/array.js"
+      onload="posthog.init('phc_mpkbs8jxUDhRkrsvAPZEpzVxykW3Ce2HEPGPrfhgSrLC', { api_host: 'https://ingest.supaterm.com', ui_host: 'https://us.posthog.com', person_profiles: 'identified_only' })"
+    ></script>
   </head>
   <body>
     <div class:list={["page", pageClass]}>
