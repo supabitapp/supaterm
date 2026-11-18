@@ -14,6 +14,9 @@ interface DestinationCompileContext {
   sliceSerialize(token: DestinationToken): string;
 }
 
+// A drive path that has not reached whitespace yet: `C:`, `C:\Users\me`, `C:/work`.
+export const UNFINISHED_DRIVE_PATH = /(?:^|\W)[A-Za-z]:(?:[\\/]\S*)?$/;
+
 interface EscapeCompileContext {
   readonly stack: ReadonlyArray<{
     readonly type: string;
@@ -34,7 +37,7 @@ function keepWindowsPathEscape(this: EscapeCompileContext) {
   while (WHITESPACE.exec(text.value)) scan.wordStart = WHITESPACE.lastIndex;
   // A prose path cannot cross whitespace, so preceding words cannot affect this escape.
   const end = text.value.length - 1;
-  if (/(?:^|\W)[A-Za-z]:(?:[\\/]\S*)?$/.test(text.value.slice(scan.wordStart, end))) {
+  if (UNFINISHED_DRIVE_PATH.test(text.value.slice(scan.wordStart, end))) {
     text.value = `${text.value.slice(0, end)}\\${text.value.slice(end)}`;
   }
   scan.scannedTo = text.value.length;

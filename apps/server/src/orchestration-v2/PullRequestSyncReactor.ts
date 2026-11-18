@@ -368,7 +368,8 @@ export const make = Effect.gen(function* () {
 
   let requestedSweepQueued = false;
   const retryStacks = new Set<string>();
-  // Group keys the host answered not-found for; they are read on the slow cadence until found.
+  // Group keys the host answered not-found for, or this server cannot read (no CLI, signed out,
+  // unsupported host); they are read on the slow cadence until a read succeeds.
   const missing = new Set<string>();
   // Rate limit pauses by project and host, since each project reads with its own credential.
   // A paused host refuses every read without asking it, so the sweep leaves its pull requests
@@ -515,9 +516,10 @@ export const make = Effect.gen(function* () {
       if (invalidated) yield* pullRequests.invalidate({ reference: ref });
       const summary = yield* pullRequests.summary(ref, { recoverTransientFailure: false }).pipe(
         Effect.tapError((error) =>
-          error.reason === "not-found"
+          error.reason === "not-found" || error._tag === "PullRequestUnavailableError"
             ? Effect.sync(() => {
-                // Not-found is a host answer: it consumes the refresh and starts the backoff.
+                // Not-found, or a host this server cannot read, won't change by asking again
+                // next sweep: it consumes the refresh and starts the backoff.
                 missing.add(key);
                 lastSyncedAt.set(key, nowMs);
                 requested.delete(key);

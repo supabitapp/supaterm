@@ -172,7 +172,7 @@ export const OrchestratorMcpDelegateTaskInput = Schema.Struct({
     }),
   ),
   timeoutMs: Schema.optional(Schema.Finite).annotate({
-    description: "Mode 'wait' only. Default 4 min. A timeout does not cancel the child.",
+    description: "Mode 'wait' only. At most 45 s. A timeout does not cancel the child.",
   }),
   clientRequestId: Schema.optional(OrchestratorMcpClientRequestId),
   runtimeMode: Schema.optional(
@@ -694,6 +694,7 @@ export const OrchestratorMcpListScheduledTasksInput = Schema.Struct({
       description: "Default: your thread's project, or all outside a thread.",
     }),
   ),
+  scheduledTaskId: Schema.optional(ScheduledTaskId),
 });
 export type OrchestratorMcpListScheduledTasksInput =
   typeof OrchestratorMcpListScheduledTasksInput.Type;

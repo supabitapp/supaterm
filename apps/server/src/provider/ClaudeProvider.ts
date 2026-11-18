@@ -26,6 +26,7 @@ import { ChildProcess, ChildProcessSpawner } from "effect/process";
 import { createModelCapabilities } from "@supaterm/shared/model";
 import { envTrampoline, supportsEnvChdir } from "@supaterm/shared/envTrampoline";
 import * as HostProcess from "@supaterm/shared/HostProcess";
+import * as SpawnWorker from "../process/SpawnWorker.ts";
 import { resolveSpawnCommand } from "@supaterm/shared/shell";
 import {
   query as claudeQuery,
@@ -290,16 +291,27 @@ export function spawnClaudeProbeThroughEnv({
   });
 }
 
+/** Windows runs CreateProcess on the calling thread, so the probe launches from a launcher thread. */
+function spawnClaudeProbeOffThread({ command, args, cwd, env, signal }: ClaudeSpawnOptions) {
+  const child = SpawnWorker.spawnPiped(command, args, { cwd, env, signal, windowsHide: true });
+  // The probe ignores stderr; drain it so a full pipe cannot stall the CLI.
+  child.stderr.resume();
+  return child;
+}
+
 export function buildClaudeCapabilitiesProbeQueryOptions(input: {
   readonly executablePath: string;
   readonly abortController: AbortController;
   readonly environment: NodeJS.ProcessEnv;
   readonly cwd: string | undefined;
   readonly managedMcpConfig: boolean;
-  readonly spawnThroughEnv: boolean;
+  readonly spawnVia: "env" | "launcher-thread" | undefined;
 }): ClaudeQueryOptions {
   return {
-    ...(input.spawnThroughEnv ? { spawnClaudeCodeProcess: spawnClaudeProbeThroughEnv } : {}),
+    ...(input.spawnVia === "env" ? { spawnClaudeCodeProcess: spawnClaudeProbeThroughEnv } : {}),
+    ...(input.spawnVia === "launcher-thread"
+      ? { spawnClaudeCodeProcess: spawnClaudeProbeOffThread }
+      : {}),
     persistSession: false,
     pathToClaudeCodeExecutable: input.executablePath,
     abortController: input.abortController,
@@ -541,8 +553,13 @@ const probeClaudeCapabilities = (
           ...(yield* readClaudeSettingsEnv(claudeSettings, cwd, claudeEnvironment)),
         })
       : 0;
-    const spawnThroughEnv =
-      (yield* HostProcess.Platform) === "linux" && (yield* Effect.promise(supportsEnvChdir));
+    const platform = yield* HostProcess.Platform;
+    const spawnVia =
+      platform === "win32"
+        ? "launcher-thread"
+        : platform === "linux" && (yield* Effect.promise(supportsEnvChdir))
+          ? "env"
+          : undefined;
     return yield* Effect.tryPromise(async () => {
       const q = claudeQuery({
         // Never yield — we only need initialization data, not a conversation.
@@ -557,7 +574,7 @@ const probeClaudeCapabilities = (
           environment: claudeEnvironment,
           cwd,
           managedMcpConfig,
-          spawnThroughEnv,
+          spawnVia,
         }),
       });
       const init = await q.initializationResult();

@@ -54,6 +54,9 @@ Running `vp run dev` through an agent's own shell tool does not attach it to thi
 
 Linked worktrees default to their own `.supaterm/userdata`, even when `SUPATERM_HOME` is set.
 The main checkout defaults to `~/.supaterm/dev/userdata`. An explicit `--home-dir` wins in both cases.
+The first start in any checkout also builds the native resource monitor with Cargo when
+`native/resource-monitor/target` has no binary. Without Rust, dev starts with a warning
+and no process telemetry; install Rust and run `vp run build:resource-monitor`.
 Never run a development server against the live `~/.supaterm/userdata`.
 See [test data](../../AGENTS.md#test-data) for copying a consistent database snapshot.
 

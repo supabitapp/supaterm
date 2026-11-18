@@ -102,6 +102,7 @@ export type MarkThreadDoneInput = ThreadCommandInput;
 
 export interface ReopenThreadInput extends ThreadCommandInput {
   readonly reason: "user";
+  readonly restoreReopenedAt?: string | null;
 }
 
 export interface PinThreadInput extends ThreadCommandInput {
@@ -612,6 +613,9 @@ export const reopenThread = Effect.fn("EnvironmentCommands.reopenThread")(functi
     commandId: yield* allocateCommandId(input),
     threadId: input.threadId,
     reason: input.reason,
+    ...(input.restoreReopenedAt === undefined
+      ? {}
+      : { restoreReopenedAt: input.restoreReopenedAt }),
   });
 });
 

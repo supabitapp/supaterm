@@ -116,6 +116,7 @@ import {
   runOutcome,
 } from "../orchestration-v2/RestartBackgroundNote.ts";
 import * as ThreadManagementService from "../orchestration-v2/ThreadManagementService.ts";
+import { placeholderThreadTitle } from "../orchestration-v2/placeholderThreadTitle.ts";
 import * as ThreadLaunchService from "../orchestration-v2/ThreadLaunchService.ts";
 import * as GitVcsDriver from "../vcs/GitVcsDriver.ts";
 import { isSnoozed } from "../orchestration-v2/ThreadDoneService.ts";
@@ -134,10 +135,10 @@ import {
 import * as Metrics from "../observability/Metrics.ts";
 import * as SecretRequests from "../secrets/SecretRequests.ts";
 
-const DEFAULT_WAIT_TIMEOUT_MS = 10 * 60 * 1_000;
-// Nothing is written while a task wait blocks, and Node fetch drops a silent call at 300 s.
-const DEFAULT_TASK_WAIT_TIMEOUT_MS = 4 * 60 * 1_000;
-const MAX_WAIT_TIMEOUT_MS = 60 * 60 * 1_000;
+// Return recoverable handles before common MCP client timeouts expire.
+const DEFAULT_WAIT_TIMEOUT_MS = 30_000;
+const MAX_WAIT_TIMEOUT_MS = 45_000;
+const SECRET_REQUEST_TIMEOUT_MS = 60 * 60 * 1_000;
 const TASK_WAKE_EVENTS = [
   { thread: "parent", eventType: "subagent.updated" },
   { thread: "child", eventType: "run.updated" },
@@ -881,7 +882,7 @@ function threadTitle(input: {
   readonly index: number;
 }): string {
   const detail = input.title?.trim() || input.prompt?.trim();
-  if (!detail) return `${input.parentTitle} thread ${input.index + 1}`;
+  if (!detail) return placeholderThreadTitle(input.parentTitle, input.index);
   if (detail.length <= 80) return detail;
   let end = 77;
   const previous = detail.charCodeAt(end - 1);
@@ -2133,7 +2134,7 @@ const make = Effect.gen(function* () {
     }),
     listScheduledTasks: Effect.fn("OrchestratorMcpService.listScheduledTasks")(
       function* (scope, input) {
-        const { parent } = yield* loadCaller(scope, ["runs"]);
+        const { parent } = yield* loadCaller(scope, []);
         const projectId = input.projectId ?? parent?.thread.projectId;
         const { tasks } = yield* scheduledTasks
           .list()
@@ -2144,7 +2145,11 @@ const make = Effect.gen(function* () {
           );
         return {
           tasks: tasks
-            .filter((task) => projectId === undefined || task.projectId === projectId)
+            .filter(
+              (task) =>
+                (projectId === undefined || task.projectId === projectId) &&
+                (input.scheduledTaskId === undefined || task.id === input.scheduledTaskId),
+            )
             .map(scheduledTaskSummary),
         };
       },
@@ -2379,7 +2384,7 @@ const make = Effect.gen(function* () {
         );
       }).pipe(
         // The longest a provider lets one tool call run, so the card stays open until then.
-        Effect.timeoutOption(Duration.millis(MAX_WAIT_TIMEOUT_MS)),
+        Effect.timeoutOption(Duration.millis(SECRET_REQUEST_TIMEOUT_MS)),
         Effect.map(Option.flatten),
         Effect.onExit((exit) => (Exit.isSuccess(exit) ? Effect.void : closeCard(false))),
       );
@@ -2623,7 +2628,7 @@ const make = Effect.gen(function* () {
       }
       const timeoutMs = Math.min(
         MAX_WAIT_TIMEOUT_MS,
-        Math.max(1, input.timeoutMs ?? DEFAULT_TASK_WAIT_TIMEOUT_MS),
+        Math.max(1, input.timeoutMs ?? DEFAULT_WAIT_TIMEOUT_MS),
       );
       const upgradeWake = threadManagement
         .dispatch({

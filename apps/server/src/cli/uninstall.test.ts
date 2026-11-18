@@ -13,6 +13,7 @@ import { afterEach, vi } from "vite-plus/test";
 
 import packageJson from "../../package.json" with { type: "json" };
 import * as BootService from "../service/bootService.ts";
+import { posixLauncherScript } from "../service/pinnedRuntime.ts";
 import {
   findOwnedLauncher,
   findRecordedLaunchers,
@@ -106,6 +107,19 @@ it.layer(NodeServices.layer)("supaterm uninstall launcher", (it) => {
       assert.isUndefined(yield* findOwnedLauncher({ launchedAs: theirs, versionsDir }));
       assert.isUndefined(yield* findOwnedLauncher({ launchedAs: copy, versionsDir }));
       assert.isUndefined(yield* findOwnedLauncher({ launchedAs: undefined, versionsDir }));
+      // A script launcher execs by absolute path, so argv0 names the executable.
+      const scriptDir = path.join(root, "script-bin");
+      const script = path.join(scriptDir, "supaterm");
+      yield* fs.makeDirectory(scriptDir);
+      yield* fs.writeFileString(script, posixLauncherScript(exe), { mode: 0o755 });
+      assert.equal(
+        yield* findOwnedLauncher({ launchedAs: exe, versionsDir }).pipe(
+          Effect.provideService(HostProcess.Environment, { PATH: scriptDir }),
+        ),
+        script,
+      );
+      const editedScript = path.join(scriptDir, "supaterm-edited");
+      yield* fs.writeFileString(editedScript, `${posixLauncherScript(exe)}# mine\n`);
 
       // On Windows, only the shim exactly as written is ours; a user's wrapper stays.
       const shimDir = path.join(root, "win-bin");
@@ -134,11 +148,25 @@ it.layer(NodeServices.layer)("supaterm uninstall launcher", (it) => {
       yield* fs.symlink(path.join(versionsDir, "1.0.0/node"), sibling);
       yield* fs.writeFileString(
         path.join(root, "runtime/launchers"),
-        [ours, theirs, copy, throughAlias, pruned, sibling, path.join(root, "missing")].join("\n") +
-          "\n",
+        [
+          ours,
+          theirs,
+          copy,
+          throughAlias,
+          pruned,
+          sibling,
+          script,
+          editedScript,
+          path.join(root, "missing"),
+        ].join("\n") + "\n",
       );
       for (const dir of [versionsDir, path.join(root, "alias/runtime/versions")]) {
-        assert.deepStrictEqual(yield* findRecordedLaunchers(dir), [ours, throughAlias, pruned]);
+        assert.deepStrictEqual(yield* findRecordedLaunchers(dir), [
+          ours,
+          throughAlias,
+          pruned,
+          script,
+        ]);
       }
 
       // On Windows only an unedited supaterm.cmd is ours; a hand-edited wrapper belongs to the user.

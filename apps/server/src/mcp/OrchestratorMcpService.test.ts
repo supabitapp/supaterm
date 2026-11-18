@@ -9,6 +9,7 @@ import {
   NodeId,
   ORCHESTRATOR_MCP_RUNNING_TASK_NEXT,
   type OrchestratorMcpCapabilitiesResult,
+  type OrchestratorMcpListScheduledTasksInput,
   OrchestratorMcpTarget,
   type OrchestrationV2ThreadShell,
   type ScheduledTask,
@@ -1758,6 +1759,98 @@ describe("OrchestratorMcpService provider resolution", () => {
     }),
   );
 
+  it.effect.each([
+    { name: "default", timeoutMs: undefined, budgetMs: 30_000 },
+    { name: "capped", timeoutMs: 3_600_000, budgetMs: 45_000 },
+    { name: "shorter requested", timeoutMs: 500, budgetMs: 500 },
+  ])("returns task and thread handles at the $name wait budget", (scenario) =>
+    Effect.gen(function* () {
+      const subscribed = yield* Deferred.make<void>();
+      const returned = yield* Deferred.make<void>();
+      const dispatched = yield* Ref.make<ReadonlyArray<unknown>>([]);
+      const threadWaitBudgets = yield* Ref.make<ReadonlyArray<number | undefined>>([]);
+      const task = {
+        id: taskId,
+        threadId: parentThreadId,
+        runId: parentRunId,
+        parentNodeId,
+        origin: "app_owned",
+        providerInstanceId: codexInstanceId,
+        driver: "codex",
+        childThreadId,
+        model: "gpt-5.4",
+        status: "running",
+        result: null,
+      };
+      const dependencies = Layer.mergeAll(
+        NodeServices.layer,
+        NodeCrypto.layer,
+        Layer.mock(ThreadManagementService.ThreadManagementService)({
+          hasReceipt: () => Effect.succeed(false),
+          assertProviderInstanceEnabled: () => Effect.void,
+          isProviderInstanceEnabledForProject: () => Effect.succeed(true),
+          getThreadRecords: (threadId) =>
+            Effect.succeed(
+              threadId === parentThreadId ? parentProjection([task]) : childProjection,
+            ),
+          getThreadEventSequence: () => Effect.succeed(0),
+          delegatedTaskResultPending: () => Effect.succeed(false),
+          streamStoredEventsFrom: () =>
+            Stream.fromEffect(Deferred.succeed(subscribed, undefined)).pipe(
+              Stream.drain,
+              Stream.concat(Stream.never),
+            ),
+          waitForThread: (input) =>
+            Ref.update(threadWaitBudgets, (budgets) => [...budgets, input.timeoutMs]).pipe(
+              Effect.as({ threadId: parentThreadId, run: null, timedOut: true }),
+            ),
+          dispatch: (command) =>
+            Ref.update(dispatched, (commands) => [...commands, command]).pipe(
+              Effect.as({
+                sequence: 1,
+                storedEvents: [{ event: { type: "subagent.updated", payload: task } }],
+              } as never),
+            ),
+        }),
+        ServerSettings.layerTest(),
+        providerRegistryLayer([
+          providerSnapshot({
+            instanceId: codexInstanceId,
+            driver: ProviderDriverKind.make("codex"),
+            model: "gpt-5.4",
+          }),
+        ]),
+        adapterRegistryLayer([codexInstanceId]),
+        Layer.mock(ProjectService.ProjectService)({}),
+        Layer.mock(SecretRequests.SecretRequests)({}),
+        Layer.mock(ScheduledTaskService.ScheduledTaskService)({}),
+      );
+      yield* Effect.gen(function* () {
+        const service = yield* OrchestratorMcpService.OrchestratorMcpService;
+        const budget = scenario.timeoutMs === undefined ? {} : { timeoutMs: scenario.timeoutMs };
+        const waiting = yield* service
+          .delegateTask(scope, { task: "Review the change.", mode: "wait", ...budget })
+          .pipe(
+            Effect.tap(() => Deferred.succeed(returned, undefined)),
+            Effect.forkChild,
+          );
+        yield* Deferred.await(subscribed);
+        yield* TestClock.adjust(Duration.millis(scenario.budgetMs - 1));
+        assert.isFalse(yield* Deferred.isDone(returned));
+        yield* TestClock.adjust(Duration.millis(1));
+        const result = yield* Fiber.join(waiting);
+        assert.include(result, { taskId, childThreadId, status: "running", waitTimedOut: true });
+        assert.include((yield* Ref.get(dispatched)).at(-1), {
+          type: "delegated_task.wake-policy",
+          completionWake: "always",
+        });
+
+        yield* service.waitForThread(scope, { threadId: parentThreadId, ...budget });
+        assert.deepEqual(yield* Ref.get(threadWaitBudgets), [scenario.budgetMs]);
+      }).pipe(Effect.provide(layerOrchestratorService.pipe(Layer.provide(dependencies))));
+    }),
+  );
+
   it.effect(
     "advertises orchestration capability from registered adapters rather than a driver allowlist",
     () =>
@@ -3337,6 +3430,27 @@ describe("OrchestratorMcpService provider resolution", () => {
           ),
         ),
       );
+
+    it.effect("lists only the named task within the requested project", () =>
+      Effect.gen(function* () {
+        const upserted = yield* Ref.make(0);
+        const first = task({});
+        const second = task({ id: ScheduledTaskId.make("scheduled-task:second") });
+        const elsewhere = task({
+          id: ScheduledTaskId.make("scheduled-task:elsewhere"),
+          projectId: ProjectId.make("project:elsewhere"),
+        });
+        const mcp = yield* OrchestratorMcpService.OrchestratorMcpService.pipe(
+          Effect.provide(service([first, second, elsewhere], null, upserted)),
+        );
+        const ids = (input: OrchestratorMcpListScheduledTasksInput) =>
+          mcp
+            .listScheduledTasks(supervisedClient, input)
+            .pipe(Effect.map(({ tasks }) => tasks.map((summary) => summary.scheduledTaskId)));
+        assert.deepEqual(yield* ids({ scheduledTaskId: second.id }), [second.id]);
+        assert.deepEqual(yield* ids({ projectId, scheduledTaskId: elsewhere.id }), []);
+      }),
+    );
 
     it.effect("checks a bound task against its thread's current modes", () =>
       Effect.gen(function* () {
