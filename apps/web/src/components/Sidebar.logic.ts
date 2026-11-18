@@ -1,4 +1,4 @@
-import type { ThreadId, EnvironmentId } from "@supaterm/contracts";
+import type { EnvironmentId } from "@supaterm/contracts";
 import { scopeThreadRef, scopedThreadKey } from "@supaterm/client-runtime/environment";
 import { backgroundWorkHoldsCompletion } from "@supaterm/shared/orchestrationV2PendingBackgroundWork";
 import { threadPullRequestSearchTerms } from "@supaterm/shared/threadPullRequests";
