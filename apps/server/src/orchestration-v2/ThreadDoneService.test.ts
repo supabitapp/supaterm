@@ -2301,24 +2301,31 @@ describe("ThreadDoneServiceV2 terminals", () => {
     }),
   );
 
-  it.effect("keeps the terminals of a thread re-engaged before the event ran", () =>
-    Effect.gen(function* () {
-      const done = appThread("reengaged-thread", "done");
-      const reengaged = appThread("reengaged-thread", "active");
-      const marker = appThread("marker-thread", "done");
-      const fixture = yield* makeHarness({
-        snapshot: makeSnapshot([]),
-        currentThreads: [reengaged, marker],
-      });
+  it.effect.each(["re-engaged", "deleted"] as const)(
+    "skips done actions for a thread %s before the event ran",
+    (state) =>
+      Effect.gen(function* () {
+        const done = appThread("stale-thread", "done", "/worktrees/stale");
+        const current =
+          state === "re-engaged"
+            ? { ...done, doneOverride: "active" as const }
+            : { ...done, deletedAt: DateTime.makeUnsafe(NOW) };
+        const marker = appThread("marker-thread", "done", "/worktrees/marker");
+        const fixture = yield* makeHarness({
+          snapshot: makeSnapshot([]),
+          currentThreads: [current, marker],
+          existingWorktreePaths: ["/worktrees/stale", "/worktrees/marker"],
+        });
 
-      yield* Effect.gen(function* () {
-        const service = yield* ThreadDoneService.ThreadDoneServiceV2;
-        yield* startHarness(service, fixture.activation, fixture.snapshotReads);
-        yield* fixture.publishEvent(doneEvent(done));
-        yield* fixture.publishEvent(doneEvent(marker));
-        assert.deepStrictEqual(yield* Queue.take(fixture.closedIdle), { threadId: marker.id });
-      }).pipe(Effect.provide(fixture.layer));
-    }),
+        yield* Effect.gen(function* () {
+          const service = yield* ThreadDoneService.ThreadDoneServiceV2;
+          yield* startHarness(service, fixture.activation, fixture.snapshotReads);
+          yield* fixture.publishEvent(doneEvent(done));
+          yield* fixture.publishEvent(doneEvent(marker));
+          assert.deepStrictEqual(yield* Queue.take(fixture.closedIdle), { threadId: marker.id });
+          assert.strictEqual((yield* Queue.take(fixture.scriptRuns)).threadId, marker.id);
+        }).pipe(Effect.provide(fixture.layer));
+      }),
   );
 
   it.effect("runs the done script in the thread's own worktree", () =>
@@ -2346,29 +2353,34 @@ describe("ThreadDoneServiceV2 terminals", () => {
     }),
   );
 
-  it.effect("skips the done script for a thread re-engaged while its shells close", () =>
-    Effect.gen(function* () {
-      const done = appThread("reengaging-thread", "done", "/worktrees/reengaging");
-      const marker = appThread("marker-thread", "done", "/worktrees/marker");
-      const currentThreads = [done, marker];
-      const fixture = yield* makeHarness({
-        snapshot: makeSnapshot([]),
-        currentThreads,
-        existingWorktreePaths: ["/worktrees/reengaging", "/worktrees/marker"],
-        onCloseIdle: () =>
-          Effect.sync(() => {
-            currentThreads[0] = { ...done, doneOverride: "active" };
-          }),
-      });
+  it.effect.each(["re-engaged", "deleted"] as const)(
+    "skips the done script for a thread %s while its shells close",
+    (state) =>
+      Effect.gen(function* () {
+        const done = appThread("stale-thread", "done", "/worktrees/stale");
+        const marker = appThread("marker-thread", "done", "/worktrees/marker");
+        const currentThreads = [done, marker];
+        const fixture = yield* makeHarness({
+          snapshot: makeSnapshot([]),
+          currentThreads,
+          existingWorktreePaths: ["/worktrees/stale", "/worktrees/marker"],
+          onCloseIdle: () =>
+            Effect.sync(() => {
+              currentThreads[0] =
+                state === "re-engaged"
+                  ? { ...done, doneOverride: "active" }
+                  : { ...done, deletedAt: DateTime.makeUnsafe(NOW) };
+            }),
+        });
 
-      yield* Effect.gen(function* () {
-        const service = yield* ThreadDoneService.ThreadDoneServiceV2;
-        yield* startHarness(service, fixture.activation, fixture.snapshotReads);
-        yield* fixture.publishEvent(doneEvent(done));
-        yield* fixture.publishEvent(doneEvent(marker));
-        assert.strictEqual((yield* Queue.take(fixture.scriptRuns)).threadId, marker.id);
-      }).pipe(Effect.provide(fixture.layer));
-    }),
+        yield* Effect.gen(function* () {
+          const service = yield* ThreadDoneService.ThreadDoneServiceV2;
+          yield* startHarness(service, fixture.activation, fixture.snapshotReads);
+          yield* fixture.publishEvent(doneEvent(done));
+          yield* fixture.publishEvent(doneEvent(marker));
+          assert.strictEqual((yield* Queue.take(fixture.scriptRuns)).threadId, marker.id);
+        }).pipe(Effect.provide(fixture.layer));
+      }),
   );
 
   it.effect("skips the done script for a subagent in its parent's worktree", () =>

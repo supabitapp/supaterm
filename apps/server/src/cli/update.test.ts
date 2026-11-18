@@ -17,6 +17,7 @@ import { afterEach, vi } from "vite-plus/test";
 
 import packageJson from "../../package.json" with { type: "json" };
 import * as BootService from "../service/bootService.ts";
+import { SERVICE_LAUNCHER_PROTOCOL } from "../service/serviceProtocol.ts";
 import {
   pinnedRuntimePaths,
   posixLauncherScript,
@@ -434,16 +435,24 @@ it.layer(NodeServices.layer)("supaterm update with a background service", (it) =
       vi.spyOn(BootService, "layer").mockReturnValue(service);
       const runner = ProcessRunner.ProcessRunner.of({
         run: (input) =>
-          input.args?.includes("--version") === true
-            ? unrelatedLsof
-                .run(input)
-                .pipe(Effect.map((result) => ({ ...result, stdout: `supaterm v${version}\n` })))
+          input.args?.includes("__service-preflight") === true
+            ? unrelatedLsof.run(input).pipe(
+                Effect.map((result) => ({
+                  ...result,
+                  stdout: JSON.stringify({
+                    status: "ready",
+                    version,
+                    launcherProtocol: SERVICE_LAUNCHER_PROTOCOL,
+                  }),
+                })),
+              )
             : unrelatedLsof.run(input),
       });
 
       const output = yield* runUpdate({
         baseDir,
         logsDir: baseDir,
+        databasePath: path.join(baseDir, "statev2.sqlite"),
         serverRuntimeStatePath: path.join(baseDir, "server-runtime.json"),
         channel: undefined,
         requestedVersion: version,
@@ -469,6 +478,138 @@ it.layer(NodeServices.layer)("supaterm update with a background service", (it) =
         output,
         `Background service still running the version before ${version}. Run \`supaterm service restart\` when you are ready to switch it to ${version}.`,
       );
+    }).pipe(
+      Effect.provideService(HostProcess.Platform, "linux"),
+      Effect.provideService(HostProcess.Environment, { PATH: "" }),
+    ),
+  );
+});
+
+it.layer(NodeServices.layer)("supaterm update checks the database before switching", (it) => {
+  const preflightOutput = (stdout: string, code = 0) => ({
+    stdout,
+    stderr: code === 0 ? "" : "Unknown command: __service-preflight",
+    code: ChildProcessSpawner.ExitCode(code),
+    timedOut: false,
+    stdoutTruncated: false,
+    stderrTruncated: false,
+    stdoutInvalidUtf8: false,
+    stderrInvalidUtf8: false,
+  });
+  const blockedReason =
+    "This database has migrations that supaterm@0.1.8 does not know: 79_example.";
+
+  it.effect.each([
+    {
+      name: "installs an older target that accepts this database",
+      targetVersion: "0.1.8",
+      launcherProtocol: 3,
+      preflight: preflightOutput(
+        JSON.stringify({ status: "ready", version: "0.1.8", launcherProtocol: 3 }),
+      ),
+      failure: undefined,
+    },
+    {
+      name: "refuses an older target the database is too new for",
+      targetVersion: "0.1.8",
+      launcherProtocol: 3,
+      preflight: preflightOutput(
+        JSON.stringify({ status: "blocked", version: "0.1.8", reason: blockedReason }),
+      ),
+      failure: blockedReason,
+    },
+    {
+      name: "refuses an older target too old to check the database",
+      targetVersion: "0.1.8",
+      launcherProtocol: 3,
+      preflight: preflightOutput("", 1),
+      failure:
+        "supaterm@0.1.8 could not confirm it supports this database (its check exited with code 1), so supaterm did not switch to it.",
+    },
+    {
+      // Newer builds keep accepting the current launcher protocol, which may drop 3.
+      name: "checks a newer target with the current launcher protocol",
+      targetVersion: "99.0.0",
+      launcherProtocol: SERVICE_LAUNCHER_PROTOCOL,
+      preflight: preflightOutput(
+        JSON.stringify({
+          status: "ready",
+          version: "99.0.0",
+          launcherProtocol: SERVICE_LAUNCHER_PROTOCOL,
+        }),
+      ),
+      failure: undefined,
+    },
+  ])("$name", ({ targetVersion, launcherProtocol, preflight, failure }) =>
+    Effect.gen(function* () {
+      yield* withoutTerminals;
+      const fs = yield* FileSystem.FileSystem;
+      const path = yield* Path.Path;
+      const baseDir = yield* fs.makeTempDirectoryScoped({ prefix: "supaterm-update-" });
+      const databasePath = path.join(baseDir, "userdata", "statev2.sqlite");
+      const runtime = pinnedRuntimePaths(path, baseDir, targetVersion, "linux");
+      yield* fs.makeDirectory(runtime.versionDir, { recursive: true });
+      yield* fs.writeFileString(runtime.entryPath, "");
+      yield* fs.writeFileString(runtime.sentinelPath, `${targetVersion}\n`);
+      const service = Layer.mock(BootService.BootService, {
+        status: Effect.succeed<BootService.BootServiceStatus>({
+          supported: true,
+          installed: false,
+          current: false,
+          unitPath: path.join(baseDir, "supaterm.service"),
+          logPath: path.join(baseDir, "boot-service.log"),
+        }),
+      });
+      const preflightArgs: Array<ReadonlyArray<string>> = [];
+      const runner = ProcessRunner.ProcessRunner.of({
+        run: (input) => {
+          if (input.args?.includes("__service-preflight") === true) {
+            preflightArgs.push(input.args);
+            return Effect.succeed(preflight);
+          }
+          // A target's --version always answers, whatever its database support.
+          return input.args?.includes("--version") === true
+            ? Effect.succeed(preflightOutput(`supaterm v${targetVersion}\n`))
+            : unrelatedLsof.run(input);
+        },
+      });
+
+      const exit = yield* runUpdate({
+        baseDir,
+        logsDir: baseDir,
+        databasePath,
+        serverRuntimeStatePath: path.join(baseDir, "server-runtime.json"),
+        channel: undefined,
+        requestedVersion: targetVersion,
+        allowDowngrade: true,
+        assumeYes: true,
+      }).pipe(
+        Effect.exit,
+        Effect.provide(
+          Layer.mergeAll(
+            service,
+            Layer.succeed(ProcessRunner.ProcessRunner, runner),
+            Layer.succeed(
+              HttpClient.HttpClient,
+              HttpClient.make(() => Effect.die("unexpected release lookup")),
+            ),
+            Layer.fresh(TestConsole.layer),
+          ),
+        ),
+      );
+
+      const error = Option.getOrUndefined(Exit.findErrorOption(exit));
+      assert.equal(error?.message, failure);
+      assert.equal(Exit.isSuccess(exit), failure === undefined);
+      assert.deepEqual(preflightArgs, [
+        [
+          "__service-preflight",
+          "--database-path",
+          databasePath,
+          "--launcher-protocol",
+          String(launcherProtocol),
+        ],
+      ]);
     }).pipe(
       Effect.provideService(HostProcess.Platform, "linux"),
       Effect.provideService(HostProcess.Environment, { PATH: "" }),

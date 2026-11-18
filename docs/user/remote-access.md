@@ -163,6 +163,8 @@ Supaterm checks every route at once, including relay, and prefers the
 highest-priority route that answers.
 Supaterm checks for a preferred route when your network changes, when you return
 to the app, and periodically while using a fallback.
+A route whose machine refused this device's sign-in is marked **Sign-in
+refused**; pair that address again with **Add route** to use it.
 A browser opened over HTTPS needs HTTPS routes; it cannot connect to plain HTTP
 LAN addresses.
 

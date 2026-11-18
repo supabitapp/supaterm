@@ -2141,6 +2141,20 @@ export const makePiAdapterV2 = Effect.fn("makePiAdapterV2")(function* (
         }
       });
 
+      // Extensions can move Pi to another session file (ctx.newSession); resume that one.
+      const adoptLiveSessionFile = (state: PiThreadState, stateData: unknown) => {
+        const sessionFile = recordString(stateData, "sessionFile");
+        const previousFile = state.providerThread.nativeThreadRef?.nativeId;
+        if (sessionFile === undefined || sessionFile === previousFile) return;
+        if (previousFile != null) state.supersededSessionFiles.add(previousFile);
+        state.supersededSessionFiles.delete(sessionFile);
+        state.providerThread = {
+          ...state.providerThread,
+          nativeThreadRef: providerRef(sessionFile),
+        };
+        lastNativeThreadId = sessionFile;
+      };
+
       const scheduleSettleProbe = (
         turn: ActivePiTurn,
         settleAfterAgentActivity = false,
@@ -2502,7 +2516,12 @@ export const makePiAdapterV2 = Effect.fn("makePiAdapterV2")(function* (
           }
           case "agent_settled": {
             if (turn?.interrupted === true) {
-              if (state !== null) yield* finalizeTurn(state);
+              if (state === null) return;
+              const liveState = yield* request({ type: "get_state" }, 2_000).pipe(
+                Effect.orElseSucceed(() => undefined),
+              );
+              adoptLiveSessionFile(state, liveState);
+              yield* finalizeTurn(state);
               return;
             }
             if (turn !== null) {
@@ -2739,18 +2758,7 @@ export const makePiAdapterV2 = Effect.fn("makePiAdapterV2")(function* (
             ) {
               turn.settleWhenIdle = false;
               if (state === null) return;
-              // Extensions can move Pi to another session file (ctx.newSession); resume that one.
-              const sessionFile = recordString(data, "sessionFile");
-              const previousFile = state.providerThread.nativeThreadRef?.nativeId;
-              if (sessionFile !== undefined && sessionFile !== previousFile) {
-                if (previousFile != null) state.supersededSessionFiles.add(previousFile);
-                state.supersededSessionFiles.delete(sessionFile);
-                state.providerThread = {
-                  ...state.providerThread,
-                  nativeThreadRef: providerRef(sessionFile),
-                };
-                lastNativeThreadId = sessionFile;
-              }
+              adoptLiveSessionFile(state, data);
               yield* finalizeTurn(state);
             }
             return;
@@ -3580,13 +3588,22 @@ export const makePiAdapterV2 = Effect.fn("makePiAdapterV2")(function* (
                 yield* request({ type: "abort" }, 2_000).pipe(Effect.ignore);
               }
               // Terminating fails every later request, so read the stopped
-              // turn's session-tree refs first: rolling back past this turn
-              // forks at its user entry. Holding the event permit also lets a
-              // finalize that is already reading them finish before the kill.
+              // turn's live session file and session-tree refs first: rolling
+              // back past this turn forks at its user entry. Holding the event
+              // permit also lets a finalize that is already reading them finish.
               yield* sessionEventPermit.withPermits(1)(
                 Effect.gen(function* () {
-                  if (threadState?.activeTurn === turn && turn.stopTreeRefs === undefined) {
-                    turn.stopTreeRefs = yield* captureTurnTreeRefs(2_000);
+                  const state = threadState;
+                  if (state?.activeTurn === turn) {
+                    // Probes answered before Stop may carry a session file the extension already left.
+                    turn.settleProbeGeneration += 1;
+                    const liveState = yield* request({ type: "get_state" }, 2_000).pipe(
+                      Effect.orElseSucceed(() => undefined),
+                    );
+                    adoptLiveSessionFile(state, liveState);
+                    if (turn.stopTreeRefs === undefined) {
+                      turn.stopTreeRefs = yield* captureTurnTreeRefs(2_000);
+                    }
                   }
                   yield* connection.terminate;
                 }),
