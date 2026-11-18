@@ -162,6 +162,9 @@ describe("ReadOnlySourcePreview", () => {
         buttons: type === "mouseReleased" ? 0 : 1,
         clickCount: 1,
       });
+    // Chromium starts a drag selection only in a focused page; the first click focuses it.
+    await mouse("mousePressed", start.left + 1, start.top + 5);
+    await mouse("mouseReleased", start.left + 1, start.top + 5);
     await mouse("mousePressed", start.left + 1, start.top + 5);
     await mouse("mouseMoved", start.left + 30, edge - 5);
     // Held below the preview, the pointer is over no row while the browser scrolls the drag on.
