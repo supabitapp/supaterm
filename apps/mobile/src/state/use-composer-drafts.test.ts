@@ -165,6 +165,8 @@ vi.mock("../features/sharing/incoming-share-storage", () => ({
 }));
 
 import type { DraftComposerAttachment } from "../lib/composerImages";
+// Resolves the async mock up front: a dynamic import racing its factory gets the real module.
+import "../lib/composerImages";
 import {
   collectComposerContextReferences,
   formatComposerContextReference,
