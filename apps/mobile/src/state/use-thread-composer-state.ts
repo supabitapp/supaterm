@@ -85,7 +85,7 @@ import {
   useComposerDraftSettings,
 } from "./use-composer-drafts";
 import { selectThreadModel } from "./thread-model-selection";
-import { isClearComposerCommand } from "@supaterm/shared/composerTrigger";
+import { isClearComposerCommand, parseSideChatCommand } from "@supaterm/shared/composerTrigger";
 import {
   compactionBlocksSteering,
   resolveComposerDispatchMode,
