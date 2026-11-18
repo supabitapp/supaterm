@@ -554,7 +554,6 @@ it("readThread keeps an activity page within an MCP client's output limit and pa
         } satisfies Partial<ProviderRegistry.ProviderRegistry["Service"]>),
         Layer.mock(ProjectService.ProjectService)({}),
         Layer.mock(SecretRequests.SecretRequests)({}),
-        Layer.mock(RemoteDelegation.RemoteDelegation)({}),
         Layer.mock(ScheduledTaskService.ScheduledTaskService)({
           list: () => Effect.succeed({ tasks: [] }),
         } satisfies Partial<ScheduledTaskService.ScheduledTaskService["Service"]>),
