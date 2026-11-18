@@ -357,12 +357,11 @@ it.layer(
     ),
   );
 
+  // npm-global installs ask `npm outdated` instead; see the npm-global cases below.
   it.effect.each([
     { install: "native", stdout: '"1.2.0"', exitCode: 0, latest: "1.2.0" },
     { install: "manual", stdout: '["1.2.0"]', exitCode: 0, latest: "1.2.0" },
-    { install: "npm", stdout: '"1.2.0"', exitCode: 0, latest: "1.2.0" },
     { install: "native", stdout: "", exitCode: 1, latest: null },
-    { install: "npm", stdout: '"1.2.0"', exitCode: 1, latest: null },
     { install: "native", stdout: "not json", exitCode: 0, latest: null },
     { install: "manual", stdout: '["1.2.0", "1.3.0"]', exitCode: 0, latest: null },
     { install: "manual", stdout: '""', exitCode: 0, latest: null },
@@ -373,20 +372,12 @@ it.layer(
         const tempDir = yield* makeTempDir("supaterm-registry-version");
         const npmBinDir = NodePath.join(tempDir, "npm-bin");
         writeExecutable(NodePath.join(npmBinDir, "npm"));
-        const binaryPath =
-          fixture.install === "npm"
-            ? linkIntoPackage(tempDir, "package-tool", [
-                "lib",
-                "node_modules",
-                "@example",
-                "package-tool",
-              ])
-            : NodePath.join(tempDir, ".local/bin/native-package-tool");
-        if (fixture.install !== "npm") writeExecutable(binaryPath);
+        const binaryPath = NodePath.join(tempDir, ".local/bin/native-package-tool");
+        writeExecutable(binaryPath);
         let probes = 0;
         const capabilities = yield* resolveProviderMaintenanceCapabilitiesEffect(
           fixture.install === "native" ? nativePackageToolUpdate : packageToolUpdate,
-          { binaryPath, env: { PATH: fixture.install === "npm" ? npmBinDir : "" } },
+          { binaryPath, env: { PATH: "" } },
         ).pipe(
           Effect.provideService(HostProcess.Environment, { PATH: npmBinDir }),
           Effect.provideService(
@@ -398,7 +389,6 @@ it.layer(
                 expect(args).toEqual([
                   "view",
                   "--global",
-                  ...(fixture.install === "npm" ? ["--prefix", tempDir] : []),
                   "--json",
                   `${capabilities.packageName}@latest`,
                   "version",
@@ -541,7 +531,7 @@ it.layer(
               ChildProcessSpawner.ChildProcessSpawner,
               stdoutSpawner(() => {
                 probes++;
-                return JSON.stringify(version);
+                return JSON.stringify({ "@example/package-tool": { latest: version } });
               }),
             ),
             Effect.tap((capabilities) =>
@@ -711,6 +701,9 @@ it.layer(
         expect(capabilities).toEqual({
           provider: driver("packageTool"),
           packageName: "@example/package-tool",
+          latestVersion: null,
+          lookupLatestVersion: expect.anything(),
+          latestVersionCacheKey: expect.any(String),
           update: {
             command: `npm install -g --prefix ${tempDir} --allow-scripts=@example/package-tool @example/package-tool@latest`,
             executable: "npm",
@@ -1425,6 +1418,99 @@ it.layer(
           latestVersion: fixture.expected,
         });
         expect(npmProbes).toBe(fixture.exitCode === 2 && fixture.npmOutput !== undefined ? 1 : 0);
+      }),
+    { skip: !symlinksSupported || windowsHost },
+  );
+
+  it.effect.each([
+    {
+      case: "the eligible release",
+      outdated: { "@example/package-tool": { current: "1.0.0", wanted: "1.1.0", latest: "1.1.0" } },
+      exitCode: 1,
+      status: "behind_latest",
+      latestVersion: "1.1.0",
+    },
+    {
+      case: "no update during cooldown",
+      outdated: {},
+      exitCode: 0,
+      status: "current",
+      latestVersion: "1.0.0",
+    },
+    {
+      case: "no update during cooldown beside a broken global",
+      outdated: {},
+      exitCode: 0,
+      listExitCode: 1,
+      status: "current",
+      latestVersion: "1.0.0",
+    },
+    {
+      case: "no registry version when npm cannot reach the registry",
+      outdated: { error: { code: "ECONNREFUSED" } },
+      exitCode: 1,
+      status: "unknown",
+      latestVersion: null,
+    },
+  ])(
+    "advertises $case for npm-global installs",
+    (fixture) =>
+      Effect.gen(function* () {
+        const tempDir = yield* makeTempDir("supaterm-npm-latest");
+        const npmBinDir = NodePath.join(tempDir, "npm-bin");
+        const npmPath = NodePath.join(npmBinDir, "npm");
+        writeExecutable(npmPath);
+        const link = linkIntoPackage(tempDir, "package-tool", [
+          "lib",
+          "node_modules",
+          "@example",
+          "package-tool",
+        ]);
+
+        const capabilities = yield* resolveProviderMaintenanceCapabilitiesEffect(
+          packageToolUpdate,
+          { binaryPath: link, env: { PATH: npmBinDir } },
+        ).pipe(
+          // The updater's npm comes from the provider's PATH.
+          Effect.provideService(HostProcess.Environment, { PATH: "" }),
+          Effect.provideService(
+            ChildProcessSpawner.ChildProcessSpawner,
+            stdoutSpawner(
+              (command, args) => {
+                expect(command).toBe(npmPath);
+                expect(args.slice(1, 4)).toEqual(["-g", "--prefix", tempDir]);
+                return JSON.stringify(
+                  args[0] === "outdated"
+                    ? fixture.outdated
+                    : {
+                        dependencies: { "@example/package-tool": { version: "1.0.0" } },
+                      },
+                );
+              },
+              (args) => (args[0] === "outdated" ? fixture.exitCode : (fixture.listExitCode ?? 0)),
+            ),
+          ),
+        );
+
+        const provider = yield* enrichProviderSnapshotWithVersionAdvisory(
+          installedPackageToolProvider,
+          capabilities,
+        ).pipe(
+          Effect.provideServiceEffect(
+            ProviderLatestVersions.ProviderLatestVersions,
+            ProviderLatestVersions.make([["@example/package-tool", "9.9.9"]]),
+          ),
+          Effect.provideService(
+            HttpClient.HttpClient,
+            HttpClient.make(() => Effect.die("the npm version is already cached")),
+          ),
+        );
+        expect(provider.versionAdvisory).toMatchObject({
+          status: fixture.status,
+          currentVersion: "1.0.0",
+          latestVersion: fixture.latestVersion,
+          updateCommand: expect.stringMatching(/@example\/package-tool@latest$/),
+        });
       }),
     { skip: !symlinksSupported || windowsHost },
   );

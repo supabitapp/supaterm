@@ -135,6 +135,7 @@ export type OrchestratorMcpTaskRole = typeof OrchestratorMcpTaskRole.Type;
 
 export const OrchestratorMcpDelegatedTaskStatus = Schema.Literals([
   "queued",
+  "starting",
   "running",
   "waiting",
   "completed",
@@ -201,7 +202,10 @@ export const OrchestratorMcpDelegateTaskResult = Schema.Struct({
   link: Schema.optional(Schema.String),
   childRunId: Schema.NullOr(RunId),
   childNodeId: NodeId,
-  status: OrchestratorMcpDelegatedTaskStatus,
+  status: OrchestratorMcpDelegatedTaskStatus.annotate({
+    description:
+      "starting means the child's provider has not started its turn yet, so no work has begun.",
+  }),
   workState: Schema.Literals(["working", "waiting_for_children", "result_available"]),
   hasPendingChildRuns: Schema.Boolean,
   latestTerminalRunId: Schema.NullOr(RunId),
@@ -269,7 +273,6 @@ export type OrchestratorMcpCreateThreadsInput = typeof OrchestratorMcpCreateThre
 export const OrchestratorMcpCreatedThreadStatus = Schema.Union([
   Schema.Literal("idle"),
   Schema.Literal("preparing"),
-  Schema.Literal("starting"),
   OrchestratorMcpDelegatedTaskStatus,
   Schema.Literal("rolled_back"),
 ]);
@@ -305,6 +308,20 @@ const OrchestratorMcpProjectTarget = Schema.optional(
   }),
 );
 
+// Codex hides `minimum` and `maximum` from the model, so a value above the maximum clamps on
+// decode instead of failing the call; pagination returns the rest. Values below 1 still fail:
+// 0 asks for nothing, and answering it with one item would be a different request.
+const clampedPositiveInt = (maximum: number) =>
+  PositiveInt.pipe(
+    Schema.decodeTo(
+      PositiveInt.check(Schema.isLessThanOrEqualTo(maximum)),
+      SchemaTransformation.transform({
+        decode: (value) => Math.min(value, maximum),
+        encode: (value) => value,
+      }),
+    ),
+  );
+
 export const OrchestratorMcpThreadListInput = Schema.Struct({
   projectId: OrchestratorMcpProjectTarget,
   allProjects: Schema.optional(Schema.Boolean),
@@ -316,7 +333,7 @@ export const OrchestratorMcpThreadListInput = Schema.Struct({
   snoozed: Schema.optional(Schema.Boolean),
   includeSubagents: Schema.optional(Schema.Boolean),
   cursor: Schema.optional(NonNegativeInt),
-  limit: Schema.optional(PositiveInt.check(Schema.isLessThanOrEqualTo(100))),
+  limit: Schema.optional(clampedPositiveInt(100)),
 });
 export type OrchestratorMcpThreadListInput = typeof OrchestratorMcpThreadListInput.Type;
 
@@ -385,20 +402,6 @@ export const OrchestratorMcpThreadListResult = Schema.Struct({
   total: NonNegativeInt,
 });
 export type OrchestratorMcpThreadListResult = typeof OrchestratorMcpThreadListResult.Type;
-
-// Codex hides `minimum` and `maximum` from the model, so a value above the maximum clamps on
-// decode instead of failing the call; pagination returns the rest. Values below 1 still fail:
-// 0 asks for nothing, and answering it with one item would be a different request.
-const clampedPositiveInt = (maximum: number) =>
-  PositiveInt.pipe(
-    Schema.decodeTo(
-      PositiveInt.check(Schema.isLessThanOrEqualTo(maximum)),
-      SchemaTransformation.transform({
-        decode: (value) => Math.min(value, maximum),
-        encode: (value) => value,
-      }),
-    ),
-  );
 
 export const OrchestratorMcpThreadReadInput = Schema.Struct({
   threadId: ThreadId,

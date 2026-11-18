@@ -194,6 +194,8 @@ it.effect.skipIf(windowsHost)(
       const codePath = path.join(binDir, "code");
       yield* fileSystem.writeFileString(codePath, "#!/bin/sh\n");
       yield* fileSystem.chmod(codePath, 0o755);
+      const colonProject = path.join(project, "build:2026");
+      yield* fileSystem.makeDirectory(colonProject);
       const file = `${path.join(project, "file.ts")}:3:7`;
 
       const spawned: ChildProcess.StandardCommand[] = [];
@@ -201,6 +203,7 @@ it.effect.skipIf(windowsHost)(
         const launcher = yield* ExternalLauncher.ExternalLauncher;
         yield* launcher.launchEditor({ editor: "vscode", cwd: project });
         yield* launcher.launchEditor({ editor: "vscode", cwd: file });
+        yield* launcher.launchEditor({ editor: "vscode", cwd: colonProject });
       }).pipe(
         Effect.provide(
           layerTest({
@@ -217,6 +220,7 @@ it.effect.skipIf(windowsHost)(
         [
           ["--new-window", project],
           ["--goto", file],
+          ["--new-window", colonProject],
         ],
       );
     }).pipe(Effect.scoped, Effect.provide(NodeServices.layer)),

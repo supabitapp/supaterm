@@ -13,6 +13,7 @@ import {
   normalizeClaudeCatalogEffort,
   resolveClaudeCatalogApiModelId,
   resolveClaudeCatalogEffort,
+  resolveClaudeCatalogModel,
   resolveClaudeModelSlug,
   type ClaudeModelCatalog,
 } from "./provider/ClaudeModelCatalog.ts";
@@ -63,9 +64,11 @@ export function compileClaudeModelSelection(
     !isCustomModel &&
     supportsBoolean("fastMode") &&
     getModelSelectionBooleanOptionValue(selection, "fastMode") === true;
-  const thinking = supportsBoolean("thinking")
-    ? getModelSelectionBooleanOptionValue(selection, "thinking")
-    : undefined;
+  const inCatalog = resolveClaudeCatalogModel(catalog, selection.model) !== undefined;
+  const thinking =
+    !inCatalog || supportsBoolean("thinking")
+      ? getModelSelectionBooleanOptionValue(selection, "thinking")
+      : undefined;
   const ultracode = descriptors.find((descriptor) => descriptor.id === "ultracode")?.currentValue;
   const settings = {
     ...(typeof thinking === "boolean" ? { alwaysThinkingEnabled: thinking } : {}),
