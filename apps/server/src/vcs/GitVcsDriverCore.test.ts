@@ -1807,7 +1807,8 @@ it.effect.each(["healthy", "hung"] as const)("bounds a %s remote fetch at five m
                 Effect.as(ChildProcessSpawner.ExitCode(0)),
               ),
             })
-          : makeNonRepositoryHandle(),
+          : // Fetches serialize on the repository's common directory, so it must resolve.
+            makeSuccessfulHandle(".git"),
       ),
     );
     const driver = yield* makeGitVcsDriverCore().pipe(
