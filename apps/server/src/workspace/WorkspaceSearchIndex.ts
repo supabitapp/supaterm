@@ -685,6 +685,9 @@ export const make = Effect.fn("WorkspaceSearchIndex.make")(function* (
           "core.quotePath=false",
           "-c",
           "core.fsmonitor=false",
+          // git refuses --untracked when a user's config recurses into submodules.
+          "-c",
+          "submodule.recurse=false",
           "grep",
           "--untracked",
           "--no-color",
