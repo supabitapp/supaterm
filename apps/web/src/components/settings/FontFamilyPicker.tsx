@@ -3,6 +3,7 @@ import { LegendList, type LegendListRef } from "@legendapp/list/react";
 import { CheckIcon } from "@supaterm/icons";
 import { useEffect, useEffectEvent, useRef, useState, useSyncExternalStore } from "react";
 import {
+  cssFontFamilies,
   fontFamilyLabel,
   isMonospaceFamily,
   queryInstalledFontFamilies,
@@ -169,7 +170,10 @@ export function FontFamilyPicker({
     return (
       <ComboboxItem hideIndicator index={index} key={item} value={item}>
         <div className="flex w-full min-w-0 items-center justify-between gap-2">
-          <span className="min-w-0 truncate" style={{ fontFamily: family }}>
+          <span
+            className="min-w-0 truncate"
+            style={{ fontFamily: cssFontFamilies(family) ?? undefined }}
+          >
             {fontFamilyLabel(family)}
           </span>
           <span className="flex shrink-0 items-center gap-1.5">

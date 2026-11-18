@@ -50,7 +50,7 @@ function quoteFontFamilyName(name: string): string {
   return `"${bare.replaceAll('"', "")}"`;
 }
 
-function cssFontFamilies(input: string): string | null {
+export function cssFontFamilies(input: string): string | null {
   const families = input
     .split(",")
     .map(quoteFontFamilyName)
