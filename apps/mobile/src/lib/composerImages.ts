@@ -203,6 +203,15 @@ export async function persistComposerAttachmentFile(
   return destination.uri;
 }
 
+export function skippedDuplicateAttachmentsMessage(
+  duplicates: ReadonlyArray<DraftComposerAttachment>,
+): string | null {
+  if (duplicates.length === 0) return null;
+  return duplicates.length === 1
+    ? `Skipped '${duplicates[0]!.name}': a file with the same name, type, and size is already attached.`
+    : `Skipped ${duplicates.length} files: files with the same names, types, and sizes are already attached.`;
+}
+
 export async function removePersistedComposerAttachmentFile(uri: string): Promise<void> {
   try {
     const { File, Paths } = await loadExpoFileSystem();

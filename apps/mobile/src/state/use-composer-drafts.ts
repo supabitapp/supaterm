@@ -1182,9 +1182,14 @@ function isSameAttachment(a: DraftComposerAttachment, b: DraftComposerAttachment
   );
 }
 
+export interface ComposerDraftAttachmentsAppend {
+  readonly rejected: number;
+  readonly duplicates: ReadonlyArray<DraftComposerAttachment>;
+}
+
 /**
  * Restore puts back attachments after failed sends, so it skips the duplicate check and the caps.
- * Returns how many attachments the caps rejected.
+ * Reports how many attachments the caps rejected and which ones repeated an attached one.
  */
 export function appendComposerDraftAttachments(
   draftKey: string,
@@ -1195,9 +1200,9 @@ export function appendComposerDraftAttachments(
     readonly insertion?: ComposerDraftInsertion;
     readonly maxAttachments?: number;
   },
-): number {
+): ComposerDraftAttachmentsAppend {
   if (incoming.length === 0) {
-    return 0;
+    return { rejected: 0, duplicates: [] };
   }
   let rejected: ReadonlyArray<DraftComposerAttachment> = [];
   let removed: ReadonlyArray<DraftComposerAttachment> = [];
@@ -1260,7 +1265,7 @@ export function appendComposerDraftAttachments(
     };
   });
   scheduleUnusedComposerAttachmentCleanup([...rejected, ...removed, ...duplicates]);
-  return rejected.length;
+  return { rejected: rejected.length, duplicates };
 }
 
 export function replaceComposerDraftAttachments(

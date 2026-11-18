@@ -4,7 +4,10 @@ import * as Dialog from "../../components/ui/Dialog";
 import { TextInputWrapper } from "expo-paste-input";
 import { AppTextInput as TextInput } from "../../components/ui/AppText";
 import { useNativePaste } from "../../lib/useNativePaste";
-import { convertPastedImagesToAttachments } from "../../lib/composerImages";
+import {
+  convertPastedImagesToAttachments,
+  skippedDuplicateAttachmentsMessage,
+} from "../../lib/composerImages";
 import { PROVIDER_SEND_TURN_MAX_ATTACHMENTS, type UserInputQuestion } from "@supaterm/contracts";
 import { useAtomValue } from "@effect/atom-react";
 import { View, type TextInputInstance } from "react-native";
@@ -80,7 +83,7 @@ export function QuestionAttachments(props: {
     key: string,
     attachments: Parameters<typeof appendComposerDraftAttachments>[1],
   ) => {
-    if (!selectedThread) return 0;
+    if (!selectedThread) return [];
     const current = appAtomRegistry.get(composerDraftsAtom);
     const otherCount = props.questions.reduce((count, question) => {
       const target = questionAttachmentDraftKey(
@@ -91,9 +94,11 @@ export function QuestionAttachments(props: {
       );
       return target === key ? count : count + (current[target]?.attachments.length ?? 0);
     }, 0);
-    return appendComposerDraftAttachments(key, attachments, {
+    const { rejected, duplicates } = appendComposerDraftAttachments(key, attachments, {
       maxAttachments: Math.max(0, PROVIDER_SEND_TURN_MAX_ATTACHMENTS - otherCount),
     });
+    const skipped = skippedDuplicateAttachmentsMessage(duplicates);
+    return [...(rejected > 0 ? ["Too many attachments."] : []), ...(skipped ? [skipped] : [])];
   };
   const paste = useNativePaste((uris) => {
     const scope = pickerScope.current;
@@ -113,7 +118,7 @@ export function QuestionAttachments(props: {
         ) {
           const problems = [
             ...(result.error ? [result.error] : []),
-            ...(append(key, result.attachments) > 0 ? ["Too many attachments."] : []),
+            ...append(key, result.attachments),
           ];
           if (problems.length) Dialog.alert("Could not paste image", problems.join("\n\n"));
         } else await releaseUnusedComposerAttachmentFiles(result.attachments);
@@ -161,9 +166,8 @@ export function QuestionAttachments(props: {
         await releaseUnusedComposerAttachmentFiles(picked);
         return;
       }
-      const rejected = append(key, picked);
-      if (result.error || rejected > 0)
-        Dialog.alert("Could not attach file", result.error ?? "Too many attachments.");
+      const problems = [...(result.error ? [result.error] : []), ...append(key, picked)];
+      if (problems.length) Dialog.alert("Could not attach file", problems.join("\n\n"));
     });
     changeQuestionAttachmentPreparation(key, -1);
     if (AsyncResult.isFailure(picked)) {
