@@ -31,8 +31,7 @@ type KimiTurnEnded = typeof KimiTurnEnded.Type;
 
 class KimiTurnNotEnded extends Schema.TaggedError<KimiTurnNotEnded>()("KimiTurnNotEnded", {}) {}
 
-const noOutcome = (_result: EffectAcpSchema.PromptResponse) =>
-  Effect.succeed<OrchestrationV2ProviderFailure | undefined>(undefined);
+const noOutcome = (_result: EffectAcpSchema.PromptResponse) => Effect.undefined;
 
 function turnFailure(ended: KimiTurnEnded): OrchestrationV2ProviderFailure | undefined {
   if (ended.reason !== "failed") return undefined;
