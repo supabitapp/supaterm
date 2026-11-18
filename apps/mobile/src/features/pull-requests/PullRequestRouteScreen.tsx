@@ -49,7 +49,7 @@ import { NativeScrollView } from "../../native/NativeScrollViewMarker";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { AppText as Text } from "../../components/ui/AppText";
-import { AppBar } from "../../components/ui/AppBar";
+import { AppBar, type AppBarMenu } from "../../components/ui/AppBar";
 import { useContentTopInset } from "../../components/ui/useBarInset";
 import { useAdaptiveWorkspaceLayout } from "../layout/AdaptiveWorkspaceLayout";
 import { useAndroidWorkspaceBack } from "../layout/workspace/useAndroidWorkspaceNavigation";
@@ -65,7 +65,11 @@ import { composerPullRequests } from "../../state/pull-requests";
 import { useEnvironmentQuery } from "../../state/query";
 import { usePullToRefresh } from "../../state/use-pull-to-refresh";
 import { pullRequestTimelineRows } from "./PullRequestTimeline";
-import { PullRequestActionToolbar, PullRequestCardGroup } from "./PullRequestControls";
+import {
+  PullRequestActionToolbar,
+  PullRequestCardGroup,
+  usePullRequestVerticalControls,
+} from "./PullRequestControls";
 import { pullRequestTarget as requestTarget, type PullRequestParams } from "./usePullRequestDiff";
 import {
   PullRequestAvatar,
@@ -518,6 +522,116 @@ export function PullRequestRouteScreen({ route }: StaticScreenProps<PullRequestP
       if (filesY.current > 0) requestAnimationFrame(jumpToFiles);
     }
   };
+  const verticalControls = usePullRequestVerticalControls();
+  const pullRequestMenu: AppBarMenu = {
+    title: `${capitalizeTerm(terminology.singular)} actions`,
+    icon: "ellipsis",
+    items: [
+      ...(permissions.verdicts.length
+        ? [
+            {
+              id: "submit-review",
+              title: "Submit review",
+              icon: "text.bubble",
+              onPress: () =>
+                navigation.navigate("PullRequestReview", { ...params, mode: "review" }),
+            },
+          ]
+        : []),
+      ...(permissions.canComment
+        ? [
+            {
+              id: "add-comment",
+              title: "Add comment",
+              icon: "plus.bubble",
+              onPress: () =>
+                navigation.navigate("PullRequestReview", { ...params, mode: "comment" }),
+            },
+          ]
+        : []),
+      ...(permissions.canEditChangeRequest
+        ? [
+            {
+              id: "edit-title",
+              title: "Edit title",
+              icon: "pencil",
+              onPress: () => navigation.navigate("PullRequestEdit", { ...params, field: "title" }),
+            },
+            {
+              id: "edit-description",
+              title: "Edit description",
+              icon: "doc.text",
+              disabled: description.pending,
+              subtitle: description.pending ? "Saving…" : undefined,
+              onPress: () => navigation.navigate("PullRequestEdit", { ...params, field: "body" }),
+            },
+          ]
+        : []),
+      ...(maintainerEdits.visible
+        ? [
+            {
+              id: "maintainer-edits",
+              title: "Allow edits from maintainers",
+              icon: "pencil",
+              selected: maintainerEdits.value,
+              disabled: maintainerEdits.saving,
+              subtitle: maintainerEdits.subtitle,
+              onPress: maintainerEdits.toggle,
+            },
+          ]
+        : []),
+      ...(identity
+        ? [
+            {
+              id: "open-on-provider",
+              title: openOnProviderLabel(identity.provider),
+              icon: "arrow.up.right",
+              onPress: () => void Linking.openURL(identity.url),
+            },
+            {
+              id: "copy-link",
+              title: "Copy link",
+              icon: "link",
+              onPress: () => copyPullRequestLink(identity),
+            },
+            {
+              id: "share",
+              title: "Share…",
+              icon: "square.and.arrow.up",
+              onPress: () => sharePullRequestLink(identity),
+            },
+          ]
+        : []),
+      ...(stateAction
+        ? [
+            {
+              id: "state",
+              title: pullRequestActionLabel(stateAction, terminology),
+              icon: PR_ACTION_ICONS[stateAction],
+              destructive: stateAction === "close",
+              onPress: runStateAction,
+            },
+          ]
+        : []),
+      ...(showsDeleteBranch
+        ? [
+            {
+              id: "delete-branch",
+              title: pullRequestActionLabel("delete-branch", terminology),
+              icon: PR_ACTION_ICONS["delete-branch"],
+              destructive: true,
+              disabled: !action.available("delete-branch"),
+              subtitle: action.busy
+                ? "Deleting…"
+                : connected
+                  ? pr.headBranch
+                  : "Reconnect to delete this branch.",
+              onPress: confirmDeleteBranch,
+            },
+          ]
+        : []),
+    ],
+  };
   return (
     <PullRequestMarkdownRepository params={params} changeRequest={pr}>
       <View className="flex-1 android:bg-header ios:bg-screen">
@@ -525,119 +639,7 @@ export function PullRequestRouteScreen({ route }: StaticScreenProps<PullRequestP
           title={`#${params.number}`}
           subtitle={connected ? params.repository : `${params.repository} · Offline`}
           onBack={layout.usesSplitView ? undefined : returnToList}
-          menus={[
-            {
-              title: `${capitalizeTerm(terminology.singular)} actions`,
-              icon: "ellipsis",
-              items: [
-                ...(permissions.verdicts.length
-                  ? [
-                      {
-                        id: "submit-review",
-                        title: "Submit review",
-                        icon: "text.bubble",
-                        onPress: () =>
-                          navigation.navigate("PullRequestReview", { ...params, mode: "review" }),
-                      },
-                    ]
-                  : []),
-                ...(permissions.canComment
-                  ? [
-                      {
-                        id: "add-comment",
-                        title: "Add comment",
-                        icon: "plus.bubble",
-                        onPress: () =>
-                          navigation.navigate("PullRequestReview", { ...params, mode: "comment" }),
-                      },
-                    ]
-                  : []),
-                ...(permissions.canEditChangeRequest
-                  ? [
-                      {
-                        id: "edit-title",
-                        title: "Edit title",
-                        icon: "pencil",
-                        onPress: () =>
-                          navigation.navigate("PullRequestEdit", { ...params, field: "title" }),
-                      },
-                      {
-                        id: "edit-description",
-                        title: "Edit description",
-                        icon: "doc.text",
-                        disabled: description.pending,
-                        subtitle: description.pending ? "Saving…" : undefined,
-                        onPress: () =>
-                          navigation.navigate("PullRequestEdit", { ...params, field: "body" }),
-                      },
-                    ]
-                  : []),
-                ...(maintainerEdits.visible
-                  ? [
-                      {
-                        id: "maintainer-edits",
-                        title: "Allow edits from maintainers",
-                        icon: "pencil",
-                        selected: maintainerEdits.value,
-                        disabled: maintainerEdits.saving,
-                        subtitle: maintainerEdits.subtitle,
-                        onPress: maintainerEdits.toggle,
-                      },
-                    ]
-                  : []),
-                ...(identity
-                  ? [
-                      {
-                        id: "open-on-provider",
-                        title: openOnProviderLabel(identity.provider),
-                        icon: "arrow.up.right",
-                        onPress: () => void Linking.openURL(identity.url),
-                      },
-                      {
-                        id: "copy-link",
-                        title: "Copy link",
-                        icon: "link",
-                        onPress: () => copyPullRequestLink(identity),
-                      },
-                      {
-                        id: "share",
-                        title: "Share…",
-                        icon: "square.and.arrow.up",
-                        onPress: () => sharePullRequestLink(identity),
-                      },
-                    ]
-                  : []),
-                ...(stateAction
-                  ? [
-                      {
-                        id: "state",
-                        title: pullRequestActionLabel(stateAction, terminology),
-                        icon: PR_ACTION_ICONS[stateAction],
-                        destructive: stateAction === "close",
-                        onPress: runStateAction,
-                      },
-                    ]
-                  : []),
-                ...(showsDeleteBranch
-                  ? [
-                      {
-                        id: "delete-branch",
-                        title: pullRequestActionLabel("delete-branch", terminology),
-                        icon: PR_ACTION_ICONS["delete-branch"],
-                        destructive: true,
-                        disabled: !action.available("delete-branch"),
-                        subtitle: action.busy
-                          ? "Deleting…"
-                          : connected
-                            ? pr.headBranch
-                            : "Reconnect to delete this branch.",
-                        onPress: confirmDeleteBranch,
-                      },
-                    ]
-                  : []),
-              ],
-            },
-          ]}
+          menus={verticalControls ? undefined : [pullRequestMenu]}
         />
         <ScreenContent onLayout={(event) => setViewportHeight(event.nativeEvent.layout.height)}>
           {/* oxlint-disable-next-line array-guardrails/no-array-filter-map -- Three tabs. */}
@@ -873,6 +875,7 @@ export function PullRequestRouteScreen({ route }: StaticScreenProps<PullRequestP
         <PullRequestActionToolbar
           pr={pr}
           params={params}
+          menu={pullRequestMenu}
           onOpenFiles={openFiles}
           onHeightChange={setToolbarHeight}
         />
