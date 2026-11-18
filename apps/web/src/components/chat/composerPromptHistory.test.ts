@@ -1,4 +1,15 @@
-import { ScheduledTaskId } from "@supaterm/contracts";
+import {
+  EnvironmentId,
+  ProviderDriverKind,
+  ProviderInstanceId,
+  ScheduledTaskId,
+  ThreadId,
+} from "@supaterm/contracts";
+import {
+  formatComposerContextReference,
+  modelContextRecord,
+  threadContextRecord,
+} from "@supaterm/shared/composerContextReferences";
 import { describe, expect, it } from "vite-plus/test";
 
 import {
@@ -94,11 +105,52 @@ describe("buildComposerPromptHistoryEntries", () => {
       { id: "m3", role: "user", text: "other" },
       { id: "m4", role: "user", text: "same" },
     ]);
-    expect(collapsed).toEqual([
+    expect(collapsed.map(({ id, prompt }) => ({ id, prompt }))).toEqual([
       { id: "m2", prompt: "same" },
       { id: "m3", prompt: "other" },
       { id: "m4", prompt: "same" },
     ]);
+  });
+
+  it("keeps thread and model mentions with the records the draft needs to resolve them", () => {
+    const environmentId = EnvironmentId.make("env-1");
+    const thread = threadContextRecord(
+      { environmentId, threadId: ThreadId.make("thread-1") },
+      "Correct invoice charge categories",
+    );
+    const unmentioned = threadContextRecord(
+      { environmentId, threadId: ThreadId.make("thread-2") },
+      "Removed before send",
+    );
+    const model = modelContextRecord({
+      instanceId: ProviderInstanceId.make("codex"),
+      driver: ProviderDriverKind.make("codex"),
+      model: "gpt-5",
+      name: "GPT-5",
+      providerName: "Codex",
+    });
+    const threadChip = formatComposerContextReference(thread);
+    const modelChip = formatComposerContextReference(model);
+    const [entry] = buildComposerPromptHistoryEntries([
+      {
+        id: "m1",
+        role: "user",
+        text: `Agent in ${threadChip} asked ${modelChip}. See [Gone](supaterm-context://v1/thread/gone) ![shot](supaterm-context://v1/image/img-1)`,
+        context: { version: 1, records: [thread, unmentioned, model] },
+      },
+    ]);
+    expect(entry).toEqual({
+      id: "m1",
+      prompt: `Agent in ${threadChip} asked ${modelChip}. See`,
+      mentions: { referenceContexts: [thread, model] },
+    });
+    const recalled = stepComposerPromptHistory({
+      direction: "backward",
+      entries: [entry!],
+      position: null,
+      currentPrompt: "",
+    });
+    expect(recalled?.mentions).toEqual({ referenceContexts: [thread, model] });
   });
 
   it("skips messages sent by automations, agents, and Supaterm", () => {
@@ -108,21 +160,28 @@ describe("buildComposerPromptHistoryEntries", () => {
       { id: "m3", role: "user", text: "from agent", createdBy: "agent", creationSource: "mcp" },
       { id: "m4", role: "user", text: "from server", createdBy: "agent", creationSource: "server" },
     ]);
-    expect(typed).toEqual([{ id: "m1", prompt: "typed" }]);
+    expect(typed.map((entry) => entry.id)).toEqual(["m1"]);
   });
 });
 
 describe("stepComposerPromptHistory", () => {
   it("walks back from the newest entry", () => {
     const first = backward(null, "");
-    expect(first).toEqual({ position: { entryId: "m3", recalled: "third" }, prompt: "third" });
+    expect(first).toMatchObject({
+      position: { entryId: "m3", recalled: "third" },
+      prompt: "third",
+    });
     expect(backward(first!.position, "third")?.prompt).toBe("second");
   });
 
   it("walks forward and empties the composer past the newest entry", () => {
     const newer = forward({ entryId: "m2", recalled: "second" }, "second");
     expect(newer?.prompt).toBe("third");
-    expect(forward(newer!.position, "third")).toEqual({ position: null, prompt: "" });
+    expect(forward(newer!.position, "third")).toEqual({
+      position: null,
+      prompt: "",
+      mentions: { referenceContexts: [] },
+    });
   });
 
   it("treats an edited recall as a fresh draft", () => {

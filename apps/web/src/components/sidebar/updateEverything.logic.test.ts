@@ -88,6 +88,18 @@ describe("collectServerUpdateTargets", () => {
       ["manual", "needs a manual update"],
     ]);
   });
+
+  it("does not offer a Nightly build to a Stable desktop app, whose own feed has nothing newer", () => {
+    const { targets, skipped } = collectServerUpdateTargets(
+      [machine("stable-desktop", "0.1.9", "desktop-managed")],
+      "0.1.10-nightly.20261116.4761",
+    );
+
+    expect(targets.map((target) => target.serverLabel)).toEqual([]);
+    expect(skipped.map((entry) => [entry.label, entry.reason])).toEqual([
+      ["stable-desktop", "on the stable channel"],
+    ]);
+  });
 });
 
 describe("collectChannelSwitchTargets", () => {
@@ -198,7 +210,7 @@ describe("localSwitchBlockReason", () => {
     const nightly = "0.1.4-nightly.20261027.3796";
 
     const windows = { connected: true, databaseMigration: 69 };
-    expect(localSwitchBlockReason(nightly, stable, [windows], 1)).toBeNull();
+    expect(localSwitchBlockReason(nightly, stable, [windows], 1, true)).toBeNull();
     // A WSL server's newer migration blocks the reinstall that would restart it.
     expect(
       localSwitchBlockReason(
@@ -206,17 +218,29 @@ describe("localSwitchBlockReason", () => {
         stable,
         [windows, { connected: true, databaseMigration: 72 }],
         2,
+        true,
       ),
     ).toContain("does not support yet");
     // A WSL backend still starting has no client entry, so its database is unchecked.
-    expect(localSwitchBlockReason(nightly, stable, [windows], 2)).toBe(
+    expect(localSwitchBlockReason(nightly, stable, [windows], 2, true)).toBe(
       "its server is not connected, so its database cannot be checked",
     );
     // A cached head from a disconnected server proves nothing.
     expect(
-      localSwitchBlockReason(nightly, stable, [{ connected: false, databaseMigration: 69 }], 1),
+      localSwitchBlockReason(
+        nightly,
+        stable,
+        [{ connected: false, databaseMigration: 69 }],
+        1,
+        true,
+      ),
     ).toBe("its server is not connected, so its database cannot be checked");
-    expect(localSwitchBlockReason("0.1.3", stable, [], 1)).toBeNull();
+    expect(localSwitchBlockReason("0.1.3", stable, [], 1, true)).toBeNull();
+    // A primary backend still starting has no entry or bootstrap yet, unless Local environment is off.
+    expect(localSwitchBlockReason(nightly, stable, [], 0, true)).toBe(
+      "its server is not connected, so its database cannot be checked",
+    );
+    expect(localSwitchBlockReason(nightly, stable, [], 0, false)).toBeNull();
   });
 });
 
@@ -274,6 +298,50 @@ describe("runUpdateEverything", () => {
 
     expect(calls).toEqual(["providers", "servers"]);
     expect(result.localReady).toBe(false);
+  });
+
+  it("stages servers while providers install and updates each once its own stage settles", async () => {
+    const calls: string[] = [];
+    const [slow, fast] = [EnvironmentId.make("slow"), EnvironmentId.make("fast")];
+    let finishProviders = () => {};
+    let failSlowStage = () => {};
+    const providers = new Promise<void>((resolve) => (finishProviders = resolve));
+    const run = runUpdateEverything({
+      updateProviders: () => {
+        calls.push("providers");
+        return providers.then(() => {
+          calls.push("providers done");
+        });
+      },
+      stageServers: () => {
+        calls.push("stage");
+        return new Map([
+          [slow, new Promise((_, reject) => (failSlowStage = () => reject(new Error("failed"))))],
+          [fast, Promise.resolve()],
+        ]);
+      },
+      updateServers: (staged) => {
+        calls.push("servers");
+        return Promise.all(
+          [slow, fast].map(async (id) => {
+            await staged.get(id);
+            calls.push(`server ${id}`);
+            if (id === fast) failSlowStage();
+          }),
+        );
+      },
+    });
+    finishProviders();
+    await run;
+
+    expect(calls).toEqual([
+      "stage",
+      "providers",
+      "providers done",
+      "servers",
+      "server fast",
+      "server slow",
+    ]);
   });
 });
 

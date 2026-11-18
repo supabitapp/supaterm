@@ -1,3 +1,9 @@
+import {
+  parsePullRequestAnchor,
+  pullRequestLinkCommit,
+  resolvePullRequestReviewAnchor,
+  type PullRequestAnchor,
+} from "@supaterm/shared/pullRequestAnchor";
 import { projectChangeRequestUrl } from "@supaterm/client-runtime/change-request-links";
 import { normalizeThreadPullRequestKey } from "@supaterm/client-runtime/thread-pull-requests";
 import { useAtomValue } from "@effect/atom-react";
@@ -125,6 +131,8 @@ import {
   isStackedPullRequestBase,
   pullRequestActionNeedsHostRefresh,
   pullRequestCheckoutCommand,
+  pullRequestTimelineEventMatches,
+  buildPullRequestTimeline,
   pullRequestFindingKey,
   pullRequestHandoffLabels,
   PULL_REQUEST_MERGE_METHOD_LABELS,
@@ -244,6 +252,22 @@ function pullRequestMarkdownContext(
   };
 }
 
+function linkedTab(anchor: PullRequestAnchor | null): PullRequestDetailTab | null {
+  switch (anchor?.kind) {
+    case "code":
+    case "diff":
+      return "code";
+    case "commits":
+    case "timeline":
+      return "timeline";
+    case "checks":
+    case "summary":
+      return "summary";
+    default:
+      return null;
+  }
+}
+
 export function PullRequestDetailPanel({
   environmentId,
   shortcutsEnabled,
@@ -260,6 +284,8 @@ export function PullRequestDetailPanel({
   onBack,
   onSelectPullRequest,
   onGuideShown,
+  revealUrl,
+  onRevealSettled,
   initialTab = "summary",
   onTabChange,
 }: {
@@ -286,6 +312,10 @@ export function PullRequestDetailPanel({
   composerDraftTarget?: ScopedThreadRef | DraftId;
   onBack?: (() => void) | undefined;
   onGuideShown?: (() => void) | undefined;
+  /** A clicked link into this pull request, waiting to be shown. */
+  revealUrl?: string | undefined;
+  /** Reports the link it was given shown or missing, so a newer link stays pending. */
+  onRevealSettled?: ((revealUrl: string) => void) | undefined;
   initialTab?: PullRequestDetailTab;
   onTabChange?: ((tab: PullRequestDetailTab) => void) | undefined;
 }) {
@@ -338,7 +368,10 @@ export function PullRequestDetailPanel({
     coreDetail,
     detail,
   } = usePullRequestDetail(environmentId, reference, matchingListEntry);
-  const [selectedTab, setTab] = useState<PullRequestDetailTab>(initialTab);
+  const revealAnchor = parsePullRequestAnchor(revealUrl);
+  const [selectedTab, setTab] = useState<PullRequestDetailTab>(
+    () => linkedTab(revealAnchor) ?? initialTab,
+  );
   const reviewGuidesEnabled = useEnvironmentSettings(
     environmentId,
     (settings) => settings.reviewGuidesEnabled,
@@ -362,7 +395,7 @@ export function PullRequestDetailPanel({
   const [codeCommitScope, setCodeCommitScope] = useState<{
     readonly pullRequestKey: string;
     readonly oid: string | null;
-  }>(() => ({ pullRequestKey, oid: null }));
+  }>(() => ({ pullRequestKey, oid: pullRequestLinkCommit(revealUrl) }));
   const selectedCodeCommitOid =
     codeCommitScope.pullRequestKey === pullRequestKey ? codeCommitScope.oid : null;
   const selectCodeCommit = (oid: string | null) => {
@@ -382,6 +415,33 @@ export function PullRequestDetailPanel({
     void loadCodeTab();
     selectTab("code");
   };
+  // Cached activity can predate a linked comment, so a miss waits for one host read. `after` is
+  // when that read's invalidation finished; null while it runs.
+  const revealHostRead = useRef<{ readonly url: string; readonly after: number | null } | null>(
+    null,
+  );
+  const settleReveal = (url: string) => {
+    revealHostRead.current = null;
+    onRevealSettled?.(url);
+  };
+  const followLink = useEffectEvent(() => {
+    if (revealUrl === undefined) return;
+    const next = linkedTab(revealAnchor);
+    if (next === null) return settleReveal(revealUrl);
+    if (next === "code") {
+      selectCodeCommit(pullRequestLinkCommit(revealUrl));
+      void loadCodeTab();
+    }
+    selectTab(next);
+    // These name a tab, not a place in it.
+    if (revealAnchor?.kind === "code" || revealAnchor?.kind === "commits") settleReveal(revealUrl);
+  });
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- a clicked link lives in the panel store and selects its tab even when the panel is already mounted
+  useEffect(() => {
+    // oxlint-disable-next-line react/set-state-in-effect -- link navigation selects the PR tab and commit scope
+    followLink();
+    // oxlint-disable-next-line react/exhaustive-effect-dependencies -- each clicked link is a navigation request
+  }, [revealUrl]);
   const tabScopeKey = `${environmentId}:${pullRequestKey}`;
   const [tabMountState, setTabMountState] = useState(() => ({
     key: tabScopeKey,
@@ -395,6 +455,13 @@ export function PullRequestDetailPanel({
   } else if (!tabMountState.tabs.has(tab)) {
     setTabMountState({ key: tabScopeKey, tabs: new Set(tabMountState.tabs).add(tab) });
   }
+  // A pointer on the Code tab reads the page it opens on; only intent costs the host a read.
+  const [codeIntentKey, setCodeIntentKey] = useState<string | null>(null);
+  useEnvironmentQuery(
+    codeIntentKey === pullRequestKey && !mountedTabs.has("code")
+      ? pullRequestEnvironment.diff({ environmentId, input: { ...reference } })
+      : null,
+  );
   // Each tab restores the condensed state its own scrolling left behind.
   const [condensedByTab, setCondensedByTab] = useState<
     Partial<Record<PullRequestDetailTab, boolean>>
@@ -460,7 +527,6 @@ export function PullRequestDetailPanel({
   const keybindings = useAtomValue(primaryServerKeybindingsAtom);
   const { copyToClipboard: copyReference } = useCopyToClipboard<string>({
     target: `${terminology.singular} reference`,
-    onCopy: (label) => toastManager.add({ type: "success", title: `${label} copied` }),
     onError: (error, label) =>
       toastManager.add({
         type: "error",
@@ -587,14 +653,72 @@ export function PullRequestDetailPanel({
   const invalidate = useAtomCommand(pullRequestEnvironment.invalidate, { reportFailure: false });
   const [isInvalidating, setIsInvalidating] = useState(false);
   const refreshing = isInvalidating || detailQuery.isPending;
-  const refreshFromHost = async () => {
+  /** Resolves whether the host cache was invalidated before the refetch. */
+  const refetchFromHost = async () => {
     setIsInvalidating(true);
     // Atom commands settle instead of throwing, so the reset below always runs.
-    await invalidate({ environmentId, input: { reference } });
+    const invalidated = await invalidate({ environmentId, input: { reference } });
     refreshDetail();
     setRefreshToken((token) => token + 1);
     setIsInvalidating(false);
+    return invalidated._tag === "Success";
   };
+  const refreshFromHost = async () => {
+    await refetchFromHost();
+  };
+  const timelineAnchor =
+    revealAnchor?.kind !== "timeline"
+      ? null
+      : detail === null
+        ? revealAnchor.anchor
+        : resolvePullRequestReviewAnchor(
+            revealAnchor.anchor,
+            detail.comments,
+            detail.reviewThreads,
+          );
+  // Loaded activity without the linked item, keyed by load so a refetch is checked again.
+  const revealMissedAt =
+    timelineAnchor !== null &&
+    detail !== null &&
+    !activityQuery.isPending &&
+    !buildPullRequestTimeline(detail).some((event) =>
+      pullRequestTimelineEventMatches(event, timelineAnchor),
+    )
+      ? activityQuery.dataUpdatedAt
+      : null;
+  const revealReadFailed = revealMissedAt !== null && activityQuery.error !== null;
+  const readHostForReveal = useEffectEvent(() => {
+    if (revealUrl === undefined || revealMissedAt === null) return;
+    const read = revealHostRead.current;
+    if (read?.url !== revealUrl) {
+      const request = { url: revealUrl, after: null };
+      revealHostRead.current = request;
+      void refetchFromHost().then((invalidated) => {
+        if (revealHostRead.current !== request) return;
+        // Without an invalidation the refetch could only repeat the cached read.
+        if (!invalidated) return settleReveal(request.url);
+        revealHostRead.current = { url: request.url, after: Date.now() };
+      });
+      return;
+    }
+    // A read that finished before the invalidation cannot show the item is missing. `after` is
+    // stamped once the refetch was requested, so a read in that same millisecond is the new one.
+    if (read.after !== null && (revealReadFailed || revealMissedAt >= read.after)) {
+      settleReveal(revealUrl);
+    }
+  });
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- a linked comment missing from cached activity asks the host once before the link settles
+  useEffect(() => {
+    readHostForReveal();
+    // oxlint-disable-next-line react/exhaustive-effect-dependencies -- each load that misses the linked item is checked against the host read
+  }, [revealMissedAt, revealReadFailed, revealUrl]);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- a host read outliving the panel must not settle a later link
+  useEffect(
+    () => () => {
+      revealHostRead.current = null;
+    },
+    [],
+  );
   const refreshFromHostOnRequest = useEffectEvent(() => void refreshFromHost());
   const appliedForcedToken = useRef(forcedRefreshToken);
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- a new forced refresh token invalidates the host cache and refetches
@@ -832,9 +956,16 @@ export function PullRequestDetailPanel({
       return;
     }
     setHandoff(kind);
+    // Dismissing the loading toast cancels the handoff before it touches a draft.
+    let cancelled = false;
     const toastId = toastManager.add({
       type: "loading",
       title: `Preparing the ${terminology.singular} checkout...`,
+      data: {
+        onClose: () => {
+          cancelled = true;
+        },
+      },
     });
     const projectRef = scopeProjectRef(
       actingEnvironmentId,
@@ -847,6 +978,10 @@ export function PullRequestDetailPanel({
       (session) => session,
       () => null,
     );
+    if (cancelled) {
+      setHandoff(null);
+      return;
+    }
     if (opened === null) {
       setHandoff(null);
       toastManager.update(toastId, {
@@ -861,6 +996,10 @@ export function PullRequestDetailPanel({
       mode,
       threadId: opened.threadId,
     });
+    if (cancelled) {
+      setHandoff(null);
+      return;
+    }
     if (prepared._tag === "Failure") {
       setHandoff(null);
       toastManager.update(toastId, {
@@ -877,10 +1016,14 @@ export function PullRequestDetailPanel({
       worktreePath: prepared.value.worktreePath,
       envMode: prepared.value.worktreePath === null ? "local" : "worktree",
     }).then(
-      (session) => session !== null,
-      () => false,
+      (session) => session,
+      () => null,
     );
-    if (!pointed) {
+    if (cancelled) {
+      setHandoff(null);
+      return;
+    }
+    if (pointed === null) {
       setHandoff(null);
       // The checkout is on disk; only the thread failed to move onto it. Writing the task now
       // would send the agent at whatever the thread was already open on — which is the one
@@ -892,6 +1035,13 @@ export function PullRequestDetailPanel({
       });
       return;
     }
+    // The draft carries the pull request until its first send makes it a thread, which links it.
+    useComposerDraftStore.getState().setDraftThreadContext(pointed.draftId, {
+      checkoutPullRequest: {
+        url: prepared.value.pullRequest.url,
+        branch: prepared.value.branch,
+      },
+    });
     setHandoff(null);
     if (task === null) {
       toastManager.update(
@@ -909,7 +1059,9 @@ export function PullRequestDetailPanel({
       );
       return;
     }
-    await openThreadWithTask(projectRef, task, opened);
+    // The task goes on the checkout draft: if the user typed into `opened` while the
+    // checkout ran, that is no longer the draft the user is looking at.
+    await openThreadWithTask(projectRef, task, pointed);
     toastManager.update(
       toastId,
       prepared.value.isOnPullRequestHead
@@ -1054,6 +1206,7 @@ export function PullRequestDetailPanel({
         state: detail.state,
         isDraft: detail.isDraft,
         finding,
+        inThisThread: attachTarget !== null,
       }),
     );
   };
@@ -1074,6 +1227,7 @@ export function PullRequestDetailPanel({
         comments: detail.comments,
         checks: checksStale ? [] : detail.checks,
         commentsTruncated: detail.commentsTruncated,
+        inThisThread: attachTarget !== null,
       }),
     );
   };
@@ -1086,6 +1240,7 @@ export function PullRequestDetailPanel({
         url: handoffSummary.url,
         headBranch: handoffSummary.headBranch,
         baseBranch: handoffSummary.baseBranch,
+        inThisThread: attachTarget !== null,
       }),
     });
   };
@@ -1468,7 +1623,6 @@ export function PullRequestDetailPanel({
                     pullRequestKey={pullRequestKey}
                     detail={detail}
                     canWriteSourceControl={canWriteSourceControl}
-                    onSaved={refreshDetail}
                   />
                 }
                 author={
@@ -1533,7 +1687,9 @@ export function PullRequestDetailPanel({
             value={tab}
             onValueChange={selectTab}
             onTabIntent={(item) => {
-              if (item === "code") void loadCodeTab();
+              if (item !== "code") return;
+              void loadCodeTab();
+              setCodeIntentKey(pullRequestKey);
             }}
           >
             {tab === "summary" ? (
@@ -1688,6 +1844,8 @@ export function PullRequestDetailPanel({
               <div className={cn("absolute inset-0", tab !== "summary" && "invisible")}>
                 <PullRequestSummaryTab
                   scrollerRef={scrollerRefs.summary}
+                  revealUrl={tab === "summary" ? revealUrl : undefined}
+                  onRevealSettled={settleReveal}
                   environmentId={environmentId}
                   threadRef={threadRef}
                   reference={reference}
@@ -1751,6 +1909,8 @@ export function PullRequestDetailPanel({
                 ) : (
                   <PullRequestTimelineTab
                     scrollerRef={scrollerRefs.timeline}
+                    revealUrl={tab === "timeline" ? revealUrl : undefined}
+                    onRevealSettled={settleReveal}
                     detail={detail}
                     environmentId={environmentId}
                     threadRef={threadRef}
@@ -1786,6 +1946,8 @@ export function PullRequestDetailPanel({
                     refreshToken={refreshToken}
                     backgroundRefreshToken={turnRefresh ?? 0}
                     revealRequest={codeRevealRequest}
+                    revealUrl={tab === "code" ? revealUrl : undefined}
+                    onRevealSettled={settleReveal}
                   />
                 </Suspense>
               </div>

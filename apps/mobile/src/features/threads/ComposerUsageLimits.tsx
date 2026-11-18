@@ -1,11 +1,10 @@
+import { providerClients } from "@supaterm/client-runtime/provider-clients";
 import type { EnvironmentId, UsageLimitsReport } from "@supaterm/contracts";
 import { Pressable, ScrollView, View } from "react-native";
 
 import { SymbolView } from "../../components/ui/AppSymbol";
 import { ResetCredits } from "../usage/ResetCredits";
 import { AccountLimits } from "../usage/UsageLimitsSection";
-
-const DRIVER_LABEL: Partial<Record<string, string>> = { codex: "Codex", claudeAgent: "Claude" };
 
 export function ComposerUsageLimits({
   report,
@@ -34,7 +33,7 @@ export function ComposerUsageLimits({
     <View className="overflow-hidden rounded-[20px] border-continuous bg-card">
       <ScrollView bounces={false} showsVerticalScrollIndicator={false} style={{ maxHeight }}>
         {report.accounts.map((account, index) => {
-          const driverLabel = DRIVER_LABEL[account.driver] ?? String(account.driver);
+          const driverLabel = providerClients.get(account.driver)?.label ?? account.driver;
           return (
             <AccountLimits
               key={account.instanceId}

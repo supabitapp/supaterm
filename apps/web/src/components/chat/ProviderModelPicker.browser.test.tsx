@@ -1,9 +1,13 @@
 import {
+  DEFAULT_SERVER_SETTINGS,
+  EnvironmentId,
   ProviderDriverKind,
   ProviderInstanceId,
   type ModelSelection,
   type ServerProvider,
 } from "@supaterm/contracts";
+import { Atom } from "effect/reactivity";
+import { compileResolvedKeybindingsConfig } from "@supaterm/shared/keybindings";
 import { useState } from "react";
 import { expect, it, vi } from "vite-plus/test";
 import { page, userEvent } from "vite-plus/test/browser";
@@ -11,8 +15,23 @@ import { page, userEvent } from "vite-plus/test/browser";
 import "~/index.css";
 
 import { render } from "../../../test/render";
+import { ComposerHandleContext, type ComposerHandleRef } from "../../composerHandleContext";
+import { __setClientSettingsForTests } from "../../hooks/useSettings";
 import { deriveProviderInstanceEntries } from "../../providerInstances";
 import { ProviderModelPicker } from "./ProviderModelPicker";
+
+const environmentSettings = vi.hoisted(() => new Map<string, unknown>());
+vi.mock(import("~/state/server"), async (original) => {
+  const actual = await original();
+  return {
+    ...actual,
+    serverEnvironment: {
+      ...actual.serverEnvironment,
+      settingsValueAtom: ((id: EnvironmentId) =>
+        environmentSettings.get(id) ?? actual.serverEnvironment.settingsValueAtom(id)) as never,
+    },
+  };
+});
 
 const instanceId = ProviderInstanceId.make("claudeAgent");
 const opus = {
@@ -132,4 +151,204 @@ it("keeps each registry image when adding a model from another ACP agent", async
   }
   await userEvent.keyboard("{Escape}");
   await vi.waitFor(() => expect(imageWidths()).toEqual([11, 17]));
+});
+
+it("lists a model reported twice by one provider once, with contiguous jump shortcuts", async () => {
+  const instanceId = ProviderInstanceId.make("claude");
+  const entries = deriveProviderInstanceEntries([
+    {
+      instanceId,
+      driver: ProviderDriverKind.make("claudeAgent"),
+      enabled: true,
+      installed: true,
+      version: null,
+      status: "ready",
+      auth: { status: "authenticated" },
+      checkedAt: "2026-01-01T00:00:00.000Z",
+      models: [],
+      slashCommands: [],
+      skills: [],
+    },
+  ]);
+  const options = new Map([
+    [
+      instanceId,
+      ["a", "b", "c", "c", "d", "d"].map((slug) => ({
+        slug,
+        name: `Model ${slug.toUpperCase()}`,
+      })),
+    ],
+  ]);
+  const keybindings = compileResolvedKeybindingsConfig(
+    ([1, 2, 3, 4, 5, 6] as const).map((index) => ({
+      key: `mod+${index}`,
+      command: `modelPicker.jump.${index}` as const,
+      when: "modelPickerOpen",
+    })),
+  );
+
+  await using screen = await render(
+    <ProviderModelPicker
+      environmentId={null}
+      activeInstanceId={instanceId}
+      model="a"
+      lockedProvider={null}
+      instanceEntries={entries}
+      modelOptionsByInstance={options}
+      keybindings={keybindings}
+      triggerAriaLabel="Choose model"
+      onInstanceModelChange={() => {}}
+    />,
+  );
+  await screen.getByRole("button", { name: "Choose model" }).click();
+  await expect.element(page.getByRole("option", { name: /Model A/ })).toBeVisible();
+  await vi.waitFor(() =>
+    expect(
+      page
+        .getByRole("option")
+        .elements()
+        .map((row) => [
+          row.textContent?.match(/Model [A-Z]/)?.[0],
+          row.querySelector("kbd")?.textContent?.slice(-1),
+        ]),
+    ).toEqual([
+      ["Model A", "1"],
+      ["Model B", "2"],
+      ["Model C", "3"],
+      ["Model D", "4"],
+    ]),
+  );
+});
+
+it("opens on the active provider when every favorite belongs to a disabled provider", async () => {
+  const entries = deriveProviderInstanceEntries(
+    ["Codex", "Claude"].map((name) => ({
+      instanceId: ProviderInstanceId.make(name.toLowerCase()),
+      driver: ProviderDriverKind.make(name.toLowerCase()),
+      enabled: name === "Codex",
+      installed: true,
+      version: null,
+      status: "ready" as const,
+      auth: { status: "authenticated" as const },
+      checkedAt: "2026-01-01T00:00:00.000Z",
+      models: [
+        { slug: name.toLowerCase(), name: `${name} model`, isCustom: false, capabilities: {} },
+      ],
+      slashCommands: [],
+      skills: [],
+    })),
+  );
+  const [codex, claude] = entries;
+  const environmentId = EnvironmentId.make("favorites-on-disabled-provider");
+  environmentSettings.clear();
+  environmentSettings.set(
+    environmentId,
+    Atom.make({
+      ...DEFAULT_SERVER_SETTINGS,
+      favorites: [{ provider: claude!.instanceId, model: "claude" }],
+    }),
+  );
+
+  await using screen = await render(
+    <ProviderModelPicker
+      environmentId={environmentId}
+      activeInstanceId={codex!.instanceId}
+      model="codex"
+      lockedProvider={null}
+      instanceEntries={entries}
+      modelOptionsByInstance={new Map(entries.map((entry) => [entry.instanceId, entry.models]))}
+      triggerAriaLabel="Choose model"
+      onInstanceModelChange={() => {}}
+    />,
+  );
+  await screen.getByRole("button", { name: "Choose model" }).click();
+  await expect.element(page.getByRole("option", { name: /Codex model/ })).toBeVisible();
+});
+
+it("on a touch tablet, picking a model leaves the editor unfocused", async () => {
+  const realMatchMedia = window.matchMedia.bind(window);
+  using _touch = vi
+    .spyOn(window, "matchMedia")
+    .mockImplementation((query) => realMatchMedia(query === "(pointer: coarse)" ? "all" : query));
+  const handle = { focusAtEnd: vi.fn() };
+  const composerRef = { current: handle } as unknown as ComposerHandleRef;
+  await using screen = await render(
+    <ComposerHandleContext value={composerRef}>
+      <ProviderModelPicker
+        environmentId={null}
+        activeInstanceId={instanceId}
+        model={opus.slug}
+        lockedProvider={null}
+        instanceEntries={deriveProviderInstanceEntries([provider])}
+        modelOptionsByInstance={new Map([[instanceId, [opus]]])}
+        triggerAriaLabel="Choose model"
+        isComposerOwned
+        onInstanceModelChange={() => {}}
+      />
+    </ComposerHandleContext>,
+  );
+  await screen.getByRole("button", { name: "Choose model" }).click();
+  const option = page.getByRole("option", { name: /Claude Opus 5\.5/ });
+  await expect.element(option).toBeVisible();
+  await userEvent.click(option);
+  await expect.element(option).not.toBeInTheDocument();
+  // Focusing the editor after a tap opens the on-screen keyboard on Android tablets.
+  expect(handle.focusAtEnd).not.toHaveBeenCalled();
+});
+
+it("keeps the touch keyboard down while choosing a provider", async () => {
+  const entries = deriveProviderInstanceEntries(
+    ["Codex", "Claude"].map((name) => ({
+      instanceId: ProviderInstanceId.make(name.toLowerCase()),
+      driver: ProviderDriverKind.make(name.toLowerCase()),
+      enabled: true,
+      installed: true,
+      version: null,
+      status: "ready" as const,
+      auth: { status: "authenticated" as const },
+      checkedAt: "2026-01-01T00:00:00.000Z",
+      models: [
+        { slug: name.toLowerCase(), name: `${name} model`, isCustom: false, capabilities: {} },
+      ],
+      slashCommands: [],
+      skills: [],
+    })),
+  );
+  const [codex] = entries;
+  const matchMedia = window.matchMedia.bind(window);
+  using _touch = vi.spyOn(window, "matchMedia").mockImplementation((query) =>
+    query === "(pointer: coarse)"
+      ? ({
+          matches: true,
+          media: query,
+          onchange: null,
+          addEventListener: () => {},
+          removeEventListener: () => {},
+          addListener: () => {},
+          removeListener: () => {},
+          dispatchEvent: () => false,
+        } as MediaQueryList)
+      : matchMedia(query),
+  );
+
+  await using screen = await render(
+    <ProviderModelPicker
+      environmentId={null}
+      activeInstanceId={codex!.instanceId}
+      model="codex"
+      lockedProvider={null}
+      instanceEntries={entries}
+      modelOptionsByInstance={new Map(entries.map((entry) => [entry.instanceId, entry.models]))}
+      triggerAriaLabel="Choose model"
+      onInstanceModelChange={() => {}}
+    />,
+  );
+  await screen.getByRole("button", { name: "Choose model" }).click();
+  const search = page.getByPlaceholder("Search models...");
+  const popup = search.element().closest('[data-slot="popover-popup"]');
+  await vi.waitFor(() => expect(document.activeElement).toBe(popup));
+
+  await page.getByRole("button", { name: /^Claude/ }).click();
+  await expect.element(page.getByRole("option", { name: /Claude model/ })).toBeVisible();
+  await expect.element(search).not.toHaveFocus();
 });

@@ -246,7 +246,9 @@ text selected while a tap still types a space, or turn it off. On web and deskto
 recording stays in the composer while you speak:
 
 - **Stop and review**, or `ctrl+m` again, transcribes the recording into the
-  draft where your cursor was, so you can edit it before sending.
+  draft where your cursor was, so you can edit it before sending. Changes that reach the
+  draft meanwhile, such as a cited message, are kept; the text then goes after your
+  selection instead of replacing it.
 - **Send**, or your send shortcut, sends the recording as your next message. With an empty draft in a
   thread that has started, it waits in the [queue](#queued-messages) like a typed message,
   even while you are offline, and the environment transcribes and sends it once it is
@@ -348,10 +350,13 @@ also edit or remove it. On web and desktop, removing takes two presses of the ro
 the message is discarded, not returned to the composer.
 
 If you stop the agent or the server restarts, queued messages keep their order and are held.
-Press **Resume** in an empty composer to continue. **Resume** also continues a stopped run or one
-that hit a usage limit, even with nothing queued. Sending a new message also resumes the queue,
-unless it steers a turn that is already running. You can edit or remove held messages without
-starting them. **Send now** on a held row starts a turn with that message ahead of the others.
+Press **Resume** in an empty composer to continue. For stopped runs and usage limits, Claude,
+Codex and OpenCode continue natively without a new prompt; other providers receive "Continue where
+you left off." If the original request never reached the provider, Resume sends that request again.
+
+Sending a new message also resumes the queue, unless it steers a turn that is already running. You
+can edit or remove held messages without starting them. **Send now** on a held row starts a turn
+with that message ahead of the others.
 
 The pencil on a queued row opens that message in the composer for editing. The original message
 stays in the queue until you save, and its row is highlighted while you edit. The message's
@@ -403,14 +408,14 @@ composer to keep the current session instead.
 
 ## Goals
 
-With Codex and Claude, send `/goal` followed by what "done" means, for example
+With Codex, Claude, and OpenCode 2.2.5 or later, send `/goal` followed by what "done" means, for example
 `/goal all tests in packages/api pass`. The agent keeps working across turns
 until it judges the goal met. The thread shows **Goal** while it works, and a
 row above the composer shows the goal and its progress.
 
 - `/goal` alone shows the current goal. `/goal clear` removes it.
-- Codex also supports `/goal pause` and `/goal resume`. Stopping a Codex goal
-  pauses it, and so does Codex ending its work without meeting the goal.
+- Codex and OpenCode also support `/goal pause` and `/goal resume`. Stopping
+  their goal pauses it. Codex also pauses when its work ends without meeting the goal.
 - Stopping Claude ends the current turn, but the goal stays set. Claude checks it
   again at the end of your next message.
 - Sending a new goal, or `/goal resume`, while the agent works stops the current

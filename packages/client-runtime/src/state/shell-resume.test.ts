@@ -1,4 +1,5 @@
 import {
+  type ExecutionEnvironmentDescriptor,
   ORCHESTRATION_V2_WS_METHODS,
   type OrchestrationV2ShellSnapshot,
   type OrchestrationV2ShellStreamItem,
@@ -25,16 +26,31 @@ import * as ShellSnapshotLoader from "./shellSnapshotHttp.ts";
 import { v2ThreadShell } from "./orchestrationV2TestFixtures.ts";
 import { LIVE_SHELL_SNAPSHOT, PREPARED, TARGET, session } from "./shellSyncTestFixtures.ts";
 
+// A server that names its shell flags in the descriptor.
+const FAMILY_DESCRIPTOR = {
+  serverVersion: "1.0.0",
+  capabilities: { shellThreadFamilies: true, shellOlderDone: true },
+} as ExecutionEnvironmentDescriptor;
+
 describe("resuming the shell on a new connection", () => {
   const makeHarness = Effect.fnUntraced(function* (options?: {
     readonly cached?: OrchestrationV2ShellSnapshot;
     readonly cachedOrigin?: Persistence.ShellCacheOrigin;
+    // A prepared connection whose descriptor names the shell flags, before any session exists.
+    readonly early?: {
+      readonly serverResumes: boolean;
+      // Each load waits for one `releaseLoads`.
+      readonly holdLoads?: boolean;
+    };
   }) {
     const supervisorState = yield* SubscriptionRef.make(AVAILABLE_CONNECTION_STATE);
     const activeSession = yield* SubscriptionRef.make<Option.Option<RpcSession.RpcSession>>(
       Option.none(),
     );
     const inputs = yield* SubscriptionRef.make<ReadonlyArray<number | undefined>>([]);
+    const subscribeInputs = yield* Ref.make<ReadonlyArray<object>>([]);
+    const loadOptions = yield* Queue.unbounded<ShellSnapshotLoader.ShellSnapshotOptions>();
+    const releases = yield* Queue.unbounded<void>();
     const httpFallbacks = yield* Ref.make<ReadonlyArray<boolean>>([]);
     const loaderCalls = yield* Ref.make(0);
     const saves = yield* SubscriptionRef.make<ReadonlyArray<number>>([]);
@@ -46,7 +62,11 @@ describe("resuming the shell on a new connection", () => {
       target: TARGET,
       state: supervisorState,
       session: activeSession,
-      prepared: yield* SubscriptionRef.make(Option.some(PREPARED)),
+      prepared: yield* SubscriptionRef.make(
+        Option.some(
+          options?.early === undefined ? PREPARED : { ...PREPARED, descriptor: FAMILY_DESCRIPTOR },
+        ),
+      ),
       connect: Effect.void,
       disconnect: Effect.void,
       retryNow: Effect.void,
@@ -81,10 +101,20 @@ describe("resuming the shell on a new connection", () => {
     });
     // Each HTTP load returns a fresh authoritative snapshot at 10, 20, 30, ...
     const snapshotLoader = ShellSnapshotLoader.ShellSnapshotLoader.of({
-      load: () =>
-        Ref.updateAndGet(loaderCalls, (count) => count + 1).pipe(
+      load: (_prepared, loadOption = {}) =>
+        Queue.offer(loadOptions, loadOption).pipe(
+          Effect.andThen(options?.early?.holdLoads === true ? Queue.take(releases) : Effect.void),
+          Effect.andThen(Ref.updateAndGet(loaderCalls, (count) => count + 1)),
           Effect.map((count) =>
-            Option.some({ ...LIVE_SHELL_SNAPSHOT, snapshotSequence: count * 10 }),
+            Option.some<ShellSnapshotLoader.ShellHttpAnswer>(
+              options?.early?.serverResumes === true && loadOption.resumeFrom !== undefined
+                ? { resumable: true }
+                : {
+                    ...LIVE_SHELL_SNAPSHOT,
+                    snapshotSequence: count * 10,
+                    projectIdentities: `identities-${count}`,
+                  },
+            ),
           ),
         ),
     });
@@ -99,7 +129,11 @@ describe("resuming the shell on a new connection", () => {
     );
 
     /** Connects a new session to a server run, and resolves once the client subscribed. */
-    const connect = Effect.fnUntraced(function* (generation: string | undefined) {
+    const connect = Effect.fnUntraced(function* (
+      generation: string | undefined,
+      flags: { readonly shellThreadFamilies?: boolean; readonly shellOlderDone?: boolean } = {},
+      awaitSubscribed = true,
+    ) {
       const events = yield* Queue.unbounded<OrchestrationV2ShellStreamItem, Cause.Done>();
       const client = {
         [ORCHESTRATION_V2_WS_METHODS.subscribeShell]: (input: {
@@ -111,6 +145,7 @@ describe("resuming the shell on a new connection", () => {
               ...captured,
               input.httpSnapshotFallback === true,
             ]).pipe(
+              Effect.andThen(Ref.update(subscribeInputs, (captured) => [...captured, input])),
               Effect.andThen(
                 SubscriptionRef.update(inputs, (captured) => [...captured, input.afterSequence]),
               ),
@@ -125,18 +160,22 @@ describe("resuming the shell on a new connection", () => {
           ...session(client),
           initialConfig: Effect.succeed({
             shellResumeCompletionMarker: true,
+            ...flags,
             ...(generation === undefined ? {} : { shellSyncGeneration: generation }),
           } as never),
         }),
       );
-      const subscribed = yield* SubscriptionRef.changes(inputs).pipe(
-        Stream.filter((captured) => captured.length > count),
-        Stream.runHead,
-      );
+      const subscribed = awaitSubscribed
+        ? yield* SubscriptionRef.changes(inputs).pipe(
+            Stream.filter((captured) => captured.length > count),
+            Stream.runHead,
+          )
+        : Option.some([]);
       return {
         events,
         afterSequence: Option.getOrThrow(subscribed).at(-1),
         httpSnapshotFallback: (yield* Ref.get(httpFallbacks)).at(-1),
+        input: (yield* Ref.get(subscribeInputs)).at(-1),
       };
     });
 
@@ -173,8 +212,11 @@ describe("resuming the shell on a new connection", () => {
       awaitSubscriptions,
       update,
       inputs,
+      subscribeInputs,
       httpFallbacks,
       loaderCalls,
+      loadOptions,
+      releaseLoads: Queue.offer(releases, undefined),
       saves,
       savedOrigins,
       wakeups,
@@ -246,6 +288,142 @@ describe("resuming the shell on a new connection", () => {
     omitOlderDone: false,
     snapshotAt: NOW - 60 * 60 * 1000,
   };
+  const FAMILY_FLAGS = { shellThreadFamilies: true, shellOlderDone: true };
+  const FAMILY_OMISSIONS = { omitIdleSubagents: true, omitOlderDone: true };
+
+  it.effect.each([
+    {
+      label: "no rows to resume",
+      origin: undefined,
+      serverResumes: false,
+      generation: "run-1",
+      flags: FAMILY_FLAGS,
+      loads: [FAMILY_OMISSIONS],
+      subscribes: { afterSequence: 10, knownProjectIdentities: "identities-1" },
+    },
+    {
+      label: "rows the server can replay from",
+      origin: { ...RUN_1_ORIGIN, ...FAMILY_OMISSIONS },
+      serverResumes: true,
+      generation: "run-1",
+      flags: FAMILY_FLAGS,
+      loads: [{ ...FAMILY_OMISSIONS, resumeFrom: 5 }],
+      subscribes: { afterSequence: 5, httpSnapshotFallback: true },
+    },
+    {
+      label: "rows the server cannot replay from",
+      origin: { ...RUN_1_ORIGIN, ...FAMILY_OMISSIONS },
+      serverResumes: false,
+      generation: "run-1",
+      flags: FAMILY_FLAGS,
+      loads: [{ ...FAMILY_OMISSIONS, resumeFrom: 5 }],
+      subscribes: { afterSequence: 10, knownProjectIdentities: "identities-1" },
+    },
+    {
+      // The server can replay, but only the config says the rows are from another server run.
+      label: "rows from an earlier server run",
+      origin: { ...RUN_1_ORIGIN, ...FAMILY_OMISSIONS },
+      serverResumes: true,
+      generation: "run-2",
+      flags: FAMILY_FLAGS,
+      loads: [{ ...FAMILY_OMISSIONS, resumeFrom: 5 }, FAMILY_OMISSIONS],
+      subscribes: { afterSequence: 20, knownProjectIdentities: "identities-2" },
+    },
+    {
+      // The rows loaded with the descriptor's omissions are replaced, never kept.
+      label: "a live config with other omissions",
+      origin: undefined,
+      serverResumes: false,
+      generation: "run-1",
+      flags: {},
+      loads: [FAMILY_OMISSIONS, { omitIdleSubagents: false, omitOlderDone: false }],
+      subscribes: { afterSequence: 20, knownProjectIdentities: "identities-2" },
+    },
+  ])(
+    "asks for the shell once the connection is prepared, with $label",
+    ({ origin, serverResumes, generation, flags, loads, subscribes }) =>
+      Effect.gen(function* () {
+        yield* TestClock.setTime(NOW);
+        const harness = yield* makeHarness({
+          cached: { ...LIVE_SHELL_SNAPSHOT, snapshotSequence: 5 },
+          ...(origin === undefined ? {} : { cachedOrigin: origin }),
+          early: { serverResumes },
+        });
+        expect(yield* Queue.take(harness.loadOptions)).toEqual(loads[0]);
+        if (!serverResumes) {
+          // The rows are on screen before a socket exists, and are not live yet.
+          const early = Option.getOrThrow(yield* harness.awaitSequence(10));
+          expect(early.status).not.toBe("live");
+          expect(early.generation).toBeGreaterThan(0);
+        }
+        expect(yield* SubscriptionRef.get(harness.inputs)).toEqual([]);
+
+        const first = yield* harness.connect(generation, flags);
+        expect(first.input).toMatchObject(subscribes);
+        for (const key of [
+          "afterSequence",
+          "httpSnapshotFallback",
+          "knownProjectIdentities",
+        ] as const) {
+          if (!(key in subscribes)) expect(first.input).not.toHaveProperty(key);
+        }
+        expect(yield* Queue.clear(harness.loadOptions)).toEqual(loads.slice(1));
+        expect(yield* Ref.get(harness.loaderCalls)).toBe(loads.length);
+
+        yield* Queue.offerAll(first.events, [
+          harness.update(subscribes.afterSequence + 1),
+          { kind: "synchronized" },
+        ]);
+        yield* harness.awaitSequence(subscribes.afterSequence + 1);
+        expect(Option.getOrThrow(yield* harness.awaitLive).status).toBe("live");
+      }),
+  );
+
+  it.effect(
+    "loads the shell only once the socket is ready on servers whose descriptor is silent",
+    () =>
+      Effect.gen(function* () {
+        const harness = yield* makeHarness();
+        expect(yield* Queue.size(harness.loadOptions)).toBe(0);
+        const first = yield* harness.connect("run-1", FAMILY_FLAGS);
+        expect(yield* Queue.clear(harness.loadOptions)).toEqual([FAMILY_OMISSIONS]);
+        expect(first.input).toMatchObject({
+          afterSequence: 10,
+          knownProjectIdentities: "identities-1",
+        });
+      }),
+  );
+
+  it.effect("resumes held rows on the socket when the HTTP answer does not come", () =>
+    Effect.gen(function* () {
+      yield* TestClock.setTime(NOW);
+      const harness = yield* makeHarness({
+        cached: { ...LIVE_SHELL_SNAPSHOT, snapshotSequence: 5 },
+        cachedOrigin: { ...RUN_1_ORIGIN, ...FAMILY_OMISSIONS },
+        early: { serverResumes: false, holdLoads: true },
+      });
+      yield* Queue.take(harness.loadOptions);
+      const first = yield* harness.connect("run-1", FAMILY_FLAGS, false);
+      expect(first.input).toBeUndefined();
+      yield* TestClock.adjust("2999 millis");
+      expect(yield* SubscriptionRef.get(harness.inputs)).toEqual([]);
+
+      yield* TestClock.adjust("1 millis");
+      expect(yield* harness.awaitSubscriptions(1)).toEqual([5]);
+      expect(yield* Ref.get(harness.httpFallbacks)).toEqual([true]);
+      yield* Queue.offerAll(first.events, [harness.update(12), { kind: "synchronized" }]);
+      yield* harness.awaitSequence(12);
+
+      // The late answer would be an older snapshot. It must not replace the rows the socket moved on.
+      yield* harness.releaseLoads;
+      yield* TestClock.adjust("1 millis");
+      expect(yield* Ref.get(harness.loaderCalls)).toBe(0);
+      expect(yield* SubscriptionRef.get(harness.shellState)).toMatchObject({
+        status: "live",
+        snapshot: Option.some({ snapshotSequence: 12 }),
+      });
+    }),
+  );
 
   it.effect("resumes cached rows that synchronized with the same server run", () =>
     Effect.gen(function* () {

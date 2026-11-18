@@ -87,6 +87,7 @@ import {
 } from "../ThreadStatusIndicators";
 import { InlineConfirmLabel, InlineConfirmTooltip } from "../InlineConfirm";
 import { Menu, MenuItem, MenuPopup, MenuSeparator, MenuTrigger } from "../ui/menu";
+import { Spinner } from "../ui/spinner";
 import { toastManager } from "../ui/toast";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import {
@@ -414,10 +415,11 @@ export function ThreadDetailsPrRow({
         : rowAction === "fix"
           ? {
               label: "Fix",
-              pendingLabel: "Preparing...",
+              pendingLabel: "Fix",
               pending: handoff === "findings",
               destructive: true,
-              suffix: null,
+              suffix:
+                handoff === "findings" ? <Spinner size="xs" aria-label="Preparing fix" /> : null,
               tooltip: "Draft a prompt in this thread for a subagent to fix the failing checks",
               controlProps: { onClick: () => draftSubagentHandoff("findings") },
             }

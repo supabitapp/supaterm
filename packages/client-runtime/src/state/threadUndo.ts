@@ -36,9 +36,10 @@ export function invalidate(kind: string, threadKey: string) {
 }
 
 export type ThreadUndoStep =
-  | { readonly action: "reopen" }
+  | { readonly action: "reopen"; readonly restoreReopenedAt?: string | null }
   | { readonly action: "unsnooze" }
   | { readonly action: "pin"; readonly orderKey?: string }
+  | { readonly action: "reorderActive"; readonly orderKey: string }
   | { readonly action: "snooze"; readonly snoozedUntil: string };
 
 export type ThreadUndoPlan = readonly [ThreadUndoStep, ...ThreadUndoStep[]];
@@ -48,6 +49,8 @@ export function planThreadUndo(
   thread?: {
     readonly pinnedAt?: string | null;
     readonly pinOrderKey?: string | null;
+    readonly activeOrderKey?: string | null;
+    readonly reopenedAt?: string | null;
     readonly snoozedUntil?: string | null;
     readonly doneOverride?: string | null;
   } | null,
@@ -67,7 +70,18 @@ export function planThreadUndo(
   if (thread?.doneOverride === "done" && thread.snoozedUntil != null) {
     return [{ action: "snooze", snoozedUntil: thread.snoozedUntil }];
   }
-  return [{ action: "reopen" }, ...(thread?.pinnedAt != null ? [pin] : []), ...snooze];
+  // Marking done clears a manual active position; pinned threads are placed by their pin instead.
+  const placement: ThreadUndoStep[] =
+    thread?.pinnedAt != null
+      ? [pin]
+      : thread?.activeOrderKey != null
+        ? [{ action: "reorderActive", orderKey: thread.activeOrderKey }]
+        : [];
+  const reopen: ThreadUndoStep =
+    thread == null
+      ? { action: "reopen" }
+      : { action: "reopen", restoreReopenedAt: thread.reopenedAt ?? null };
+  return [reopen, ...placement, ...snooze];
 }
 
 /** Resolves to undefined when every step was an expired snooze, leaving nothing to restore. */

@@ -1,4 +1,8 @@
-import { scopedThreadKey, scopeThreadRef } from "@supaterm/client-runtime/environment";
+import {
+  parseScopedThreadKey,
+  scopedThreadKey,
+  scopeThreadRef,
+} from "@supaterm/client-runtime/environment";
 import type { ScopedThreadRef } from "@supaterm/contracts";
 import { useNavigate } from "@tanstack/react-router";
 import { use, useEffect, useState } from "react";
@@ -15,7 +19,9 @@ import {
 } from "../composerDraftStore";
 import { useSidebarPendingFileDropStore } from "../sidebarPendingFileDropStore";
 import { useEnvironmentThreadRefs, useQuietThreadShell } from "../state/entities";
+import { appAtomRegistry } from "../rpc/atomRegistry";
 import { useEnvironmentShellStatus } from "../state/shell";
+import { threadFamilies } from "../state/threads";
 import { usePendingThreadCreation, useThreadOutboxLoaded } from "../state/threadOutbox";
 import { useThreadState } from "../state/entities";
 import {
@@ -24,6 +30,24 @@ import {
   resolveThreadRouteRenderState,
   type ThreadRouteTarget,
 } from "../threadRoutes";
+
+/**
+ * Keeps the family of an open thread the shell leaves out (an older Done thread) in the shell
+ * rows until the route leaves it, so every reader of its shell row finds it.
+ */
+function useOpenThreadFamily(threadRef: ScopedThreadRef | null, missing: boolean) {
+  const key = threadRef === null ? null : scopedThreadKey(threadRef);
+  // Sticks to the route thread, so the row the family brings in does not release it.
+  const [mountedKey, setMountedKey] = useState<string | null>(null);
+  const nextKey = missing || mountedKey === key ? key : null;
+  if (nextKey !== mountedKey) setMountedKey(nextKey);
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- holds the open thread's family in the thread family registry until the route leaves it
+  useEffect(() => {
+    const ref = mountedKey === null ? null : parseScopedThreadKey(mountedKey);
+    if (ref === null) return;
+    return threadFamilies.mount(appAtomRegistry, ref.environmentId, ref.threadId);
+  }, [mountedKey]);
+}
 
 /**
  * Unkeyed, and rendered from the `_chat` layout rather than the leaf routes, so navigating between
@@ -102,6 +126,7 @@ export function ThreadRouteView({ target, paneId }: { target: ThreadRouteTarget;
       ? target.threadRef
       : null;
   const unlistedThreadDetail = useThreadState(unlistedThreadRef);
+  useOpenThreadFamily(serverThreadRef, bootstrapComplete && unlistedThreadRef !== null);
   const renderState = resolveThreadRouteRenderState({
     bootstrapComplete,
     serverThreadExists: serverThreadShell !== null,

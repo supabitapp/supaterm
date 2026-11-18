@@ -3,10 +3,12 @@ import { createThreadVisitTracker } from "@supaterm/client-runtime/state/thread-
 import { type ScopedThreadRef } from "@supaterm/contracts";
 
 import { useIsPaneInputOwner } from "../../chatPanes/paneScope";
+import { environmentCatalog } from "../../connection/catalog";
 import { environmentThreadShells, threadEnvironment } from "../../state/threads";
 
 const threadVisitTracker = createThreadVisitTracker({
   threadShellAtom: environmentThreadShells.threadShellAtom,
+  sessionGenerationAtom: environmentCatalog.sessionGenerationAtom,
   visit: threadEnvironment.visit,
 });
 

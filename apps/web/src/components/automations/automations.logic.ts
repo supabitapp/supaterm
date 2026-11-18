@@ -14,6 +14,7 @@ import {
   type ThreadId,
 } from "@supaterm/contracts";
 import type { EnvironmentThreadShell } from "@supaterm/client-runtime/state/models";
+import { scheduleTimeZoneLabel } from "@supaterm/client-runtime/scheduled-task-time-zone";
 
 import {
   resolveProjectSettings,
@@ -90,13 +91,26 @@ const ONCE_FORMATTER = new Intl.DateTimeFormat(undefined, {
   timeStyle: "short",
 });
 
-/** Fixed times run on the environment's clock, which may not be this device's. */
-export function scheduleLabel(schedule: ScheduledTaskSchedule): string {
-  const summary = scheduleSummary(schedule);
-  return schedule.type === "fixed_time" ? `${summary} (environment time)` : summary;
+/**
+ * Fixed times run on the environment's clock, which may not be this device's. An older
+ * server sends no zone, so the label says the time is the environment's instead.
+ */
+export function scheduleLabel(
+  schedule: ScheduledTaskSchedule,
+  timeZone?: string,
+  runAt?: string | null,
+): string {
+  const summary = scheduleSummary(schedule, timeZone, runAt);
+  return schedule.type === "fixed_time" && scheduleTimeZoneLabel(timeZone, runAt) === undefined
+    ? `${summary} (environment time)`
+    : summary;
 }
 
-export function scheduleSummary(schedule: ScheduledTaskSchedule): string {
+export function scheduleSummary(
+  schedule: ScheduledTaskSchedule,
+  timeZone?: string,
+  runAt?: string | null,
+): string {
   if (schedule.type === "once") return `Once, ${ONCE_FORMATTER.format(new Date(schedule.runAt))}`;
   if (schedule.type === "interval") {
     const minutes = schedule.everyMs / 60_000;
@@ -113,7 +127,8 @@ export function scheduleSummary(schedule: ScheduledTaskSchedule): string {
       : weekdays.length === 5 && weekdays.every((day) => day >= 1 && day <= 5)
         ? "Weekdays"
         : weekdays.map((day) => WEEKDAY_LABELS[day]).join(", ");
-  return `${days} at ${schedule.timeOfDay}`;
+  const zone = scheduleTimeZoneLabel(timeZone, runAt);
+  return `${days} at ${schedule.timeOfDay}${zone === undefined ? "" : ` ${zone}`}`;
 }
 
 /** "in 5m" for upcoming instants, "5m ago" for past ones. */
@@ -197,6 +212,8 @@ export function toDateTimeLocalValue(date: Date): string {
 }
 
 export function scheduleDraftErrors(draft: DraftState) {
+  if (draft.scheduleMode === "fixed" && !draft.timeOfDay)
+    return [{ title: "Invalid run time", description: "Pick a time." }];
   if (draft.scheduleMode !== "once") return [];
   const runAt = new Date(draft.runAt);
   if (Number.isNaN(runAt.getTime()))
@@ -236,7 +253,7 @@ export function scheduleFromDraft(draft: DraftState): ScheduledTaskSchedule | nu
   const selectedEveryDay = draft.weekdays.size === 0 || draft.weekdays.size === 7;
   return {
     type: "fixed_time",
-    timeOfDay: draft.timeOfDay || "09:00",
+    timeOfDay: draft.timeOfDay,
     ...(selectedEveryDay ? {} : { weekdays: [...draft.weekdays].toSorted() }),
   };
 }

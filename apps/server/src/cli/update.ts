@@ -22,16 +22,24 @@ import packageJson from "../../package.json" with { type: "json" };
 import * as BootService from "../service/bootService.ts";
 import {
   ensurePinnedRuntimeInstalled,
+  findPosixLauncher,
   launcherOwnsVersionsDir,
-  pinnedRuntimeCommand,
   PinnedRuntimeInstallError,
   pinnedRuntimePaths,
+  PinnedRuntimePreflightBlockedError,
   pinnedRuntimeVersionsDir,
   prunePinnedRuntimes,
   recordPinnedRuntimeLauncher,
+  resolveLauncherPath,
   windowsShimTarget,
+  writePosixLauncher,
 } from "../service/pinnedRuntime.ts";
-import { compareExactServiceVersions, isExactServiceVersion } from "../service/serviceProtocol.ts";
+import {
+  compareExactServiceVersions,
+  isExactServiceVersion,
+  SERVICE_LAUNCHER_PROTOCOL,
+} from "../service/serviceProtocol.ts";
+import { runStagedServicePreflight } from "../service/servicePreflight.ts";
 import * as ProcessRunner from "../processRunner.ts";
 import { isProcessAlive, readPersistedServerRuntimeState } from "../serverRuntimeState.ts";
 import { projectLocationFlags, resolveCliAuthConfig } from "./config.ts";
@@ -40,6 +48,7 @@ import * as CliService from "./service.ts";
 
 export class CliUpdateError extends Schema.TaggedError<CliUpdateError>()("CliUpdateError", {
   reason: Schema.String,
+  cause: Schema.optional(Schema.Defect()),
 }) {
   override get message(): string {
     return this.reason;
@@ -135,44 +144,23 @@ export const repointLauncher = Effect.fn("cli.update.repoint_launcher")(function
     return Option.some(shimPath);
   }
 
-  const linkTarget = yield* fs.readLink(input.launchedAs).pipe(Effect.option);
-  if (Option.isNone(linkTarget)) return Option.none<string>();
-  const resolvedTarget = path.resolve(path.dirname(input.launchedAs), linkTarget.value);
-  if (!ownsTarget(resolvedTarget)) return Option.none<string>();
-  yield* remember(input.launchedAs);
-  const tempLink = `${input.launchedAs}.${process.pid}.tmp`;
-  yield* fs.symlink(input.targetEntryPath, tempLink).pipe(
-    Effect.andThen(fs.rename(tempLink, input.launchedAs)),
+  const launcher = yield* findPosixLauncher({ launchedAs: input.launchedAs, versionsDir });
+  if (launcher === undefined) return Option.none<string>();
+  yield* remember(launcher);
+  yield* writePosixLauncher({
+    launcher,
+    executable: input.targetEntryPath,
+    exclusive: false,
+  }).pipe(
     Effect.mapError(
-      () =>
+      (cause) =>
         new CliUpdateError({
-          reason: `Could not repoint the Supaterm launcher at ${input.launchedAs}.`,
+          reason: `Could not repoint the Supaterm launcher at ${launcher}.`,
+          cause,
         }),
     ),
   );
-  return Option.some(input.launchedAs);
-});
-
-/** Node preserves argv0's spelling; resolve bare names on PATH to find the launcher symlink. */
-export const resolveLauncherPath = Effect.gen(function* () {
-  const path = yield* Path.Path;
-  const fs = yield* FileSystem.FileSystem;
-  const invokedAs = yield* HostProcess.InvokedAs;
-  const cwd = yield* HostProcess.WorkingDirectory;
-  const environment = yield* HostProcess.Environment;
-  const platform = yield* HostProcess.Platform;
-  if (invokedAs.includes("/") || invokedAs.includes("\\")) {
-    return path.resolve(cwd, invokedAs);
-  }
-  const delimiter = platform === "win32" ? ";" : ":";
-  for (const directory of (environment["PATH"] ?? "").split(delimiter)) {
-    if (directory.length === 0) continue;
-    const candidate = path.join(directory, invokedAs);
-    if (yield* fs.exists(candidate).pipe(Effect.orElseSucceed(() => false))) {
-      return candidate;
-    }
-  }
-  return undefined;
+  return Option.some(launcher);
 });
 
 /** Windows executables see their own path, so find the installer shim by matching supaterm.cmd targets on PATH. */
@@ -243,6 +231,7 @@ export const updateCommand = Command.make("update", {
       return yield* runUpdate({
         baseDir: config.baseDir,
         logsDir: config.logsDir,
+        databasePath: config.dbPath,
         serverRuntimeStatePath: config.serverRuntimeStatePath,
         channel: Option.getOrUndefined(flags.channel),
         requestedVersion: Option.getOrUndefined(flags.version),
@@ -275,6 +264,7 @@ const findForegroundServer = Effect.fn("cli.update.find_foreground_server")(func
 export const runUpdate = Effect.fn("cli.update.run")(function* (input: {
   readonly baseDir: string;
   readonly logsDir: string;
+  readonly databasePath: string;
   readonly serverRuntimeStatePath: string;
   readonly channel: CliReleaseChannel | undefined;
   readonly requestedVersion: string | undefined;
@@ -417,31 +407,37 @@ export const runUpdate = Effect.fn("cli.update.run")(function* (input: {
     platform,
     arch,
     releaseBaseUrl: environment[CLI_RELEASE_BASE_URL_ENV]?.trim() || undefined,
-    validate: (paths) =>
-      runner
-        .run({
-          command: pinnedRuntimeCommand(paths).command,
-          args: [...pinnedRuntimeCommand(paths).args, "--version"],
-          timeout: Duration.seconds(30),
-        })
-        .pipe(
-          Effect.mapError(
-            (cause) =>
-              new PinnedRuntimeInstallError({ step: "verifying the downloaded Supaterm", cause }),
-          ),
-          Effect.flatMap((result) =>
-            result.code === 0 && /\bv(\S+)\s*$/.exec(result.stdout)?.[1] === targetVersion
-              ? Effect.void
-              : Effect.fail(
-                  new PinnedRuntimeInstallError({
-                    step: "verifying the downloaded Supaterm",
-                    exitCode: Number(result.code),
+    validate: (runtime) =>
+      runStagedServicePreflight({
+        runner,
+        runtime,
+        targetVersion,
+        databasePath: input.databasePath,
+        // The target then runs under its own launcher, so only its database check matters.
+        // Older builds may predate protocol 4, and every build since the bump accepts 3.
+        launcherProtocol:
+          compareExactServiceVersions(targetVersion, currentVersion) < 0
+            ? 3
+            : SERVICE_LAUNCHER_PROTOCOL,
+      }).pipe(
+        Effect.catchTags({
+          PinnedRuntimeInstallError: (error) =>
+            Effect.fail(
+              error.exitCode === undefined
+                ? error
+                : new PinnedRuntimePreflightBlockedError({
+                    version: targetVersion,
+                    reason: `supaterm@${targetVersion} could not confirm it supports this database (its check exited with code ${error.exitCode}), so supaterm did not switch to it.`,
                   }),
-                ),
-          ),
-        ),
+            ),
+        }),
+      ),
   }).pipe(
     Effect.ensuring(Effect.sync(progress.finish)),
+    Effect.catchTags({
+      PinnedRuntimePreflightBlockedError: (error) =>
+        Effect.fail(new CliUpdateError({ reason: error.reason })),
+    }),
     Effect.catchIf(
       (error): error is PinnedRuntimeInstallError =>
         error._tag === "PinnedRuntimeInstallError" &&

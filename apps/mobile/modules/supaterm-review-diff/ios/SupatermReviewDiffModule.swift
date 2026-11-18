@@ -88,6 +88,7 @@ public class SupatermReviewDiffModule: Module {
         "onToggleViewedFile",
         "onPressLine",
         "onToggleComment",
+        "onPressNotice",
         "onPullToRefresh"
       )
 

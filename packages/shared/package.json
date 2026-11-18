@@ -7,6 +7,14 @@
       "types": "./src/markdownImageEmbeds.ts",
       "import": "./src/markdownImageEmbeds.ts"
     },
+    "./png": {
+      "types": "./src/png.ts",
+      "import": "./src/png.ts"
+    },
+    "./pullRequestAnchor": {
+      "types": "./src/pullRequestAnchor.ts",
+      "import": "./src/pullRequestAnchor.ts"
+    },
     "./changedFileKind": {
       "types": "./src/changedFileKind.ts",
       "import": "./src/changedFileKind.ts"
@@ -94,6 +102,10 @@
     "./shell": {
       "types": "./src/shell.ts",
       "import": "./src/shell.ts"
+    },
+    "./envTrampoline": {
+      "types": "./src/envTrampoline.ts",
+      "import": "./src/envTrampoline.ts"
     },
     "./semver": {
       "types": "./src/semver.ts",
@@ -239,6 +251,10 @@
       "types": "./src/composerTrigger.ts",
       "import": "./src/composerTrigger.ts"
     },
+    "./triagePrompt": {
+      "types": "./src/triagePrompt.ts",
+      "import": "./src/triagePrompt.ts"
+    },
     "./pullRequestComposerTrigger": {
       "types": "./src/pullRequestComposerTrigger.ts",
       "import": "./src/pullRequestComposerTrigger.ts"
@@ -335,6 +351,10 @@
       "types": "./src/testing/symlinks.ts",
       "import": "./src/testing/symlinks.ts"
     },
+    "./databaseMigrationLog": {
+      "types": "./src/databaseMigrationLog.ts",
+      "import": "./src/databaseMigrationLog.ts"
+    },
     "./httpReadiness": {
       "types": "./src/httpReadiness.ts",
       "import": "./src/httpReadiness.ts"
@@ -371,6 +391,10 @@
       "types": "./src/thirdPartyLicenses.ts",
       "import": "./src/thirdPartyLicenses.ts"
     },
+    "./commandOutput": {
+      "types": "./src/commandOutput.ts",
+      "import": "./src/commandOutput.ts"
+    },
     "./claudeCompaction": {
       "types": "./src/claudeCompaction.ts",
       "import": "./src/claudeCompaction.ts"
@@ -402,6 +426,10 @@
     "./cliRelease": {
       "types": "./src/cliRelease.ts",
       "import": "./src/cliRelease.ts"
+    },
+    "./diffCutLines": {
+      "types": "./src/diffCutLines.ts",
+      "import": "./src/diffCutLines.ts"
     },
     "./gitPatchPath": {
       "types": "./src/gitPatchPath.ts",
@@ -531,9 +559,17 @@
       "types": "./src/markdownMath.ts",
       "import": "./src/markdownMath.ts"
     },
+    "./url": {
+      "types": "./src/url.ts",
+      "import": "./src/url.ts"
+    },
     "./cloneUrl": {
       "types": "./src/cloneUrl.ts",
       "import": "./src/cloneUrl.ts"
+    },
+    "./pinOrderKey": {
+      "types": "./src/pinOrderKey.ts",
+      "import": "./src/pinOrderKey.ts"
     }
   },
   "scripts": {
@@ -546,10 +582,12 @@
     "@noble/hashes": "catalog:",
     "@supaterm/contracts": "workspace:*",
     "effect": "catalog:",
+    "get-east-asian-width": "^1.6.0",
     "mdast-util-directive": "catalog:",
     "mdast-util-to-hast": "^13.2.1",
     "micromark-extension-directive": "catalog:",
     "micromark-util-character": "catalog:",
+    "micromark-util-decode-string": "catalog:",
     "property-information": "^7.2.0",
     "rehype-raw": "catalog:",
     "rehype-sanitize": "catalog:",

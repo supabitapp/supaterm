@@ -1,3 +1,4 @@
+import { parsePullRequestAnchor } from "@supaterm/shared/pullRequestAnchor";
 import { resolveChangeRequestLinkTarget } from "@supaterm/client-runtime/change-request-links";
 import type { EnvironmentProject } from "@supaterm/client-runtime/state/shell";
 import { EnvironmentId, ProjectId } from "@supaterm/contracts";
@@ -24,6 +25,7 @@ export function nativePullRequestDestination(
     projectId: String(target.project.id),
     repository: target.repository,
     number: target.number,
+    ...(parsePullRequestAnchor(url) ? { navigationUrl: url } : {}),
     host: target.host,
   };
 }

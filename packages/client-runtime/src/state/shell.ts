@@ -1,6 +1,7 @@
 import {
   ORCHESTRATION_V2_WS_METHODS,
   type EnvironmentId,
+  type ExecutionEnvironmentDescriptor,
   type OrchestrationV2ShellSnapshot,
   type OrchestrationV2ShellStreamItem,
   type OrchestrationV2ThreadShell,
@@ -11,6 +12,7 @@ import {
 import * as Cause from "effect/Cause";
 import * as Clock from "effect/Clock";
 import * as Effect from "effect/Effect";
+import * as Exit from "effect/Exit";
 import * as Fiber from "effect/Fiber";
 import * as Option from "effect/Option";
 import * as Queue from "effect/Queue";
@@ -18,16 +20,17 @@ import * as Ref from "effect/Ref";
 import * as Semaphore from "effect/Semaphore";
 import * as Stream from "effect/Stream";
 import * as SubscriptionRef from "effect/SubscriptionRef";
+import * as SynchronizedRef from "effect/SynchronizedRef";
 import { AsyncResult, Atom } from "effect/reactivity";
 
 import * as EnvironmentRegistry from "../connection/registry.ts";
-import { connectionProjectionPhase } from "../connection/model.ts";
+import { connectionProjectionPhase, type PreparedConnection } from "../connection/model.ts";
 import * as EnvironmentSupervisor from "../connection/supervisor.ts";
 import * as ConnectionWakeups from "../connection/wakeups.ts";
 import { safeErrorLogAttributes } from "../errors/safeLog.ts";
 import * as Persistence from "../platform/persistence.ts";
 import { runCachePersistence } from "./cachePersistence.ts";
-import { subscribeDynamicWithSession } from "../rpc/client.ts";
+import { subscribeDynamicWithSession, subscriptionRetryDelay } from "../rpc/client.ts";
 import type { RpcSession } from "../rpc/session.ts";
 import * as ShellSnapshotLoader from "./shellSnapshotHttp.ts";
 import type { DeferredShellSnapshot } from "./shellPullRequests.ts";
@@ -52,6 +55,11 @@ export type EnvironmentShellStatus = "empty" | "cached" | "synchronizing" | "liv
 // changes, so a new session resumes only while the last authoritative snapshot is
 // younger than this, and otherwise reloads it.
 const SHELL_RESUME_MAX_SNAPSHOT_AGE_MS = 6 * 60 * 60 * 1000;
+
+// How long a ready socket waits for the early HTTP answer before it resumes held rows itself.
+// The supervisor's quick probe allows a live host the same time. A proxy that drops `/api`
+// without an answer would otherwise hold each connect for the full HTTP timeout.
+const EARLY_LOAD_GRACE = "3 seconds";
 
 export interface EnvironmentShellState {
   readonly snapshot: Option.Option<OrchestrationV2ShellSnapshot>;
@@ -93,11 +101,66 @@ function withoutDeferredPullRequests(value: DeferredShellSnapshot): Orchestratio
 
 const SHELL_SYNCHRONIZATION_ERROR_MESSAGE = "Could not synchronize environment data.";
 
-interface ShellSubscription {
-  readonly session: RpcSession;
-  readonly generation: string | null;
+interface ShellOmissions {
   readonly omitIdleSubagents: boolean;
   readonly omitOlderDone: boolean;
+}
+
+interface ShellSubscription extends ShellOmissions {
+  readonly session: RpcSession;
+  readonly generation: string | null;
+}
+
+function shellOmissions(flags: {
+  readonly shellThreadFamilies?: boolean;
+  readonly shellOlderDone?: boolean;
+}): ShellOmissions {
+  const omitIdleSubagents = flags.shellThreadFamilies === true;
+  return { omitIdleSubagents, omitOlderDone: flags.shellOlderDone === true && omitIdleSubagents };
+}
+
+/** Null for a server whose descriptor does not name its shell flags; only its config does. */
+function descriptorShellOmissions(
+  descriptor: ExecutionEnvironmentDescriptor | undefined,
+): ShellOmissions | null {
+  if (descriptor?.capabilities.shellThreadFamilies === undefined) return null;
+  return shellOmissions(descriptor.capabilities);
+}
+
+function sameOmissions(left: ShellOmissions, right: ShellOmissions): boolean {
+  return (
+    left.omitIdleSubagents === right.omitIdleSubagents && left.omitOlderDone === right.omitOlderDone
+  );
+}
+
+/** Whether rows that synchronized from `origin` may resume; the server run is checked apart. */
+function originMayResume(
+  origin: Persistence.ShellCacheOrigin | undefined,
+  omissions: ShellOmissions,
+  now: number,
+): origin is Persistence.ShellCacheOrigin {
+  if (origin === undefined || !sameOmissions(origin, omissions)) return false;
+  const age = now - origin.snapshotAt;
+  return age >= 0 && age < SHELL_RESUME_MAX_SNAPSHOT_AGE_MS;
+}
+
+function sameConnection(left: PreparedConnection, right: PreparedConnection): boolean {
+  const keys = Object.keys({ ...left, ...right }) as Array<keyof PreparedConnection>;
+  return keys.every((key) => key === "httpAuthorization" || left[key] === right[key]);
+}
+
+type HttpShellOutcome =
+  | { readonly kind: "snapshot"; readonly projectIdentities: string | undefined }
+  /** The server can replay from the rows the client holds. */
+  | { readonly kind: "resumable" }
+  | { readonly kind: "failed" };
+
+interface EarlyShellLoad {
+  readonly prepared: PreparedConnection;
+  readonly omissions: ShellOmissions;
+  readonly fiber: Fiber.Fiber<HttpShellOutcome>;
+  // One subscription uses a load; a later one on the same connection decides again.
+  readonly claimed: boolean;
 }
 
 interface LiveShell {
@@ -145,6 +208,7 @@ export const makeEnvironmentShellState = Effect.fn("EnvironmentShellState.make")
   // Set while the rows may resume a new session; follows `resumeProgress`.
   const origin = yield* Ref.make(cachedOrigin);
   const reloadRequests = yield* Queue.unbounded<void>();
+  let defectRetries = 0;
   const latestLive = yield* Ref.make<Option.Option<LiveShell>>(Option.none());
   const persistence = yield* Queue.sliding<OrchestrationV2ShellSnapshot>(1);
 
@@ -240,10 +304,15 @@ export const makeEnvironmentShellState = Effect.fn("EnvironmentShellState.make")
   const snapshotWriteLock = yield* Semaphore.make(1);
 
   const applyItems = Effect.fn("EnvironmentShellState.applyItems")(function* (
-    entries: ReadonlyArray<readonly [RpcSession, OrchestrationV2ShellStreamItem]>,
+    /** A null source is an HTTP snapshot no session asked for yet. */
+    entries: ReadonlyArray<readonly [RpcSession | null, OrchestrationV2ShellStreamItem]>,
+    /** Set for an HTTP snapshot: the rows that still wait for their pull request links. */
     pendingLinkIds?: ReadonlySet<ThreadId>,
   ) {
     const initial = yield* SubscriptionRef.get(state);
+    // No socket has confirmed an HTTP snapshot, so it never makes the shell live.
+    const fromHttp = pendingLinkIds !== undefined;
+    const disconnected = initial.status === "empty" || initial.status === "cached";
     let waiting = yield* Ref.get(awaitingCompletion);
     let progress = yield* Ref.get(resumeProgress);
     const subscription = yield* Ref.get(activeSubscription);
@@ -282,6 +351,8 @@ export const makeEnvironmentShellState = Effect.fn("EnvironmentShellState.make")
       deltas = [];
     };
     for (const [source, item] of entries) {
+      // Items a replaced session still had in flight must not land on rows loaded since.
+      if (source !== null && source !== subscription?.session) continue;
       if (item.kind === "unknown-item") {
         progress = advanceShellResume(progress, item, null);
         continue;
@@ -331,7 +402,8 @@ export const makeEnvironmentShellState = Effect.fn("EnvironmentShellState.make")
       );
       next = {
         snapshot: Option.some(nextSnapshot),
-        status: waiting ? "synchronizing" : "live",
+        status:
+          fromHttp && disconnected ? "cached" : waiting || fromHttp ? "synchronizing" : "live",
         error: Option.none(),
         generation: authoritative ? ++lastShellGeneration : next.generation,
         removedAt: authoritative ? EMPTY_REMOVALS : next.removedAt,
@@ -347,9 +419,7 @@ export const makeEnvironmentShellState = Effect.fn("EnvironmentShellState.make")
         ? undefined
         : previousOrigin?.generation === progress.generation &&
             previousOrigin.snapshotAt === snapshotAt &&
-            (subscription === null ||
-              (previousOrigin.omitIdleSubagents === subscription.omitIdleSubagents &&
-                previousOrigin.omitOlderDone === subscription.omitOlderDone))
+            (subscription === null || sameOmissions(previousOrigin, subscription))
           ? previousOrigin
           : subscription === null
             ? undefined
@@ -455,6 +525,119 @@ export const makeEnvironmentShellState = Effect.fn("EnvironmentShellState.make")
     yield* fillDeferredPullRequests(cached.value, cachedSnapshot.value);
   }
 
+  const applyHttpSnapshot = Effect.fnUntraced(function* (
+    loaded: ShellSnapshotLoader.ShellHttpSnapshot,
+    source: RpcSession | null,
+  ) {
+    const { projectIdentities: _identities, ...deferred } = loaded;
+    yield* cancelActiveFill;
+    const previous = yield* SubscriptionRef.get(state);
+    const snapshot = reuseUnchangedThreadShells(
+      Option.getOrNull(previous.snapshot),
+      withoutDeferredPullRequests(deferred),
+    );
+    const pendingLinkIds = new Set(
+      deferred.loadPullRequests === undefined ? [] : deferred.threads.map((thread) => thread.id),
+    );
+    yield* applyItems([[source, { kind: "snapshot", snapshot }]], pendingLinkIds);
+    const current = yield* SubscriptionRef.get(state);
+    if (Option.isSome(current.snapshot)) {
+      yield* fillDeferredPullRequests(deferred, current.snapshot.value);
+    }
+  }, Effect.uninterruptible);
+
+  /**
+   * One request to the HTTP shell route. Held rows that may resume name their cursor, so the
+   * server answers that they still can, in a few bytes, or sends the snapshot that replaces them.
+   */
+  const loadOverHttp = Effect.fn("EnvironmentShellState.loadOverHttp")(function* (
+    prepared: PreparedConnection,
+    omissions: ShellOmissions,
+    resumeFrom: number | undefined,
+    source: RpcSession | null,
+  ) {
+    // HTTP and the socket must agree, or omitted children would return through the socket.
+    const answer = yield* snapshotLoader.load(prepared, {
+      ...omissions,
+      ...(resumeFrom === undefined ? {} : { resumeFrom }),
+    });
+    if (Option.isNone(answer)) return { kind: "failed" } satisfies HttpShellOutcome;
+    if ("resumable" in answer.value) return { kind: "resumable" } satisfies HttpShellOutcome;
+    yield* applyHttpSnapshot(answer.value, source);
+    return {
+      kind: "snapshot",
+      projectIdentities: answer.value.projectIdentities,
+    } satisfies HttpShellOutcome;
+  });
+
+  // A server whose descriptor names its shell flags is asked for the shell as soon as the
+  // connection is prepared, while the socket opens and the config downloads. The subscription
+  // claims that load, and reloads when the live config disagrees with the descriptor. The
+  // server run is only in the config, so a `resumable` answer is checked against it there.
+  const earlyLoad = yield* SynchronizedRef.make<EarlyShellLoad | null>(null);
+  const useEarlyLoad = (prepared: PreparedConnection | null, claim: boolean) =>
+    SynchronizedRef.modifyEffect(
+      earlyLoad,
+      Effect.fnUntraced(function* (current) {
+        // A rotated credential replaces the prepared connection of a session that stays up.
+        if (current !== null && prepared !== null && sameConnection(current.prepared, prepared)) {
+          const next = { ...current, prepared, claimed: current.claimed || claim };
+          // A claimed load that still runs is handed out again. A second request could
+          // answer first, and this one would then replace its rows under a passed cursor.
+          const done = current.fiber.pollUnsafe() !== undefined;
+          return [current.claimed && done ? null : current, next] as const;
+        }
+        if (current !== null) yield* Fiber.interrupt(current.fiber);
+        const omissions = descriptorShellOmissions(prepared?.descriptor);
+        if (prepared === null || omissions === null) return [null, null] as const;
+        // Items a closed session still has in flight must not land on the rows this loads.
+        yield* Ref.set(activeSubscription, null);
+        const held = yield* SubscriptionRef.get(state);
+        const resumeFrom =
+          Option.isSome(held.snapshot) &&
+          originMayResume(yield* Ref.get(origin), omissions, yield* Clock.currentTimeMillis)
+            ? held.snapshot.value.snapshotSequence
+            : undefined;
+        const fiber = yield* loadOverHttp(prepared, omissions, resumeFrom, null).pipe(
+          Effect.forkIn(stateScope),
+        );
+        const next: EarlyShellLoad = { prepared, omissions, fiber, claimed: claim };
+        return [next, next] as const;
+      }),
+    ).pipe(
+      // Covers the store too. A cancel that lands during the wait above would otherwise take
+      // effect before the store, and the load just started would run on with no record.
+      Effect.uninterruptible,
+    );
+  /**
+   * The subscription waits for the early load, so its answer is applied before the socket
+   * moves the rows on. Held rows that can resume wait a limited time only: after that the
+   * load is ended, so a late answer applies nothing, and the socket resumes them.
+   */
+  const awaitEarlyLoad = Effect.fnUntraced(function* (
+    early: EarlyShellLoad,
+    heldRowsResume: boolean,
+  ) {
+    if (!heldRowsResume) return yield* Fiber.await(early.fiber);
+    const answered = yield* Fiber.await(early.fiber).pipe(Effect.timeoutOption(EARLY_LOAD_GRACE));
+    if (Option.isSome(answered)) return answered.value;
+    // Returns after an answer that is being applied has finished, so the cursor below is read
+    // from rows that no longer change under it.
+    yield* Fiber.interrupt(early.fiber);
+    return yield* Fiber.await(early.fiber);
+  });
+
+  yield* SubscriptionRef.changes(supervisor.prepared).pipe(
+    // Reads the connection of this moment: a change handled late must not start a load for a
+    // connection that ended, which would also drop the items of the session that replaced it.
+    Stream.runForEach(() =>
+      SubscriptionRef.get(supervisor.prepared).pipe(
+        Effect.flatMap((prepared) => useEarlyLoad(Option.getOrNull(prepared), false)),
+      ),
+    ),
+    Effect.forkScoped,
+  );
+
   const resubscriptions = Stream.merge(
     Stream.fromQueue(reloadRequests),
     Option.match(wakeups, {
@@ -471,38 +654,43 @@ export const makeEnvironmentShellState = Effect.fn("EnvironmentShellState.make")
       Effect.fn("EnvironmentShellState.makeSubscribeInput")(function* (session) {
         const config = Option.getOrUndefined(yield* session.initialConfig.pipe(Effect.option));
         const generation = config?.shellSyncGeneration ?? null;
-        const omitIdleSubagents = config?.shellThreadFamilies === true;
-        const omitOlderDone = config?.shellOlderDone === true && omitIdleSubagents;
-        yield* Ref.set(activeSubscription, {
-          session,
-          generation,
-          omitIdleSubagents,
-          omitOlderDone,
-        });
-        yield* Ref.set(awaitingCompletion, true);
-        yield* setSynchronizing;
-
+        const omissions = shellOmissions(config ?? {});
         // The same live session, or a new session to the same server run after these rows (in
         // memory or cached) synchronized from a recent snapshot with the same omissions, resumes
-        // from the cursor. Otherwise reload the HTTP snapshot so a valid cursor cannot preserve
-        // incomplete cached data.
-        const resumable = yield* Ref.get(origin);
-        const snapshotAge =
-          resumable === undefined ? null : (yield* Clock.currentTimeMillis) - resumable.snapshotAt;
-        let canResume =
-          (yield* Ref.get(lastAuthoritativeSession)) === session ||
-          (resumable !== undefined &&
-            snapshotAge !== null &&
-            resumable.generation === generation &&
-            resumable.omitIdleSubagents === omitIdleSubagents &&
-            resumable.omitOlderDone === omitOlderDone &&
-            snapshotAge >= 0 &&
-            snapshotAge < SHELL_RESUME_MAX_SNAPSHOT_AGE_MS);
-        let current = yield* SubscriptionRef.get(state);
-        // Only rows the client already held may be refused; a cursor from the snapshot just
-        // loaded falls back to the socket snapshot, so a refusal cannot loop.
-        const resumingHeldRows = canResume && Option.isSome(current.snapshot);
-        if (!canResume || Option.isNone(current.snapshot)) {
+        // from the cursor.
+        const heldRowsResume = Effect.gen(function* () {
+          if (Option.isNone((yield* SubscriptionRef.get(state)).snapshot)) return false;
+          if ((yield* Ref.get(lastAuthoritativeSession)) === session) return true;
+          const resumable = yield* Ref.get(origin);
+          return (
+            originMayResume(resumable, omissions, yield* Clock.currentTimeMillis) &&
+            resumable.generation === generation
+          );
+        });
+        const early = yield* useEarlyLoad(
+          Option.getOrNull(yield* SubscriptionRef.get(supervisor.prepared)),
+          true,
+        );
+        const earlyExit =
+          early === null ? null : yield* awaitEarlyLoad(early, yield* heldRowsResume);
+        // Rows loaded with the descriptor's omissions are not kept when the live config differs.
+        let loaded =
+          early !== null &&
+          earlyExit !== null &&
+          Exit.isSuccess(earlyExit) &&
+          sameOmissions(early.omissions, omissions)
+            ? earlyExit.value
+            : null;
+        yield* Ref.set(activeSubscription, { session, generation, ...omissions });
+        yield* Ref.set(awaitingCompletion, true);
+        yield* setSynchronizing;
+        if (loaded?.kind === "snapshot") yield* Ref.set(lastAuthoritativeSession, session);
+
+        // Anything that cannot resume reloads the HTTP snapshot so a valid cursor cannot
+        // preserve incomplete cached data. A `resumable` answer is checked again too: the
+        // server run, or the age of the rows, can rule them out.
+        const resumingHeldRows = loaded?.kind !== "snapshot" && (yield* heldRowsResume);
+        if (!resumingHeldRows && loaded?.kind !== "snapshot") {
           const prepared = yield* SubscriptionRef.get(supervisor.prepared).pipe(
             Effect.flatMap(
               Option.match({
@@ -517,52 +705,52 @@ export const makeEnvironmentShellState = Effect.fn("EnvironmentShellState.make")
               }),
             ),
           );
-          // HTTP and the socket must agree, or omitted children would return through the socket.
-          const httpSnapshot = yield* snapshotLoader.load(prepared, {
-            omitIdleSubagents,
-            omitOlderDone,
-          });
-          if (Option.isSome(httpSnapshot)) {
-            yield* cancelActiveFill;
-            const previous = yield* SubscriptionRef.get(state);
-            const snapshot = reuseUnchangedThreadShells(
-              Option.getOrNull(previous.snapshot),
-              withoutDeferredPullRequests(httpSnapshot.value),
-            );
-            const pendingLinkIds = new Set(
-              httpSnapshot.value.loadPullRequests === undefined
-                ? []
-                : httpSnapshot.value.threads.map((thread) => thread.id),
-            );
-            yield* applyItems([[session, { kind: "snapshot", snapshot }]], pendingLinkIds);
-            canResume = true;
-            current = yield* SubscriptionRef.get(state);
-            if (Option.isSome(current.snapshot)) {
-              yield* fillDeferredPullRequests(httpSnapshot.value, current.snapshot.value);
-            }
-          }
+          loaded = yield* loadOverHttp(prepared, omissions, undefined, session);
         }
 
+        const current = yield* SubscriptionRef.get(state);
         const omission = {
-          ...(omitIdleSubagents ? { omitIdleSubagents: true as const } : {}),
-          ...(omitOlderDone ? { omitOlderDone: true as const } : {}),
+          ...(omissions.omitIdleSubagents ? { omitIdleSubagents: true as const } : {}),
+          ...(omissions.omitOlderDone ? { omitOlderDone: true as const } : {}),
         };
-        if (!canResume || Option.isNone(current.snapshot)) {
+        if (Option.isNone(current.snapshot) || !(resumingHeldRows || loaded?.kind === "snapshot")) {
           return { ...omission, requestCompletionMarker: true as const };
         }
         return {
           afterSequence: current.snapshot.value.snapshotSequence,
+          // Only rows the client already held may be refused; a cursor from the snapshot just
+          // loaded falls back to the socket snapshot, so a refusal cannot loop.
           ...(resumingHeldRows ? { httpSnapshotFallback: true as const } : {}),
+          // No stream item has touched the snapshot just loaded, so its identities still hold.
+          ...(loaded?.kind === "snapshot" && loaded.projectIdentities !== undefined
+            ? { knownProjectIdentities: loaded.projectIdentities }
+            : {}),
           ...omission,
           requestCompletionMarker: true as const,
         };
       }),
       {
+        // A defect parks the stream, so resubscribe after a backoff rather than wait for a wakeup.
+        onDefect: (cause) =>
+          setStreamError(Cause.squash(cause)).pipe(
+            Effect.andThen(Effect.sleep(subscriptionRetryDelay("250 millis", defectRetries++))),
+            Effect.andThen(Queue.offer(reloadRequests, undefined)),
+          ),
         onExpectedFailure: (cause) => setStreamError(Cause.squash(cause)),
         retryExpectedFailureAfter: "250 millis",
         resubscribe: resubscriptions,
       },
-    ).pipe(Stream.runForEachArray((entries) => applyItems(entries))),
+    ).pipe(
+      Stream.runForEachArray((entries) =>
+        applyItems(entries).pipe(
+          Effect.andThen(
+            Effect.sync(() => {
+              defectRetries = 0;
+            }),
+          ),
+        ),
+      ),
+    ),
   );
   yield* SubscriptionRef.changes(supervisor.state).pipe(
     Stream.runForEach((connectionState) => {
@@ -739,3 +927,4 @@ export * from "./shellReducer.ts";
 export * from "./shellPullRequests.ts";
 export * as ShellSnapshotLoader from "./shellSnapshotHttp.ts";
 export * from "./snapshots.ts";
+export * from "./steadyShells.ts";

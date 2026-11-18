@@ -15,6 +15,7 @@ import { buildPairingUrl } from "@supaterm/shared/remote";
 import { relayName } from "@supaterm/shared/relay/name";
 import * as HostProcess from "@supaterm/shared/HostProcess";
 import * as NodeOS from "node:os";
+import { formatHostForUrl, isWildcardHost } from "@supaterm/shared/hostClassification";
 import { DEFAULT_SIGNAL_EXPORT } from "@supaterm/shared/observability";
 import { buildPairingAppLink } from "@supaterm/shared/remote";
 import * as OtelEnvironment from "@supaterm/shared/otelEnvironment";
@@ -22,6 +23,7 @@ import {
   buildTailscaleHttpsBaseUrl,
   DEFAULT_TAILSCALE_SERVE_PORT,
   ensureTailscaleServe,
+  readTailscaleServeRootHolder,
   readTailscaleStatus,
 } from "@supaterm/tailscale";
 import * as Config from "effect/Config";
@@ -47,9 +49,7 @@ import {
   readPersistedServerRuntimeState,
 } from "../serverRuntimeState.ts";
 import {
-  formatHostForUrl,
   isLoopbackHost,
-  isWildcardHost,
   renderTerminalQrCode,
   resolveHeadlessConnectionString,
 } from "../startupAccess.ts";
@@ -137,6 +137,24 @@ export class TailscaleServeFailedError extends Schema.TaggedError<TailscaleServe
 ) {
   override get message(): string {
     return `tailscale serve failed for HTTPS port ${String(this.servePort)}. Run \`tailscale serve --https=${String(this.servePort)} --bg <local-url>\` by hand to see why.`;
+  }
+}
+
+export class TailscaleOperatorRequiredError extends Schema.TaggedError<TailscaleOperatorRequiredError>()(
+  "TailscaleOperatorRequiredError",
+  { cause: Schema.Defect() },
+) {
+  override get message(): string {
+    return "Tailscale refused the Serve config because this user is not its operator. Run `sudo tailscale set --operator=$USER` once, then run this command again.";
+  }
+}
+
+export class TailscaleServeTargetRefusedError extends Schema.TaggedError<TailscaleServeTargetRefusedError>()(
+  "TailscaleServeTargetRefusedError",
+  { localHost: Schema.String },
+) {
+  override get message(): string {
+    return `This Tailscale install can only proxy to localhost, and the server listens on ${this.localHost}. Restart it with \`--host 127.0.0.1\` or \`--host 0.0.0.0\`, then run this command again.`;
   }
 }
 
@@ -423,14 +441,33 @@ const resolveTailscalePairingBase = Effect.fn("pair.resolveTailscalePairingBase"
     if (isDevServerNotProxiableError(localTarget)) {
       return yield* localTarget;
     }
+    // The probe above fails whenever this host cannot reach its own MagicDNS name, so the Serve
+    // config, not the probe, decides whether the port is free.
+    const platform = yield* HostProcess.Platform;
+    const holder = yield* readTailscaleServeRootHolder(input.servePort, {
+      host: (localTarget.localHost ?? "127.0.0.1").replace(/^\[|\]$/gu, ""),
+      port: localTarget.localPort,
+    }).pipe(Effect.mapError((cause) => new TailscaleUnavailableError({ cause })));
+    if (holder === "other") {
+      return yield* new ServePortOccupiedError({ servePort: input.servePort });
+    }
     yield* ensureTailscaleServe({
       localPort: localTarget.localPort,
       servePort: input.servePort,
       ...(localTarget.localHost !== undefined ? { localHost: localTarget.localHost } : {}),
     }).pipe(
-      Effect.mapError(
-        (cause) => new TailscaleServeFailedError({ servePort: input.servePort, cause }),
-      ),
+      Effect.mapError((cause) => {
+        const diagnostic =
+          cause._tag === "TailscaleCommandExitError" ? cause.stderrDiagnostic : undefined;
+        if (diagnostic === "unsupported-target" && localTarget.localHost !== undefined) {
+          return new TailscaleServeTargetRefusedError({ localHost: localTarget.localHost });
+        }
+        // Only Linux tailscaled has an operator; elsewhere a denial needs another fix.
+        if (diagnostic === "permission-denied" && platform === "linux") {
+          return new TailscaleOperatorRequiredError({ cause });
+        }
+        return new TailscaleServeFailedError({ servePort: input.servePort, cause });
+      }),
     );
     notes.push(
       `Tailscale Serve now maps ${baseUrl} to this server and persists across restarts. Remove it with \`tailscale serve --https=${String(input.servePort)} off\`.`,

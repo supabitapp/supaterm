@@ -3,7 +3,6 @@ import {
   DEFAULT_SERVER_SETTINGS,
   type ScopedProjectRef,
   type ServerConfig,
-  type ServerSettings,
 } from "@supaterm/contracts";
 import { resolveNewThreadEnvMode, resolveProjectSettings } from "@supaterm/shared/projectSettings";
 
@@ -13,10 +12,8 @@ import { readProject, readThreadShells } from "~/state/entities";
 import { readUnloadedThreadCount } from "~/state/olderDoneShelf";
 import { environmentSummaries } from "~/state/presentation";
 import type { Project } from "~/types";
-import {
-  hasExplicitComposerModelSelection,
-  resolveNewDraftStartFromOrigin,
-} from "./chatThreadActions";
+import { resolveNewDraftStartFromOrigin } from "./chatThreadActions";
+import { seedDraftModelSelection } from "./seedDraftModelSelection";
 import { readSupatermProjectFile } from "./supatermProjectFileDefaults";
 
 export interface NewDraftWorkspace {
@@ -81,7 +78,6 @@ export function moveDraftToProject(input: {
   readonly draftId: DraftId;
   readonly project: Project;
   readonly logicalProjectKey: string;
-  readonly serverSettings: ServerSettings | null;
   readonly workspace: NewDraftWorkspace;
 }): void {
   const { draftId, project } = input;
@@ -90,22 +86,12 @@ export function moveDraftToProject(input: {
   if (!draft || draft.promotedTo) {
     return;
   }
-  const composerDraft = store.getComposerDraft(draftId);
+  const projectRef = scopeProjectRef(project.environmentId, project.id);
   store.setLogicalProjectDraftThreadId(
     input.logicalProjectKey,
-    scopeProjectRef(project.environmentId, project.id),
+    projectRef,
     draftId,
     input.workspace,
   );
-  if (hasExplicitComposerModelSelection(composerDraft)) {
-    return;
-  }
-  store.applyStickyState(draftId);
-  const defaultModelSelection = input.serverSettings
-    ? resolveProjectSettings(input.serverSettings, project.id, project).settings
-        .defaultModelSelection
-    : project.defaultModelSelection;
-  if (defaultModelSelection) {
-    store.setModelSelection(draftId, defaultModelSelection, { replaceOptions: true });
-  }
+  seedDraftModelSelection(draftId, projectRef);
 }

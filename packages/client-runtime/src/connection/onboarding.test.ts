@@ -301,6 +301,7 @@ function layerPairingOnboarding(
   options?: Parameters<typeof pairingServer>[0],
   calls: Array<Call> = [],
   servers: Record<string, Server> = { [REMOTE]: pairingServer(options) },
+  provision?: ClientCapabilities.SshEnvironmentGateway["Service"]["provision"],
 ) {
   const dependencies = Layer.mergeAll(
     layerClientPresentation,
@@ -324,7 +325,7 @@ function layerPairingOnboarding(
         remove: () => Effect.void,
       }),
     ),
-    Layer.mock(ClientCapabilities.SshEnvironmentGateway)({}),
+    Layer.mock(ClientCapabilities.SshEnvironmentGateway)(provision ? { provision } : {}),
     Layer.succeed(
       Connectivity.Connectivity,
       Connectivity.Connectivity.of({ status: Effect.succeed("online"), changes: Stream.never }),
@@ -489,7 +490,7 @@ describe("connection onboarding", () => {
           yield* Effect.promise(() => closed.promise);
           expect(closes).toBe(1);
         }).pipe(Effect.provide(gatewayLayer));
-      }).pipe(Effect.scoped),
+      }),
   );
 
   it.effect("times out relay preparation when there is no usable fallback", () =>
@@ -637,7 +638,7 @@ describe("connection onboarding", () => {
         expect(urls(calls).filter((url) => url.endsWith("/oauth/token"))).toEqual([
           `${loopback}/oauth/token`,
         ]);
-      }).pipe(Effect.scoped),
+      }),
   );
 
   it.effect("pairs a new device through a link route and saves the reachable address", () =>
@@ -1018,6 +1019,47 @@ describe("connection onboarding", () => {
       Effect.provide(layerPairingOnboarding(undefined, calls, { [ATTACKER]: pairingServer() })),
     );
   });
+
+  it.effect(
+    "refuses to add an SSH route to a saved environment during untargeted onboarding",
+    () => {
+      const target = {
+        alias: "devbox",
+        hostname: "devbox.example.test",
+        username: "developer",
+        port: 22,
+      };
+      return Effect.gen(function* () {
+        const registry = yield* EnvironmentRegistry.EnvironmentRegistry;
+        const onboarding = yield* ConnectionOnboarding;
+        const before = yield* registerSwitchedOffEnvironment;
+
+        const result = yield* onboarding.registerSsh({ target }).pipe(Effect.result);
+
+        expect(result).toMatchObject({
+          _tag: "Failure",
+          failure: { _tag: "ConnectionBlockedError", reason: "configuration" },
+        });
+        expect(yield* SubscriptionRef.get(registry.entries)).toEqual(before);
+      }).pipe(
+        Effect.provide(
+          layerPairingOnboarding(undefined, [], undefined, () =>
+            Effect.succeed({
+              environmentId: PAIRED_ENVIRONMENT_ID,
+              label: "Remote development box",
+              bootstrap: {
+                target,
+                httpBaseUrl: "http://127.0.0.1:3201",
+                wsBaseUrl: "ws://127.0.0.1:3201",
+                pairingToken: "pairing-token",
+              },
+              bearerToken: "bearer-token",
+            }),
+          ),
+        ),
+      );
+    },
+  );
 
   it.effect("refuses a new address when the environment is saved during the exchange", () => {
     const exchangeReached = Promise.withResolvers<void>();

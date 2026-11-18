@@ -1,5 +1,8 @@
 import { scopeProjectRef, scopeThreadRef } from "@supaterm/client-runtime/environment";
-import { resolveSubagentMetadata } from "@supaterm/client-runtime/state/subagent-display";
+import {
+  resolveSubagentMetadata,
+  subagentCardDetail,
+} from "@supaterm/client-runtime/state/subagent-display";
 import { formatSubagentEffort } from "@supaterm/client-runtime/state/thread-execution";
 import type { EnvironmentId, OrchestrationV2Subagent } from "@supaterm/contracts";
 import type { ReactNode } from "react";
@@ -10,7 +13,6 @@ import { SymbolView } from "../../components/ui/AppSymbol";
 import { ProviderIcon } from "../../components/ProviderIcon";
 import { cn } from "../../lib/cn";
 import { useEnvironmentServerConfig, useProject, useThreadShell } from "../../state/entities";
-import { subagentCardDetail } from "./subagent-card-presentation";
 import { SUBAGENT_TONE_TEXT_CLASS, SubagentStatusDot } from "./SubagentStatusDot";
 import { describeProviderInstance } from "./thread-provider-instance";
 import {

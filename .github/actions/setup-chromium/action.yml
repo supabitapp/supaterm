@@ -17,7 +17,7 @@ runs:
     # Keyed by version alone, so every job that pins the same Playwright shares one download.
     - name: Cache Chromium
       id: cache
-      uses: actions/cache@v6
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: ~/.cache/ms-playwright
         key: playwright-chromium-shell-${{ runner.os }}-${{ runner.arch }}-${{ steps.version.outputs.version }}

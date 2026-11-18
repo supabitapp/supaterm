@@ -106,13 +106,15 @@ export const SETTINGS_SECTION_LABELS: Readonly<Record<SettingsPath, string>> = {
   "/settings/archived": "Archive",
 };
 
-/** Sidebar order. A group without a heading is set apart by space alone. */
+/** Sidebar order. A group with a hidden heading is set apart on screen by space alone. */
 export const SETTINGS_NAV_GROUPS: ReadonlyArray<{
-  readonly heading: string | null;
+  readonly heading: string;
+  readonly headingHidden?: true;
   readonly paths: ReadonlyArray<SettingsPath>;
 }> = [
   {
-    heading: null,
+    heading: "Preferences",
+    headingHidden: true,
     paths: [
       "/settings/general",
       "/settings/appearance",
@@ -140,7 +142,8 @@ export const SETTINGS_NAV_GROUPS: ReadonlyArray<{
   },
   { heading: "Connections", paths: ["/settings/connections", "/settings/access"] },
   {
-    heading: null,
+    heading: "More",
+    headingHidden: true,
     paths: ["/settings/maintenance", "/settings/about", "/settings/archived"],
   },
 ];
@@ -447,6 +450,22 @@ export const SETTINGS_SEARCH_ITEMS = [
     searchTerms: ["command menu dollar $ slash /"],
   },
   {
+    id: "screen-reader-announcements",
+    title: "Screen reader announcements",
+    to: "/settings/chat",
+    searchTerms: [
+      "accessibility a11y screen reader nvda jaws voiceover orca narrator speech announce read aloud messages activity steps",
+    ],
+  },
+  {
+    id: "screen-reader-window-title",
+    title: "Screen reader window title",
+    to: "/settings/chat",
+    searchTerms: [
+      "accessibility a11y screen reader nvda jaws voiceover orca narrator window title tab title alt tab taskbar thread status order working approval",
+    ],
+  },
+  {
     id: "proactive-panels",
     title: "Open pull requests and changes panels proactively",
     to: "/settings/diffs",
@@ -513,6 +532,12 @@ export const SETTINGS_SEARCH_ITEMS = [
     title: "Delete confirmation",
     to: "/settings/general",
     searchTerms: ["ask before thread chat history"],
+  },
+  {
+    id: "terminal-close-confirmation",
+    title: "Terminal close confirmation",
+    to: "/settings/general",
+    searchTerms: ["ask before delete stop process shell console history"],
   },
   {
     id: "time-format",
@@ -592,6 +617,13 @@ export const SETTINGS_SEARCH_ITEMS = [
       "installed cli versions newer available codex claude cursor grok fx kiro opencode",
     ],
     scope: "environment-defaults",
+  },
+  {
+    id: "keep-awake-while-agents-work",
+    title: "Keep awake while agents work",
+    to: "/settings/maintenance",
+    scope: "environment-defaults",
+    searchTerms: ["caffeinate sleep prevent stay awake power laptop lid inhibit"],
   },
   {
     id: "background-activity",

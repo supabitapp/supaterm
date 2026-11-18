@@ -38,6 +38,7 @@ import { attachmentDocumentPresentation } from "../../lib/attachmentDocumentPres
 import {
   createComposerFileAttachment,
   removePersistedComposerAttachmentFile,
+  skippedDuplicateAttachmentsMessage,
 } from "../../lib/composerImages";
 import { appendComposerDraftAttachments } from "../../state/use-composer-drafts";
 import { AttachmentDocumentBody, nativeViewerKind } from "./AttachmentDocumentBody";
@@ -567,8 +568,13 @@ async function addZipEntryToDraft(input: {
       signal.throwIfAborted();
     }
     // Rejected attachments are cleaned up by the draft store.
-    if (appendComposerDraftAttachments(input.draftKey, [attachment], { appendReference: true }))
+    const appended = appendComposerDraftAttachments(input.draftKey, [attachment], {
+      appendReference: true,
+    });
+    if (appended.rejected)
       throw new Error("This message already has as many attachments as it can hold.");
+    const skipped = skippedDuplicateAttachmentsMessage(appended.duplicates);
+    if (skipped) throw new Error(skipped);
   } finally {
     file.dispose();
   }
@@ -659,8 +665,6 @@ function ZipEntryView(props: {
       () => {
         if (controller.signal.aborted) return;
         setBusy(null);
-        if (kind === "attach")
-          Dialog.alert("Added to chat", `${entry.name} is attached to your message.`);
       },
       (cause: unknown) => {
         if (controller.signal.aborted) return;

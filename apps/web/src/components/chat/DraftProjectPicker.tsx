@@ -32,16 +32,13 @@ import {
   pickableProjectGroups,
   selectProjectGroupingSettings,
 } from "@supaterm/client-runtime/state/project-grouping";
-import {
-  buildSidebarProjectPickerEntries,
-  buildSidebarProjectSnapshots,
-} from "~/sidebarProjectGrouping";
-import { useProjects, useThreadShells } from "~/state/entities";
+import { buildSidebarProjectPickerEntries } from "~/sidebarProjectGrouping";
+import { useProjects } from "~/state/entities";
 import { useEnvironments, usePrimaryEnvironmentId } from "~/state/environments";
 import { ComposerContextLabel } from "../ComposerContextLabel";
 import { ProjectFavicon } from "../ProjectFavicon";
 import { isProjectPinShortcut, ProjectPinButton } from "../ProjectPinButton";
-import { sortLogicalProjectsForSidebar } from "../Sidebar.logic";
+import { useSortedProjectGroups } from "../CommandPaletteLookups";
 import {
   Combobox,
   ComboboxTrigger,
@@ -72,24 +69,13 @@ interface DraftProjectPickerProps {
 // catalog is derived in its own hook, where the compiler can cache it.
 function useDraftProjectCatalog(activeProjectRef: ScopedProjectRef | null) {
   const projects = useProjects();
-  const threads = useThreadShells();
   const { environments } = useEnvironments();
   const primaryEnvironmentId = usePrimaryEnvironmentId();
   const projectGroupingSettings = useClientSettings(selectProjectGroupingSettings);
-  const projectSortOrder = useClientSettings((settings) => settings.sidebarProjectSortOrder);
   const environmentLabelById = new Map(
     environments.map((environment) => [environment.environmentId, environment.label] as const),
   );
-  const projectGroups = sortLogicalProjectsForSidebar(
-    buildSidebarProjectSnapshots({
-      projects,
-      settings: projectGroupingSettings,
-      primaryEnvironmentId,
-      resolveEnvironmentLabel: (environmentId) => environmentLabelById.get(environmentId) ?? null,
-    }),
-    threads,
-    projectSortOrder,
-  );
+  const projectGroups = useSortedProjectGroups(environmentLabelById);
   const projectPickerEntries = buildSidebarProjectPickerEntries({
     groups: pickableProjectGroups(projectGroups),
     preferredProjectRef: activeProjectRef,
@@ -207,7 +193,6 @@ export function DraftProjectPicker({
         draftId,
         project,
         logicalProjectKey,
-        serverSettings: serverConfig?.settings ?? null,
         workspace,
       });
     });

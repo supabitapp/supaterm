@@ -13,6 +13,7 @@ import * as ModelManifest from "./ModelManifest.ts";
 import * as ProviderRegistry from "./ProviderRegistry.ts";
 import * as ProviderLatestVersions from "@supaterm/provider-core/server/ProviderLatestVersions";
 import * as ProviderInstanceRegistry from "./ProviderInstanceRegistry.ts";
+import * as ProviderInstanceRegistryMutator from "./ProviderInstanceRegistryMutator.ts";
 import type { ProviderInstance } from "@supaterm/provider-core/server/driver";
 import { makeManualOnlyProviderMaintenanceCapabilities } from "@supaterm/provider-core/server/maintenanceResolver";
 import * as Schema from "effect/Schema";
@@ -21,7 +22,6 @@ import {
   ProviderCompatibilityPolicy,
   resolveProviderCompatibility,
 } from "./providerCompatibility.ts";
-import { resolveAntigravityReleaseAsset } from "./antigravityRelease.ts";
 import bundledManifest from "./model-manifest.json" with { type: "json" };
 
 const decodeCompatibilityPolicies = Schema.decodeUnknownSync(
@@ -139,19 +139,15 @@ describe("provider compatibility", () => {
     }
   });
 
-  it.each([
-    ["darwin", "arm64"],
-    ["win32", "x64"],
-  ] as const)(
-    "supports the managed Antigravity runtime for %s-%s in the bundled manifest",
-    (platform, arch) => {
+  it.each(["1.4.5", "1.5.7"])(
+    "supports the legacy and native Antigravity runtime %s in the bundled manifest",
+    (version) => {
       const policies = decodeCompatibilityPolicies(bundledManifest.compatibility);
-      const release = resolveAntigravityReleaseAsset(platform, arch);
       assert.strictEqual(
         resolveProviderCompatibility(
           policies,
           ProviderDriverKind.make("antigravity"),
-          `agy_acp_server_${release?.version}`,
+          `agy_acp_server_${version}`,
         )?.status,
         "supported",
       );
@@ -314,6 +310,15 @@ it.effect("a remote policy refresh preserves a newer health result on the regist
       assert.strictEqual(updated?.compatibilityAdvisory?.status, "supported");
       assert.strictEqual(updated?.status, "error");
       assert.strictEqual(updated?.message, "Authentication failed");
-    }).pipe(Effect.provide(ProviderRegistry.layer.pipe(Layer.provide(layerDependencies))));
-  }).pipe(Effect.scoped),
+    }).pipe(
+      Effect.provide(
+        ProviderRegistry.layer.pipe(
+          Layer.provide(layerDependencies),
+          Layer.provide(
+            Layer.mock(ProviderInstanceRegistryMutator.ProviderInstanceRegistryMutator)({}),
+          ),
+        ),
+      ),
+    );
+  }),
 );

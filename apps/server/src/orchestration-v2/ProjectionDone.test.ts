@@ -496,7 +496,8 @@ it.effect(
       yield* sql`UPDATE orchestration_v2_projection_runs SET payload_json = '{broken' WHERE thread_id = ${source}`;
       yield* sql`INSERT INTO orchestration_v2_projection_turn_items
       SELECT 'history:' || value, i.thread_id, i.run_id, i.node_id, i.provider_thread_id, i.provider_turn_id,
-        i.parent_item_id, i.ordinal + value, i.type, i.status, i.updated_at, i.payload_json
+        i.parent_item_id, i.ordinal + value, i.type, i.status, i.updated_at, i.payload_json,
+        i.inline_work_output
       FROM orchestration_v2_projection_turn_items i, json_each(${encodeNumbers(Array.from({ length: 2000 }, (_, i) => i + 1))})
       WHERE i.thread_id = ${threadId}`;
       const queries: Array<readonly [string, ReadonlyArray<unknown>]> = [];
@@ -524,7 +525,11 @@ it.effect(
         `EXPLAIN QUERY PLAN ${pendingQuery![0]}`,
         pendingQuery![1],
       );
-      assert.isTrue(plan.some((row) => row.detail.includes("turn_items_shell_pending_idx")));
+      assert.isTrue(
+        plan.some((row) =>
+          row.detail.includes("turn_items_thread_type_idx (thread_id=? AND type=?)"),
+        ),
+      );
       const countsPlan = yield* sql<{ readonly detail: string }>`EXPLAIN QUERY PLAN
       SELECT thread_id, run_id, COUNT(*) FROM orchestration_v2_projection_turn_items
       WHERE thread_id = ${threadId} AND run_id IS NOT NULL GROUP BY thread_id, run_id`;
@@ -542,4 +547,46 @@ it.effect(
       assert.isTrue(messagePlan.some((row) => row.detail.includes("messages_latest_user_idx")));
       assert.isFalse(messagePlan.some((row) => row.detail.includes("TEMP B-TREE")));
     }).pipe(Effect.provide(layerSql)),
+);
+
+it.effect("sql: a subagent thread becomes a candidate once its parent is done", () =>
+  Effect.gen(function* () {
+    const store = yield* ProjectionStore.ProjectionStoreV2;
+    const parent = yield* createThread("subagent-parent");
+    const child = yield* createThread("subagent-child", {
+      lineage: { parentThreadId: parent, relationshipToParent: "subagent", rootThreadId: parent },
+    });
+    const ids = () =>
+      store.getAutoMarkDoneCandidates().pipe(Effect.map((rows) => rows.map((row) => row.id)));
+    assert.deepEqual(yield* ids(), [parent]);
+
+    const parentThread = yield* store.getThread(parent);
+    for (const [type, overrides] of [
+      ["thread.marked-done", { doneOverride: "done", doneAt: now }],
+      ["thread.archived", { archivedAt: now }],
+      ["thread.deleted", { deletedAt: now }],
+    ] satisfies ReadonlyArray<
+      readonly [
+        "thread.marked-done" | "thread.archived" | "thread.deleted",
+        Partial<OrchestrationV2AppThread>,
+      ]
+    >) {
+      yield* store.apply({
+        id: EventId.make(`event:done:subagent-parent:${type}`),
+        type,
+        threadId: parent,
+        occurredAt: now,
+        payload: { ...parentThread, ...overrides, updatedAt: now },
+      });
+      assert.deepEqual(yield* ids(), [child]);
+    }
+    const orphan = yield* createThread("orphan", {
+      lineage: {
+        parentThreadId: ThreadId.make("missing-parent"),
+        relationshipToParent: "subagent",
+        rootThreadId: parent,
+      },
+    });
+    assert.deepEqual(new Set(yield* ids()), new Set([child, orphan]));
+  }).pipe(Effect.provide(layerSql)),
 );

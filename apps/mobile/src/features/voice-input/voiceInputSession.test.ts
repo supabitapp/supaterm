@@ -1,6 +1,5 @@
 import { beforeEach, describe, expect, it, vi, type Mock } from "vite-plus/test";
 import type { PreparedVoiceTranscription } from "@supaterm/client-runtime/voice-input";
-import { Atom, AtomRegistry } from "effect/reactivity";
 import { resetVoiceInputGlobalsForTests } from "../../../../../packages/client-runtime/src/voice-input/controller";
 import {
   acquireAudioSession,
@@ -42,7 +41,7 @@ function createTarget(
   selection: { start: number; end: number },
 ): VoiceInputTarget {
   return {
-    ...createVoiceInputTarget(ownerKey, readText, commit, selection, () => () => {}),
+    ...createVoiceInputTarget(ownerKey, readText, commit, selection),
     engine: engine(),
   };
 }
@@ -265,6 +264,20 @@ describe("global voice input", () => {
     },
   );
 
+  it("retries a failed start against the draft as edited since", async () => {
+    const { session, prepare } = createSession();
+    prepare.mockRejectedValueOnce(new Error("model unavailable"));
+    let text = "first";
+    const commit = vi.fn();
+    await session.start(createTarget("first", () => text, commit, { start: 5, end: 5 }));
+    expect(session.controller.currentState.phase).toBe("error");
+    text = "first draft";
+    await session.retry();
+    await session.controller.stop();
+    expect(prepare).toHaveBeenCalledTimes(2);
+    expect(commit).toHaveBeenCalledWith("first spoken text draft", { start: 17, end: 17 });
+  });
+
   it("finishes the original draft at the recording limit while it is off screen", async () => {
     const { session, recorder } = createSession();
     const commit = vi.fn();
@@ -277,38 +290,6 @@ describe("global voice input", () => {
     });
     expect(commit).toHaveBeenCalledWith("first spoken text", { start: 17, end: 17 });
     expect(session.controller.currentState.phase).toBe("idle");
-  });
-
-  it("rejects a transcript when its off-screen draft changes and returns to the original text", async () => {
-    const registry = AtomRegistry.make();
-    const draft = Atom.make("hello world");
-    const unsubscribe = vi.fn();
-    const { session } = createSession();
-    const commit = vi.fn();
-    const target = {
-      ...createVoiceInputTarget(
-        "first",
-        () => registry.get(draft),
-        commit,
-        { start: 6, end: 6 },
-        (onChange) => {
-          const stop = registry.subscribe(draft, onChange);
-          return () => {
-            stop();
-            unsubscribe();
-          };
-        },
-      ),
-      engine: engine(),
-    };
-    await session.start(target);
-    registry.set(draft, "changed");
-    registry.set(draft, "hello world");
-    await session.controller.stop();
-    expect(commit).not.toHaveBeenCalled();
-    expect(session.controller.currentState.error).toContain("draft changed");
-    expect(unsubscribe).toHaveBeenCalledTimes(1);
-    registry.dispose();
   });
 
   it("stops recording when its queued edit is discarded", async () => {

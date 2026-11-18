@@ -31,6 +31,28 @@ describe("normalizeGitRemoteUrl", () => {
     expect(normalizeGitRemoteUrl("ssh://git@github.com/supabitapp/supaterm")).toBe(
       "github.com/supabitapp/supaterm",
     );
+    expect(normalizeGitRemoteUrl("https://github.com/SupabitApp/Supaterm.git?view=compact")).toBe(
+      "github.com/supabitapp/supaterm",
+    );
+    expect(normalizeGitRemoteUrl("https://github.com/SupabitApp/Supaterm.git#section")).toBe(
+      "github.com/supabitapp/supaterm",
+    );
+    expect(normalizeGitRemoteUrl("https://code.example.test/team/%C3%84pp.git")).toBe(
+      normalizeGitRemoteUrl("git@code.example.test:team/Äpp.git"),
+    );
+    expect(normalizeGitRemoteUrl("ssh://git@code.example.test/owner/repo.git.git")).toBe(
+      normalizeGitRemoteUrl("git@code.example.test:owner/repo.git.git"),
+    );
+  });
+
+  it.each([
+    "git@[2001:db8::1]:team/repo.git",
+    "[2001:db8::1]:team/repo.git",
+    "git@[2001:DB8:0::1]:team/repo.git",
+  ])("canonicalizes an IPv6 SCP remote like its SSH URL: %s", (remote) => {
+    expect(normalizeGitRemoteUrl(remote)).toBe(
+      normalizeGitRemoteUrl("ssh://git@[2001:db8::1]/team/repo.git"),
+    );
   });
 
   it("preserves nested group paths for providers like GitLab", () => {
@@ -146,6 +168,20 @@ describe("parseOriginUrlFromGitConfig", () => {
     expect(
       parseOriginUrlFromGitConfig('[remote "origin"]\n\turl = "git@github.com:acme/repo.git"\n'),
     ).toBe("git@github.com:acme/repo.git");
+    for (const newline of ["\n", "\r\n"]) {
+      for (const comment of ["#", ";"]) {
+        const config = [
+          '[remote "upstream"]',
+          `url = https://github.com/other/repo.git ${comment} ignored backslash \\`,
+          '[remote "origin"]',
+          `url = https://github.com/acme/repo.git ${comment} ignored backslash \\`,
+          `${comment} ignored backslash \\`,
+          '[remote "fork"]',
+          "url = https://github.com/me/repo.git",
+        ].join(newline);
+        expect(parseOriginUrlFromGitConfig(config)).toBe("https://github.com/acme/repo.git");
+      }
+    }
   });
 
   it("accepts legacy dotted headers, header comments, and line continuations", () => {
@@ -167,7 +203,7 @@ describe("parseOriginUrlFromGitConfig", () => {
       parseOriginUrlFromGitConfig(
         '[remote "origin"]\n\turl = https://github.com/acme/\\\n\t\trepo.git\n',
       ),
-    ).toBe("https://github.com/acme/repo.git");
+    ).toBe("https://github.com/acme/\t\trepo.git");
   });
 
   it("reads settings on the remote header line", () => {
@@ -248,6 +284,26 @@ describe("parseGitRemoteVerboseOutput", () => {
       parseGitRemoteFetchUrls("origin\thttps://github.com/acme/repo.git (fetch) [blob:none]"),
     ).toEqual(new Map([["origin", "https://github.com/acme/repo.git"]]));
   });
+
+  it.each([
+    { fetchUrl: "../team repos/shared.git", pushUrl: "../team repos/push.git", lineEnding: "\n" },
+    {
+      fetchUrl: " ../team repos/shared (fetch) [blob:none].git ",
+      pushUrl: "../team repos/push (push).git\t",
+      lineEnding: "\r\n",
+    },
+  ])(
+    "keeps spaces and annotations inside remote URLs (%j)",
+    ({ fetchUrl, pushUrl, lineEnding }) => {
+      expect(
+        parseGitRemoteVerboseUrls(
+          [`origin\t${fetchUrl} (fetch) [blob:none]`, `origin\t${pushUrl} (push)`, ""].join(
+            lineEnding,
+          ),
+        ),
+      ).toEqual(new Map([["origin", { fetchUrl, pushUrl }]]));
+    },
+  );
 });
 
 describe("isTemporaryWorktreeBranch", () => {
@@ -360,6 +416,13 @@ describe("sanitizeFeatureBranchName", () => {
     expect(sanitizeFeatureBranchName("fix/Añadir validación del café")).toBe(
       "fix/anadir-validacion-del-cafe",
     );
+  });
+
+  it("keeps words with letters that have no Unicode decomposition whole", () => {
+    expect(sanitizeFeatureBranchName("Größe der Straße korrigieren")).toBe(
+      "feature/grosse-der-strasse-korrigieren",
+    );
+    expect(sanitizeFeatureBranchName("fix/Đặt tên")).toBe("fix/dat-ten");
   });
 });
 

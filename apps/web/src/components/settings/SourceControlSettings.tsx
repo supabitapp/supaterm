@@ -20,6 +20,7 @@ import {
 import { useScopedSettings, useUpdateScopedSettings } from "./useScopedSettings";
 import { useSettingsScope } from "./SettingsScopeContext";
 import { ProjectDefaultsSettings } from "./ProjectDefaultsSettings";
+import { useLiveRefresh } from "../../hooks/useLiveRefresh";
 import { cn } from "../../lib/utils";
 import { useEnvironmentQuery } from "../../state/query";
 import { sourceControlEnvironment } from "../../state/sourceControl";
@@ -510,6 +511,18 @@ export function SourceControlSettingsPanel() {
   const handleScan = () => {
     discovery.refresh();
   };
+  // A CLI login on the server host changes nothing the client reads, so returning to the window
+  // asks again. Discovery runs every hosting CLI, too costly for a timer nobody asked for.
+  useLiveRefresh(
+    () => {
+      if (!discovery.isPending) discovery.refresh();
+    },
+    {
+      enabled: environmentId !== null,
+      key: `source-control-discovery:${environmentId}`,
+      intervalMs: null,
+    },
+  );
   const hostSettingsPanel = (item: SourceControlProviderDiscoveryItem) => {
     const definition = sourceControlClients.find(item.kind);
     if (!definition?.settings || environmentId === null) return undefined;

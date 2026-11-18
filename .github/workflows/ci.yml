@@ -23,7 +23,7 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
@@ -46,7 +46,7 @@ jobs:
       # only with the Electron version. The package path goes through the global
       # virtual store symlink, so there is no node_modules/.pnpm to glob.
       - name: Cache Electron download
-        uses: actions/cache@v6
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/electron
           key: electron-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('apps/desktop/node_modules/electron/package.json') }}
@@ -74,7 +74,7 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
@@ -87,7 +87,7 @@ jobs:
       # only with the Electron version. The package path goes through the global
       # virtual store symlink, so there is no node_modules/.pnpm to glob.
       - name: Cache Electron download
-        uses: actions/cache@v6
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/electron
           key: electron-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('apps/desktop/node_modules/electron/package.json') }}
@@ -103,7 +103,7 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
@@ -112,10 +112,16 @@ jobs:
       # Runs in the background while Vite+ installs; the step before the build waits for it.
       - name: Start installing browser secret helper build libraries
         run: |
-          sudo sed -i 's|http://|https://|g' /etc/apt/ci-ubuntu-mirrors.txt /etc/apt/sources.list.d/ubuntu.sources
+          # Fetch only the indexes these main and universe packages need. The full set is ~42 MB,
+          # which a slow mirror can stretch past the wait below.
+          sudo sed -i -e 's|http://|https://|g' -e 's/^Components: .*/Components: main universe/' \
+            /etc/apt/ci-ubuntu-mirrors.txt /etc/apt/sources.list.d/ubuntu.sources
           (
             set +e
-            sudo apt-get update && sudo apt-get install -y libsecret-1-dev pkg-config
+            sudo apt-get update -o Acquire::Languages=none \
+              -o Acquire::IndexTargets::deb::DEP-11::DefaultEnabled=false \
+              -o Acquire::IndexTargets::deb::CNF::DefaultEnabled=false &&
+              sudo apt-get install -y libsecret-1-dev pkg-config
             echo "$?" > "$RUNNER_TEMP/apt-status"
           ) > "$RUNNER_TEMP/apt.log" 2>&1 < /dev/null &
 
@@ -128,7 +134,7 @@ jobs:
       # only with the Electron version. The package path goes through the global
       # virtual store symlink, so there is no node_modules/.pnpm to glob.
       - name: Cache Electron download
-        uses: actions/cache@v6
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/electron
           key: electron-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('apps/desktop/node_modules/electron/package.json') }}
@@ -166,7 +172,7 @@ jobs:
         shard: [1, 2]
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
@@ -174,10 +180,16 @@ jobs:
 
       - name: Start installing test build dependencies
         run: |
-          sudo sed -i 's|http://|https://|g' /etc/apt/ci-ubuntu-mirrors.txt /etc/apt/sources.list.d/ubuntu.sources
+          # Fetch only the indexes these main and universe packages need. The full set is ~42 MB,
+          # which a slow mirror can stretch past the wait below.
+          sudo sed -i -e 's|http://|https://|g' -e 's/^Components: .*/Components: main universe/' \
+            /etc/apt/ci-ubuntu-mirrors.txt /etc/apt/sources.list.d/ubuntu.sources
           (
             set +e
-            sudo apt-get update && sudo apt-get install -y --no-install-recommends build-essential libsecret-1-dev pkg-config
+            sudo apt-get update -o Acquire::Languages=none \
+              -o Acquire::IndexTargets::deb::DEP-11::DefaultEnabled=false \
+              -o Acquire::IndexTargets::deb::CNF::DefaultEnabled=false &&
+              sudo apt-get install -y --no-install-recommends build-essential libsecret-1-dev pkg-config
             echo "$?" > "$RUNNER_TEMP/apt-status"
           ) > "$RUNNER_TEMP/apt.log" 2>&1 < /dev/null &
 
@@ -190,7 +202,7 @@ jobs:
       # only with the Electron version. The package path goes through the global
       # virtual store symlink, so there is no node_modules/.pnpm to glob.
       - name: Cache Electron download
-        uses: actions/cache@v6
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/electron
           key: electron-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('apps/desktop/node_modules/electron/package.json') }}
@@ -219,7 +231,7 @@ jobs:
         shard: [1, 2]
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
@@ -241,7 +253,7 @@ jobs:
         shard: [1, 2, 3, 4, 5, 6, 7, 8]
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
@@ -269,7 +281,7 @@ jobs:
           [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24]
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
@@ -286,6 +298,7 @@ jobs:
         env:
           SUPATERM_TRANSFER_BUDGET_REPORT_PATH: ${{ runner.temp }}/supaterm-transfer-budget.md
           SUPATERM_TRANSFER_BUDGET_RESULT_PATH: ${{ runner.temp }}/thread-transfer-result.json
+          SUPATERM_TRANSFER_BUDGET_SCENARIOS_PATH: ${{ runner.temp }}/thread-transfer-scenarios.json
         run: vp run --filter supaterm test --shard ${{ matrix.shard }}/${{ strategy.job-total }}
 
       # integration/transferBudgetV2.integration.test.ts writes the report; exactly one shard
@@ -313,10 +326,12 @@ jobs:
 
       - name: Upload thread transfer result
         if: always() && steps.transfer_budget.outputs.present == 'true'
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: thread-transfer-results
-          path: ${{ runner.temp }}/thread-transfer-result.json
+          path: |
+            ${{ runner.temp }}/thread-transfer-result.json
+            ${{ runner.temp }}/thread-transfer-scenarios.json
           if-no-files-found: ignore
           retention-days: 30
 
@@ -328,7 +343,7 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
@@ -437,7 +452,7 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
@@ -471,7 +486,7 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
           sparse-checkout: |
@@ -523,7 +538,7 @@ jobs:
             or (.key == "mobile_native_static_analysis" and .value.result == "skipped"))' > /dev/null
 
       - name: Require transfer measurements
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: thread-transfer-results
           path: ${{ runner.temp }}/thread-transfer

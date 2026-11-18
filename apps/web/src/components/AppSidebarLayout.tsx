@@ -35,12 +35,18 @@ import { MainSidebarToggle, SidebarHeaderWidthProbe } from "./sidebar/SidebarChr
 import { isAppModalPage } from "./sidebar/mainAppLocation";
 import type { SidebarRouteReveal } from "./sidebar/routeReveal";
 import {
-  resolveDefaultThreadSidebarWidth,
   resolveThreadSidebarMinimumWidth,
   THREAD_MAIN_CONTENT_MIN_WIDTH,
+  THREAD_SIDEBAR_DEFAULT_WIDTH,
   THREAD_SIDEBAR_WIDTH_STORAGE_KEY,
 } from "./threadSidebarWidth";
-import { Sidebar, SidebarInsetPanel, SidebarProvider, useSidebar } from "./ui/sidebar";
+import {
+  Sidebar,
+  SidebarInsetPanel,
+  SidebarProvider,
+  useMobileSidebarSheetMounted,
+  useSidebar,
+} from "./ui/sidebar";
 import { type CommandHandler, registerCommands, registerMenuAction } from "../shortcuts/dispatcher";
 import { resolveThreadRouteRef } from "../threadRoutes";
 
@@ -216,7 +222,10 @@ function registerSidebarToggleCommand(router: AnyRouter, toggleSidebar: () => vo
         toggleSidebar();
       },
     },
-    { capture: true, context: () => ({ usagePageOpen: readUsagePageOpen(router) }) },
+    {
+      capture: true,
+      context: () => ({ ...readRoutePanelsOpen(router), usagePageOpen: readUsagePageOpen(router) }),
+    },
   );
 }
 
@@ -243,7 +252,8 @@ function registerAppShellCommands(router: AnyRouter, shellElement: Element): () 
 
 function SidebarControl() {
   const router = useRouter();
-  const { toggleSidebar, isMobile, mobileSheetMounted } = useSidebar();
+  const { toggleSidebar } = useSidebar();
+  const mobileSidebarSheetMounted = useMobileSidebarSheetMounted();
 
   const toggleSidebarFromCommand = useEffectEvent(() => toggleSidebar());
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- registers the sidebar toggle with the command dispatcher for the control's lifetime
@@ -261,7 +271,7 @@ function SidebarControl() {
       ref={appShellCommandsRef}
       className={cn(
         "pointer-events-none fixed left-[var(--workspace-controls-left)] top-[var(--workspace-controls-top)] z-50 ml-px flex h-[var(--workspace-topbar-height)] items-center",
-        isMobile && mobileSheetMounted && "hidden",
+        mobileSidebarSheetMounted && "hidden",
       )}
       data-sidebar-control=""
     >
@@ -313,7 +323,7 @@ export function AppSidebarLayout({ children }: { children: ReactNode }) {
           role="navigation"
           aria-label="Threads"
           resizable={{
-            defaultWidth: resolveDefaultThreadSidebarWidth(window.innerWidth),
+            defaultWidth: THREAD_SIDEBAR_DEFAULT_WIDTH,
             minWidth: sidebarMinimumWidth,
             storageKey: THREAD_SIDEBAR_WIDTH_STORAGE_KEY,
           }}

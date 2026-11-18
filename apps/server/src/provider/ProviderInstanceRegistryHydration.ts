@@ -12,6 +12,7 @@ import * as HostProcess from "@supaterm/shared/HostProcess";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
+import type * as SqlClient from "effect/sql/SqlClient";
 import * as Path from "effect/Path";
 import * as Stream from "effect/Stream";
 
@@ -40,7 +41,9 @@ type ProviderInstanceRegistryHydrationEnv =
   | Path.Path
   | FileSystem.FileSystem
   // The Claude runner counts its CLIs as running agents for port discovery.
-  | PortScanner.PortDiscovery;
+  | PortScanner.PortDiscovery
+  // Adapter ids read which subagent threads predate short ids.
+  | SqlClient.SqlClient;
 
 export const deriveProviderInstanceConfigMap = (
   settings: ServerSettings,
@@ -141,7 +144,8 @@ const layerSettingsWatcher = (settingsChanges: Stream.Stream<ServerSettings>) =>
   );
 
 export const layer: Layer.Layer<
-  ProviderInstanceRegistry.ProviderInstanceRegistry,
+  | ProviderInstanceRegistry.ProviderInstanceRegistry
+  | ProviderInstanceRegistryMutator.ProviderInstanceRegistryMutator,
   never,
   ProviderInstanceRegistryHydrationEnv
 > = Layer.unwrap(
@@ -172,7 +176,8 @@ export const layer: Layer.Layer<
     return layerSettingsWatcher(settingsChanges).pipe(Layer.provideMerge(layerMutable));
   }),
 ) as Layer.Layer<
-  ProviderInstanceRegistry.ProviderInstanceRegistry,
+  | ProviderInstanceRegistry.ProviderInstanceRegistry
+  | ProviderInstanceRegistryMutator.ProviderInstanceRegistryMutator,
   never,
   ProviderInstanceRegistryHydrationEnv
 >;

@@ -3,7 +3,7 @@ import { CommandId, EnvironmentId, MessageId, ThreadId } from "@supaterm/contrac
 import type { QueuedThreadMessage } from "./thread-outbox-model";
 
 const state = vi.hoisted(() => ({
-  dispatching: null as string | null,
+  dispatching: {} as Record<string, true>,
   held: {} as Record<string, true>,
   draft: { text: "Existing draft", attachments: [] as { id: string }[] },
   confirm: vi.fn(async () => true),
@@ -16,7 +16,7 @@ vi.mock("./atom-registry", () => ({
   },
 }));
 vi.mock("./use-thread-outbox", () => ({
-  dispatchingQueuedMessageIdAtom: "dispatching",
+  dispatchingQueuedMessageIdsAtom: "dispatching",
   editingQueuedMessageIdsAtom: "editing",
   holdEditingQueuedMessage: (id: string) => {
     state.held[id] = true;
@@ -33,11 +33,16 @@ vi.mock("./thread-outbox-removal", () => ({ removeThreadOutboxMessage: state.rem
 vi.mock("./use-composer-drafts", () => ({
   waitForComposerDraftsLoaded: async () => {},
   getComposerDraftSnapshot: () => state.draft,
-  mergeComposerDraftContent: async (_key: string, message: QueuedThreadMessage) => {
+  applyComposerDraftContent: (_key: string, message: QueuedThreadMessage) => {
     state.draft = {
       text: `${state.draft.text}\n\n${message.text}`,
       attachments: [...state.draft.attachments, ...message.attachments],
     };
+  },
+  captureComposerDraftMerge: (_key: string, merge: () => void) => {
+    const snapshot = state.draft;
+    merge();
+    return { snapshot, merged: state.draft };
   },
   updateComposerDraftSettings: () => {},
   flushComposerDrafts: state.flush,
@@ -67,7 +72,7 @@ const message: QueuedThreadMessage = {
 };
 beforeEach(() => {
   vi.clearAllMocks();
-  state.dispatching = null;
+  state.dispatching = {};
   state.held = {};
   state.draft = { text: "Existing draft", attachments: [] };
   state.confirm.mockResolvedValue(true);
@@ -90,7 +95,7 @@ describe("editing a pending message", () => {
     expect(state.held).toEqual({});
   });
   it("does not reclaim a message already being dispatched", async () => {
-    state.dispatching = message.messageId;
+    state.dispatching = { [message.messageId]: true };
     expect(await editPendingThreadMessage(message)).toBe(false);
     expect(state.confirm).not.toHaveBeenCalled();
     expect(state.draft.text).toBe("Existing draft");

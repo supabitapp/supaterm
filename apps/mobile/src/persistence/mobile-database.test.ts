@@ -70,86 +70,74 @@ describe("offline pull request cache", () => {
   }
 
   it.effect("creates the schema and records its version on a fresh database", () =>
-    Effect.scoped(
-      Effect.gen(function* () {
-        const sqlite = yield* Effect.promise(() => sqliteDatabase());
-        yield* MobileDatabase.make;
+    Effect.gen(function* () {
+      const sqlite = yield* Effect.promise(() => sqliteDatabase());
+      yield* MobileDatabase.make;
 
-        expect(sqlite.prepare("PRAGMA user_version").get()).toEqual({
-          user_version: MobileDatabase.DATABASE_SCHEMA_VERSION,
-        });
-        expect(
-          sqlite
-            .prepare(
-              "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'client_cache'",
-            )
-            .get(),
-        ).toEqual({ name: "client_cache" });
-      }),
-    ),
+      expect(sqlite.prepare("PRAGMA user_version").get()).toEqual({
+        user_version: MobileDatabase.DATABASE_SCHEMA_VERSION,
+      });
+      expect(
+        sqlite
+          .prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'client_cache'")
+          .get(),
+      ).toEqual({ name: "client_cache" });
+    }),
   );
 
   it.effect("rejects a database created by a newer client", () =>
-    Effect.scoped(
-      Effect.gen(function* () {
-        const sqlite = yield* Effect.promise(() =>
-          sqliteDatabase({ schemaVersion: MobileDatabase.DATABASE_SCHEMA_VERSION + 1 }),
-        );
-        const database = yield* MobileDatabase.make;
-        const result = yield* Effect.result(database.loadPreferencesJson);
+    Effect.gen(function* () {
+      const sqlite = yield* Effect.promise(() =>
+        sqliteDatabase({ schemaVersion: MobileDatabase.DATABASE_SCHEMA_VERSION + 1 }),
+      );
+      const database = yield* MobileDatabase.make;
+      const result = yield* Effect.result(database.loadPreferencesJson);
 
-        expect(result).toMatchObject({
-          _tag: "Failure",
-          failure: { _tag: "MobileDatabaseError", operation: "migrate" },
-        });
-        expect(sqlite.prepare("PRAGMA user_version").get()).toEqual({
-          user_version: MobileDatabase.DATABASE_SCHEMA_VERSION + 1,
-        });
-      }),
-    ),
+      expect(result).toMatchObject({
+        _tag: "Failure",
+        failure: { _tag: "MobileDatabaseError", operation: "migrate" },
+      });
+      expect(sqlite.prepare("PRAGMA user_version").get()).toEqual({
+        user_version: MobileDatabase.DATABASE_SCHEMA_VERSION + 1,
+      });
+    }),
   );
 
   it.effect("rolls back a failed migration", () =>
-    Effect.scoped(
-      Effect.gen(function* () {
-        const sqlite = yield* Effect.promise(() => sqliteDatabase({ failMigration: true }));
-        const database = yield* MobileDatabase.make;
-        const result = yield* Effect.result(database.loadPreferencesJson);
+    Effect.gen(function* () {
+      const sqlite = yield* Effect.promise(() => sqliteDatabase({ failMigration: true }));
+      const database = yield* MobileDatabase.make;
+      const result = yield* Effect.result(database.loadPreferencesJson);
 
-        expect(result).toMatchObject({
-          _tag: "Failure",
-          failure: { _tag: "MobileDatabaseError", operation: "migrate" },
-        });
-        expect(sqlite.prepare("PRAGMA user_version").get()).toEqual({ user_version: 0 });
-        expect(
-          sqlite
-            .prepare(
-              "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'client_cache'",
-            )
-            .get(),
-        ).toBeUndefined();
-      }),
-    ),
+      expect(result).toMatchObject({
+        _tag: "Failure",
+        failure: { _tag: "MobileDatabaseError", operation: "migrate" },
+      });
+      expect(sqlite.prepare("PRAGMA user_version").get()).toEqual({ user_version: 0 });
+      expect(
+        sqlite
+          .prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'client_cache'")
+          .get(),
+      ).toBeUndefined();
+    }),
   );
 
   it.effect("restores saved records and clears them with the environment", () =>
-    Effect.scoped(
-      Effect.gen(function* () {
-        yield* Effect.promise(() => sqliteDatabase());
-        const database = yield* MobileDatabase.make;
-        yield* database.saveCache(environmentId, "pull-request", "v1:list", 1, '{"entries":[]}');
-        yield* database.saveCache(otherEnvironment, "pull-request", "v1:list", 1, "other");
-        expect(yield* database.loadCache(environmentId, "pull-request", "v1:list")).toEqual(
-          Option.some('{"entries":[]}'),
-        );
-        yield* database.clearEnvironmentCache(environmentId);
-        expect((yield* database.loadCache(environmentId, "pull-request", "v1:list"))._tag).toBe(
-          "None",
-        );
-        expect((yield* database.loadCache(otherEnvironment, "pull-request", "v1:list"))._tag).toBe(
-          "Some",
-        );
-      }),
-    ),
+    Effect.gen(function* () {
+      yield* Effect.promise(() => sqliteDatabase());
+      const database = yield* MobileDatabase.make;
+      yield* database.saveCache(environmentId, "pull-request", "v1:list", 1, '{"entries":[]}');
+      yield* database.saveCache(otherEnvironment, "pull-request", "v1:list", 1, "other");
+      expect(yield* database.loadCache(environmentId, "pull-request", "v1:list")).toEqual(
+        Option.some('{"entries":[]}'),
+      );
+      yield* database.clearEnvironmentCache(environmentId);
+      expect((yield* database.loadCache(environmentId, "pull-request", "v1:list"))._tag).toBe(
+        "None",
+      );
+      expect((yield* database.loadCache(otherEnvironment, "pull-request", "v1:list"))._tag).toBe(
+        "Some",
+      );
+    }),
   );
 });

@@ -10,10 +10,11 @@ and mode selections, unless the destination project has its own model default.
 Its branch and workspace mode come from your configured defaults. To continue in
 an existing worktree, use **New thread in this worktree** from the branch toolbar.
 
-On mobile, **New thread** starts in the last project you opened or chose on that
-device. If it is not available, the project picker opens; tap the project in the
-draft to pick another. Turn off **Settings → General → Use last project** to choose
-a project every time.
+On mobile, **New thread** starts in the project the thread list is filtered to,
+or else in the last project you opened or chose on that device. If neither is
+available, the project picker opens; tap the project in the draft to pick
+another. Turn off **Settings → General → Use last project** to choose a project
+every time.
 When you pick a project that is on more than one machine, the thread starts on a
 connected one if any is connected.
 
@@ -170,9 +171,9 @@ You can also change it in Settings → General on web and desktop, or Settings �
 ### Working threads
 
 In Default grouping, threads that are working or waiting on work they will resume from fold into a
-collapsed **Working** section. That includes subagents, watched pull requests, and background
-commands or monitors the agent says it is waiting on. A dev server or other process an agent leaves
-running does not keep a thread there. A thread returns to the top of the active list when it
+collapsed **Working** section. That includes subagents, watched pull requests with checks still
+running, Claude monitors, and background commands or other monitors the agent says it is waiting on.
+A dev server or other process an agent leaves running does not keep a thread there. A thread returns to the top of the active list when it
 finishes, fails, or needs an approval or answer.
 The Working section lists the thread you last sent work to first. Pinned threads stay in the
 pinned section.
@@ -304,6 +305,7 @@ On mobile, open a subagent from its conversation card or **Agents**. On iOS
 layouts with an inspector, its thread opens beside the parent. Maximize it to
 fill the screen; close the full-screen view to return to the parent and inspector.
 Stop on a thread also stops the subagents it delegated to.
+Before archiving the parent, wait for its delegated tasks to finish or cancel them.
 
 Subagent threads started by the agent can't take messages; message the parent
 thread instead. When such a subagent needs an approval or an answer, the parent

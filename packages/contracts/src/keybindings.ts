@@ -100,6 +100,7 @@ const THREAD_KEYBINDING_COMMANDS = [
   "thread.sideChat",
   "thread.mark-done",
   "thread.pin",
+  "thread.regenerateTitle",
   "thread.undo",
   ...THREAD_JUMP_KEYBINDING_COMMANDS,
 ] as const;
@@ -136,6 +137,7 @@ export const STATIC_KEYBINDING_COMMANDS = [
   "preview.zoomIn",
   "preview.zoomOut",
   "preview.resetZoom",
+  "preview.find",
   "commandPalette.toggle",
   "filePicker.toggle",
   "projectSearch.toggle",

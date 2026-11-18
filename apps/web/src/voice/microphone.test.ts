@@ -130,8 +130,10 @@ describe("openMicrophone", () => {
   const stubMediaDevices = (options: {
     readonly listings: ReadonlyArray<ReadonlyArray<MicrophoneInput>>;
     readonly failures?: Readonly<Record<string, string>>;
+    readonly defaultFailures?: ReadonlyArray<string>;
   }) => {
     let listed = 0;
+    const defaultFailures = [...(options.defaultFailures ?? [])];
     const requests: Array<string | null> = [];
     const stopped: Array<string> = [];
     vi.stubGlobal("navigator", {
@@ -144,7 +146,7 @@ describe("openMicrophone", () => {
         getUserMedia: async (constraints: MediaStreamConstraints) => {
           const exact = requested(constraints);
           requests.push(exact);
-          const failure = exact === null ? undefined : options.failures?.[exact];
+          const failure = exact === null ? defaultFailures.shift() : options.failures?.[exact];
           if (failure) throw Object.assign(new Error(failure), { name: failure });
           const deviceId = exact ?? "default";
           const track = { getSettings: () => ({ deviceId }), stop: () => stopped.push(deviceId) };
@@ -196,6 +198,52 @@ describe("openMicrophone", () => {
     await openMicrophone({ chosen: null, avoidBluetooth: true });
     expect(requests).toEqual([null]);
   });
+
+  const stubDesktop = (platform: string, restartAudioService?: () => Promise<boolean>) => {
+    const restart = vi.fn(restartAudioService ?? (async () => false));
+    vi.stubGlobal("window", {
+      desktopBridge: {
+        getClientPlatform: () => platform,
+        ...(restartAudioService ? { restartAudioService: restart } : {}),
+      },
+    });
+    return restart;
+  };
+
+  it.each(["NotFoundError", "NotReadableError"])(
+    "restarts the Linux desktop audio service once after the default fails with %s",
+    async (failure) => {
+      const { requests } = stubMediaDevices({
+        listings: [[chromiumDefault(builtIn), builtIn, usb]],
+        failures: { yeti: failure },
+        defaultFailures: [failure],
+      });
+      const restart = stubDesktop("linux", async () => true);
+      const stream = await openMicrophone({ chosen: choose(usb), avoidBluetooth: true });
+      expect(requests).toEqual(["yeti", null, "yeti", null]);
+      expect(restart).toHaveBeenCalledOnce();
+      expect(openedDevice(stream)).toBe("default");
+    },
+  );
+
+  it.each([
+    { failure: "NotAllowedError", platform: "linux", recovered: true, requests: 1 },
+    { failure: "NotFoundError", platform: "darwin", recovered: true, requests: 1 },
+    { failure: "NotFoundError", platform: "linux", recovered: false, requests: 1 },
+    { failure: "NotFoundError", platform: "linux", recovered: undefined, requests: 1 },
+    { failure: "NotReadableError", platform: "linux", recovered: true, requests: 2 },
+  ])(
+    "keeps $failure on $platform (recovered: $recovered)",
+    async ({ failure, platform, recovered, requests }) => {
+      const stub = stubMediaDevices({
+        listings: [[chromiumDefault(builtIn), builtIn]],
+        defaultFailures: [failure, failure],
+      });
+      stubDesktop(platform, recovered === undefined ? undefined : async () => recovered);
+      await expect(openMicrophone({ chosen: null, avoidBluetooth: true })).rejects.toThrow(failure);
+      expect(stub.requests).toHaveLength(requests);
+    },
+  );
 
   it("does not fall back when microphone access is denied", async () => {
     const { requests } = stubMediaDevices({

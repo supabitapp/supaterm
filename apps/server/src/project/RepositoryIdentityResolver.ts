@@ -1,7 +1,10 @@
 import type { RepositoryIdentity, SourceControlProviderError } from "@supaterm/contracts";
+import { parseGitRemoteHost } from "@supaterm/source-control-core/shared/definition";
 import { repositoryPathFromRemoteUrl } from "@supaterm/source-control-core/server/SourceControlProvider";
 import {
+  canonicalRepositoryPath,
   GH_RESOLVED_CONFIG_ARGS,
+  normalizeGitRemoteUrl,
   parseGhResolvedRemotes,
   parseGitRemoteFetchUrls,
 } from "@supaterm/shared/git";
@@ -17,7 +20,7 @@ import * as Path from "effect/Path";
 
 import * as ProcessRunner from "../processRunner.ts";
 import { sourceControlDefinitions } from "../sourceControl/sourceControlDefinitions.ts";
-import { explicitBareRepositoryEnv } from "../vcs/VcsProcess.ts";
+import { explicitBareRepositoryEnv, unsetInheritedRepositoryEnv } from "../vcs/VcsProcess.ts";
 import * as HostProcess from "@supaterm/shared/HostProcess";
 
 const DEFAULT_REPOSITORY_IDENTITY_CACHE_CAPACITY = 512;
@@ -72,7 +75,13 @@ function pickPrimaryRemote(
 function repositoryPathOf(canonicalKey: string, remoteUrl: string): string {
   const canonicalPath = canonicalKey.split("/").slice(1).join("/");
   const displayPath = repositoryPathFromRemoteUrl(remoteUrl);
-  return displayPath?.toLowerCase() === canonicalPath ? displayPath : canonicalPath;
+  if (displayPath === null) return canonicalPath;
+  // A host that names repositories literally keeps the `.git` the display path drops.
+  return (
+    [displayPath, `${displayPath}.git`].find(
+      (path) => canonicalRepositoryPath(path) === canonicalRepositoryPath(canonicalPath),
+    ) ?? canonicalPath
+  );
 }
 
 function buildRepositoryOrigin(
@@ -121,12 +130,17 @@ class RepositoryIdentityCacheKey extends Data.Class<{
   readonly isBare: boolean;
 }> {}
 
+const gitEnv = (platform: NodeJS.Platform): NodeJS.ProcessEnv => ({
+  ...unsetInheritedRepositoryEnv(process.env, platform),
+  ...explicitBareRepositoryEnv(process.env, platform),
+});
+
 const resolveRepositoryIdentityCacheKey = Effect.fn("RepositoryIdentityResolver.resolveCacheKey")(
   function* (cwd: string) {
     const processRunner = yield* ProcessRunner.ProcessRunner;
     const fileSystem = yield* FileSystem.FileSystem;
     const path = yield* Path.Path;
-    const env = explicitBareRepositoryEnv(process.env, yield* HostProcess.Platform);
+    const env = gitEnv(yield* HostProcess.Platform);
 
     // `git -C` cannot enter a missing folder or a file, so every probe below would fail.
     const isFolder = yield* fileSystem.stat(cwd).pipe(
@@ -150,7 +164,8 @@ const resolveRepositoryIdentityCacheKey = Effect.fn("RepositoryIdentityResolver.
       return null;
     }
     if (topLevelResult.value.code === 0) {
-      const rootPath = topLevelResult.value.stdout.trim();
+      // Paths may end in spaces, so strip only git's line terminator.
+      const rootPath = topLevelResult.value.stdout.replace(/\r?\n$/, "");
       return rootPath.length > 0
         ? new RepositoryIdentityCacheKey({ rootPath, isBare: false })
         : null;
@@ -194,9 +209,7 @@ const resolveRepositoryIdentityCacheKey = Effect.fn("RepositoryIdentityResolver.
       if (bareResult._tag === "None" || bareResult.value.timedOut) return null;
       if (bareResult.value.code !== 0) continue;
 
-      const [isBare, rootPath = ""] = bareResult.value.stdout
-        .split("\n")
-        .map((line) => line.trim());
+      const [isBare, rootPath = ""] = bareResult.value.stdout.split(/\r?\n/);
       // A checkout's .git directory contains remotes but is not a project root.
       return isBare === "true" && rootPath.length > 0
         ? new RepositoryIdentityCacheKey({ rootPath, isBare: true })
@@ -206,10 +219,15 @@ const resolveRepositoryIdentityCacheKey = Effect.fn("RepositoryIdentityResolver.
   },
 );
 
-/** The remote `gh repo set-default` made the base, where this checkout's pull requests go. */
+/**
+ * The remote `gh repo set-default` chose, where this checkout's pull requests go. gh marks one
+ * remote with `base`, or with OWNER/REPO when it picked a parent repository; the identity follows
+ * that mark only to a remote that fetches it, since review checkouts fetch through the locator.
+ */
 const readGhBaseRemote = Effect.fn("RepositoryIdentityResolver.readGhBaseRemote")(function* (
   cacheKey: string,
   remotes: ReadonlyMap<string, string>,
+  env: NodeJS.ProcessEnv,
 ) {
   if (remotes.size < 2) return null;
   const processRunner = yield* ProcessRunner.ProcessRunner;
@@ -217,6 +235,7 @@ const readGhBaseRemote = Effect.fn("RepositoryIdentityResolver.readGhBaseRemote"
     .run({
       command: "git",
       args: ["-C", cacheKey, ...GH_RESOLVED_CONFIG_ARGS],
+      env,
       timeoutBehavior: "timedOutResult",
     })
     .pipe(Effect.option);
@@ -224,9 +243,20 @@ const readGhBaseRemote = Effect.fn("RepositoryIdentityResolver.readGhBaseRemote"
   const [mark, ...others] = parseGhResolvedRemotes(result.value.stdout).filter(({ remoteName }) =>
     remotes.has(remoteName),
   );
-  if (mark?.resolution !== "base" || others.length > 0) return null;
-  const remoteUrl = remotes.get(mark.remoteName);
-  return remoteUrl === undefined ? null : { remoteName: mark.remoteName, remoteUrl };
+  if (mark === undefined || others.length > 0) return null;
+  const markedUrl = remotes.get(mark.remoteName);
+  if (markedUrl === undefined) return null;
+  if (mark.resolution === "base") return { remoteName: mark.remoteName, remoteUrl: markedUrl };
+  // Compare hosts with HTTP ports kept: one hostname can serve separate forges on two ports.
+  const host = parseGitRemoteHost(markedUrl)?.host;
+  const markedPath = mark.resolution.toLowerCase();
+  const [remoteName, remoteUrl] =
+    [...remotes.entries()].find(
+      ([, url]) =>
+        parseGitRemoteHost(url)?.host === host &&
+        normalizeGitRemoteUrl(url).split("/").slice(1).join("/") === markedPath,
+    ) ?? [];
+  return remoteName && remoteUrl ? { remoteName, remoteUrl } : null;
 });
 
 const resolveRepositoryIdentityFromCacheKey = Effect.fn(
@@ -235,11 +265,12 @@ const resolveRepositoryIdentityFromCacheKey = Effect.fn(
   cacheKey: RepositoryIdentityCacheKey,
 ): Effect.fn.Return<RepositoryIdentity | null, never, ProcessRunner.ProcessRunner> {
   const processRunner = yield* ProcessRunner.ProcessRunner;
+  const env = gitEnv(yield* HostProcess.Platform);
   const remoteResult = yield* processRunner
     .run({
       command: "git",
       args: ["-C", cacheKey.rootPath, ...(cacheKey.isBare ? ["--git-dir=."] : []), "remote", "-v"],
-      env: explicitBareRepositoryEnv(process.env, yield* HostProcess.Platform),
+      env,
       timeoutBehavior: "timedOutResult",
     })
     .pipe(Effect.option);
@@ -253,7 +284,7 @@ const resolveRepositoryIdentityFromCacheKey = Effect.fn(
     ),
   );
   const remote =
-    (yield* readGhBaseRemote(cacheKey.rootPath, remotes)) ?? pickPrimaryRemote(remotes);
+    (yield* readGhBaseRemote(cacheKey.rootPath, remotes, env)) ?? pickPrimaryRemote(remotes);
   return remote
     ? buildRepositoryIdentity({
         ...remote,

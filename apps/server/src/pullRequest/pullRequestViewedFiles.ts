@@ -30,7 +30,7 @@ const MAX_FILE_REVISION_PATHS = 1_000;
 interface FileRevisionsDependencies {
   readonly runFork: (effect: Effect.Effect<void>) => unknown;
   readonly refEpoch: (ref: PullRequestRef) => number;
-  readonly fileRevisionsEpoch: () => number;
+  readonly fileRevisionsEpoch: (ref: PullRequestRef) => string;
   readonly toPullRequestError: (
     operation: string,
   ) => (error: PullRequestProviderError) => PullRequestError;
@@ -53,7 +53,7 @@ const makeFileRevisions = (dependencies: FileRevisionsDependencies) => {
   const fileRevisionsKey = (project: SupportedProject, ref: PullRequestRef) =>
     [
       refEpoch({ ...ref, host: project.host, repository: project.repository }),
-      fileRevisionsEpoch(),
+      fileRevisionsEpoch({ ...ref, host: project.host, repository: project.repository }),
       ref.projectId,
       project.repository.trim().toLowerCase(),
       ref.number,
@@ -274,7 +274,9 @@ export const make = (dependencies: Dependencies) => {
       input: PullRequestSetFilesViewedInput,
     ): Effect.fn.Return<void, PullRequestError> {
       const viewer = yield* requiredViewerOf(project, "setFilesViewed");
-      const cleared = input.files.filter((file) => file.viewed).map((file) => file.path);
+      const cleared = input.files
+        .filter((file) => file.viewed && file.revision === undefined)
+        .map((file) => file.path);
       const revisions =
         cleared.length === 0
           ? null
@@ -290,12 +292,12 @@ export const make = (dependencies: Dependencies) => {
       yield* filesViewedStore
         .set({
           ...filesViewedScope(project, input.number, viewer),
-          // A path left out of the answer stores with no baseline, not the empty revision, since
-          // the empty revision is itself an answer and would misreport the file once it turns
-          // out to have a version after all.
+          // A shown revision wins over the head. A path left out of the answer stores with no
+          // baseline, not the empty revision, since the empty revision is itself an answer and
+          // would misreport the file once it turns out to have a version after all.
           files: input.files.map((file) => ({
             path: file.path,
-            revision: revisions?.get(file.path) ?? null,
+            revision: file.revision ?? revisions?.get(file.path) ?? null,
             viewed: file.viewed,
           })),
           viewedAt,

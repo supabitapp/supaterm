@@ -97,6 +97,26 @@ function pushBreakRun(acc: RichAccumulator, position?: number): void {
   acc.md += 1;
 }
 
+function horizontalRuleSource(block: ProseMirrorNode): string {
+  const source = (block.attrs as Record<string, unknown>).source;
+  return typeof source === "string" && source ? source : "---";
+}
+
+// A blank line keeps prose out of a quote (lazy continuation) and a dash rule from
+// underlining the line above into a setext heading; an empty paragraph already separates them.
+function needsBlankLineBetween(previous: ProseMirrorNode, block: ProseMirrorNode): boolean {
+  if (previous.type.name === "blockquote") {
+    return block.type.name === "paragraph" && block.content.size > 0;
+  }
+  return (
+    block.type.name === "horizontalRule" &&
+    previous.type.name === "paragraph" &&
+    previous.content.size > 0 &&
+    /^-+[ \t]*\r?$/.test(horizontalRuleSource(block))
+  );
+}
+
+// Blank-line runs own no document characters; offsets clamp to the start of the next block.
 function pushBlankLineRun(acc: RichAccumulator, pmPos: number): void {
   acc.runs.push({
     kind: "prefix",
@@ -113,6 +133,27 @@ function pushBlankLineRun(acc: RichAccumulator, pmPos: number): void {
   acc.value += "\n";
   acc.collapsed += 1;
   acc.md += 1;
+}
+
+// Moves an offset into a parsed `value` past the blank lines its serialization inserted,
+// treating other differences (`__` written as `**`) as same-length rewrites. When the two
+// strings do not align that way end to end, the offset is returned unmapped.
+export function serializedMarkdownOffset(
+  value: string,
+  serialized: string,
+  offset: number,
+): number {
+  if (value === serialized) return offset;
+  let index = 0;
+  let mapped = 0;
+  let target = -1;
+  while (index < value.length && mapped < serialized.length) {
+    if (index === offset && target < 0) target = mapped;
+    if (value[index] === serialized[mapped] || serialized[mapped] !== "\n") index += 1;
+    mapped += 1;
+  }
+  if (index !== value.length || mapped !== serialized.length) return offset;
+  return target < 0 ? mapped + (offset - index) : target;
 }
 
 function appendInlineRuns(
@@ -434,12 +475,9 @@ function serializeDoc(doc: ProseMirrorNode): RichDocMap {
   let pmBlockStart = 0;
   blocks.forEach((block, blockIndex) => {
     if (blockIndex > 0 && !isTrailingLineAfterRule(doc, blockIndex)) pushBreakRun(acc);
-    if (
-      blocks[blockIndex - 1]?.type.name === "blockquote" &&
-      block.type.name === "paragraph" &&
-      block.content.size > 0
-    )
+    if (blockIndex > 0 && needsBlankLineBetween(blocks[blockIndex - 1]!, block)) {
       pushBlankLineRun(acc, pmBlockStart + 1);
+    }
     if (LIST_NODE_NAMES.has(block.type.name)) {
       walkList(block, pmBlockStart, acc);
     } else if (block.type.name === "codeBlock") {
@@ -468,8 +506,7 @@ function serializeDoc(doc: ProseMirrorNode): RichDocMap {
       acc.md += prefix.length;
       appendInlineRuns(block, pmBlockStart + 1, acc);
     } else if (block.type.name === "horizontalRule") {
-      const attrs = block.attrs as Record<string, unknown>;
-      const source = typeof attrs.source === "string" && attrs.source ? attrs.source : "---";
+      const source = horizontalRuleSource(block);
       acc.runs.push({
         kind: "prefix",
         flatStart: acc.flat,

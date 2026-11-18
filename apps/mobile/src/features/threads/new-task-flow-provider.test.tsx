@@ -13,7 +13,7 @@ import {
   type ServerProvider,
 } from "@supaterm/contracts";
 import { AsyncResult, Atom } from "effect/reactivity";
-import { useLayoutEffect } from "react";
+import { useEffect, useLayoutEffect } from "react";
 import { Alert } from "react-native";
 import { act, create, type ReactTestRenderer } from "react-test-renderer";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
@@ -38,6 +38,7 @@ import { draftFlowRoute, pruneNewTaskFlowStates } from "./new-task-flow-state";
 
 const transport = vi.hoisted(() => ({
   openScratch: vi.fn(),
+  prepareTriage: vi.fn(),
   navigate: vi.fn(),
   dispatch: vi.fn(),
   goBack: vi.fn(),
@@ -83,6 +84,7 @@ vi.mock("../../state/projects", () => ({
 vi.mock("../../state/use-atom-command", () => ({
   useAtomCommand: () => transport.openScratch,
 }));
+vi.mock("../triage/usePrepareTriage", () => ({ usePrepareTriage: () => transport.prepareTriage }));
 vi.mock("../../state/presentation", () => ({
   useEnvironmentPresentation: () => ({
     isReady: true,
@@ -281,10 +283,17 @@ const pendingTask: QueuedThreadMessage = {
     worktreePath: null,
   },
 };
+const NOTHING_SENDING = {
+  connectedEnvironmentIds: new Set<EnvironmentId>(),
+  operableEnvironmentIds: new Set<EnvironmentId>(),
+  shellStatuses: new Map(),
+  retryingMessageIds: {},
+};
 
 type NewTaskFlow = ReturnType<typeof useNewTaskFlow>;
 interface TestDraftRoute {
   readonly key: string;
+  readonly pickOnMount?: EnvironmentProject;
   readonly draft: {
     readonly requestId: string;
     readonly draftId?: string;
@@ -300,7 +309,11 @@ let flow: NewTaskFlow;
 let pendingActions: ReturnType<typeof usePendingTaskListActions>;
 const selectThreadRoute = (params: ReactNavigation.RootParamList["Thread"]) =>
   transport.navigate("Thread", params);
-function Probe(props: { readonly routeKey: string; readonly top: boolean }) {
+function Probe(props: {
+  readonly routeKey: string;
+  readonly top: boolean;
+  readonly pickOnMount?: EnvironmentProject;
+}) {
   const current = useNewTaskFlow();
   const actions = usePendingTaskListActions(selectThreadRoute);
   useLayoutEffect(() => {
@@ -310,6 +323,11 @@ function Probe(props: { readonly routeKey: string; readonly top: boolean }) {
       pendingActions = actions;
     }
   }, [actions, current, props.routeKey, props.top]);
+  // Mirrors the draft screen applying its route project on mount, before the provider's effects run.
+  useEffect(() => {
+    if (props.pickOnMount) current.setProject(props.pickOnMount);
+    // oxlint-disable-next-line react/exhaustive-effect-dependencies -- picks once on mount; setProject changes every render
+  }, []);
   return null;
 }
 // Draft routes stay mounted under the ones pushed above them, as on the native stack.
@@ -324,7 +342,7 @@ function draftStack(routes: ReadonlyArray<TestDraftRoute>) {
       >
         {routes.map((route) => (
           <NewTaskFlowProvider key={route.key} route={draftFlowRoute(route.key, route.draft)}>
-            <Probe routeKey={route.key} top={route === top} />
+            <Probe routeKey={route.key} top={route === top} pickOnMount={route.pickOnMount} />
           </NewTaskFlowProvider>
         ))}
       </ServedNewTaskRouteProvider>
@@ -349,6 +367,7 @@ beforeEach(async () => {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   pruneNewTaskFlowStates({ routes: [] });
   transport.openScratch.mockReset();
+  transport.prepareTriage.mockReset();
   transport.navigate.mockReset();
   transport.dispatch.mockReset();
   transport.goBack.mockReset();
@@ -391,8 +410,11 @@ function beginSwitch(environmentId = secondEnvironment!) {
   };
 }
 
+const playbookPrompt = (machine: string) =>
+  `Read [triage-playbook.md](/${machine}/triage-playbook.md) and follow it. `;
+
 function deletePendingTask() {
-  const task = buildPendingQueuedTasks([pendingTask])[0]!;
+  const task = buildPendingQueuedTasks([pendingTask], NOTHING_SENDING)[0]!;
   pendingActions.confirmDeletePendingTask(task);
   const confirmation = vi.mocked(Alert.alert).mock.calls.at(-1)?.[2];
   const deleteAction = confirmation?.find((action) => action.text === "Delete");
@@ -408,7 +430,7 @@ describe("pending task editor dismissal", () => {
   });
 
   it("opens a queued creation's reserved thread from the list", () => {
-    const task = buildPendingQueuedTasks([pendingTask])[0]!;
+    const task = buildPendingQueuedTasks([pendingTask], NOTHING_SENDING)[0]!;
     pendingActions.openPendingTask(task);
     expect(transport.navigate).toHaveBeenCalledWith("Thread", {
       environmentId: pendingTask.environmentId,
@@ -518,6 +540,17 @@ describe("pending task editor dismissal", () => {
     await act(() => popDraftRoute());
     expect(flow.editingPendingTask?.messageId).toBe(pendingTask.messageId);
     expect(flow.prompt).toBe("");
+  });
+});
+
+it("keeps the draft on a project the screen picks as it mounts", async () => {
+  await act(() => {
+    renderer!.update(draftStack([...stack, { ...draftRoute(), pickOnMount: thirdProject }]));
+  });
+  expect(flow.selectedProject).toEqual(thirdProject);
+  expect(readDraft(flow.draftKey!).project).toMatchObject({
+    environmentId: thirdProject.environmentId,
+    projectId: thirdProject.id,
   });
 });
 
@@ -671,6 +704,46 @@ describe("new-task environment switching", () => {
     });
     expect(flow.buildPendingTaskMessage(metadata)?.environmentId).toBe(thirdEnvironment);
   });
+
+  it("takes a triage draft's session along when its machine changes", async () => {
+    await act(() => flow.setPrompt(`${playbookPrompt("first")}It is slow.`));
+    transport.prepareTriage.mockResolvedValueOnce(
+      AsyncResult.success({ prompt: playbookPrompt("second") }),
+    );
+    transport.openScratch.mockResolvedValueOnce(AsyncResult.success(secondProject));
+    await act(async () => {
+      expect(await flow.switchEnvironment(secondEnvironment!)).toBe(true);
+    });
+    expect(transport.prepareTriage).toHaveBeenCalledWith(secondEnvironment);
+    expect(flow.selectedProject).toBe(secondProject);
+    expect(readDraft(flow.draftKey!).text).toBe(`${playbookPrompt("second")}It is slow.`);
+  });
+
+  it.each(["project", "submission"] as const)(
+    "leaves a triage draft alone when a %s replaces the switch while its new machine prepares",
+    async (action) => {
+      const prompt = `${playbookPrompt("first")}It is slow.`;
+      await act(() => flow.setPrompt(prompt));
+      const draftKey = flow.draftKey!;
+      const preparing = Promise.withResolvers<AsyncResult.Success<{ prompt: string }>>();
+      transport.prepareTriage.mockReturnValueOnce(preparing.promise);
+      transport.openScratch.mockResolvedValueOnce(AsyncResult.success(secondProject));
+      let switched!: Promise<boolean>;
+      await act(() => {
+        switched = flow.switchEnvironment(secondEnvironment!);
+      });
+      await act(() => {
+        if (action === "project") flow.setProject(repositoryProject);
+        else flow.setSubmitting(true);
+      });
+      await act(async () => {
+        preparing.resolve(AsyncResult.success({ prompt: playbookPrompt("second") }));
+        expect(await switched).toBe(false);
+      });
+      expect(readDraft(draftKey).text).toBe(prompt);
+      expect(flow.selectedProject).toBe(action === "project" ? repositoryProject : firstProject);
+    },
+  );
 
   it("rejects environment switching while submitting", async () => {
     await act(async () => {

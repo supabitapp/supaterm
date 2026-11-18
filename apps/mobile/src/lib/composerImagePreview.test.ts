@@ -32,7 +32,7 @@ vi.mock("expo-file-system", () => ({
       return mocks.write(content, options);
     }
     async move(destination: { uri: string }) {
-      mocks.files.delete(this.uri);
+      if (!mocks.files.delete(this.uri)) throw new Error("source missing");
       mocks.files.add(destination.uri);
       this.uri = destination.uri;
     }
@@ -102,5 +102,33 @@ describe("materializedPreviewAtom", () => {
     expect(await materialize()).toBeNull();
     expect(await materialize()).toBe("file:///cache/supaterm-composer-previews/image-failed.png");
     expect(mocks.write).toHaveBeenCalledTimes(2);
+  });
+
+  it("shares one write when the atom is rebuilt while its preview is still being written", async () => {
+    const attachment: DraftComposerImageAttachment = {
+      id: "image-rebuilt",
+      type: "image",
+      name: "pasted.jpeg",
+      mimeType: "image/jpeg",
+      sizeBytes: 3,
+      previewUri: "data:image/jpeg;base64,AAAA",
+    };
+    const read = async () => {
+      const registry = AtomRegistry.make();
+      const atom = materializedPreviewAtom(new MaterializedPreviewKey(attachment));
+      const unmount = registry.mount(atom);
+      try {
+        await vi.waitFor(() => expect(AsyncResult.isSuccess(registry.get(atom))).toBe(true));
+        const result = registry.get(atom);
+        return AsyncResult.isSuccess(result) ? result.value : undefined;
+      } finally {
+        unmount();
+      }
+    };
+
+    expect(await Promise.all([read(), read()])).toEqual([
+      "file:///cache/supaterm-composer-previews/image-rebuilt.jpg",
+      "file:///cache/supaterm-composer-previews/image-rebuilt.jpg",
+    ]);
   });
 });

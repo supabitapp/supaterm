@@ -17,7 +17,10 @@ import {
   type ThreadPullRequestKey,
   type ThreadPullRequestLink,
 } from "@supaterm/contracts";
-import { normalizeThreadPullRequestKey } from "@supaterm/client-runtime/thread-pull-requests";
+import {
+  canStartThreadPullRequestWatch,
+  normalizeThreadPullRequestKey,
+} from "@supaterm/client-runtime/thread-pull-requests";
 import {
   capitalizeTerm,
   sourceControlClients,
@@ -49,9 +52,7 @@ export function useLinkedPullRequestActions(input: {
   const canStartWatch =
     canEdit &&
     thread !== null &&
-    thread.archivedAt === null &&
-    thread.doneAt === null &&
-    thread.doneOverride !== "done" &&
+    canStartThreadPullRequestWatch(thread) &&
     isListedThreadLineage(thread.lineage);
   const link = useAtomCommand(threadEnvironment.linkPullRequest, { reportFailure: false });
   const unlink = useAtomCommand(threadEnvironment.unlinkPullRequest, { reportFailure: false });

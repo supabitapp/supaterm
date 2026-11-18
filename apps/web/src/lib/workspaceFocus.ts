@@ -11,12 +11,11 @@ const FOCUSABLE_SELECTOR =
   'button:not(:disabled), a[href], input:not(:disabled), textarea:not(:disabled), select:not(:disabled), [contenteditable="true"], [tabindex]';
 
 /** Props that make an element one stop in the F6 cycle; `order` sets its place in the cycle. */
-export function workspaceAreaProps(name: string, order: number, label: string) {
+export function workspaceAreaProps(name: string, order: number, label?: string) {
   return {
     "data-workspace-area": name,
     "data-workspace-order": order,
-    "aria-label": label,
-    role: "region",
+    ...(label ? { "aria-label": label, role: "region" } : {}),
     tabIndex: -1,
   } as const;
 }
@@ -94,6 +93,16 @@ function isInScrollView(target: HTMLElement) {
 }
 
 /**
+ * Whether focus can go back to an element without surprising the user: it is still in a
+ * visible workspace area (a closing drawer drops its area) and in view, so no list scrolls.
+ */
+export function canReturnFocusTo(element: HTMLElement) {
+  return (
+    workspaceArea(element) !== null && isWorkspaceElementVisible(element) && isInScrollView(element)
+  );
+}
+
+/**
  * Brings a restored control into view, innermost scrolling list first.
  * scrollIntoView would also scroll overflow-hidden layout containers out of place.
  */
@@ -110,18 +119,22 @@ function revealInScrollers(target: HTMLElement) {
 export function createWorkspaceFocusController(doc: Document) {
   const lastFocused = new Map<string, HTMLElement>();
   let lastArea: string | undefined;
-  // An area that took focus itself from the keyboard. Chromium's :focus-visible also matches
-  // a clicked area after any later key press, so the ring and window return read this mark.
+  // An area that took focus itself from the keyboard, or the non-tabbable default (the
+  // conversation's scroller) standing in for it. Chromium's :focus-visible also matches a
+  // clicked area after any later key press, so the ring and window return read this mark.
   let keyboardArea: HTMLElement | undefined;
   let previousTarget: EventTarget | null = null;
   const unmarkKeyboardArea = () => {
     keyboardArea?.removeAttribute("data-workspace-keyboard-focus");
     keyboardArea = undefined;
   };
-  const markKeyboardArea = (area: HTMLElement) => {
-    if (!area.matches(":focus-visible")) return;
-    keyboardArea = area;
-    area.setAttribute("data-workspace-keyboard-focus", "");
+  const standsInFor = (element: HTMLElement, area: HTMLElement) =>
+    element === area ||
+    (element.tabIndex < 0 && element.hasAttribute("data-workspace-focus-default"));
+  const markKeyboardArea = (target: HTMLElement) => {
+    if (!target.matches(":focus-visible")) return;
+    keyboardArea = target;
+    target.setAttribute("data-workspace-keyboard-focus", "");
   };
   const remember = (event: FocusEvent) => {
     if (event.target !== keyboardArea) unmarkKeyboardArea();
@@ -131,7 +144,7 @@ export function createWorkspaceFocusController(doc: Document) {
     if (!(event.target instanceof HTMLElement)) return;
     const area = workspaceArea(event.target);
     if (!area?.dataset.workspaceArea) return;
-    if (arrived && event.target === area) markKeyboardArea(area);
+    if (arrived && standsInFor(event.target, area)) markKeyboardArea(event.target);
     lastArea = areaKey(area);
     const key = area.dataset.workspaceFocusKey ?? lastArea;
     lastFocused.delete(key);
@@ -152,7 +165,7 @@ export function createWorkspaceFocusController(doc: Document) {
       !element.matches(":disabled");
     const preferred = Array.from(
       area.querySelectorAll<HTMLElement>(
-        '[data-workspace-focus-default], [data-sidebar-row][aria-current="page"], [data-settings-section][tabindex="0"], .xterm-helper-textarea, [contenteditable="true"]',
+        '[data-workspace-focus-default], [data-sidebar-row][aria-current="page"], [data-settings-section][aria-current="page"], .xterm-helper-textarea, [contenteditable="true"]',
       ),
     ).find(belongs);
     const fallback = Array.from(area.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)).find(
@@ -181,10 +194,14 @@ export function createWorkspaceFocusController(doc: Document) {
         )
       : undefined;
     // Moving the timeline to an old control would also stop it following a running turn,
-    // so the conversation reuses a control only while it is still in view.
+    // so the conversation reuses a control only while it is still in view. A remembered
+    // area is only the fallback it was then, so controls mounted since take precedence.
     const isConversation = area.dataset.workspaceArea === "conversation";
     const targets = new Set([
-      previous && belongs(previous) && (!isConversation || isInScrollView(previous))
+      previous &&
+      previous !== area &&
+      belongs(previous) &&
+      (!isConversation || isInScrollView(previous))
         ? previous
         : undefined,
       isConversation ? undefined : restored,
@@ -201,7 +218,7 @@ export function createWorkspaceFocusController(doc: Document) {
       if (active === target || (active && target.contains(active))) {
         if (target !== area && !isConversation) revealInScrollers(target);
         // Focusing the already focused area fires no focusin, as when F6 has nowhere else to go.
-        if (target === area) markKeyboardArea(area);
+        if (standsInFor(target, area)) markKeyboardArea(target);
         return true;
       }
     }

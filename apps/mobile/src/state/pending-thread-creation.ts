@@ -4,6 +4,8 @@ import {
   type PendingThreadCreationOutcome as SharedPendingThreadCreationOutcome,
 } from "@supaterm/client-runtime/pending-thread-creation";
 import { DEFAULT_PROVIDER_INTERACTION_MODE, DEFAULT_RUNTIME_MODE } from "@supaterm/contracts";
+import type { EnvironmentThreadShell } from "@supaterm/client-runtime/state/shell";
+import { asLaunchingThread } from "@supaterm/client-runtime/state/thread-inbox";
 import { Atom } from "effect/reactivity";
 
 import { deriveThreadTitleFromPrompt } from "../lib/projectThreadStartTurn";
@@ -42,8 +44,36 @@ export function clearPendingThreadCreationOutcome(threadKey: string): void {
   appAtomRegistry.set(pendingThreadCreationOutcomesAtom, next);
 }
 
+/** Launches show as preparing from Send, before the server's shell exists, until their first run. */
+export function withLaunchingThreads(input: {
+  readonly threads: ReadonlyArray<EnvironmentThreadShell>;
+  readonly launches: ReadonlyArray<QueuedThreadMessage>;
+}): ReadonlyArray<EnvironmentThreadShell> {
+  if (input.launches.length === 0) return input.threads;
+  const launchByKey = new Map<string, QueuedThreadMessage>();
+  for (const message of input.launches) {
+    if (!message.creation) continue;
+    launchByKey.set(scopedThreadKey(message.environmentId, message.threadId), message);
+  }
+  if (launchByKey.size === 0) return input.threads;
+  const threads = input.threads.map((thread) => {
+    const key = scopedThreadKey(thread.environmentId, thread.id);
+    const launch = launchByKey.get(key);
+    if (!launch) return thread;
+    launchByKey.delete(key);
+    return asLaunchingThread(thread);
+  });
+  for (const launch of launchByKey.values()) {
+    const shell = pendingThreadCreationShell(launch);
+    if (shell) threads.push(asLaunchingThread(shell));
+  }
+  return threads;
+}
+
 /** Adapt the native queue format to the shared pending-thread presentation. */
-export function pendingThreadCreationShell(message: QueuedThreadMessage) {
+export function pendingThreadCreationShell(
+  message: QueuedThreadMessage,
+): EnvironmentThreadShell | null {
   const creation = message.creation;
   if (!creation || !message.modelSelection) return null;
   return buildPendingThreadShell({

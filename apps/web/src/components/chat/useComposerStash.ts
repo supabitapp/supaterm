@@ -1,5 +1,6 @@
 import type { EnvironmentId, PreviewAnnotationPayload, ScopedThreadRef } from "@supaterm/contracts";
 import { PROVIDER_SEND_TURN_MAX_ATTACHMENTS } from "@supaterm/contracts";
+import type { PendingUserInputProgress } from "../../pendingUserInput";
 import {
   type Dispatch,
   type RefObject,
@@ -12,6 +13,7 @@ import {
 import { flushSync } from "react-dom";
 import { BackgroundThreadContext } from "./backgroundThread";
 import { collapseExpandedComposerCursor } from "../../composer-logic";
+import { collectComposerPromptInlineTokens } from "../../composer-editor-mentions";
 import {
   type ComposerFileAttachment,
   type ComposerThreadDraftState,
@@ -58,7 +60,9 @@ import type { ComposerContextRecord } from "@supaterm/contracts";
 import { resizeSnapShotSource } from "../../lib/snapShotSource";
 import { randomUUID } from "~/lib/utils";
 import { pendingDraftWork } from "./pendingDraftWork";
+import { countPreparingComposerImages } from "./preparingComposerImages";
 import { remainingComposerAttachmentSlots } from "./composerThreadImport";
+import { composerImageDedupKey } from "./composerAttachmentFiles";
 import { toastManager } from "../ui/toast";
 import type { PendingUserInput } from "../../session-logic";
 import type { ComposerDispatchMode } from "@supaterm/client-runtime/state/composer-dispatch";
@@ -89,7 +93,7 @@ export function useComposerStash(input: {
   readonly isRevertingCheckpoint: boolean;
   readonly isEditingQueuedMessage: boolean;
   readonly pendingUserInputs: ReadonlyArray<PendingUserInput>;
-  readonly activePendingProgress: ChatComposerProps["activePendingProgress"];
+  readonly activePendingProgress: PendingUserInputProgress | null;
   readonly canQueueMessage: boolean;
   readonly canQueueSelectedProvider: boolean;
   readonly isSendBusy: boolean;
@@ -395,28 +399,20 @@ export function useComposerStash(input: {
     let unrestoredImageNames: string[] = [];
     if (entry.attachments.length > 0) {
       const existingIds = new Set(composerImagesRef.current.map((image) => image.id));
-      // The draft store also dedupes by mimeType+sizeBytes+name, so filter
-      // on the same key here. Counting a duplicate against capacity would
-      // burn a slot the store then refuses to fill, pushing a genuinely
-      // unique image into the overflow list for nothing.
-      const existingDedupKeys = new Set(
-        composerImagesRef.current.map(
-          (image) => `${image.mimeType}\0${image.sizeBytes}\0${image.name}`,
-        ),
-      );
+      // Filter on the draft store's dedupe key here. Counting a duplicate
+      // against capacity would burn a slot the store then refuses to fill,
+      // pushing a genuinely unique image into the overflow list for nothing.
+      const existingDedupKeys = new Set(composerImagesRef.current.map(composerImageDedupKey));
       const capacity = remainingComposerAttachmentSlots(
         composerImagesRef.current.length + composerFilesRef.current.length + restoredFileCount,
         pendingThreadImportsRef.current.get(composerTargetKey(composerDraftTarget)) ?? 0,
       );
-      const pending = entry.attachments.filter(
-        (attachment) =>
-          !existingIds.has(attachment.id) &&
-          !existingDedupKeys.has(
-            `${attachment.mimeType}\0${attachment.sizeBytes}\0${attachment.name}`,
-          ),
+      const pending = hydrateImagesFromPersisted(entry.attachments).filter(
+        (image) =>
+          !existingIds.has(image.id) && !existingDedupKeys.has(composerImageDedupKey(image)),
       );
-      unrestoredImageNames = pending.slice(capacity).map((attachment) => attachment.name);
-      const restoredImages = hydrateImagesFromPersisted(pending.slice(0, capacity));
+      unrestoredImageNames = pending.slice(capacity).map((image) => image.name);
+      const restoredImages = pending.slice(0, capacity);
       if (restoredImages.length > 0) {
         addComposerDraftImages(composerDraftTarget, restoredImages);
       }
@@ -603,7 +599,12 @@ export function useComposerStash(input: {
       });
       return;
     }
-    const prompt = promptRef.current.trim();
+    const trimmedPrompt = promptRef.current.trim();
+    // A trailing chip only parses with whitespace after it, so keep one space to restore it.
+    const endsWithChip =
+      collectComposerPromptInlineTokens(promptRef.current).at(-1)?.end ===
+      promptRef.current.trimEnd().length;
+    const prompt = endsWithChip ? `${trimmedPrompt} ` : trimmedPrompt;
     const images = [...composerImagesRef.current];
     const files = [...composerFilesRef.current];
     const stashedRecords: ComposerContextRecord[] = [
@@ -626,6 +627,16 @@ export function useComposerStash(input: {
       } else {
         setIsStashMenuOpen((open) => !open);
       }
+      return;
+    }
+    // The snapshot only holds compressed images; a still-compressing one would land in the
+    // emptied composer instead of travelling with this entry.
+    if (countPreparingComposerImages(attachmentTargetKeyRef.current) > 0) {
+      toastManager.add({
+        type: "info",
+        title: "Still compressing a pasted image.",
+        description: "Stash again once it finishes compressing.",
+      });
       return;
     }
     const stashedFiles: PersistedComposerFileAttachment[] = [];

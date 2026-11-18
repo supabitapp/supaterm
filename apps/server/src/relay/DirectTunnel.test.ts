@@ -330,7 +330,7 @@ it.layer(Layer.mergeAll(NodeServices.layer, NodePlatformCrypto.layer))("DirectTu
       const nested = `/v1/connect?endpointId=${identity.endpointId}`;
       expect((yield* tunneled(tunnel, nested, upgradeHeaders)).status).toBe(404);
       expect(tunnel.sockets).toHaveLength(1);
-    }).pipe(Effect.scoped),
+    }),
   );
 
   it.effect("reaches the host directly through a client's race when the relay is down", () =>
@@ -360,7 +360,7 @@ it.layer(Layer.mergeAll(NodeServices.layer, NodePlatformCrypto.layer))("DirectTu
         remoteAddress: "127.0.0.1",
       });
       expect(reports).toEqual(["direct"]);
-    }).pipe(Effect.scoped),
+    }),
   );
 
   it.effect("authenticates tunneled requests by bearer token, never by cookie", () =>
@@ -381,7 +381,7 @@ it.layer(Layer.mergeAll(NodeServices.layer, NodePlatformCrypto.layer))("DirectTu
           authorization: `Bearer ${session.sessionToken}`,
         })).status,
       ).toBe(200);
-    }).pipe(Effect.scoped),
+    }),
   );
 
   it.effect("answers 404 unless the request names this host's identity", () =>
@@ -397,7 +397,7 @@ it.layer(Layer.mergeAll(NodeServices.layer, NodePlatformCrypto.layer))("DirectTu
       expect(
         (yield* direct(host.port, `/v1/connect?endpointId=${identity.endpointId}`)).status,
       ).toBe(404);
-    }).pipe(Effect.scoped),
+    }),
   );
 
   it.effect("keeps permessage-deflate off the tunnel but on the shared socket server", () =>
@@ -410,7 +410,7 @@ it.layer(Layer.mergeAll(NodeServices.layer, NodePlatformCrypto.layer))("DirectTu
       expect(shared.extensions).toContain("permessage-deflate");
       tunnel.socket.close();
       yield* Effect.promise(() => Promise.all([tunnel.closed, shared.closed]));
-    }).pipe(Effect.scoped),
+    }),
   );
 
   it.effect("closes a tunnel whose first message is not a small text hello", () =>
@@ -426,7 +426,7 @@ it.layer(Layer.mergeAll(NodeServices.layer, NodePlatformCrypto.layer))("DirectTu
       const binary = opened(yield* dial(url));
       binary.socket.send(new Uint8Array(32));
       yield* Effect.promise(() => binary.closed);
-    }).pipe(Effect.scoped),
+    }),
   );
 
   it.effect("refuses a frame larger than one tunnel record from its header alone", () =>
@@ -435,7 +435,7 @@ it.layer(Layer.mergeAll(NodeServices.layer, NodePlatformCrypto.layer))("DirectTu
       const identity = yield* host.identity.get;
       const path = `/v1/connect?endpointId=${identity.endpointId}`;
       expect(yield* declareFrame(host.port, path, TUNNEL_MAX_PLAIN_BYTES + 25)).toBe(1009);
-    }).pipe(Effect.scoped),
+    }),
   );
 
   it.effect("closes a handshake that misses its deadline and frees its slot", () =>
@@ -451,7 +451,7 @@ it.layer(Layer.mergeAll(NodeServices.layer, NodePlatformCrypto.layer))("DirectTu
 
       const tunnel = yield* openTunnel(host.url, identity.address);
       expect((yield* tunneled(tunnel, "/api/test/peer")).status).toBe(200);
-    }).pipe(Effect.scoped),
+    }),
   );
 
   it.effect("limits direct sessions per peer", () =>
@@ -463,7 +463,7 @@ it.layer(Layer.mergeAll(NodeServices.layer, NodePlatformCrypto.layer))("DirectTu
       expect((yield* tunneled(first, "/api/test/peer")).status).toBe(200);
       expect((yield* tunneled(second, "/api/test/peer")).status).toBe(200);
       expect((yield* dial(connectUrl(host, identity.endpointId))).status).toBe(503);
-    }).pipe(Effect.scoped),
+    }),
   );
 
   it.effect("limits direct sessions across peers", () =>
@@ -473,7 +473,7 @@ it.layer(Layer.mergeAll(NodeServices.layer, NodePlatformCrypto.layer))("DirectTu
       const tunnel = yield* openTunnel(host.url, identity.address);
       expect((yield* tunneled(tunnel, "/api/test/peer")).status).toBe(200);
       expect((yield* dial(connectUrl(host, identity.endpointId))).status).toBe(503);
-    }).pipe(Effect.scoped),
+    }),
   );
 });
 

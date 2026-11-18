@@ -1,7 +1,13 @@
-import type { EnvironmentId, ProjectId } from "@supaterm/contracts";
+import type { EnvironmentShellStatus } from "@supaterm/client-runtime/state/shell";
+import type { EnvironmentId, MessageId, ProjectId } from "@supaterm/contracts";
 
 import { deriveThreadTitleFromPrompt } from "../lib/projectThreadStartTurn";
-import type { QueuedThreadCreation, QueuedThreadMessage } from "./thread-outbox-model";
+import {
+  isQueuedThreadCreationSendable,
+  resolveThreadOutboxDeliveryAction,
+  type QueuedThreadCreation,
+  type QueuedThreadMessage,
+} from "./thread-outbox-model";
 import { isNewTaskDraftKey } from "./new-task-draft-key";
 import type { ComposerDraft } from "./use-composer-drafts";
 import { resolveNewTaskDraftWorkspace } from "../features/threads/new-task-context-presentation";
@@ -118,12 +124,41 @@ export function buildPendingDraftTasks(
   return tasks.sort(newestFirst);
 }
 
+export interface ThreadOutboxSendGate {
+  readonly connectedEnvironmentIds: ReadonlySet<EnvironmentId>;
+  readonly operableEnvironmentIds: ReadonlySet<EnvironmentId>;
+  readonly shellStatuses: ReadonlyMap<EnvironmentId, EnvironmentShellStatus>;
+  readonly retryingMessageIds: Readonly<Partial<Record<MessageId, true>>>;
+}
+
+/** The outbox drain's gate for a creation: sendable, connected, shell live, operate granted, not backing off. */
+export function isQueuedCreationSending(
+  message: QueuedThreadMessage,
+  gate: ThreadOutboxSendGate,
+): boolean {
+  const environmentId = message.environmentId;
+  return (
+    isQueuedThreadCreationSendable(message) &&
+    gate.retryingMessageIds[message.messageId] !== true &&
+    gate.operableEnvironmentIds.has(environmentId) &&
+    resolveThreadOutboxDeliveryAction({
+      isCreation: true,
+      threadExists: false,
+      shellStatus: gate.shellStatuses.get(environmentId) ?? "empty",
+      environmentConnected: gate.connectedEnvironmentIds.has(environmentId),
+      awaitingCreatedThread: false,
+    }) === "send"
+  );
+}
+
 export function buildPendingQueuedTasks(
   queuedMessages: ReadonlyArray<QueuedThreadMessage>,
+  sendGate: ThreadOutboxSendGate,
 ): ReadonlyArray<PendingQueuedTask> {
   const tasks: PendingQueuedTask[] = [];
   for (const message of queuedMessages) {
-    if (!message.creation) {
+    // Listing a creation already being sent would flash an "Unsent" row.
+    if (!message.creation || isQueuedCreationSending(message, sendGate)) {
       continue;
     }
     tasks.push({

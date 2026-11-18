@@ -1,6 +1,6 @@
 import { DEFAULT_RESOLVED_KEYBINDINGS } from "@supaterm/shared/keybindings";
 import { type ComponentProps } from "react";
-import { render as renderUi, type Screen } from "../../../test/render";
+import { act, fakeTimers, render as renderUi, type Screen } from "../../../test/render";
 import { describe, expect, it, vi } from "vite-plus/test";
 import { userEvent } from "vite-plus/test/browser";
 
@@ -88,3 +88,62 @@ describe("ComposerPrimaryActions", () => {
     await expectSendTooltip({ sendShortcut: "mod-enter" }, "Send and start new thread");
   });
 });
+
+it.each(["resume", "draft"] as const)(
+  "keeps repeat Stop clicks from reaching the action that replaces it (%s)",
+  async (mode) => {
+    const props = {
+      ...baseProps,
+      isRunning: true,
+      canInterrupt: true,
+      hasSendableContent: false,
+      onInterrupt: vi.fn(),
+      onResume: vi.fn(),
+      onSubmitMessage: vi.fn((event: { preventDefault: () => void }) => event.preventDefault()),
+    } satisfies Props;
+    const view = (overrides: Partial<Props> = {}) => (
+      <div style={{ display: "flex", justifyContent: "flex-end", width: "400px" }}>
+        <ComposerPrimaryActions {...props} {...overrides} />
+      </div>
+    );
+    await using screen = await renderUi(view(), { router: false });
+    using _timers = fakeTimers();
+    const stop = screen
+      .getByRole("button", { name: "Stop generation" })
+      .element() as HTMLButtonElement;
+    const { x, y, width, height } = stop.getBoundingClientRect();
+    const target = () =>
+      document.elementFromPoint(x + width / 2, y + height / 2)?.closest("button");
+    await act(() => stop.click());
+    await act(() =>
+      (
+        screen.getByRole("button", { name: "Stopping", exact: true }).element() as HTMLButtonElement
+      ).click(),
+    );
+    expect(screen.getByRole("button", { name: "Stopping", exact: true }).element()).toBeDisabled();
+    expect(props.onInterrupt).toHaveBeenCalledTimes(1);
+    await screen.rerender(
+      view({
+        isRunning: false,
+        canInterrupt: false,
+        canResume: true,
+        hasSendableContent: mode === "draft",
+      }),
+    );
+    const action = { resume: "Resume thread", draft: "Submit message" }[mode];
+    expect(screen.getByRole("button", { name: "Stop generation" }).query()).toBeNull();
+    expect(target()).toBe(screen.getByRole("button", { name: action, exact: true }).element());
+    await act(() => {
+      for (let i = 0; i < 20; i++) target()?.click();
+    });
+    await act(() => vi.advanceTimersByTime(499));
+    await act(() => target()?.click());
+    expect(props.onResume).not.toHaveBeenCalled();
+    expect(props.onSubmitMessage).not.toHaveBeenCalled();
+    await act(() => vi.advanceTimersByTime(1));
+    await act(() => target()?.click());
+    expect({ resume: props.onResume, draft: props.onSubmitMessage }[mode]).toHaveBeenCalledTimes(1);
+    await screen.rerender(view());
+    expect(screen.getByRole("button", { name: "Stop generation" }).element()).toBeEnabled();
+  },
+);

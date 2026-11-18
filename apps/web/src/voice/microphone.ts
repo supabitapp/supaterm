@@ -39,6 +39,7 @@ const UNAVAILABLE_INPUT_ERRORS = new Set([
   "NotFoundError",
   "NotReadableError",
 ]);
+const LOST_AUDIO_SERVICE_ERRORS = new Set(["NotFoundError", "NotReadableError"]);
 
 /** Browsers hide device labels until microphone access is granted. */
 export function labelsHidden(inputs: ReadonlyArray<MicrophoneInput>) {
@@ -138,7 +139,24 @@ async function openResolved(
   }
 }
 
+// A failed PulseAudio context survives new getUserMedia calls; the desktop app restarts its audio utility.
+async function restartLinuxAudioService(error: unknown): Promise<boolean> {
+  if (!LOST_AUDIO_SERVICE_ERRORS.has(errorName(error))) return false;
+  const desktop = window.desktopBridge;
+  if (desktop?.getClientPlatform() !== "linux") return false;
+  return (await desktop.restartAudioService?.().catch(() => false)) === true;
+}
+
 export async function openMicrophone(preference: MicrophonePreference): Promise<MediaStream> {
+  try {
+    return await openPreferredMicrophone(preference);
+  } catch (error) {
+    if (!(await restartLinuxAudioService(error))) throw error;
+    return openPreferredMicrophone(preference);
+  }
+}
+
+async function openPreferredMicrophone(preference: MicrophonePreference): Promise<MediaStream> {
   const inputs = await listMicrophoneInputs();
   const stream = await openResolved(inputs, preference);
   if (!labelsHidden(inputs)) return stream;

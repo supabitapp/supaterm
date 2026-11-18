@@ -10,7 +10,10 @@ import {
   usageLimitRunPresentedAsLatest,
 } from "@supaterm/shared/orchestrationV2ThreadError";
 import * as Option from "effect/Option";
-import type { ComposerDispatchMode } from "@supaterm/client-runtime/state/composer-dispatch";
+import {
+  outboxDispatchMode,
+  type ComposerDispatchMode,
+} from "@supaterm/client-runtime/state/composer-dispatch";
 import { removeInlineContextReference } from "~/lib/composerContextReferences";
 import {
   previewAnnotationContextLabel,
@@ -40,6 +43,7 @@ import {
   type PreviewAnnotationPayload,
   ProviderDriverKind,
   type ProviderInstanceId,
+  type ProviderThreadId,
   type ServerProvider,
   type ScopedProjectRef,
   type ScopedThreadRef,
@@ -55,6 +59,7 @@ import {
   squashAtomCommandFailure,
   type AtomCommandResult,
 } from "@supaterm/client-runtime/state/runtime";
+import { readComposerImageBytes } from "./chat/composerAttachmentFiles";
 import { videoMimeType } from "@supaterm/shared/video";
 import {
   appendCodexArtifactTemplateUsePrompt,
@@ -76,6 +81,7 @@ import type {
   DraftThreadState,
 } from "../composerDraftStore";
 import * as Schema from "effect/Schema";
+import { threadHasStarted } from "../lib/chatThreadActions";
 import { appAtomRegistry } from "../rpc/atomRegistry";
 import { environmentThreadDetails } from "../state/threads";
 import { filterTerminalContextsWithText, type TerminalContextDraft } from "../lib/terminalContext";
@@ -196,14 +202,6 @@ export function resolveProactiveTurnDiffAction(input: {
   }
   const totals = checkpointFileTotals(input.checkpoint);
   return totals.count >= 3 || totals.additions + totals.deletions >= 50 ? "open" : "ignore";
-}
-
-export function resolveExplicitDiffOpenOnActivate(input: {
-  readonly surfaceKind: RightPanelSurface["kind"];
-  readonly diffOpen: boolean;
-  readonly activeThreadRef: ScopedThreadRef;
-}): ScopedThreadRef | null {
-  return input.surfaceKind === "diff" && !input.diffOpen ? input.activeThreadRef : null;
 }
 
 export function codexArtifactTemplatePromptToAppend(
@@ -618,7 +616,11 @@ export async function prepareRevertedMessageAttachments(input: {
       if (url === null) throw new Error("The environment returned an invalid attachment URL.");
       const response = await fetch(url, { signal: AbortSignal.timeout(30_000) });
       if (!response.ok) throw new Error(`Could not restore attachment: ${attachment.name}`);
-      return new File([await response.blob()], attachment.name, { type: attachment.mimeType });
+      const file = new File([await response.blob()], attachment.name, {
+        type: attachment.mimeType,
+      });
+      if (attachment.type === "image") await readComposerImageBytes(file);
+      return file;
     }),
   );
 }
@@ -785,10 +787,6 @@ export function recallCheckoutIsRepo(
     : sessionCheckoutIsRepo.get(checkoutIsRepoKey(environmentId, cwd));
 }
 
-function threadHasStarted(thread: Thread | null | undefined): boolean {
-  return Boolean(thread && (thread.latestRun !== null || thread.itemCount > 0 || thread.runtime));
-}
-
 // Imported history has no session until its first prompt. Resolve its instance
 // through the environment's provider catalog before locking to a driver.
 export function deriveLockedProvider(input: {
@@ -943,15 +941,36 @@ export function deriveCommittedServerUserMessageIds(
   );
 }
 
-// Returning to the window should land the caret in the composer, so the reader can type right
-// away. The exceptions are places where focus is deliberate: another text field, a terminal, an
-// open dialog, menu, or popup, a region or sidebar row reached from the keyboard, or a text
-// selection's action, which only Tab reaches. A plain button or a clicked row yields.
+/**
+ * The server checks the full history, but the first page of an
+ * agent-started thread or a long turn can hold no user message.
+ */
+export function hasCompactableConversation(input: {
+  readonly visibleTurnItems: ReadonlyArray<ThreadStructureRow>;
+  readonly hasMoreHistory: boolean;
+  readonly latestUserMessageAt: string | null;
+}): boolean {
+  return (
+    input.visibleTurnItems.some(
+      ({ item }) =>
+        item.type === "user_message" &&
+        (item.text.trim().toLowerCase() !== "/compact" || item.attachments.length > 0),
+    ) ||
+    (input.hasMoreHistory && input.latestUserMessageAt !== null)
+  );
+}
+
+// Window return puts the caret in the composer unless focus or a selection is deliberate: another
+// text field, a terminal, an open dialog, menu, or popup, a region, timeline, or sidebar row
+// reached from the keyboard, a text selection's action (only Tab reaches it), a region with its own
+// keys (aria-keyshortcuts), or selected text. A plain focused button or a clicked row yields.
 export function shouldRefocusComposerOnWindowFocus(
   activeElement:
     | (Pick<Element, "tagName" | "closest" | "getAttribute"> & { isContentEditable?: boolean })
     | null,
+  selection: Pick<Selection, "isCollapsed"> | null,
 ): boolean {
+  if (selection !== null && !selection.isCollapsed) return false;
   if (activeElement === null || activeElement.tagName === "BODY") return true;
   if (
     activeElement.tagName === "INPUT" ||
@@ -966,7 +985,7 @@ export function shouldRefocusComposerOnWindowFocus(
   }
   return (
     activeElement.closest(
-      '[data-workspace-keyboard-focus], [data-sidebar-row]:focus-visible, [data-selection-action], [role="dialog"], [role="alertdialog"], [role="application"], [role="menu"], [role="listbox"], [data-slot$="-popup"], [data-terminal-owner]',
+      '[data-workspace-keyboard-focus], [data-sidebar-row]:focus-visible, [data-selection-action], [role="dialog"], [role="alertdialog"], [role="application"], [role="menu"], [role="listbox"], [data-slot$="-popup"], [data-terminal-owner], [aria-keyshortcuts]',
     ) === null
   );
 }
@@ -1114,6 +1133,20 @@ export function makeModelDisabledReason(
   };
 }
 
+/** Derived from the persisted run phase, so a starting run still reads as work after a reload. */
+export function deriveTimelineWorking(input: {
+  readonly phase: SessionPhase;
+  readonly isCompacting: boolean;
+  readonly runlessWorkStartedAt: string | null;
+}): boolean {
+  return (
+    input.phase === "connecting" ||
+    input.phase === "running" ||
+    input.isCompacting ||
+    input.runlessWorkStartedAt !== null
+  );
+}
+
 /**
  * A thread shell built from its loaded detail, for direct links that hydrate the detail first.
  * `updatedAt` and `lastVisitedAt` are passed live: the thread structure leaves them out.
@@ -1167,22 +1200,46 @@ export function presentThreadShellFromProjection(
   };
 }
 
-/** Background work the provider still runs after the latest run ended. */
+// Excludes `waiting`: that is post-terminal checkpoint drain, so its agent turn is over.
+const LIVE_RUN_STATUSES = new Set(["queued", "preparing", "starting", "running"]);
+
+/**
+ * Background work the provider still runs after an earlier run ended. It
+ * stays listed while a later run is live; that live run's own items are its
+ * foreground work, so they never count as background. The provider roster is
+ * not run-tied, so it drops entries naming a live run's item by native id.
+ */
 export function deriveThreadPendingBackgroundTasks(projection: ThreadStructure | null) {
   if (projection === null) return [];
   const sessionError =
     projection.providerSessions.findLast(
       (session) => session.providerInstanceId === projection.thread.providerInstanceId,
     )?.lastError ?? null;
+  const liveRunIds = new Set(
+    projection.runs.filter((run) => LIVE_RUN_STATUSES.has(run.status)).map((run) => run.id),
+  );
+  const foregroundTaskIds = new Set<string>();
+  for (const item of projection.turnItems) {
+    if (item.runId === null || !liveRunIds.has(item.runId)) continue;
+    if (item.nativeItemRef?.nativeId) foregroundTaskIds.add(item.nativeItemRef.nativeId);
+  }
   const latestRun =
     usageLimitRunPresentedAsLatest(projection.runs, projection.turnItems, sessionError) ??
-    latestUnheldRun(projection.runs);
+    latestUnheldRun(projection.runs.filter((run) => !liveRunIds.has(run.id)));
   return [
     ...derivePendingBackgroundWork({
       latestRun,
-      providerThreads: projection.providerThreads,
-      turnItems: projection.turnItems,
+      providerThreads: projection.providerThreads.map((thread) => ({
+        ...thread,
+        pendingBackgroundTasks: thread.pendingBackgroundTasks?.filter(
+          (task) => !foregroundTaskIds.has(task.taskId),
+        ),
+      })),
+      turnItems: projection.turnItems.filter(
+        (item) => item.runId === null || !liveRunIds.has(item.runId),
+      ),
       activeProviderThreadId: projection.thread.activeProviderThreadId,
+      hasActiveRun: false,
       runs: projection.runs,
       pullRequests: projection.thread.pullRequests,
     }),
@@ -1290,12 +1347,16 @@ export function planComposerTurn(input: {
   readonly sendEnvMode: DraftThreadEnvMode;
   readonly worktreePath: string | null;
   readonly activeThreadBranch: string | null;
+  /** The server launches a No project worktree request at its root, so it needs no base. */
+  readonly isScratchProject: boolean;
   readonly worktreeBaseRefsSettled: boolean;
   readonly environmentUnavailable: boolean;
   readonly phase: SessionPhase;
   readonly dispatchMode: ComposerDispatchMode;
   /** The turn starts a new provider session, so it cannot steer into the running one. */
   readonly freshContext: boolean;
+  /** The server holds a steer sent during setup until the turn runs; older servers reject it. */
+  readonly deferredSteering: boolean;
 }) {
   const shouldCreateWorktree =
     input.isLocalDraftThread && input.sendEnvMode === "worktree" && !input.worktreePath;
@@ -1303,13 +1364,17 @@ export function planComposerTurn(input: {
   return {
     shouldCreateWorktree,
     missingWorktreeBaseBranch: shouldRequireWorktreeBaseBranch({
-      shouldCreateWorktree,
+      shouldCreateWorktree: shouldCreateWorktree && !input.isScratchProject,
       activeThreadBranch: input.activeThreadBranch,
       refsSettled: input.worktreeBaseRefsSettled,
       environmentUnavailable: input.environmentUnavailable,
     }),
     baseBranchForWorktree: shouldCreateWorktree ? input.activeThreadBranch : null,
-    turnDispatchMode: input.sendQueuesBehindSetup ? ("queue" as const) : dispatchMode,
+    turnDispatchMode: outboxDispatchMode({
+      dispatchMode,
+      setupRunning: input.sendQueuesBehindSetup,
+      deferredSteering: input.deferredSteering,
+    }),
     shouldQueueBehindActiveRun:
       input.sendQueuesBehindSetup || (input.phase === "running" && dispatchMode === "queue"),
   };
@@ -1325,4 +1390,13 @@ export function sendTitleFallbackLabels(snapshot: ComposerSendSnapshot) {
     reviewComment ? `Review: ${reviewCommentContextLabel(reviewComment)}` : undefined,
     previewAnnotation ? previewAnnotationContextLabel(previewAnnotation) : undefined,
   ];
+}
+
+/** An imported native session is bound before it has messages or runs, and its cwd is fixed. */
+export function isThreadEnvironmentLocked(input: {
+  readonly messageCount: number;
+  readonly hasRuntime: boolean;
+  readonly activeProviderThreadId: ProviderThreadId | null;
+}): boolean {
+  return input.messageCount > 0 || input.hasRuntime || input.activeProviderThreadId !== null;
 }

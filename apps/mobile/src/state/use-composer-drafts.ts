@@ -190,14 +190,54 @@ export function captureComposerDraftInsertion(
   };
 }
 
+function mapCapturedRange(
+  captured: ComposerDraftInsertion,
+  text: string,
+): { start: number; end: number } | null {
+  if (captured.text === text) return captured;
+  // A replaced selection is not safe to delete after edits; only a caret follows them.
+  if (captured.start !== captured.end) return null;
+  const previous = captured.text;
+  const shared = Math.min(previous.length, text.length);
+  let prefix = 0;
+  while (prefix < shared && previous[prefix] === text[prefix]) prefix += 1;
+  let suffix = 0;
+  while (
+    suffix < shared - prefix &&
+    previous[previous.length - 1 - suffix] === text[text.length - 1 - suffix]
+  ) {
+    suffix += 1;
+  }
+  // Text typed at the caret lands after it, so the insertion stays before that text.
+  if (captured.start <= prefix) return captured;
+  if (captured.start < previous.length - suffix) return null;
+  const caret = captured.start + text.length - previous.length;
+  return { start: caret, end: caret };
+}
+
+/** Keep a caret after the insertion where it was, or the next keystroke lands before typed text. */
+function caretAfterInsertion(
+  draftKey: string,
+  previousText: string,
+  range: { start: number; end: number },
+  inserted: number,
+): { start: number; end: number } {
+  const caret = readComposerDraftSelection(draftKey, previousText);
+  if (caret && caret.start > range.end) {
+    const delta = range.start + inserted - range.end;
+    return { start: caret.start + delta, end: caret.end + delta };
+  }
+  return { start: range.start + inserted, end: range.start + inserted };
+}
+
 function contextInsertionRange(
   draftKey: string,
   draft: ComposerDraft,
   target?: ComposerDraftInsertion,
 ) {
   const captured = target ?? appAtomRegistry.get(composerDraftSelectionAtom(draftKey));
-  // Append after text edits during writes; caret-only moves preserve the captured insertion range.
-  const selection = captured?.text === draft.text ? captured : null;
+  // Follow edits made during writes; append when an edit touched the captured range.
+  const selection = captured ? mapCapturedRange(captured, draft.text) : null;
   const start = Math.max(0, Math.min(selection?.start ?? draft.text.length, draft.text.length));
   return { start, end: Math.max(start, Math.min(selection?.end ?? start, draft.text.length)) };
 }
@@ -368,10 +408,11 @@ function draftWithInsertedContext(
   for (const record of content.context.records) records.set(record.contextId, record);
   const context = referencedComposerContext(text, { version: 1, records: [...records.values()] });
   if ((context?.records.length ?? 0) > COMPOSER_CONTEXT_MAX_RECORDS) return null;
-  rememberComposerDraftSelection(draftKey, text, {
-    start: start + insertion.length,
-    end: start + insertion.length,
-  });
+  rememberComposerDraftSelection(
+    draftKey,
+    text,
+    caretAfterInsertion(draftKey, draft.text, { start, end }, insertion.length),
+  );
   return withReferencedContextFiles(draft, text, context);
 }
 
@@ -1113,11 +1154,9 @@ export function insertComposerDraftText(
   const draft = getComposerDraftSnapshot(draftKey);
   const { start, end } = contextInsertionRange(draftKey, draft, target);
   const text = draft.text.slice(0, start) + value + draft.text.slice(end);
+  const caret = caretAfterInsertion(draftKey, draft.text, { start, end }, value.length);
   setComposerDraftText(draftKey, text);
-  rememberComposerDraftSelection(draftKey, text, {
-    start: start + value.length,
-    end: start + value.length,
-  });
+  rememberComposerDraftSelection(draftKey, text, caret);
 }
 
 export function appendComposerDraftText(draftKey: string, value: string): void {
@@ -1133,31 +1172,56 @@ export function appendComposerDraftText(draftKey: string, value: string): void {
   });
 }
 
+// Pasted images all share one name, so an image's inline bytes decide whether it is a repeat.
+function isSameAttachment(a: DraftComposerAttachment, b: DraftComposerAttachment): boolean {
+  return (
+    a.mimeType === b.mimeType &&
+    a.sizeBytes === b.sizeBytes &&
+    a.name === b.name &&
+    (a.type !== "image" || b.type !== "image" || a.dataUrl === b.dataUrl)
+  );
+}
+
+export interface ComposerDraftAttachmentsAppend {
+  readonly rejected: number;
+  readonly duplicates: ReadonlyArray<DraftComposerAttachment>;
+}
+
 /**
- * Restore paths pass allowOverflow so a failed send never drops the message's
- * own attachments.
+ * Restore puts back attachments after failed sends, so it skips the duplicate check and the caps.
+ * Reports how many attachments the caps rejected and which ones repeated an attached one.
  */
 export function appendComposerDraftAttachments(
   draftKey: string,
-  attachments: ReadonlyArray<DraftComposerAttachment>,
+  incoming: ReadonlyArray<DraftComposerAttachment>,
   options?: {
-    readonly allowOverflow?: boolean;
+    readonly restore?: boolean;
     readonly appendReference?: boolean;
     readonly insertion?: ComposerDraftInsertion;
     readonly maxAttachments?: number;
   },
-): number {
-  if (attachments.length === 0) {
-    return 0;
+): ComposerDraftAttachmentsAppend {
+  if (incoming.length === 0) {
+    return { rejected: 0, duplicates: [] };
   }
   let rejected: ReadonlyArray<DraftComposerAttachment> = [];
   let removed: ReadonlyArray<DraftComposerAttachment> = [];
+  let duplicates: ReadonlyArray<DraftComposerAttachment> = [];
   updateComposerDrafts((current) => {
     const existing = normalizeDraft(current[draftKey]);
     const retained = options?.appendReference
       ? draftWithoutInsertionSelection(draftKey, existing, options.insertion)
       : existing;
-    const remaining = options?.allowOverflow
+    const seen = [...retained.attachments];
+    const attachments = options?.restore
+      ? incoming
+      : incoming.filter((attachment) => {
+          if (seen.some((other) => isSameAttachment(other, attachment))) return false;
+          seen.push(attachment);
+          return true;
+        });
+    duplicates = incoming.filter((attachment) => !attachments.includes(attachment));
+    const remaining = options?.restore
       ? attachments.length
       : Math.max(
           0,
@@ -1200,8 +1264,8 @@ export function appendComposerDraftAttachments(
       [draftKey]: draft,
     };
   });
-  scheduleUnusedComposerAttachmentCleanup([...rejected, ...removed]);
-  return rejected.length;
+  scheduleUnusedComposerAttachmentCleanup([...rejected, ...removed, ...duplicates]);
+  return { rejected: rejected.length, duplicates };
 }
 
 export function replaceComposerDraftAttachments(
@@ -1528,6 +1592,25 @@ export function mergeComposerDraftContentState(
   };
 }
 
+/** Publishes into loaded drafts and schedules persistence. Returns how many attachments the cap dropped. */
+export function applyComposerDraftContent(draftKey: string, content: ComposerDraftContent): number {
+  let skippedAttachmentCount = 0;
+  updateComposerDrafts((current) => {
+    const next = mergeComposerDraftContentState(current, draftKey, content);
+    const keptIds = new Set(
+      [
+        ...normalizeDraft(current[draftKey]).attachments,
+        ...normalizeDraft(next[draftKey]).attachments,
+      ].map((attachment) => attachment.id),
+    );
+    skippedAttachmentCount = content.attachments.filter(
+      (attachment) => !keptIds.has(attachment.id),
+    ).length;
+    return next;
+  });
+  return skippedAttachmentCount;
+}
+
 /**
  * The durable write happens before the share inbox item can be acknowledged.
  */
@@ -1535,30 +1618,31 @@ export async function mergeComposerDraftContent(
   draftKey: string,
   content: ComposerDraftContent,
 ): Promise<{ readonly skippedAttachmentCount: number }> {
-  ensureComposerDraftsLoaded();
-  if (loadPromise !== null) {
-    await loadPromise;
-  }
-  const current = appAtomRegistry.get(composerDraftsAtom);
-  const next = mergeComposerDraftContentState(current, draftKey, content);
-  const currentAttachmentIds = new Set(
-    normalizeDraft(current[draftKey]).attachments.map((attachment) => attachment.id),
-  );
-  const nextAttachmentIds = new Set(
-    normalizeDraft(next[draftKey]).attachments.map((attachment) => attachment.id),
-  );
-  const skippedAttachmentCount = content.attachments.filter(
-    (attachment) =>
-      !currentAttachmentIds.has(attachment.id) && !nextAttachmentIds.has(attachment.id),
-  ).length;
+  await waitForComposerDraftsLoaded();
   // Publish the content and its import receipt together before the filesystem
   // await. Typing during persistence then builds on the receipt-bearing state,
   // and its debounced write is serialized after this transaction.
-  if (next !== current) {
-    appAtomRegistry.set(composerDraftsAtom, next);
-  }
+  const skippedAttachmentCount = applyComposerDraftContent(draftKey, content);
   await persistComposerStateNow();
   return { skippedAttachmentCount };
+}
+
+export interface ComposerDraftMergeReceipt {
+  readonly snapshot: ComposerDraft;
+  readonly merged: ComposerDraft;
+}
+
+/**
+ * Runs synchronous writes to a loaded draft and returns what undoComposerDraftMerge takes back out.
+ * The caller persists afterwards, so edits made during that await never count as part of the merge.
+ */
+export function captureComposerDraftMerge(
+  draftKey: string,
+  merge: () => void,
+): ComposerDraftMergeReceipt {
+  const snapshot = getComposerDraftSnapshot(draftKey);
+  merge();
+  return { snapshot, merged: getComposerDraftSnapshot(draftKey) };
 }
 
 export function sameComposerDraftState(a: ComposerDraft, b: ComposerDraft): boolean {
@@ -1722,6 +1806,7 @@ export function createNewTaskDraft(project: {
 export function retargetNewTaskDraft(
   draftKey: string,
   project: { readonly environmentId: EnvironmentId; readonly projectId: ProjectId },
+  options?: { readonly keepPullRequestWorkspace?: boolean },
 ): void {
   updateComposerDrafts((current) => {
     const existing = current[draftKey];
@@ -1733,7 +1818,12 @@ export function retargetNewTaskDraft(
     ) {
       return current;
     }
-    const { workspaceSelection: _workspaceSelection, ...retained } = normalizeDraft(existing);
+    const { workspaceSelection, ...retained } = normalizeDraft(existing);
+    // The PR checkout is recreated on the target machine, so only the old local path is dropped.
+    const keptWorkspaceSelection =
+      options?.keepPullRequestWorkspace && workspaceSelection?.pullRequestReference !== undefined
+        ? { ...workspaceSelection, worktreePath: null }
+        : undefined;
     // Pending uploads live on one server. Crossing environments keeps the
     // local bytes (the upload worker re-sends them to the new environment)
     // but drops the old stamp, so it cannot pin the source environment's
@@ -1748,6 +1838,7 @@ export function retargetNewTaskDraft(
       ...current,
       [draftKey]: {
         ...retained,
+        ...(keptWorkspaceSelection ? { workspaceSelection: keptWorkspaceSelection } : {}),
         attachments,
         project: {
           environmentId: project.environmentId,
@@ -1757,6 +1848,17 @@ export function retargetNewTaskDraft(
       },
     };
   });
+}
+
+/** Retargets a saved draft once drafts load; an absent one is not created. */
+export async function retargetSavedNewTaskDraft(
+  draftKey: string,
+  project: { readonly environmentId: EnvironmentId; readonly projectId: ProjectId },
+): Promise<boolean> {
+  await waitForComposerDraftsLoaded();
+  if (appAtomRegistry.get(composerDraftsAtom)[draftKey] === undefined) return false;
+  retargetNewTaskDraft(draftKey, project);
+  return true;
 }
 
 export function findNewTaskDraftKeys(

@@ -1,10 +1,11 @@
 import {
   OrchestrationV2AppThread,
+  OrchestrationV2ConversationMessage,
   OrchestrationV2TurnItem,
-  orchestrationV2WorktreePending,
   type OrchestrationV2ThreadProjection,
   type ScopedThreadRef,
 } from "@supaterm/contracts";
+import { orchestrationV2WorktreePending } from "@supaterm/shared/orchestrationV2ThreadError";
 import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
 import { AsyncResult, Atom } from "effect/reactivity";
@@ -91,6 +92,26 @@ type AppThread = OrchestrationV2ThreadProjection["thread"];
 const structureTurnItems = new WeakMap<TurnItem, ThreadStructureTurnItem>();
 const structureVisibleTurnItems = new WeakMap<VisibleTurnItem, ThreadStructureVisibleTurnItem>();
 
+// Queued text, attachments and attribution all come from the message, so its identity covers them.
+function queueWorkflowStatesEqual(
+  left: ThreadQueueWorkflowState,
+  right: ThreadQueueWorkflowState,
+): boolean {
+  return (
+    left.activeRun === right.activeRun &&
+    left.isHeld === right.isHeld &&
+    left.canSendNow === right.canSendNow &&
+    left.canPromoteToSteer === right.canPromoteToSteer &&
+    left.promoteSkipsCompaction === right.promoteSkipsCompaction &&
+    left.queuedRuns.length === right.queuedRuns.length &&
+    left.queuedRuns.every(
+      (queued, index) =>
+        queued.run === right.queuedRuns[index]!.run &&
+        queued.message === right.queuedRuns[index]!.message,
+    )
+  );
+}
+
 function toThreadStructureTurnItem(item: TurnItem): ThreadStructureTurnItem {
   if (item.type !== "assistant_message" && item.type !== "reasoning") return item;
   let structure = structureTurnItems.get(item);
@@ -140,6 +161,7 @@ function toThreadStructure(projection: OrchestrationV2ThreadProjection): ThreadS
 
 const sameTurnItem = Schema.toEquivalence(OrchestrationV2TurnItem);
 const sameAppThread = Schema.toEquivalence(OrchestrationV2AppThread);
+const sameMessage = Schema.toEquivalence(OrchestrationV2ConversationMessage);
 
 // Overlays previous's structure on next, so the fields the strip functions
 // remove are exactly the ones ignored here.
@@ -162,6 +184,17 @@ function sameTurnItemStructure(previous: TurnItem, next: TurnItem): boolean {
     return false;
   }
   return sameApartFromStripped(sameTurnItem, previous, structure, next);
+}
+
+// A streaming reply's text also lands on its message; readers of that text read the live thread.
+function sameMessageStructure(
+  previous: OrchestrationV2ConversationMessage,
+  next: OrchestrationV2ConversationMessage,
+): boolean {
+  if (previous === next) return true;
+  if (!previous.streaming || !next.streaming || previous.id !== next.id) return false;
+  const { text: _text, updatedAt: _updatedAt, ...structure } = previous;
+  return sameApartFromStripped(sameMessage, previous, structure, next);
 }
 
 function sameProjectionArray<T>(
@@ -221,6 +254,7 @@ export function sameThreadStructure(
   for (const key of Object.keys(next) as Array<keyof OrchestrationV2ThreadProjection>) {
     if (
       key === "thread" ||
+      key === "messages" ||
       key === "turnItems" ||
       key === "visibleTurnItems" ||
       key === "updatedAt"
@@ -241,6 +275,7 @@ export function sameThreadStructure(
     return false;
   }
   return (
+    sameProjectionArray(previous.messages, next.messages, sameMessageStructure) &&
     sameProjectionArray(previous.turnItems, next.turnItems, sameTurnItemStructure) &&
     sameProjectionArray(
       previous.visibleTurnItems,
@@ -379,13 +414,16 @@ export function createEnvironmentThreadDetailAtoms<E>(
   });
 
   const queueWorkflowAtomFamily = Atom.family((key: string) => {
+    const separator = key.lastIndexOf("\u0000");
+    const thread = key.slice(0, separator);
+    const deferredSteering = key.slice(separator + 1) === "deferred-steering";
     let previous: Pick<
       OrchestrationV2ThreadProjection,
       "thread" | "runs" | "messages" | "providerThreads" | "providerSessions" | "providerTurns"
     > | null = null;
     let value: ThreadQueueWorkflowState | null = null;
     return Atom.make((get) => {
-      const projection = Option.getOrNull(get(threadStateValueAtomFamily(key)).data);
+      const projection = Option.getOrNull(get(threadStateValueAtomFamily(thread)).data);
       if (projection === null) {
         previous = null;
         value = null;
@@ -398,7 +436,8 @@ export function createEnvironmentThreadDetailAtoms<E>(
         projection.providerSessions !== previous.providerSessions ||
         projection.providerTurns !== previous.providerTurns
       ) {
-        value = deriveThreadQueueWorkflowState(projection);
+        const next = deriveThreadQueueWorkflowState(projection, { deferredSteering });
+        if (value === null || !queueWorkflowStatesEqual(value, next)) value = next;
         const { thread, runs, messages, providerThreads, providerSessions, providerTurns } =
           projection;
         previous = { thread, runs, messages, providerThreads, providerSessions, providerTurns };
@@ -482,8 +521,16 @@ export function createEnvironmentThreadDetailAtoms<E>(
         projection.messages !== previous?.messages
       ) {
         const { checkpoints, messages } = projection;
+        const next = deriveThreadCheckpointSummaries({ checkpoints, messages });
+        // The same checkpoints give the same summaries; messages only pick each assistant message.
+        if (
+          checkpoints !== previous?.checkpoints ||
+          next.some(
+            (summary, index) => summary.assistantMessageId !== value[index]?.assistantMessageId,
+          )
+        )
+          value = next;
         previous = { checkpoints, messages };
-        value = deriveThreadCheckpointSummaries(previous);
       }
       return value;
     }).pipe(Atom.setIdleTTL(0), Atom.withLabel(`environment-thread-checkpoint-summaries:${key}`));
@@ -592,7 +639,10 @@ export function createEnvironmentThreadDetailAtoms<E>(
     updatedAtAtom: (ref: ScopedThreadRef) => updatedAtAtomFamily(threadKey(ref)),
     lastVisitedAtAtom: (ref: ScopedThreadRef) => lastVisitedAtAtomFamily(threadKey(ref)),
     pendingRequestsAtom: (ref: ScopedThreadRef) => pendingRequestsAtomFamily(threadKey(ref)),
-    queueWorkflowAtom: (ref: ScopedThreadRef) => queueWorkflowAtomFamily(threadKey(ref)),
+    queueWorkflowAtom: (ref: ScopedThreadRef, options?: { readonly deferredSteering?: boolean }) =>
+      queueWorkflowAtomFamily(
+        `${threadKey(ref)}\u0000${options?.deferredSteering === true ? "deferred-steering" : ""}`,
+      ),
     queuedCountAtom: (ref: ScopedThreadRef) => queuedCountAtomFamily(threadKey(ref)),
     runStopAtom: (ref: ScopedThreadRef) => runStopAtomFamily(threadKey(ref)),
     turnSubagentsAtom: (ref: ScopedThreadRef) => turnSubagentsAtomFamily(threadKey(ref)),

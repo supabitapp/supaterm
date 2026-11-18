@@ -229,6 +229,7 @@ function setup(integrated = false) {
     const onDebug: NonNullable<NativeReviewDiffViewProps["onDebug"]> = (event) =>
       handlePullRequestDiffDebugEvent(event, {
         rowCount: data.rows.length,
+        lastShownRowIndex: data.rows.length - 1,
         targetFileId,
         focusIndex: -1,
         isIos: true,

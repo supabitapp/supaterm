@@ -43,6 +43,10 @@ vi.mock(import("../../state/threadOutbox"), async (importOriginal) => ({
     send.events.push("enqueue");
     send.enqueued.push(...turns);
   }) as never,
+  enqueueThreadOutboxTurn: (async (turn: unknown) => {
+    send.events.push("enqueue");
+    send.enqueued.push(turn);
+  }) as never,
 }));
 vi.mock(import("../../state/composerQueue"), async (importOriginal) => ({
   ...(await importOriginal()),
@@ -112,6 +116,7 @@ function sendInput(
     activeThreadKey: routeThreadKey,
     activeThreadBranch: null,
     activeProject: { id: "project", workspaceRoot: "/repo" } as never,
+    activeProjectIsScratch: false,
     isServerThread: true,
     isLocalDraftThread: false,
     isGitRepo: true,
@@ -132,6 +137,7 @@ function sendInput(
     threadDetailLoading: false,
     activeEnvironmentUnavailable: false,
     sendQueuesBehindSetup: false,
+    deferredSteering: false,
     isDraftHeroState: false,
     panelAnimationsActive: false,
     panelAnimationDurationMs: 0,
@@ -142,6 +148,7 @@ function sendInput(
     clearUsageLimitsFor: () => {},
     needsLoadBalancing: false,
     loadBalancing: { pending: false } as never,
+    refreshBeforeSend: () => null,
     readPendingEnvironmentChange: () => null,
     pendingApprovals: [
       {
@@ -153,7 +160,7 @@ function sendInput(
       },
     ],
     respondingRequestIds: [],
-    activePendingProgress: null,
+    activePendingUserInput: null,
     onAdvanceActivePendingUserInput: () => {},
     onRespondToApproval,
     beginWorktreeSetup: () => {},
@@ -281,6 +288,47 @@ describe("useComposerSend with /clear", () => {
     expect(send.enqueued[1]).not.toHaveProperty("input.freshContext");
     expect(readFreshSessionArm(routeThreadKey)).toBeUndefined();
   });
+});
+
+describe("useComposerSend during worktree setup", () => {
+  it.each([
+    [false, "queue"],
+    [true, "steer"],
+  ] as const)(
+    "sends a typed or voice steer with deferredSteering %s as %s",
+    async (deferredSteering, dispatchMode) => {
+      send.events = [];
+      send.enqueued = [];
+      let composerSend: ReturnType<typeof useComposerSend> | undefined;
+      function Probe() {
+        const current = useComposerSend({
+          ...sendInput(async () => AsyncResult.success({ sequence: 1 })),
+          phase: "connecting",
+          pendingApprovals: [],
+          promptRef: { current: prompt },
+          sendQueuesBehindSetup: true,
+          deferredSteering,
+        });
+        useLayoutEffect(() => {
+          composerSend = current;
+        });
+        return null;
+      }
+      await using _screen = await render(<Probe />);
+      await act(async () => {
+        await composerSend?.onSend(undefined, "steer");
+        await composerSend?.prepareVoiceSend("steer", "en")(
+          { audio: new Blob(), durationMs: 1000 },
+          undefined,
+        );
+      });
+
+      expect(send.enqueued).toMatchObject([
+        { input: { message: { text: prompt }, dispatchMode } },
+        { input: { message: { text: "" }, dispatchMode }, voice: { language: "en" } },
+      ]);
+    },
+  );
 });
 
 describe("useComposerSend over a pending approval", () => {

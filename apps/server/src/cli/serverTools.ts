@@ -15,7 +15,8 @@ import * as EnvironmentAuth from "../auth/EnvironmentAuth.ts";
 import * as ServerConfig from "../config.ts";
 import { mcpToolSession, type McpToolSession } from "../mcp/AcpMcpStdioBridge.ts";
 import { expandHomePath } from "../os-jank.ts";
-import { readPersistedServerRuntimeState } from "../serverRuntimeState.ts";
+import * as ProcessRunner from "../processRunner.ts";
+import { readLiveServerRuntimeState } from "../serverRuntimeState.ts";
 import {
   CliServerVersionMismatchError,
   requireMatchingServerVersion,
@@ -67,12 +68,23 @@ export class CliProjectNotFoundError extends Schema.TaggedError<CliProjectNotFou
   }
 }
 
+export class CliProjectAmbiguousError extends Schema.TaggedError<CliProjectAmbiguousError>()(
+  "CliProjectAmbiguousError",
+  { identifier: Schema.String, projects: Schema.Array(Schema.String) },
+) {
+  override readonly [Runtime.errorReported] = false;
+  override get message(): string {
+    return `'${this.identifier}' is in a git worktree shared by several projects: ${this.projects.join(", ")}. Pass a project id instead.`;
+  }
+}
+
 export const ServerToolsErrors = [
   CliServerNotRunningError,
   CliServerVersionMismatchError,
   CliServerUnreachableError,
   CliToolFailedError,
   CliProjectNotFoundError,
+  CliProjectAmbiguousError,
 ] as const;
 
 /**
@@ -139,19 +151,22 @@ export type ServerTools = ReturnType<typeof makeServerTools>;
  * outside agent does, and revokes that session when the command ends.
  */
 export const withServerTools = Effect.fn("cli.serverTools.withServerTools")(function* <A, E, R>(
-  flags: { readonly baseDir: Option.Option<string> },
+  flags: { readonly baseDir: Option.Option<string>; readonly json?: boolean },
   client: { readonly label: string; readonly name: string },
   run: (tools: ServerTools) => Effect.Effect<A, E, R>,
 ) {
   const logLevel = yield* GlobalFlag.LogLevel;
   const worktreeHome = yield* resolveCliWorktreeHome(flags.baseDir);
+  const quietLogs = flags.json === true;
   const config = yield* resolveCliAuthConfig(
     { baseDir: worktreeHome === undefined ? flags.baseDir : Option.some(worktreeHome) },
     logLevel,
+    { quietLogs },
   );
+  const minimumLogLevel = quietLogs ? "Error" : config.logLevel;
   // Checked before the auth layer opens the database, so a home with no server
   // is left untouched.
-  const runtimeState = yield* readPersistedServerRuntimeState(config.serverRuntimeStatePath);
+  const runtimeState = yield* readLiveServerRuntimeState(config.serverRuntimeStatePath);
   if (Option.isNone(runtimeState)) {
     return yield* new CliServerNotRunningError({
       baseDir: config.baseDir,
@@ -181,10 +196,11 @@ export const withServerTools = Effect.fn("cli.serverTools.withServerTools")(func
     return yield* run(makeServerTools(session, origin));
   }).pipe(
     Effect.scoped,
+    Effect.provideService(References.MinimumLogLevel, minimumLogLevel),
     Effect.provide(
       EnvironmentAuth.layerRuntime.pipe(
         Layer.provide(ServerConfig.layer(config)),
-        Layer.provide(Layer.succeed(References.MinimumLogLevel, config.logLevel)),
+        Layer.provide(Layer.succeed(References.MinimumLogLevel, minimumLogLevel)),
       ),
     ),
   );
@@ -214,7 +230,35 @@ const listAllProjects = Effect.fn("cli.serverTools.listAllProjects")(function* (
   return projects;
 });
 
-/** A project id, or a path inside a project's folder (deepest project wins). */
+/** The checkouts of the git repository at `directory`, or none outside a repository. */
+const listGitCheckouts = Effect.fn("cli.serverTools.listGitCheckouts")(function* (
+  directory: string,
+) {
+  const processRunner = yield* ProcessRunner.ProcessRunner;
+  const list = (args: ReadonlyArray<string>) =>
+    processRunner
+      .run({ command: "git", args: ["worktree", "list", "--porcelain", ...args], cwd: directory })
+      .pipe(
+        Effect.option,
+        Effect.map((result) =>
+          Option.isSome(result) && result.value.code === 0 ? result.value.stdout : undefined,
+        ),
+      );
+  // Pre-2.36 Git rejects worktree list -z; normalize its line output to NUL records.
+  const stdout = (yield* list(["-z"])) ?? (yield* list([]))?.replaceAll("\n", "\0") ?? "";
+  return stdout.split("\0\0").flatMap((record) => {
+    const [first = "", ...attributes] = record.split("\0");
+    return first.startsWith("worktree ") && !attributes.includes("bare")
+      ? [first.slice("worktree ".length)]
+      : [];
+  });
+});
+
+/**
+ * A project id, or a path inside a project's folder (deepest project wins).
+ * A path inside a git worktree resolves as the same path in the repository's
+ * other checkouts.
+ */
 export const resolveProject = Effect.fn("cli.serverTools.resolveProject")(function* (
   tools: ServerTools,
   identifier: string,
@@ -235,17 +279,49 @@ export const resolveProject = Effect.fn("cli.serverTools.resolveProject")(functi
   const roots = yield* Effect.forEach(projects, (project) =>
     Effect.map(realPath(project.workspaceRoot), (root) => ({ project, root })),
   );
-  const containing = roots
-    .filter(({ root }) => {
-      const relative = path.relative(root, target);
-      return (
-        relative === "" ||
-        (relative !== ".." && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative))
-      );
-    })
-    .toSorted((left, right) => right.root.length - left.root.length)[0];
-  if (containing === undefined) {
+  const contains = (root: string, candidate: string) => {
+    const relative = path.relative(root, candidate);
+    return (
+      relative === "" ||
+      (relative !== ".." && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative))
+    );
+  };
+  const deepestContaining = (candidate: string) =>
+    roots
+      .filter(({ root }) => contains(root, candidate))
+      .toSorted((left, right) => right.root.length - left.root.length)[0]?.project;
+
+  const containing = deepestContaining(target);
+  if (containing !== undefined) return containing;
+  const targetInfo = yield* fileSystem.stat(target).pipe(Effect.option);
+  const gitDirectory =
+    Option.isSome(targetInfo) && targetInfo.value.type === "File" ? path.dirname(target) : target;
+  const listed = yield* listGitCheckouts(gitDirectory).pipe(
+    Effect.flatMap((paths) => Effect.forEach(paths, realPath)),
+    Effect.provide(ProcessRunner.layer),
+  );
+  const ownCheckout = listed
+    .filter((checkout) => contains(checkout, target))
+    .toSorted((left, right) => right.length - left.length)[0];
+  if (ownCheckout === undefined) {
     return yield* new CliProjectNotFoundError({ identifier });
   }
-  return containing.project;
+  const relative = path.relative(ownCheckout, target);
+  const matches = new Map<ProjectId, (typeof projects)[number]>();
+  for (const checkout of listed) {
+    if (checkout === ownCheckout) continue;
+    const project = deepestContaining(path.join(checkout, relative));
+    if (project !== undefined) matches.set(project.id, project);
+  }
+  const [match, ...others] = matches.values();
+  if (match === undefined) {
+    return yield* new CliProjectNotFoundError({ identifier });
+  }
+  if (others.length > 0) {
+    return yield* new CliProjectAmbiguousError({
+      identifier,
+      projects: [match, ...others].map((project) => `${project.title} (${project.id})`),
+    });
+  }
+  return match;
 });

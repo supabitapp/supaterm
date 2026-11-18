@@ -52,7 +52,7 @@ const failureMessage = (cause: Cause.Cause<unknown>) => {
   return error instanceof Error ? error.message : String(error);
 };
 
-/** EAS hosts belong to one environment: its server holds the Expo credential and runs the sessions. */
+/** Expo hosts belong to one environment: its server holds the Expo credential and runs the sessions. */
 export function EasDeviceHostsSettings(props: { environmentId: EnvironmentId | null }) {
   const { scope, connectedEnvironments } = useSettingsScope();
   const canConfigure = useEnvironmentScope(props.environmentId, AuthSettingsWriteScope);
@@ -81,7 +81,7 @@ export function EasDeviceHostsSettings(props: { environmentId: EnvironmentId | n
     else
       toastManager.add({
         type: "error",
-        title: remove ? "EAS host not removed" : "EAS host not saved",
+        title: remove ? "Expo host not removed" : "Expo host not saved",
         description: failureMessage(result.cause),
       });
   };
@@ -89,7 +89,7 @@ export function EasDeviceHostsSettings(props: { environmentId: EnvironmentId | n
   return (
     <SettingsRow
       id="eas-device-hosts"
-      title="EAS Simulator"
+      title="Expo Simulators"
       serverScoped
       settingKeys={["easDeviceHosts"]}
       description="Run iOS Simulators in Expo's cloud from this environment. Sessions bill the Expo account until they stop, so each host caps how many run and how long. Editing or removing a host stops its sessions."
@@ -100,13 +100,13 @@ export function EasDeviceHostsSettings(props: { environmentId: EnvironmentId | n
           disabled={disabled || editing !== null}
           onClick={() => setEditing({ host: newEasDeviceHost(randomUUID()), isNew: true })}
         >
-          <PlusIcon className="size-3.5" /> Add EAS host
+          <PlusIcon className="size-3.5" /> Add Expo host
         </Button>
       }
     >
       <div className="pt-3 pb-2">
         {hosts.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No EAS hosts.</p>
+          <p className="text-sm text-muted-foreground">No Expo hosts.</p>
         ) : (
           <ul className="divide-y divide-border/40">
             {hosts.map((host) => (
@@ -282,7 +282,7 @@ function EasDeviceHostEditor(props: {
           }}
         >
           <DialogHeader>
-            <DialogTitle>{props.isNew ? "Add EAS host" : "Edit EAS host"}</DialogTitle>
+            <DialogTitle>{props.isNew ? "Add Expo host" : "Edit Expo host"}</DialogTitle>
             <DialogDescription>
               The environment's server signs in to Expo and starts the sessions. Without a token
               here it uses EXPO_TOKEN, then its eas login.
@@ -365,7 +365,7 @@ function EasDeviceHostEditor(props: {
               </Button>
             </div>
             <div className="space-y-1.5 text-sm">
-              <span>EAS project</span>
+              <span>Expo project</span>
               <Select
                 value={draft.appId ?? FROM_THREAD_PROJECT}
                 disabled={props.busy}
@@ -377,7 +377,7 @@ function EasDeviceHostEditor(props: {
                   });
                 }}
               >
-                <SelectTrigger size="sm" aria-label="EAS project">
+                <SelectTrigger size="sm" aria-label="Expo project">
                   <SelectValue>
                     {(value: string) =>
                       value === FROM_THREAD_PROJECT
@@ -409,10 +409,10 @@ function EasDeviceHostEditor(props: {
               {limit("idleMinutes", "Idle minutes", 60)}
             </div>
             <p className="text-xs text-muted-foreground">
-              Expo allows sessions of up to 40 minutes on free accounts and 115 on paid ones, and
-              ends one after the idle minutes without activity, so idle minutes must be smaller than
+              Expo Simulators needs a paid Expo account. A session runs for up to 115 minutes and
+              stops early when it is idle for the idle minutes, so idle minutes must be less than
               session minutes.
-              {props.isNew ? null : " Saving restarts this host, which stops its running sessions."}
+              {props.isNew ? null : " Saving restarts this host and stops its running sessions."}
             </p>
             {problem === null ? null : (
               <p className="text-xs text-destructive" role="alert">

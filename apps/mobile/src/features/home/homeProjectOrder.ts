@@ -11,6 +11,8 @@ const sameProjectOrder = Equivalence.Array(
     memberProjectRefs: Equivalence.Array(
       Equivalence.Struct({ environmentId: Equivalence.String, projectId: Equivalence.String }),
     ),
+    pinned: Equivalence.Boolean,
+    archived: Equivalence.Boolean,
   }),
 );
 
@@ -26,7 +28,11 @@ export const homeProjectOrderAtom = Atom.family((projectGroupingMode: SidebarPro
       threads: get(environmentThreadShells.threadShellsAtom),
       pendingTasks: [],
       projectSortOrder: "updated_at",
-    }).map((scope) => ({ memberProjectRefs: scope.projectRefs })),
+    }).map((scope) => ({
+      memberProjectRefs: scope.projectRefs,
+      pinned: scope.pinned,
+      archived: scope.archived,
+    })),
   ).pipe(
     // Thread activity that keeps the order must not re-render the whole list screen.
     Atom.withEquality(sameProjectOrder),

@@ -21,10 +21,16 @@ import * as NodeNet from "node:net";
 import * as NodeOS from "node:os";
 
 import * as HostProcess from "@supaterm/shared/HostProcess";
-import { isPrivateNetworkHost, isTailnetHost } from "@supaterm/shared/hostClassification";
+import {
+  formatHostForUrl,
+  isPrivateNetworkHost,
+  isTailnetHost,
+  isWildcardHost,
+} from "@supaterm/shared/hostClassification";
 
 import * as ServerConfig from "../config.ts";
-import { formatHostForUrl, isLoopbackHost, isWildcardHost } from "../startupAccess.ts";
+import * as ServerEnvironment from "./ServerEnvironment.ts";
+import { isLoopbackHost } from "../startupAccess.ts";
 
 type NetworkInterfacesMap = ReturnType<typeof NodeOS.networkInterfaces>;
 
@@ -57,6 +63,16 @@ const isAdvertisableAddress = (address: string): boolean =>
 const VIRTUAL_INTERFACE =
   /^(docker|br-|veth|virbr|vmnet|vboxnet|vEthernet|podman|cni|flannel|cali|lxcbr|lxdbr|bridge1\d\d)/;
 
+/**
+ * systemd-nspawn's `ve-*`/`vz-*` and NixOS containers' `vb-*` name host-side
+ * veths after the machine. Windows aliases are user-renameable, so these
+ * prefixes only apply to Linux interface discovery.
+ */
+const LINUX_CONTAINER_INTERFACE = /^(ve-|vb-|vz-)/;
+
+const isVirtualInterface = (name: string, platform: NodeJS.Platform): boolean =>
+  VIRTUAL_INTERFACE.test(name) || (platform === "linux" && LINUX_CONTAINER_INTERFACE.test(name));
+
 const isTailscaleInterface = (
   name: string,
   entries: ReadonlyArray<NodeOS.NetworkInterfaceInfo>,
@@ -81,7 +97,9 @@ export function resolveBoundEndpoints(input: {
   );
   const addresses = isWildcardHost(input.host)
     ? Object.entries(input.interfaces)
-        .flatMap(([name, entries]) => (VIRTUAL_INTERFACE.test(name) ? [] : (entries ?? [])))
+        .flatMap(([name, entries]) =>
+          isVirtualInterface(name, input.platform) ? [] : (entries ?? []),
+        )
         .filter(
           (entry) =>
             !entry.internal &&
@@ -90,7 +108,10 @@ export function resolveBoundEndpoints(input: {
             !(input.platform === "win32" && WINDOWS_HOST_ADAPTER_MAC.test(entry.mac)),
         )
         .map((entry) => entry.address)
-    : [input.host!].filter(isAdvertisableAddress);
+    : [input.host!].filter(
+        (address) =>
+          isAdvertisableAddress(address) || (NodeNet.isIPv6(address) && isTailnetHost(address)),
+      );
   return [...new Set(addresses)].map((address) => ({
     kind: tailscaleAddresses.has(address) ? "tailnet" : "lan",
     httpBaseUrl: `http://${formatHostForUrl(address)}:${input.port}/`,
@@ -103,6 +124,7 @@ export const make = Effect.gen(function* () {
   const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
   const httpClient = yield* HttpClient.HttpClient;
   const platform = yield* HostProcess.Platform;
+  const environmentId = yield* (yield* ServerEnvironment.ServerEnvironment).getEnvironmentId;
 
   const servedEndpoint = yield* Ref.make<Option.Option<string>>(Option.none());
   const resolveAvailable = Effect.fn("DirectEndpoints.resolveAvailable")(function* () {
@@ -132,7 +154,7 @@ export const make = Effect.gen(function* () {
             magicDnsName,
             servePort: config.tailscaleServePort,
           });
-          return probeTailscaleHttpsEndpoint({ baseUrl: httpBaseUrl }).pipe(
+          return probeTailscaleHttpsEndpoint({ baseUrl: httpBaseUrl, environmentId }).pipe(
             Effect.map((reachable) => (reachable ? httpBaseUrl : null)),
           );
         }),

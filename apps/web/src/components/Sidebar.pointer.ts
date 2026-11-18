@@ -63,7 +63,8 @@ export class SidebarPointerSensor {
     const coordinates = { x: event.clientX, y: event.clientY };
 
     if ((event.buttons & 1) === 0) {
-      if (this.phase === "dragging") this.props.options.onDrop?.(coordinates);
+      if (this.phase === "pending") return this.finish(false);
+      this.props.options.onDrop?.(coordinates);
       return this.cancel();
     }
     if (this.phase === "pending") {

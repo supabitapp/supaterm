@@ -1,7 +1,13 @@
 import { MinusIcon, PlusIcon } from "@supaterm/icons";
 import { pipe } from "effect/Function";
 import { ThreadDetailsControl } from "./ThreadDetailsControl";
-import type { EnvironmentId, ScopedThreadRef, ThreadPullRequestLink } from "@supaterm/contracts";
+import type {
+  EnvironmentId,
+  ScopedThreadRef,
+  ThreadPullRequestLink,
+  VcsStatusResult,
+} from "@supaterm/contracts";
+import type { EnvironmentProject } from "@supaterm/client-runtime/state/shell";
 import {
   pullRequestListLines,
   resolveThreadPullRequestChains,
@@ -12,14 +18,23 @@ import {
 import { useState, type ComponentProps, type MouseEvent as ReactMouseEvent } from "react";
 
 import { sourceControlClients } from "@supaterm/client-runtime/source-control-clients";
-import { findProjectOnChangeRequestHost } from "@supaterm/client-runtime/change-request-links";
+import {
+  findProjectForChangeRequest,
+  findProjectOnChangeRequestHost,
+} from "@supaterm/client-runtime/change-request-links";
 
-import { useProjects } from "~/state/entities";
+import type { ComposerThreadTarget } from "~/composerDraftStore";
+import { useProjects, useQuietThreadShell } from "~/state/entities";
 import { threadEnvironment } from "~/state/threads";
 import { useAtomCommand } from "~/state/use-atom-command";
 
 import { Collapsible, CollapsiblePanel } from "~/components/ui/collapsible";
-import { linkedPullRequestSnapshotStatus, prStatusIndicator } from "../ThreadStatusIndicators";
+import { useOpenPrLink } from "../../lib/openPullRequestLink";
+import {
+  linkedPullRequestSnapshotStatus,
+  prStatusIndicator,
+  useThreadDisplayedPullRequest,
+} from "../ThreadStatusIndicators";
 
 import { ThreadDetailsPrRow } from "./ThreadDetailsPrRow";
 
@@ -67,7 +82,7 @@ function ThreadDetailsPrLinkRow({
   );
 }
 
-export function ThreadDetailsPrRows({
+function ThreadDetailsPrRows({
   threadRef,
   links,
   currentLink,
@@ -137,5 +152,65 @@ export function ThreadDetailsPrRows({
         {expanded ? "Show less" : `Show ${rest.length} more`}
       </ThreadDetailsControl>
     </>
+  );
+}
+
+/** Linked pull requests need no repository; only the branch's own pull request comes from git. */
+export function ThreadDetailsThreadPrRows({
+  threadRef,
+  project,
+  branchPr = null,
+  branchSourceControlProvider,
+  onActed,
+  composerTarget,
+}: {
+  threadRef: ScopedThreadRef;
+  project: EnvironmentProject | null;
+  branchPr?: VcsStatusResult["pr"];
+  branchSourceControlProvider?: VcsStatusResult["sourceControlProvider"];
+  onActed?: () => void;
+  composerTarget: ComposerThreadTarget;
+}) {
+  const thread = useQuietThreadShell(threadRef);
+  const displayed = useThreadDisplayedPullRequest(
+    threadRef.environmentId,
+    thread,
+    branchPr,
+    branchSourceControlProvider,
+  );
+  const openPrLink = useOpenPrLink(threadRef);
+  const { currentLink, pr, number, url } = displayed;
+  const projects = useProjects();
+  const parsed =
+    currentLink === null
+      ? undefined
+      : sourceControlClients.parseChangeRequestUrl(currentLink.url)?.link;
+  // Merge settings belong to the project holding the linked repository, the thread's own first.
+  const rowProject =
+    parsed === undefined || (project !== null && findProjectForChangeRequest([project], parsed))
+      ? project
+      : (findProjectForChangeRequest(
+          projects.filter((candidate) => candidate.environmentId === threadRef.environmentId),
+          parsed,
+        ) ?? project);
+  if (number === undefined || url === undefined) return null;
+  return (
+    <ThreadDetailsPrRows
+      threadRef={threadRef}
+      links={thread?.pullRequests ?? []}
+      currentLink={currentLink}
+      onOpenLink={openPrLink}
+      environmentId={threadRef.environmentId}
+      pr={pr}
+      number={number}
+      reference={currentLink}
+      status={displayed.status}
+      project={rowProject}
+      title={pr?.title.trim() || null}
+      openAriaLabel={url}
+      onOpen={(event) => openPrLink(event, url)}
+      composerTarget={composerTarget}
+      {...(onActed ? { onActed } : {})}
+    />
   );
 }

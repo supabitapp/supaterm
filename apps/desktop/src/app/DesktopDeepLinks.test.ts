@@ -326,7 +326,7 @@ describe("DesktopDeepLinks", () => {
             {} as ElectronWindow.ElectronWindow["Service"],
           ),
         );
-      }).pipe(Effect.scoped),
+      }),
   );
 });
 
@@ -381,5 +381,5 @@ it.effect("queues web, file, prompt, thread and pairing links and leaves other l
       Effect.provideService(DesktopWebLinks.DesktopWebLinks, webLinks),
       Effect.provideService(HostProcess.Arguments, ["supaterm", "https://example.com/start"]),
     );
-  }).pipe(Effect.scoped),
+  }),
 );

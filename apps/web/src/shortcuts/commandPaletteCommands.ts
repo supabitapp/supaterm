@@ -1,4 +1,3 @@
-import type { KeybindingCommand } from "@supaterm/contracts";
 import type { AnyRouter } from "@tanstack/react-router";
 
 import {
@@ -12,60 +11,17 @@ import { toggleThemeEditorForTheme } from "../components/settings/themeEditorSto
 import { toastManager } from "../components/ui/toast";
 import { getThemeSnapshot, setAppearanceMode } from "../hooks/useTheme";
 import { selectActiveRightPanel, useRightPanelStore } from "../rightPanelStore";
-import { type CommandScopeOptions, registerCommands } from "./dispatcher";
+import { type CommandHandler, type CommandScopeOptions, registerCommands } from "./dispatcher";
 import { selectThreadTerminalUiState, useTerminalUiStateStore } from "../terminalUiStateStore";
 import { resolveThreadRouteTarget } from "../threadRoutes";
 
-// Shortcuts that open a page work from anywhere the palette is mounted.
-const PAGE_BY_COMMAND = {
-  "usage.open": "/usage",
-  "automations.open": "/automations",
-} as const;
-
-/** Returns false when the command is not a palette command. */
-function runCommandPaletteCommand(
-  router: AnyRouter,
-  command: KeybindingCommand,
-  repeat: boolean,
-): boolean {
-  switch (command) {
-    case "appearance.cycle": {
-      if (repeat) return true;
-      const { appearanceMode } = getThemeSnapshot();
-      const nextMode =
-        appearanceMode === "system" ? "light" : appearanceMode === "light" ? "dark" : "system";
-      if (!setAppearanceMode(nextMode)) {
-        notifyThemeSaveFailure();
-        return true;
-      }
-      toastManager.add({
-        id: "appearance-cycle",
-        title: `Appearance: ${APPEARANCE_OPTIONS.find((option) => option.mode === nextMode)?.label}`,
-        timeout: 1500,
-      });
-      return true;
-    }
-    case "theme.select":
-      if (!repeat) dispatchCommandPalette({ _tag: "OpenChangeTheme" });
-      return true;
-    case "themeEditor.toggle": {
-      const { theme, themeHalves, resolvedTheme } = getThemeSnapshot();
-      toggleThemeEditorForTheme({ theme, themeHalves, initialAppearance: resolvedTheme });
-      return true;
-    }
-    case "usage.open":
-    case "automations.open":
-      dispatchCommandPalette({ _tag: "SetOpen", open: false });
-      void router.navigate({ to: PAGE_BY_COMMAND[command] });
-      return true;
-    default: {
-      const mode = overlayModeForCommand(command);
-      if (mode === null) return false;
-      dispatchCommandPalette({ _tag: "ToggleMode", mode });
-      return true;
-    }
-  }
-}
+const toggleOverlay =
+  (command: Parameters<typeof overlayModeForCommand>[0]): CommandHandler =>
+  () => {
+    const mode = overlayModeForCommand(command);
+    if (mode === null) return false;
+    dispatchCommandPalette({ _tag: "ToggleMode", mode });
+  };
 
 /**
  * Palette, theme and page commands. They read the route, panels and theme
@@ -98,8 +54,44 @@ export function installCommandPaletteCommands(
     },
   );
 
+  const openPage =
+    (to: "/usage" | "/automations"): CommandHandler =>
+    () => {
+      dispatchCommandPalette({ _tag: "SetOpen", open: false });
+      void router.navigate({ to });
+    };
+
   const disposeCommands = registerCommands(
-    (command, { repeat }) => runCommandPaletteCommand(router, command, repeat),
+    {
+      "appearance.cycle": ({ repeat }) => {
+        if (repeat) return;
+        const { appearanceMode } = getThemeSnapshot();
+        const nextMode =
+          appearanceMode === "system" ? "light" : appearanceMode === "light" ? "dark" : "system";
+        if (!setAppearanceMode(nextMode)) {
+          notifyThemeSaveFailure();
+          return;
+        }
+        toastManager.add({
+          id: "appearance-cycle",
+          title: `Appearance: ${APPEARANCE_OPTIONS.find((option) => option.mode === nextMode)?.label}`,
+          timeout: 1500,
+        });
+      },
+      "theme.select": ({ repeat }) => {
+        if (repeat) return;
+        dispatchCommandPalette({ _tag: "OpenChangeTheme" });
+      },
+      "themeEditor.toggle": () => {
+        const { theme, themeHalves, resolvedTheme } = getThemeSnapshot();
+        toggleThemeEditorForTheme({ theme, themeHalves, initialAppearance: resolvedTheme });
+      },
+      "usage.open": openPage("/usage"),
+      "automations.open": openPage("/automations"),
+      "commandPalette.toggle": toggleOverlay("commandPalette.toggle"),
+      "filePicker.toggle": toggleOverlay("filePicker.toggle"),
+      "projectSearch.toggle": toggleOverlay("projectSearch.toggle"),
+    },
     {
       ...options,
       when: isCommandPaletteMounted,

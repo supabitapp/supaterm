@@ -445,7 +445,7 @@ function PreviewStreamDocumentView({
                 onPictureInPicture?.(message, message.detail);
                 return;
               case "status":
-                setStarted(true);
+                if (message.status !== "connecting") setStarted(true);
                 if (message.status === "error") {
                   fail(message.detail ?? "Browser stream failed.");
                   return;

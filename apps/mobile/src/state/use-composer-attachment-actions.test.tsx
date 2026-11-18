@@ -22,6 +22,7 @@ vi.mock("../lib/composerImages", () => ({
   removePersistedComposerAttachmentFile: async (uri: string) => {
     harness.removed.push(uri);
   },
+  skippedDuplicateAttachmentsMessage: () => null,
 }));
 vi.mock("./use-composer-drafts", () => ({
   captureComposerDraftInsertion: () => ({ text: "", start: 0, end: 0 }),
@@ -29,7 +30,7 @@ vi.mock("./use-composer-drafts", () => ({
   getComposerDraftSnapshot: () => ({ attachments: [] }),
   appendComposerDraftAttachments: (key: string) => {
     harness.appended.push(key);
-    return 0;
+    return { rejected: 0, duplicates: [] };
   },
 }));
 

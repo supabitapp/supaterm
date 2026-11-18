@@ -25,6 +25,7 @@ import {
   threadActionRequiresOperate,
   type ThreadActionMenuId,
 } from "../components/threadActionMenu.logic";
+import { titleRegenerationToast } from "../components/threadTitleRegenerationToast";
 import { stackedThreadToast, toastManager } from "../components/ui/toast";
 import { copyThreadReference } from "../lib/copyThreadReference";
 import { threadChipCopyTarget } from "@supaterm/client-runtime/thread-reference";
@@ -90,7 +91,7 @@ export function useThreadActionMenu(input: {
     markThreadUnread,
     turnThreadIntoProject,
   } = useThreadActions();
-  const updateThreadMetadata = useOrchestrationCommand(threadEnvironment.updateMetadata, {
+  const regenerateThreadTitle = useOrchestrationCommand(threadEnvironment.regenerateTitle, {
     reportFailure: false,
   });
   const handleNewThread = useNewThreadHandler();
@@ -98,22 +99,13 @@ export function useThreadActionMenu(input: {
   const confirmThreadArchive = useClientSettings((s) => s.confirmThreadArchive);
   const timestampFormat = useClientSettings((s) => s.timestampFormat);
   const { copyToClipboard: copyPathToClipboard } = useCopyToClipboard<{ path: string }>({
-    onCopy: ({ path }) => {
-      toastManager.add({ type: "success", title: "Path copied", description: path });
-    },
     onError: (error) => failureToast("Failed to copy path", error),
   });
   const { copyToClipboard: copyBranchToClipboard } = useCopyToClipboard<{ branch: string }>({
     target: "branch name",
-    onCopy: ({ branch }) => {
-      toastManager.add({ type: "success", title: "Branch copied", description: branch });
-    },
     onError: (error) => failureToast("Failed to copy branch", error),
   });
   const { copyToClipboard: copyThreadIdToClipboard } = useCopyToClipboard<{ threadId: ThreadId }>({
-    onCopy: ({ threadId }) => {
-      toastManager.add({ type: "success", title: "Thread ID copied", description: threadId });
-    },
     onError: (error) => failureToast("Failed to copy thread ID", error),
   });
 
@@ -219,15 +211,17 @@ export function useThreadActionMenu(input: {
       case "rename":
         onStartRename(threadRef);
         return;
-      case "regenerate-title":
+      case "regenerate-title": {
         if (thread.titleRegeneration != null) return;
-        await reportFailure("Failed to regenerate thread title", () =>
-          updateThreadMetadata({
+        const toast = titleRegenerationToast([
+          await regenerateThreadTitle({
             environmentId: threadRef.environmentId,
-            input: { threadId: threadRef.threadId, regenerateTitle: true },
+            input: { threadId: threadRef.threadId },
           }),
-        );
+        ]);
+        if (toast) toastManager.add(toast);
         return;
+      }
       case "mark-unread":
         markThreadUnread(threadRef);
         return;
@@ -351,7 +345,10 @@ export function useThreadActionMenu(input: {
       const api = readLocalApi();
       if (!api) return;
       const thread = readThreadShell(threadRef);
-      if (!thread) return;
+      if (!thread) {
+        failureToast("Thread actions unavailable", new Error("This thread has not loaded yet."));
+        return;
+      }
       const actions = threadActions(thread);
       const clicked = await settlePromise(() => api.contextMenu.show(actions.items, position));
       if (clicked._tag === "Failure" || clicked.value === null) return;

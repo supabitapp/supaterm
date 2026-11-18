@@ -81,6 +81,13 @@ service is still installed and will start at the next login.
 
 Windows background services are not supported.
 
+## Keep the computer awake while agents work
+
+While an agent is working, the machine running Supaterm does not go to sleep
+when idle, and may sleep again a minute after the work ends. Closing a laptop
+lid or choosing sleep still puts it to sleep. Turn this off with **Keep awake
+while agents work** in Settings > Maintenance.
+
 ## Keep the server responsive when agents use all memory
 
 On Linux, agents already run with lower priority than the server. When they
@@ -158,11 +165,16 @@ pass `--fix` to run the recommended ones without a prompt (for scripts), or
 `--dry-run` to only report. An installed background service for the same data
 directory is stopped for the repair and started again afterwards, also when
 the repair fails. Quit a server you started by hand, or the desktop app, first:
-the repair refuses to touch a database that is in use. Use `--base-dir` for a
-different data directory.
+the repair refuses to touch a database that is in use, and names the server
+process that holds it when it can tell. While the repair runs, a server started
+for the same data directory, for example by a desktop app connecting over SSH,
+is refused until the repair ends. Use `--base-dir` for a different data
+directory.
 
-The repair can take several minutes on a large database. It rebuilds the
-database through a temporary copy, so it needs free space of about twice the
-data still in use (the database size minus the reclaimable space): once in the
-system temporary directory (on Linux and macOS, `TMPDIR`, or `/var/tmp` when it
-is not set) and once next to the database for its write-ahead log.
+The repair's time grows with the size of the whole database, not only the
+space it reclaims, and can exceed an hour on a large database or a slow disk;
+`supaterm doctor` shows each step as it runs. It rebuilds the database through a
+temporary copy, so it needs free space of about twice the data still in use
+(the database size minus the reclaimable space): once in the system temporary
+directory (on Linux and macOS, `TMPDIR`, or `/var/tmp` when it is not set) and
+once next to the database for its write-ahead log.

@@ -17,3 +17,21 @@ Failed calls do not count as successful messages or creations. Waiting on a thre
 it finished, and an interrupt or cancellation request does not mean the thread stopped. When tool
 details are unavailable, summaries use a broader description instead of guessing how many threads
 were affected.
+
+## Screen reader announcements
+
+On web and desktop, a screen reader hears the open thread's turn as it runs. **Screen reader
+announcements** in **Settings → Chat** sets how much. **Status only** says when a turn starts,
+needs your approval or input, and ends. **Status and messages** also reads each message the agent
+writes and then keeps working after, once that message is complete. A very long message is cut
+short. The reply that closes the turn is not read, so you can read it yourself when you hear
+**Done**. **Everything** adds the step the agent is on, such as the command it is running. Steps
+are spaced out, so a quick step can be skipped for a newer one.
+The agent's reasoning text is never read. The setting applies to this browser or device only.
+
+To hear the open thread and what it's doing when you switch to Supaterm, turn on **Screen reader
+window title** in the same section. The window title then starts with the thread's status
+(**Working**, **Needs approval**, or **Needs your input**) and its name, then the project, so a
+screen reader says them first. When the turn ends, only the status goes away.
+Anyone who can see your taskbar, window switcher, or shared screen sees it too, and time trackers
+that group by window title count each status separately.

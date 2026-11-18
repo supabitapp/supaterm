@@ -19,6 +19,7 @@ import {
   ThreadId,
 } from "@supaterm/contracts";
 import { threadContextsOutsideEnvironment } from "@supaterm/shared/composerContextReferences";
+import { isTriagePrompt, replaceTriagePlaybookLink } from "@supaterm/shared/triagePrompt";
 import * as Arr from "effect/Array";
 import { pipe } from "effect/Function";
 
@@ -32,6 +33,7 @@ import {
   resolveDefaultableModelSelection,
   resolveNewTaskModelSelection,
   resolveSelectableModelSelection,
+  serverConfigForCwd,
 } from "../../lib/modelOptions";
 import { scopedProjectKey } from "../../lib/scopedEntities";
 import { useAtomValue } from "@effect/atom-react";
@@ -119,9 +121,10 @@ import {
   stampedEnvironmentProjectsLoading,
   updateNewTaskFlowState,
 } from "./new-task-flow-state";
+import { usePrepareTriage } from "../triage/usePrepareTriage";
 import { useEnvironmentShellReadiness } from "../../state/shell";
 import { useConnectionsReady, useWorkspaceEnvironments } from "../../state/workspace";
-import { resolveEnvironmentProjectMatch } from "./new-task-project-selection";
+import { isSameRepository, resolveEnvironmentProjectMatch } from "./new-task-project-selection";
 import { resolveDefaultWorktreeBaseBranch } from "../../lib/worktree-base-branch";
 import { resolveProjectThreadCreationBranch } from "./projectThreadCreationValidation";
 
@@ -176,6 +179,8 @@ type NewTaskFlowContextValue = {
   readonly selectedBranchName: string | null;
   readonly defaultBaseBranchName: string | null;
   readonly selectedWorktreePath: string | null;
+  /** Where the draft's agent will run: the selected worktree, else the project root. */
+  readonly workspaceCwd: string | null;
   readonly startFromOrigin: boolean;
   readonly pullRequestReference: string | undefined;
   readonly draftKey: string | null;
@@ -202,8 +207,11 @@ type NewTaskFlowContextValue = {
   readonly setProject: (project: EnvironmentProject) => void;
   /** The flow's project, read when a continuation resumes after an await. */
   readonly getSelectedProjectKey: () => string | null;
-  /** The route names a draft that is gone, or whose project is gone. */
-  readonly routeDraftMissing: boolean;
+  /** The route's draft cannot open: it is gone (`missing`) or only its project is (`pickProject`). */
+  readonly unopenableRouteDraft: {
+    readonly draftId: string;
+    readonly kind: "missing" | "pickProject";
+  } | null;
   readonly switchEnvironment: (environmentId: EnvironmentId) => Promise<boolean>;
   readonly switchingToEnvironmentId: EnvironmentId | null;
   /** An edited pending task with follow-ups queued behind it stays on its machine. */
@@ -390,11 +398,23 @@ function useNewTaskFlowValue(
   const updateFlow = (patch: Partial<NewTaskFlowState>) =>
     updateNewTaskFlowState(flowKey, { ...readFlow(), ...patch });
   const readEditingPendingTask = () => readFlow().editingPendingTask?.message ?? null;
+  // A draft's project stamp is the selection: picking a project writes it, and uploads and
+  // the send read it, so the screen cannot show one project while the draft holds another.
+  const draftStamp = useComposerDraft(activeDraftKey).project;
+  const stampedProject =
+    draftStamp === undefined
+      ? undefined
+      : projects.find(
+          (project) =>
+            project.environmentId === draftStamp.environmentId &&
+            project.id === draftStamp.projectId,
+        );
   const selectedEnvironmentId =
-    selectedEnvironmentIdOverride !== null &&
+    stampedProject?.environmentId ??
+    (selectedEnvironmentIdOverride !== null &&
     projects.some((project) => project.environmentId === selectedEnvironmentIdOverride)
       ? selectedEnvironmentIdOverride
-      : (projects[0]?.environmentId ?? null);
+      : (projects[0]?.environmentId ?? null));
 
   const cancelEnvironmentSwitch = () => updateFlow({ environmentSwitch: null });
   const setSubmitting = (value: boolean) =>
@@ -428,7 +448,8 @@ function useNewTaskFlowValue(
   const selectedProject =
     routeDraftResolution.kind === "pending"
       ? null
-      : (projectsForEnvironment.find(
+      : (stampedProject ??
+        projectsForEnvironment.find(
           (project) => scopedProjectKey(project.environmentId, project.id) === selectedProjectKey,
         ) ??
         // While editing a queued task whose project shell is absent, keep the task
@@ -443,7 +464,6 @@ function useNewTaskFlowValue(
   const storedStickyModelSelection = useStickyComposerModelSelection();
   const modelSelectionNow = useNowMinuteMs();
   const projectDefaults = useNewTaskProjectDefaults(selectedProject);
-  const selectedEnvironmentServerConfig = projectDefaults.serverConfig;
   const isScratchDraft = projectDefaults.isScratch;
   const serverConfigs = useServerConfigs();
   const { connectedEnvironments } = useRemoteConnectionStatus();
@@ -475,7 +495,9 @@ function useNewTaskFlowValue(
       routeDraftId !== undefined ||
       activeDraftKey !== null ||
       editingPendingTask !== null ||
-      selectedProject === null
+      selectedProject === null ||
+      // The screen may have picked a project, and created its draft, earlier in this commit.
+      readNewTaskFlowState(flowKey).draftKey !== null
     ) {
       return;
     }
@@ -534,6 +556,15 @@ function useNewTaskFlowValue(
   const workspaceMode = workspaceSelection.mode;
   const selectedBranchName = workspaceSelection.branch;
   const selectedWorktreePath = workspaceSelection.worktreePath;
+  // A new worktree does not exist yet, so the project root stands in for it.
+  const workspaceCwd =
+    (workspaceMode === "worktree"
+      ? selectedProject?.workspaceRoot
+      : (selectedWorktreePath ?? selectedProject?.workspaceRoot)) || null;
+  const selectedEnvironmentServerConfig = serverConfigForCwd(
+    projectDefaults.serverConfig,
+    workspaceCwd,
+  );
   // Keep the user's explicit choice separate from the resolved display value:
   // only the explicit flag is ever written back to the draft, so the resolved
   // value keeps tracking the server setting when the config loads late.
@@ -646,11 +677,14 @@ function useNewTaskFlowValue(
   };
 
   // An edited pending task keeps its own draft; anything else gets a new-task draft.
-  const carryDraftContentTo = (project: EnvironmentProject): string | null => {
+  const carryDraftContentTo = (
+    project: EnvironmentProject,
+    options?: Parameters<typeof retargetNewTaskDraft>[2],
+  ): string | null => {
     const target = { environmentId: project.environmentId, projectId: project.id };
     const flow = readFlow();
     if (flow.draftKey !== null && isNewTaskDraftKey(flow.draftKey)) {
-      retargetNewTaskDraft(flow.draftKey, target);
+      retargetNewTaskDraft(flow.draftKey, target, options);
       return flow.draftKey;
     }
     return flow.editingPendingTask ? flow.draftKey : createNewTaskDraft(target);
@@ -679,7 +713,12 @@ function useNewTaskFlowValue(
       });
     }
     updateFlow({
-      draftKey: match ? carryDraftContentTo(match) : readFlow().draftKey,
+      // A name or title match may be another repository, which must not receive the PR checkout.
+      draftKey: match
+        ? carryDraftContentTo(match, {
+            keepPullRequestWorkspace: isSameRepository(match, selectedProject),
+          })
+        : readFlow().draftKey,
       environmentId,
       projectKey: match ? scopedProjectKey(match.environmentId, match.id) : null,
       environmentSwitch: null,
@@ -687,6 +726,7 @@ function useNewTaskFlowValue(
   };
 
   const openScratch = useAtomCommand(projectEnvironment.openScratch, { reportFailure: false });
+  const prepareTriage = usePrepareTriage();
   const switchEnvironment = async (environmentId: EnvironmentId): Promise<boolean> => {
     if (readFlow().submitting) return false;
     if (!canMoveEditedPendingTask(readEditingPendingTask(), environmentId)) return false;
@@ -704,10 +744,24 @@ function useNewTaskFlowValue(
       projectKey: draftProjectKey,
     };
     updateFlow({ environmentSwitch: request });
-    const result = await openScratch({ environmentId, input: {} });
+    // A triage draft takes its session along: the playbook and context files
+    // exist only on the machine that prepared them.
+    const { draftKey } = request;
+    const triage =
+      draftKey !== null && isTriagePrompt(getComposerDraftSnapshot(draftKey).text)
+        ? await prepareTriage(environmentId)
+        : null;
+    const result =
+      triage?._tag === "Failure" ? triage : await openScratch({ environmentId, input: {} });
     if (readFlow().environmentSwitch !== request) return false;
     cancelEnvironmentSwitch();
     if (result._tag === "Success") {
+      if (triage?._tag === "Success" && draftKey !== null) {
+        // Read now, so text typed while the machine prepared the session is kept.
+        const text = getComposerDraftSnapshot(draftKey).text;
+        const nextText = replaceTriagePlaybookLink(text, triage.value.prompt);
+        if (nextText !== text) setComposerDraftText(draftKey, nextText);
+      }
       setProject(result.value);
       return true;
     }
@@ -717,7 +771,9 @@ function useNewTaskFlowValue(
         "Could not switch machine",
         error instanceof Error
           ? error.message
-          : "The folder for threads without a project could not be created.",
+          : triage?._tag === "Failure"
+            ? "The server could not prepare triage."
+            : "The folder for threads without a project could not be created.",
       );
     }
     return false;
@@ -1091,6 +1147,7 @@ function useNewTaskFlowValue(
     selectedBranchName,
     defaultBaseBranchName,
     selectedWorktreePath,
+    workspaceCwd,
     startFromOrigin,
     draftKey: selectedProjectDraftKey,
     pullRequestReference: selectedProjectDraft.workspaceSelection?.pullRequestReference,
@@ -1112,7 +1169,11 @@ function useNewTaskFlowValue(
     served: instance.served,
     setProject,
     getSelectedProjectKey: () => readFlow().projectKey,
-    routeDraftMissing: routeDraftResolution.kind === "missing",
+    unopenableRouteDraft:
+      routeDraftId !== undefined &&
+      (routeDraftResolution.kind === "missing" || routeDraftResolution.kind === "pickProject")
+        ? { draftId: routeDraftId, kind: routeDraftResolution.kind }
+        : null,
     switchEnvironment,
     switchingToEnvironmentId,
     environmentPinned,

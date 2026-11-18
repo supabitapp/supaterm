@@ -44,7 +44,23 @@ settings. Supaterm uses only that configured password for an external server; it
 does not read one from the environment. If connection or version checks fail, check
 the URL, credentials, and OpenCode version, then refresh provider status.
 
-After a lost connection, send another prompt to reconnect to the same OpenCode
+When **Server URL** points to a locally running server (such as `127.0.0.1`),
+the update button upgrades its installed CLI. If that server is this machine's
+OpenCode background service, Supaterm then restarts it on the new version. The URL
+must use the service's own protocol, host, and port. For a service listening on
+`0.0.0.0` use `127.0.0.1`, and for `[::]` use `[::1]`.
+
+Restarting interrupts running turns, and the service then runs with Supaterm's
+environment. Set any variables it needs with `opencode service set env <name> <value>`.
+
+Supaterm does not restart any other server, including the background service
+reached through `localhost`. That server can still report the previous version
+until you restart it. For a loopback URL, Supaterm shows that restart requirement
+instead of treating the CLI update as a failure.
+
+Supaterm waits for a local server it started to recover after a lost connection.
+You can stop the turn while it reconnects. If the server exits or an external
+connection cannot be restored, send another prompt to resume the same OpenCode
 session.
 
 ## Approvals
@@ -68,6 +84,10 @@ running. Supaterm stops that server after 30 seconds without use, and a thread w
 an open OpenCode session counts as use. Refresh again once it has stopped to reload
 the files. An external server may need its own reload or restart before Supaterm can
 see configuration changes.
+
+Models defined in a project's own `opencode.json` appear only in that project's
+model picker, after Supaterm reads the project's catalog the first time the picker
+opens there.
 
 Existing threads keep their selected model and options even when it disappears
 from the catalog. If OpenCode rejects that model, select an available one and retry.

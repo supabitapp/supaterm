@@ -46,6 +46,31 @@ const EMPTY_THREAD_REFS_BY_PROJECT: ReadonlyMap<
 const isChildRunLive = (thread: Pick<OrchestrationV2ThreadShell, "activityRunStatus">) =>
   thread.activityRunStatus != null;
 
+// Subagents and side chats have no list row, so an open one is represented by its nearest
+// listed ancestor. A broken chain (missing parent, cycle) resolves to the thread itself, which
+// then matches no row.
+export function resolveListedAncestorThreadRef(
+  ref: ScopedThreadRef,
+  threads: readonly Pick<EnvironmentThreadShell, "id" | "environmentId" | "lineage">[],
+): ScopedThreadRef {
+  const findThread = (target: ScopedThreadRef) =>
+    threads.find(
+      (thread) => thread.id === target.threadId && thread.environmentId === target.environmentId,
+    );
+  const visited = new Set<string>();
+  let current = ref;
+  let thread = findThread(current);
+  while (thread !== undefined) {
+    if (isListedThreadLineage(thread.lineage)) return current;
+    if (thread.lineage.parentThreadId === null) return ref;
+    if (visited.has(threadKey(current))) return ref;
+    visited.add(threadKey(current));
+    current = { environmentId: thread.environmentId, threadId: thread.lineage.parentThreadId };
+    thread = findThread(current);
+  }
+  return ref;
+}
+
 /** Provider-native
     subagents ask on their parent, so they are skipped. */
 function subagentRequest(thread: OrchestrationV2ThreadShell): PendingSubagentRequest | null {
@@ -86,8 +111,12 @@ export function pendingSubagentRequestsByThread(
       continue;
     }
     const request = subagentRequest(child);
-    // The coordinator answers child questions; only approvals need user attention.
-    if (request === null || request === "user_input") continue;
+    // The coordinator answers child questions; approvals and user-only cards need the user.
+    if (
+      request === null ||
+      (request === "user_input" && child.pendingRuntimeRequest?.userOnly !== true)
+    )
+      continue;
     byId ??= new Map(threads.map((thread) => [thread.id, thread] as const));
     const seen = new Set<ThreadId>([child.id]);
     let current: OrchestrationV2ThreadShell | undefined = child;

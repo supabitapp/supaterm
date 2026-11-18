@@ -1,4 +1,5 @@
 import {
+  type TimelineRow,
   type TimelineWorkEntry,
   TimelineRowCtx,
   TimelineRowActivityCtx,
@@ -16,6 +17,7 @@ import {
   workEntryRawCommand,
   THINKING_PREVIEW_PLUGINS,
   THOUGHT_PREVIEW_PLUGINS,
+  THOUGHT_PREVIEW_SOURCE_MAX_LENGTH,
   buildToolCallExpandedBody,
 } from "./TimelineWorkEntryRow.logic";
 import {
@@ -59,6 +61,8 @@ import {
 } from "../../session-logic";
 import ChatMarkdown from "../ChatMarkdown";
 import { ChatMarkdownAssetImage } from "./ChatMarkdownMedia";
+import type { ExpandedImagePreview } from "./ExpandedImagePreview";
+import { workGroupImageGallery } from "./markdownImageGallery";
 import { CircleAlertIcon, RotateCcwIcon, XIcon } from "@supaterm/icons";
 import { Button, InlineButton } from "../ui/button";
 import { useAssetUrls } from "../../assets/assetUrls";
@@ -151,6 +155,7 @@ type WorkEntryRowProps = {
   workspaceRoot: string | undefined;
   displayLabel?: string | undefined;
   onToggleEntry?: ((collapsed: boolean) => void) | undefined;
+  onContentReady?: (() => void) | undefined;
 };
 
 export const SimpleWorkEntryRow = memo(function SimpleWorkEntryRow(props: WorkEntryRowProps) {
@@ -175,6 +180,37 @@ export const SimpleWorkEntryRow = memo(function SimpleWorkEntryRow(props: WorkEn
   );
 });
 
+export function ViewedImagesTimelineRow({
+  row,
+}: {
+  row: Extract<TimelineRow, { kind: "viewed-images" }>;
+}) {
+  const { threadRef, workspaceRoot, onImageExpand } = use(TimelineRowCtx);
+  if (!threadRef) return null;
+  return (
+    <div className="flex flex-wrap items-start gap-2 px-0.5" data-image-gallery>
+      {row.paths.map((path) => {
+        const image = resolveViewedImageAsset(path, {
+          threadId: threadRef.threadId,
+          workspaceRoot,
+        });
+        return image ? (
+          <ChatMarkdownAssetImage
+            key={path}
+            environmentId={threadRef.environmentId}
+            resource={image.resource}
+            alt={image.alt}
+            srcFragment={image.srcFragment}
+            workspaceRoot={workspaceRoot}
+            maxHeightRem={10}
+            onImageExpand={onImageExpand}
+          />
+        ) : null;
+      })}
+    </div>
+  );
+}
+
 function WorkEntryLogRow(props: WorkEntryRowProps) {
   const { workEntry, workspaceRoot, displayLabel } = props;
   const ctx = use(TimelineRowCtx);
@@ -193,6 +229,10 @@ function WorkEntryLogRow(props: WorkEntryRowProps) {
   const [expanded, setExpanded] = useState(
     () => groupView?.state.expandedEntries.has(workEntry.id) ?? false,
   );
+  const onInitialOutputReady = () => {
+    if (groupView) groupView.onContentReady?.(workEntry.id);
+    else props.onContentReady?.();
+  };
   const toggleExpanded = () => {
     const next = !expanded;
     if (groupView) {
@@ -391,6 +431,7 @@ function WorkEntryLogRow(props: WorkEntryRowProps) {
 
   return (
     <WorkLogRow
+      data-work-entry-id={workEntry.id}
       data-v2-item-type={workEntry.projectedItem?.item.type}
       data-v2-item-visibility={workEntry.projectedItem?.visibility}
       {...rowToggleProps}
@@ -417,7 +458,10 @@ function WorkEntryLogRow(props: WorkEntryRowProps) {
               {isReasoning && !expanded ? (
                 <ChatMarkdown
                   inline
-                  text={workEntry.detail ?? previewText}
+                  text={(workEntry.detail ?? previewText).slice(
+                    0,
+                    THOUGHT_PREVIEW_SOURCE_MAX_LENGTH,
+                  )}
                   cwd={ctx.markdownCwd}
                   parseRawHtml={false}
                   extraRemarkPlugins={
@@ -488,15 +532,12 @@ function WorkEntryLogRow(props: WorkEntryRowProps) {
           !toolIconAcceptsTint(entryToolIcon, entryIconName) ? (
             <XIcon aria-hidden className={cn("size-3 shrink-0", failedToolIconClassName)} />
           ) : null}
+          {canExpandProjectedItem ? (
+            <span className="flex size-4 shrink-0 items-center justify-center text-icon-muted opacity-70">
+              <DisclosureChevron open={expanded} />
+            </span>
+          ) : null}
           <TimelineRowTimestamp createdAt={workEntry.createdAt} timestampFormat={timestampFormat} />
-          <span
-            className={cn(
-              "flex size-4 shrink-0 items-center justify-center text-icon-muted opacity-70",
-              !canExpandProjectedItem && "invisible",
-            )}
-          >
-            <DisclosureChevron open={expanded} />
-          </span>
         </>
       }
     >
@@ -511,6 +552,7 @@ function WorkEntryLogRow(props: WorkEntryRowProps) {
               plainOutputFetches={plainOutputFetches}
               viewedImage={viewedImage}
               viewedImagePath={viewedImagePath}
+              onInitialOutputReady={onInitialOutputReady}
             />
           </CollapsiblePanel>
         </Collapsible>
@@ -527,6 +569,7 @@ function WorkEntryLogDetails({
   plainOutputFetches,
   viewedImage,
   viewedImagePath,
+  onInitialOutputReady,
 }: {
   workEntry: TimelineWorkEntry;
   workspaceRoot: string | undefined;
@@ -535,8 +578,16 @@ function WorkEntryLogDetails({
   plainOutputFetches: boolean;
   viewedImage: ViewedImageAsset | null;
   viewedImagePath: string | null;
+  onInitialOutputReady: () => void;
 }) {
   const ctx = use(TimelineRowCtx);
+  const groupViewedImages = use(WorkGroupViewCtx)?.viewedImages;
+  // Images in this entry's expanded body page through the group's viewed images, like its strip.
+  const expandImage =
+    viewedImage && groupViewedImages
+      ? (preview: ExpandedImagePreview) =>
+          ctx.onImageExpand(workGroupImageGallery(groupViewedImages, viewedImagePath, preview))
+      : ctx.onImageExpand;
   const isReasoning = workEntry.itemType === "reasoning";
   const expandedBody = isReasoning
     ? null
@@ -560,7 +611,7 @@ function WorkEntryLogDetails({
             srcFragment={viewedImage.srcFragment}
             workspaceRoot={workspaceRoot}
             maxHeightRem={16}
-            onImageExpand={ctx.onImageExpand}
+            onImageExpand={expandImage}
           />
         </WorkLogDetails>
       ) : null}
@@ -576,12 +627,13 @@ function WorkEntryLogDetails({
         <WorkLogDetails kind="panel">
           {workEntry.projectedItem && plainOutput === undefined ? (
             <V2ItemInspector
+              onInitialOutputReady={onInitialOutputReady}
               projectedItem={workEntry.projectedItem}
               environmentId={ctx.activeThreadEnvironmentId}
               cwd={ctx.markdownCwd}
               workspaceRoot={workspaceRoot}
               onOpenToolDiff={ctx.onOpenToolDiff}
-              onImageExpand={ctx.onImageExpand}
+              onImageExpand={expandImage}
             />
           ) : (
             <>
@@ -590,9 +642,10 @@ function WorkEntryLogDetails({
               ) : null}
               {plainOutputFetches && workEntry.projectedItem ? (
                 <FetchedToolOutput
+                  onInitialOutputReady={onInitialOutputReady}
                   projectedItem={workEntry.projectedItem}
                   environmentId={ctx.activeThreadEnvironmentId}
-                  onImageExpand={ctx.onImageExpand}
+                  onImageExpand={expandImage}
                 />
               ) : null}
             </>

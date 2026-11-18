@@ -18,6 +18,8 @@ import {
   ThreadId,
 } from "@supaterm/contracts";
 import * as NodeSqliteClient from "@supaterm/shared/nodeSqliteClient";
+// @effect-diagnostics-next-line nodeBuiltinImport:off - a synchronous digest of a few project rows.
+import * as NodeCrypto from "node:crypto";
 import type * as Arr from "effect/Array";
 import type * as Cause from "effect/Cause";
 import * as Clock from "effect/Clock";
@@ -32,10 +34,95 @@ import type * as SqlClient from "effect/sql/SqlClient";
 import * as Stream from "effect/Stream";
 
 import type { ChangedApplicationAggregate } from "../persistence/OrchestrationEventStore.ts";
+import type * as OrchestrationEventStore from "../persistence/OrchestrationEventStore.ts";
 import { bufferLatestLiveStream } from "./LiveStreamBudget.ts";
 import type { ActiveShellIndexEntry } from "./ProjectionStore.ts";
 
 type ShellDelta = Extract<OrchestrationV2ShellStreamItem, { readonly sequence: number }>;
+
+/**
+ * Whether the changes after a shell cursor can be replayed. The socket resume and the HTTP
+ * snapshot's `resumeFrom` ask the same question, so a client the route tells to resume is not
+ * refused by the socket.
+ */
+const canResumeShellFrom = Effect.fnUntraced(function* (
+  events: Pick<
+    OrchestrationEventStore.OrchestrationEventStore["Service"],
+    "readChangedApplicationAggregates"
+  >,
+  afterSequence: number,
+  headSequence: number,
+) {
+  return Option.isSome(
+    yield* readShellResumeChanges({
+      afterSequence,
+      highWater: headSequence,
+      readChanged: events.readChangedApplicationAggregates,
+    }),
+  );
+});
+
+/**
+ * Answers a client that asks for the shell with the cursor of the rows it holds: `resumable`
+ * when the socket can replay from that cursor, so the client keeps its rows, else the snapshot.
+ */
+export const loadShellUnlessResumable = Effect.fnUntraced(function* <A, E, R>(input: {
+  readonly events: Pick<
+    OrchestrationEventStore.OrchestrationEventStore["Service"],
+    "readChangedApplicationAggregates" | "latestApplicationSequence"
+  >;
+  readonly resumeFrom: number | undefined;
+  readonly loadSnapshot: Effect.Effect<A, E, R>;
+}) {
+  if (
+    input.resumeFrom !== undefined &&
+    (yield* canResumeShellFrom(
+      input.events,
+      input.resumeFrom,
+      yield* input.events.latestApplicationSequence,
+    ))
+  ) {
+    return { resumable: true as const };
+  }
+  return yield* input.loadSnapshot;
+});
+
+/**
+ * Names the repository identities a list of project shells carries. A client sends back the one
+ * its HTTP snapshot had, and a resume that computes the same one skips its marked snapshot.
+ */
+export function projectIdentitiesDigest(
+  projects: ReadonlyArray<Pick<OrchestrationProjectShell, "id" | "repositoryIdentity">>,
+): string {
+  const hash = NodeCrypto.createHash("sha256");
+  for (const project of projects) {
+    hash.update(JSON.stringify([project.id, project.repositoryIdentity ?? null]));
+  }
+  return hash.digest("base64url");
+}
+
+/**
+ * The resolved roots a resume sends. A client that names the current identities holds them
+ * already, but it keeps a cached identity over an absent one, so a root resolved to no identity
+ * still goes out.
+ */
+export function resumeIdentityRoots(input: {
+  readonly projects: ReadonlyArray<
+    Pick<OrchestrationProjectShell, "id" | "workspaceRoot" | "repositoryIdentity">
+  >;
+  readonly resolvedRepositoryIdentityRoots: ReadonlyArray<string>;
+  readonly knownProjectIdentities: string | undefined;
+}): ReadonlyArray<string> {
+  if (input.knownProjectIdentities !== projectIdentitiesDigest(input.projects)) {
+    return input.resolvedRepositoryIdentityRoots;
+  }
+  const withoutIdentity = new Set(
+    input.projects.flatMap((project) =>
+      project.repositoryIdentity == null ? [project.workspaceRoot] : [],
+    ),
+  );
+  return input.resolvedRepositoryIdentityRoots.filter((root) => withoutIdentity.has(root));
+}
 
 /** Snapshots, synchronization, and enrichment markers must bypass full-state coalescing. */
 export const bufferShellLiveStream = <E, R>(
@@ -429,6 +516,11 @@ export const loadOlderDoneThreadsPage = Effect.fn("ShellStream.loadOlderDoneThre
   },
 );
 
+// A subagent's secret or link card, or a user message past a link card, starts or ends a wait
+// only the user can answer; dropping these leaves the parent's "Input needed" stale.
+const turnItemCanChangeUserWait = (item: { readonly type: string }) =>
+  item.type === "secret_request" || item.type === "link_request" || item.type === "user_message";
+
 /** Focused subagents receive these updates through their thread subscription. */
 export function shouldPublishShellApplicationEvent(
   stored: ApplicationStoredEvent,
@@ -444,6 +536,9 @@ export function shouldPublishShellApplicationEvent(
   }
   if (event.type === "thread.deleted") {
     // Replay and the live tail overlap; keep known IDs so late events stay filtered.
+    return true;
+  }
+  if (event.type === "turn-item.updated" && turnItemCanChangeUserWait(event.payload)) {
     return true;
   }
   return !(

@@ -58,7 +58,7 @@ function useServerPictureInPictureKey(): string | null {
   );
 }
 
-function closeServerPictureInPicture(): void {
+export function closeServerPictureInPicture(): void {
   const current = active;
   active = null;
   current?.stop();
@@ -66,7 +66,7 @@ function closeServerPictureInPicture(): void {
 }
 
 /** Open during user activation, seeding the video with the currently visible frame. */
-async function openServerPictureInPicture(input: {
+export async function openServerPictureInPicture(input: {
   readonly environmentId: EnvironmentId;
   readonly threadId: ThreadId;
   readonly tabId: string;
@@ -177,6 +177,7 @@ async function openServerPictureInPicture(input: {
       video.webkitSetPresentationMode?.("picture-in-picture");
     }
   } catch (error) {
+    if (stopped) return;
     onLeave();
     throw error;
   }

@@ -105,19 +105,36 @@ describe("fallbackTextGenerationModelSelection", () => {
       applyServerSettingsPatch(settings, { fallbackModelSelection: null }).fallbackModelSelection,
     ).toBeNull();
   });
-  it("ignores a configured non-default instance at machine scope, matching no fallback", () => {
-    const configured = ProviderInstanceId.make("codex_work");
-    const providerInstances = {
-      [configured]: { driver: ProviderDriverKind.make("codex"), config: {} },
+  it("falls back to the driver default when the thread default's custom model is unusable", () => {
+    const threadDefault = {
+      instanceId: ProviderInstanceId.make("opencode"),
+      model: "opencode-go/glm-5.3",
     };
-    const fallback = fallbackTextGenerationModelSelection(
-      providerInstances,
-      (instanceId) => instanceId === configured,
-    );
-    expect(fallback).toBeNull();
+    const providerInstances = {
+      [threadDefault.instanceId]: {
+        driver: ProviderDriverKind.make("opencode"),
+        config: { customModels: [threadDefault.model] },
+      },
+    };
+    expect(
+      fallbackTextGenerationModelSelection(
+        providerInstances,
+        (instanceId) => instanceId === "opencode",
+        { defaultModelSelection: threadDefault },
+      ),
+    ).toEqual(threadDefault);
+    // An exhausted Go quota leaves the custom model unusable but the driver default still works.
+    expect(
+      fallbackTextGenerationModelSelection(
+        providerInstances,
+        (instanceId, _driver, model) =>
+          instanceId === "opencode" && !model.startsWith("opencode-go/"),
+        { defaultModelSelection: threadDefault },
+      ),
+    ).toEqual({ instanceId: "opencode", model: "openai/gpt-5" });
   });
 
-  it("considers a configured non-default instance only when asked to", () => {
+  it("falls back to a configured non-default instance", () => {
     const configured = ProviderInstanceId.make("codex_work");
     const providerInstances = {
       [configured]: { driver: ProviderDriverKind.make("codex"), config: {} },
@@ -125,7 +142,6 @@ describe("fallbackTextGenerationModelSelection", () => {
     const fallback = fallbackTextGenerationModelSelection(
       providerInstances,
       (instanceId) => instanceId === configured,
-      { includeConfiguredInstances: true },
     );
     expect(fallback?.instanceId).toBe(configured);
   });
@@ -355,6 +371,13 @@ describe("serverSettings helpers", () => {
       settings.textGenerationModelSelection,
     );
     expect(settings.sourceControlWriterModelSelection).toBe(sourceControlWriterModelSelection);
+  });
+
+  it("treats a removed instance whose id matches an inherited object key as disabled", () => {
+    for (const id of ["constructor", "toString", "valueOf"]) {
+      const selection = createModelSelection(ProviderInstanceId.make(id), "gpt-5.4-mini");
+      expect(isModelSelectionProviderEnabled(DEFAULT_SERVER_SETTINGS, selection)).toBe(false);
+    }
   });
 
   it("falls back from a writer provider that cannot generate application text", () => {

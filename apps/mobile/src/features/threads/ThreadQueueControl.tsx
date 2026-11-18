@@ -5,6 +5,10 @@ import {
   queuedRunEditBlockedReason,
 } from "@supaterm/client-runtime/queued-run-edit";
 import {
+  isAtomCommandInterrupted,
+  squashAtomCommandFailure,
+} from "@supaterm/client-runtime/state/runtime";
+import {
   AuthOrchestrationOperateScope,
   type EnvironmentId,
   type RunId,
@@ -22,10 +26,13 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Reanimated, { FadeOut } from "react-native-reanimated";
 
 import { Button } from "../../components/ui/Button";
+import * as Dialog from "../../components/ui/Dialog";
+import { FilePreviewModal, type FilePreviewSource } from "../../components/ui/FilePreviewModal";
 import { AppText as Text } from "../../components/ui/AppText";
 import { SymbolView } from "../../components/ui/AppSymbol";
 import { scopedThreadKey } from "../../lib/scopedEntities";
 import { useUniwindTheme } from "../../lib/useUniwindTheme";
+import { useEnvironmentServerConfig } from "../../state/entities";
 import { beginQueuedRunEdit, useQueuedRunEdit } from "../../state/queued-run-edit";
 import { environmentThreadDetails, threadEnvironment } from "../../state/threads";
 import { useAtomCommand } from "../../state/use-atom-command";
@@ -42,7 +49,10 @@ const QUEUE_ACTION_WIDTH = 76;
 type QueueTarget = { readonly environmentId: EnvironmentId; readonly threadId: ThreadId };
 
 function useThreadQueueWorkflow(target: QueueTarget) {
-  return useAtomValue(environmentThreadDetails.queueWorkflowAtom(target));
+  const deferredSteering =
+    useEnvironmentServerConfig(target.environmentId)?.environment.capabilities.deferredSteering ===
+    true;
+  return useAtomValue(environmentThreadDetails.queueWorkflowAtom(target, { deferredSteering }));
 }
 
 export function ThreadQueueSheet({ route }: StaticScreenProps<QueueTarget>) {
@@ -64,8 +74,13 @@ export function ThreadQueueSheet({ route }: StaticScreenProps<QueueTarget>) {
   const promote = useAtomCommand(threadEnvironment.promoteQueuedRun, "promote queued message");
   const cancel = useAtomCommand(threadEnvironment.cancelQueuedRun, "remove queued message");
   const resume = useAtomCommand(threadEnvironment.resumeThreadQueue, "resume queue");
+  const resumeHeldQueue = useAtomCommand(threadEnvironment.resumeThreadQueue, {
+    label: "resume queue",
+    reportFailure: false,
+  });
   const [resuming, setResuming] = useState(false);
   const [busyRunId, setBusyRunId] = useState<RunId | null>(null);
+  const [previewFile, setPreviewFile] = useState<FilePreviewSource | null>(null);
   const busyRef = useRef(false);
   const queuedRuns = workflow?.queuedRuns ?? [];
   const canSendNow = workflow?.canSendNow === true;
@@ -134,22 +149,30 @@ export function ThreadQueueSheet({ route }: StaticScreenProps<QueueTarget>) {
     busyRef.current = true;
     setBusyRunId(runId);
     void Haptics.selectionAsync();
-    if (action === "remove") {
-      await cancel(buildCancelQueuedRunCommand({ ...target, runId }));
-    } else if (workflow?.canSendNow) {
-      await resume({ ...target, input: { threadId: target.threadId, runId } });
-    } else if (workflow?.activeRun && workflow.canPromoteToSteer) {
-      await promote({
-        ...target,
-        input: {
-          threadId: target.threadId,
-          queuedRunId: runId,
-          targetRunId: workflow.activeRun.id,
-        },
-      });
-    }
+    const result =
+      action === "remove"
+        ? await cancel(buildCancelQueuedRunCommand({ ...target, runId }))
+        : workflow?.canSendNow
+          ? await resume({ ...target, input: { threadId: target.threadId, runId } })
+          : workflow?.activeRun && workflow.canPromoteToSteer
+            ? await promote({
+                ...target,
+                input: {
+                  threadId: target.threadId,
+                  queuedRunId: runId,
+                  targetRunId: workflow.activeRun.id,
+                },
+              })
+            : null;
     busyRef.current = false;
     setBusyRunId(null);
+    if (action === "steer" && result?._tag === "Failure" && !isAtomCommandInterrupted(result)) {
+      const error = squashAtomCommandFailure(result);
+      Dialog.alert(
+        "Could not send queued message",
+        error instanceof Error ? error.message : "Try again.",
+      );
+    }
   };
 
   const content = (
@@ -241,6 +264,7 @@ export function ThreadQueueSheet({ route }: StaticScreenProps<QueueTarget>) {
                     canPromoteToSteer={workflow?.canPromoteToSteer ?? false}
                     canSendNow={canSendNow}
                     onAction={(action) => void act(run.id, action)}
+                    onPressPreview={setPreviewFile}
                   />
                 </View>
                 {canSendQueuedMessages ? (
@@ -286,14 +310,26 @@ export function ThreadQueueSheet({ route }: StaticScreenProps<QueueTarget>) {
                   return;
                 busyRef.current = true;
                 setResuming(true);
-                await resume({ ...target, input: { threadId: target.threadId } });
+                const result = await resumeHeldQueue({
+                  ...target,
+                  input: { threadId: target.threadId },
+                });
                 busyRef.current = false;
                 setResuming(false);
+                // A usage limit holds the queue until the composer's Resume thread continues the run.
+                if (result._tag === "Failure" && !isAtomCommandInterrupted(result)) {
+                  const error = squashAtomCommandFailure(result);
+                  Dialog.alert(
+                    "Could not resume queue",
+                    error instanceof Error ? error.message : "Try again.",
+                  );
+                }
               }}
             />
           </View>
         ) : null}
       </View>
+      <FilePreviewModal source={previewFile} onRequestClose={() => setPreviewFile(null)} />
     </GestureHandlerRootView>
   );
 }

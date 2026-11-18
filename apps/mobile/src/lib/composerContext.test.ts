@@ -160,7 +160,7 @@ describe("mobile composer context", () => {
     expect(restore("deleted", initial)).toBeUndefined();
     expect(restore(source)?.records).toEqual(initial.records);
     expect(restore("deleted")?.records ?? []).toEqual([]);
-    expect(createComposerContextHistory()(source)?.records).toEqual([]);
+    expect(createComposerContextHistory()(source)).toBeUndefined();
   });
   it("keeps exact source positions and repeated references alongside existing native tokens", () => {
     const reference = formatComposerContextReference(terminal);

@@ -13,13 +13,6 @@ import * as ProcessRunner from "../processRunner.ts";
 import * as AutomaticPort from "./automaticPort.ts";
 import { type CliServerFlags, resolveServerConfig, sharedServerCommandFlags } from "./config.ts";
 
-// The desktop launcher reads this process's stdout and stderr. Once it is gone,
-// every log write fails, and Node turns an unhandled stream error into a crash
-// that skips shutdown and leaves the ownership lock and runtime record behind.
-function ignoreClosedLauncherPipe(error: NodeJS.ErrnoException): void {
-  if (error.code !== "EPIPE" && error.code !== "ERR_STREAM_DESTROYED") throw error;
-}
-
 const runServerCommand = Effect.fn("server.runServerCommand")(function* (
   flags: CliServerFlags,
   options?: {
@@ -43,10 +36,6 @@ const runServerCommand = Effect.fn("server.runServerCommand")(function* (
     ),
   );
   if (config.mode !== "desktop" || config.desktopBootstrapToken === undefined) return yield* run;
-  yield* Effect.sync(() => {
-    process.stdout.on("error", ignoreClosedLauncherPipe);
-    process.stderr.on("error", ignoreClosedLauncherPipe);
-  });
   return yield* Effect.raceFirst(
     run,
     awaitLauncherLoss().pipe(
@@ -86,14 +75,20 @@ export const startCommand = Command.make("start", { ...sharedServerCommandFlags 
   Command.withHandler((flags) => runServerCommand(flags, { rejectRunningServer: true })),
 );
 
-export const serveCommand = Command.make("serve", { ...sharedServerCommandFlags }).pipe(
+// Serve never bootstraps a project, so it does not offer the flag that asks for one.
+const { autoBootstrapProjectFromCwd: _, ...serveCommandFlags } = sharedServerCommandFlags;
+
+export const serveCommand = Command.make("serve", serveCommandFlags).pipe(
   Command.withDescription(
     "Run the Supaterm server without opening a browser and print headless pairing details.",
   ),
   Command.withHandler((flags) =>
-    runServerCommand(flags, {
-      startupPresentation: "headless",
-      forceAutoBootstrapProjectFromCwd: false,
-    }),
+    runServerCommand(
+      { ...flags, autoBootstrapProjectFromCwd: Option.none() },
+      {
+        startupPresentation: "headless",
+        forceAutoBootstrapProjectFromCwd: false,
+      },
+    ),
   ),
 );

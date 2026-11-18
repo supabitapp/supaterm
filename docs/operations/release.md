@@ -36,7 +36,7 @@ bumps require a new store binary under the existing OTA fingerprint policy.
   - push tag matching `v*.*.*` for a stable release of an explicit commit
   - scheduled nightly check (see [Nightly builds](#nightly-builds))
   - manual `workflow_dispatch` with `channel=nightly`
-  - manual `workflow_dispatch` with `channel=preview`, the maintainers' test train. It exercises the whole release flow (build, sign, notarize, smoke, publish) for a commit that end users must never receive, which is how an unmerged branch or a risky change gets a real release run before it lands. It builds the triggering commit with nightly's versioning under the `preview` prerelease identifier (`0.0.41-preview.<date>.<run>`) and publishes a GitHub prerelease plus the npm launcher under the `preview` dist-tag. Preview runs only on manual dispatch, no default npm dist-tag points at it, its desktop builds carry no update feed, and no updater manifest (`latest*.yml`, `nightly*.yml`, blockmaps) is attached, so a stable or nightly install cannot be offered one. The only ways onto it are downloading the release by hand, `npx supaterm@preview`, `SUPATERM_CHANNEL=preview` for the install scripts, or `supaterm update --channel preview` from a terminal; each prints a warning, and the CLI asks for confirmation when the running build is not itself a preview. The release itself is named as a maintainer test build and its body is a warning rather than generated notes: a changelog of unmerged branch history is not a changelog, and nightly and stable notes are unaffected because each series resolves its previous tag within its own channel. The hosted web app and AUR are skipped. Keep it; it costs nothing when idle.
+  - manual `workflow_dispatch` with `channel=preview`, the maintainers' test train. It exercises the release flow up to a draft release (build, sign, notarize, smoke) for a commit that end users must never receive, which is how an unmerged branch or a risky change gets a real release run before it lands. It builds the triggering commit with nightly's versioning under the `preview` prerelease identifier (`0.0.41-preview.<date>.<run>`) and leaves its GitHub prerelease as a draft. It publishes nothing to npm; `check_cli_publish` still runs its dry run under the `preview` dist-tag. It stays a draft because a draft has no git tag, and published preview tags hide nightlies from the updater (see [Update feed](#update-feed)). Do not publish a preview draft by hand. Preview runs only on manual dispatch, its desktop builds carry no update feed, and no updater manifest (`latest*.yml`, `nightly*.yml`, blockmaps) is attached, so a stable or nightly install cannot be offered one. The only ways onto a new preview are by hand: the draft release, which maintainers can open, and the run's Actions artifacts. A draft's files are not public, so `SUPATERM_CHANNEL=preview` and `supaterm update --channel preview` see only previews published before this rule, and `npx supaterm@preview` resolves only a preview published before it. Rebase a branch onto `main` before dispatching a preview from it. The run uses the branch's own `release.yml`, and an older copy publishes the preview with a tag. The release itself is named as a maintainer test build and its body is a warning rather than generated notes: a changelog of unmerged branch history is not a changelog, and nightly and stable notes are unaffected because each series resolves its previous tag within its own channel. The hosted web app and AUR are skipped. Keep it; it costs nothing when idle.
 - A manual stable release builds the commit of the latest published nightly, not `main` HEAD.
   Nightly is the release candidate: verify the nightly, then promote it. Merges to `main` keep
   landing while you verify and never leak into the stable build.
@@ -69,7 +69,7 @@ bumps require a new store binary under the existing OTA fingerprint policy.
 - After the GitHub Release is published, publishes the `supaterm` npm package with OIDC trusted publishing from the same workflow file. It is only a launcher (`scripts/npm-launcher/supaterm.mjs`, packed by `scripts/build-npm-launcher.ts`): on first run it downloads its exact version's CLI archive from the GitHub Release (or from `SUPATERM_RELEASE_BASE_URL`), verifies it against `SHA256SUMS`, and unpacks it into `<Supaterm home>/runtime/versions/<version>`, the layout the install scripts and `supaterm update` share. The executables are not on npm: its publish-time scanning can hold 80-250 MB packages back for up to an hour after the launcher is live, and every install in that window would get a launcher with no executable. The old `@supabitapp/supaterm-<platform>-<arch>` packages get no new versions. Because the launcher reads from the release, `publish_cli` runs after `release`, never before. `release` waits for `check_cli_publish`, which packs the launcher and runs `npm publish --dry-run`, so a publish that would fail stops the run before the GitHub Release is public.
   - stable releases publish npm dist-tag `latest`
   - nightly releases publish npm dist-tag `nightly`
-  - preview releases publish npm dist-tag `preview`, which nothing resolves unless asked for by name
+  - preview releases publish nothing to npm
   - one-time setup: package `supaterm` needs a trusted publisher registered for this workflow file (see below).
 - Builds the hosted web app for Cloudflare while the desktop jobs run, and makes it live only after a release is published:
   - stable releases are aliased to the `latest` hosted app channel
@@ -204,6 +204,7 @@ and pair a reachable server under Settings → Environments.
   - scheduled check of `main` every night at 08:08 UTC, just after midnight Pacific (`8 8 * * *`)
   - manual `workflow_dispatch` with `channel=nightly`
 - Automatic nightlies require commits ahead of the latest published nightly, including manual nightlies.
+- To pause automatic nightlies, run `gh variable set PAUSE_NIGHTLY -b true -R supabitapp/supaterm`. Scheduled runs then skip. Stable, preview, and manual nightly runs are unaffected. Resume with `gh variable delete PAUSE_NIGHTLY -R supabitapp/supaterm`.
 - Manual nightlies bypass the change check. Nightly runs remain serialized. Automatic runs wait for an active nightly to finish, then skip commits already included in the latest nightly.
 - Runs the same desktop quality gates and artifact matrix as the tagged release flow.
 - Publishes a GitHub prerelease only:
@@ -225,12 +226,12 @@ release archives, and then its npm launcher, available before users can receive 
 The workflow enforces this ordering:
 
 1. `release` publishes the GitHub Release with the CLI archives and `SHA256SUMS`, once
-   `check_cli_publish` has run the npm publish as a dry run. Every channel uploads to a draft and
-   publishes only after all assets are attached, so a new version in the desktop update feed
+   `check_cli_publish` has run the npm publish as a dry run. Stable and nightly upload to a draft
+   and publish only after all assets are attached, so a new version in the desktop update feed
    already has its archives. Rerunning `release` after publication replaces assets in a public
    release, so service updates can fail until the upload finishes.
 2. `publish_cli` publishes the `supaterm@<version>` launcher, which downloads from that release, on
-   every channel.
+   stable and nightly. A preview stays a draft and publishes no launcher.
 3. `deploy_web` depends on both before moving the hosted channel to the new client.
    `build_web` stages static assets as a GitHub artifact without exposing the new client. Cloudflare receives those assets only in `deploy_web`.
 
@@ -250,6 +251,41 @@ restart the previous server. If the installed launcher does not support the targ
 verify that the update stops before restart and run `npx supaterm@<version> service install` once on the
 server machine. Also test the manual or desktop-managed guidance when those environments are
 available.
+
+## Update feed
+
+A nightly install finds the newest nightly in up to three places.
+
+- `releases.atom` lists the 10 newest git tags in the repository, of any kind, and a day's
+  `preview` tags can sort above its `nightly` ones. Every install reads it first and takes its first
+  nightly entry. Builds older than the update-feed pointer read nothing else. Ten other tags in
+  a row hide every nightly from them.
+- `releases/download/update-feed/nightly.json` names the newest nightly. Installs that know the
+  pointer read it after the feed and take the newer of the two, so their updates do not depend on
+  tag order. The `update-feed` release holds that file. Never delete it.
+- The GitHub REST API, without auth, at 60 requests per hour per IP. Installs scan it when the
+  feed has no nightly. Installs that know the pointer do so only when the pointer also offers
+  nothing new.
+
+The release workflow's `Check the update feed` job runs on every scheduled tick, unless
+`PAUSE_NIGHTLY` is set, and after every nightly. It waits in the same queue as nightlies and
+previews. It rewrites a missing or outdated pointer. Its last step fails when the first nightly
+in the feed is not the newest one. A feed it could not read is only a warning: that says nothing
+about the tags, and the next tick reads it again.
+
+When that step fails, installs that read only the feed cannot reach the newest nightly. If the
+feed still names an older nightly first, installs without the pointer miss it too, because their
+API scan runs only when the feed has no nightly at all. The job log lists the tags in the feed.
+The usual cause is a preview dispatched from a branch that was not rebased onto `main`. Delete the tags nothing needs with `git push origin :refs/tags/<tag>`.
+Converting a release to a draft keeps its tag, so it does not help. To keep this from happening,
+anything users should not be offered stays a draft or uses one rolling tag, like `desktop-preview`.
+
+To pull a bad nightly, delete its release and tag, then run
+`gh release delete-asset update-feed nightly.json`. Installs fall back to the feed until the next
+unpaused tick or manual nightly rewrites the pointer. Without that command, installs that know the
+pointer report an update error until then. If npm's `nightly` dist-tag still names the pulled
+build, also move it to the last good one with `npm dist-tag add supaterm@<version> nightly`. The channel
+switch in Settings reads that tag and refuses an older desktop build.
 
 ## Desktop auto-update notes
 
@@ -337,7 +373,7 @@ Checklist:
 3. Ensure npm account policies allow trusted publishing for the package.
 4. Create release tag `vX.Y.Z` and push; the workflow publishes the GitHub Release and then the
    launcher with npm dist-tag `latest`.
-5. Nightly runs publish with npm dist-tag `nightly`; preview runs with `preview`.
+5. Nightly runs publish with npm dist-tag `nightly`; preview runs do not publish.
 
 ## 1) Release validation and unsigned builds
 

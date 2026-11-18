@@ -33,6 +33,7 @@ import { scopeThreadRef } from "@supaterm/client-runtime/environment";
 import { readEnvironmentScope, useEnvironmentScope } from "../../state/session";
 import { useThreadSearch } from "../../state/queries";
 import { useEnvironmentQuery } from "../../state/query";
+import { scheduleTimeZoneLabel } from "@supaterm/client-runtime/scheduled-task-time-zone";
 import { EMPTY_SERVER_PROVIDERS, serverEnvironment } from "../../state/server";
 import { threadFamilies } from "../../state/threads";
 import { useAtomCommand } from "../../state/use-atom-command";
@@ -148,6 +149,16 @@ const THREAD_MODE_LABELS: Record<ScheduledTaskThreadMode, string> = {
   fresh_session: "One thread, fresh session each run",
 };
 
+function useScheduledTaskThread(environmentId: EnvironmentId, threadId: ThreadId | null) {
+  const ref = threadId === null ? null : scopeThreadRef(environmentId, threadId);
+  const shell = useThreadShell(ref);
+  // The shell can omit older done threads; their family read still carries the row.
+  const family = useEnvironmentQuery(
+    ref !== null && shell === null ? threadFamilies.familyAtom(environmentId, ref.threadId) : null,
+  );
+  return shell ?? family.data?.threads.find((row) => row.id === threadId) ?? null;
+}
+
 function ScheduledTaskDestination({
   environmentId,
   projectId,
@@ -169,12 +180,7 @@ function ScheduledTaskDestination({
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const ref = threadId === null ? null : scopeThreadRef(environmentId, threadId);
-  const shell = useThreadShell(ref);
-  // The shell can omit older done threads; their family read still carries the title.
-  const family = useEnvironmentQuery(
-    ref !== null && shell === null ? threadFamilies.familyAtom(environmentId, ref.threadId) : null,
-  );
-  const thread = shell ?? family.data?.threads.find((row) => row.id === threadId);
+  const thread = useScheduledTaskThread(environmentId, threadId);
   const currentLabel =
     ref !== null
       ? thread?.title.trim() || `Thread ${ref.threadId}`
@@ -341,6 +347,7 @@ export function AutomationEditorDialog({
   const tasksQuery = useEnvironmentQuery(
     connected ? serverEnvironment.scheduledTasksLive({ environmentId, input: {} }) : null,
   );
+  const runAtZone = scheduleTimeZoneLabel(tasksQuery.data?.timeZone);
   const allProjects = useProjects();
   const projectsOn = (id: EnvironmentId) =>
     allProjects.filter(
@@ -393,11 +400,21 @@ export function AutomationEditorDialog({
   const activeInstanceId =
     activeSelection?.instanceId ?? firstInstance?.instanceId ?? ("" as ProviderInstanceId);
   const activeModel = activeSelection?.model ?? "";
+  const boundThread = useScheduledTaskThread(
+    environmentId,
+    draft.threadId ? (draft.threadId as ThreadId) : null,
+  );
+  // Bound runs use the thread's current model, so the locked picker shows that one.
+  const shownSelection = draft.threadId
+    ? (boundThread?.modelSelection ?? null)
+    : { instanceId: activeInstanceId, model: activeModel };
+  const shownInstanceId = shownSelection?.instanceId ?? activeInstanceId;
+  const shownModel = shownSelection?.model ?? "";
   const modelOptionsByInstance = getCustomModelOptionsByInstance(
     settings,
     providers,
-    activeInstanceId,
-    activeModel,
+    shownInstanceId,
+    shownModel,
   );
 
   const reportFailure = (title: string, error: unknown) => {
@@ -739,9 +756,10 @@ export function AutomationEditorDialog({
               <div>
                 <ProviderModelPicker
                   environmentId={environmentId}
-                  disabled={saving || !connected}
-                  activeInstanceId={activeInstanceId}
-                  model={activeModel}
+                  // The saved selection only seeds new threads; bound runs ignore it.
+                  disabled={saving || !connected || draft.threadId !== ""}
+                  activeInstanceId={shownInstanceId}
+                  model={shownModel}
                   lockedProvider={null}
                   instanceEntries={instanceEntries}
                   modelOptionsByInstance={modelOptionsByInstance}
@@ -806,6 +824,9 @@ export function AutomationEditorDialog({
                           setDraft((current) => ({ ...current, timeOfDay: event.target.value }))
                         }
                       />
+                      {runAtZone === undefined ? null : (
+                        <span className="text-xs text-muted-foreground">{runAtZone}</span>
+                      )}
                       <span className="text-xs text-muted-foreground">on</span>
                     </div>
                     <ToggleGroup

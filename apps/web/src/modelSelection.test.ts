@@ -20,6 +20,8 @@ import { deriveProviderInstanceEntries, NO_PROVIDER_MODEL_SELECTION } from "./pr
 import {
   defaultModelSelectionsAreMixed,
   getAppModelOptionsForInstance,
+  getCustomModelOptionsByInstance,
+  getTextGenerationModelOptionsByInstance,
   resolveAppModelSelectionForInstance,
   resolveAppModelSelectionState,
   resolveEffectiveDefaultModelSelection,
@@ -376,6 +378,16 @@ describe("instance-scoped model selection", () => {
 
   describe.each([
     {
+      driverName: "pi",
+      availableModel: "default",
+      missingModel: "anthropic/claude-sonnet-4",
+    },
+    {
+      driverName: "acpRegistry",
+      availableModel: "default",
+      missingModel: "gateway/chosen-model",
+    },
+    {
       driverName: "opencode",
       availableModel: "opencode/big-pickle",
       missingModel: "opencode/kimi-k3",
@@ -384,6 +396,11 @@ describe("instance-scoped model selection", () => {
       driverName: "antigravity",
       availableModel: "gemini-3.1-pro",
       missingModel: "gemini-3.1-pro-high",
+    },
+    {
+      driverName: "cursor",
+      availableModel: "auto-smart",
+      missingModel: "claude-opus-5-5",
     },
   ])("$driverName catalog gaps", ({ driverName, availableModel, missingModel }) => {
     it("preserves a selected model when a catalog refresh no longer contains it", () => {
@@ -465,6 +482,7 @@ describe("instance-scoped model selection", () => {
     const driver = ProviderDriverKind.make("codex");
     const providers = [provider({ provider: driver, instanceId, models: ["gpt-5.6-sol"] })];
     const state = deriveEffectiveComposerModelState({
+      threadStarted: false,
       draft: {
         activeProvider: instanceId,
         modelSelectionByProvider: {
@@ -499,6 +517,7 @@ describe("instance-scoped model selection", () => {
         { id: "effort", value: "high" },
       ]);
       const state = deriveEffectiveComposerModelState({
+        threadStarted: false,
         draft:
           source === "draft"
             ? { activeProvider: instanceId, modelSelectionByProvider: { [instanceId]: saved } }
@@ -519,6 +538,7 @@ describe("instance-scoped model selection", () => {
   it("does not borrow another instance's model when the selected snapshot is missing", () => {
     const otherInstanceId = ProviderInstanceId.make("codex");
     const state = deriveEffectiveComposerModelState({
+      threadStarted: false,
       draft: null,
       providers: [provider({ instanceId: otherInstanceId, models: ["gpt-5.6-sol"] })],
       selectedProvider: ProviderDriverKind.make("codex"),
@@ -532,6 +552,35 @@ describe("instance-scoped model selection", () => {
     expect(state.modelOptions).toBeNull();
   });
 
+  it("sends a Cursor thread's stored model and options when the catalog lacks them", () => {
+    const instanceId = ProviderInstanceId.make("cursor");
+    const driver = ProviderDriverKind.make("cursor");
+    const stored = createModelSelection(instanceId, "claude-opus-5-5", [
+      { id: "effort", value: "medium" },
+    ]);
+    const providers = [provider({ provider: driver, instanceId, models: ["auto-smart"] })];
+    const state = deriveEffectiveComposerModelState({
+      threadStarted: false,
+      draft: null,
+      providers,
+      selectedProvider: driver,
+      selectedInstanceId: instanceId,
+      threadModelSelection: stored,
+      projectModelSelection: null,
+      settings: settingsWithProviderInstances(),
+    });
+    const dispatch = getComposerProviderState({
+      provider: driver,
+      model: state.selectedModel,
+      models: providers[0]!.models,
+      modelOptions: state.modelOptions?.[instanceId],
+    });
+
+    expect(
+      createModelSelection(instanceId, state.selectedModel, dispatch.modelOptionsForDispatch),
+    ).toEqual(stored);
+  });
+
   it("preserves an explicit draft OpenCode selection while the catalog is empty", () => {
     const instanceId = ProviderInstanceId.make("opencode_work");
     const driver = ProviderDriverKind.make("opencode");
@@ -541,6 +590,7 @@ describe("instance-scoped model selection", () => {
     ]);
     const providers = [provider({ provider: driver, instanceId, models: [] })];
     const state = deriveEffectiveComposerModelState({
+      threadStarted: false,
       draft: {
         activeProvider: instanceId,
         modelSelectionByProvider: { [instanceId]: draftSelection },
@@ -573,6 +623,7 @@ describe("instance-scoped model selection", () => {
       { activeProvider: instanceId, modelSelectionByProvider: { [instanceId]: saved } },
     ]) {
       const state = deriveEffectiveComposerModelState({
+        threadStarted: false,
         draft,
         providers,
         selectedProvider: driver,
@@ -605,6 +656,7 @@ describe("instance-scoped model selection", () => {
       },
     ]) {
       const state = deriveEffectiveComposerModelState({
+        threadStarted: false,
         draft,
         providers,
         selectedProvider: driver,
@@ -646,66 +698,61 @@ describe("instance-scoped model selection", () => {
     }
   });
 
-  it("resolves the Antigravity default marker without creating an unavailable model", () => {
-    const instanceId = ProviderInstanceId.make("antigravity_work");
-    const nativeModel = "gemini-3.1-pro";
-    const base = provider({
-      provider: ProviderDriverKind.make("antigravity"),
-      instanceId,
-      models: [nativeModel],
-    });
-    const liveProvider = {
-      ...base,
-      models: base.models.map((model) => ({
-        ...model,
-        isDefault: true,
-        aliases: [ANTIGRAVITY_DEFAULT_MODEL],
-      })),
-    };
-    const settings = settingsWithProviderInstances();
-
-    expect(
-      getAppModelOptionsForInstance(
-        settings,
-        deriveProviderInstanceEntries([liveProvider])[0]!,
-        ANTIGRAVITY_DEFAULT_MODEL,
-      ).map((model) => model.slug),
-    ).toEqual([nativeModel]);
-    expect(
-      resolveAppModelSelectionForInstance(
+  it.each([
+    { driver: "antigravity", marker: ANTIGRAVITY_DEFAULT_MODEL, nativeModel: "gemini-3.1-pro" },
+    { driver: "acpRegistry", marker: "default", nativeModel: "agent-model" },
+  ])(
+    "resolves the $driver default marker without creating an unavailable model",
+    ({ driver, marker, nativeModel }) => {
+      const instanceId = ProviderInstanceId.make(`${driver}_work`);
+      const base = provider({
+        provider: ProviderDriverKind.make(driver),
         instanceId,
-        settings,
-        [liveProvider],
-        ANTIGRAVITY_DEFAULT_MODEL,
-        {
+        models: [nativeModel],
+      });
+      const liveProvider = {
+        ...base,
+        models: base.models.map((model) => ({
+          ...model,
+          isDefault: true,
+          ...(driver === "antigravity" ? { aliases: [marker] } : {}),
+        })),
+      };
+      const settings = settingsWithProviderInstances();
+
+      expect(
+        getAppModelOptionsForInstance(
+          settings,
+          deriveProviderInstanceEntries([liveProvider])[0]!,
+          marker,
+        ).map((model) => model.slug),
+      ).toEqual([nativeModel]);
+      expect(
+        resolveAppModelSelectionForInstance(instanceId, settings, [liveProvider], marker, {
           preserveUnavailableSelection: true,
-        },
-      ),
-    ).toBe(nativeModel);
+        }),
+      ).toBe(nativeModel);
 
-    const hiddenSettings: UnifiedSettings = {
-      ...settings,
-      providerModelPreferences: {
-        [instanceId]: { hiddenModels: [nativeModel], modelOrder: [] },
-      },
-    };
-    expect(
-      resolveAppModelSelectionForInstance(
-        instanceId,
-        hiddenSettings,
-        [liveProvider],
-        ANTIGRAVITY_DEFAULT_MODEL,
-        { preserveUnavailableSelection: true },
-      ),
-    ).toBeNull();
-    expect(
-      getAppModelOptionsForInstance(
-        settings,
-        deriveProviderInstanceEntries([{ ...base, models: [] }])[0]!,
-        ANTIGRAVITY_DEFAULT_MODEL,
-      ),
-    ).toEqual([]);
-  });
+      const hiddenSettings: UnifiedSettings = {
+        ...settings,
+        providerModelPreferences: {
+          [instanceId]: { hiddenModels: [nativeModel], modelOrder: [] },
+        },
+      };
+      expect(
+        resolveAppModelSelectionForInstance(instanceId, hiddenSettings, [liveProvider], marker, {
+          preserveUnavailableSelection: true,
+        }),
+      ).toBeNull();
+      expect(
+        getAppModelOptionsForInstance(
+          settings,
+          deriveProviderInstanceEntries([{ ...base, models: [] }])[0]!,
+          marker,
+        ),
+      ).toEqual([]);
+    },
+  );
 
   it("preserves saved options through dispatch when the model is absent from the catalog", () => {
     const instanceId = ProviderInstanceId.make("opencode");
@@ -716,6 +763,7 @@ describe("instance-scoped model selection", () => {
       { id: "agent", value: "build" },
     ]);
     const state = deriveEffectiveComposerModelState({
+      threadStarted: false,
       draft: null,
       providers,
       selectedProvider: driver,
@@ -736,6 +784,78 @@ describe("instance-scoped model selection", () => {
     ).toEqual(saved);
   });
 
+  describe("composer model option precedence", () => {
+    const instanceId = ProviderInstanceId.make("claudeAgent");
+    const driver = ProviderDriverKind.make("claudeAgent");
+    const base = provider({ provider: driver, instanceId, models: ["claude-opus-5-5"] });
+    const providers = [
+      {
+        ...base,
+        models: base.models.map((model) => ({
+          ...model,
+          capabilities: {
+            optionDescriptors: [
+              {
+                id: "effort",
+                label: "Effort",
+                type: "select" as const,
+                options: [
+                  { id: "medium", label: "Medium", isDefault: true },
+                  { id: "high", label: "High" },
+                ],
+                currentValue: "medium",
+              },
+            ],
+          },
+        })),
+      },
+    ];
+    const settingsDefault = createModelSelection(instanceId, "claude-opus-5-5", [
+      { id: "effort", value: "high" },
+    ]);
+    const dispatchedSelection = (
+      threadModelSelection: ReturnType<typeof createModelSelection> | null,
+    ) => {
+      const state = deriveEffectiveComposerModelState({
+        threadStarted: false,
+        draft: null,
+        providers,
+        selectedProvider: driver,
+        selectedInstanceId: instanceId,
+        threadModelSelection,
+        projectModelSelection: settingsDefault,
+        settings: settingsWithProviderInstances(),
+      });
+      const dispatch = getComposerProviderState({
+        provider: driver,
+        model: state.selectedModel,
+        models: providers[0]!.models,
+        modelOptions: state.modelOptions?.[instanceId],
+      });
+      return createModelSelection(
+        instanceId,
+        state.selectedModel,
+        dispatch.modelOptionsForDispatch,
+      );
+    };
+
+    it("does not inherit settings options for an optionless existing thread", () => {
+      const threadSelection = createModelSelection(instanceId, "claude-opus-5-5");
+      expect(dispatchedSelection(threadSelection)).toEqual(threadSelection);
+    });
+
+    it("keeps the options it was saved with", () => {
+      const threadSelection = createModelSelection(instanceId, "claude-opus-5-5", [
+        { id: "effort", value: "medium" },
+      ]);
+      expect(dispatchedSelection(threadSelection)).toEqual(threadSelection);
+    });
+
+    it("leaves the settings default's options in place before a thread exists", () => {
+      expect(dispatchedSelection(null)).toEqual(settingsDefault);
+    });
+  });
+
   it("keeps a custom-instance draft model while dropping unsupported options", () => {
     const instanceId = ProviderInstanceId.make("claude_openrouter");
     const driver = ProviderDriverKind.make("claudeAgent");
@@ -750,6 +870,7 @@ describe("instance-scoped model selection", () => {
       { id: "effort", value: "max" },
     ]);
     const state = deriveEffectiveComposerModelState({
+      threadStarted: false,
       draft: {
         activeProvider: instanceId,
         modelSelectionByProvider: { [instanceId]: draftSelection },
@@ -773,6 +894,67 @@ describe("instance-scoped model selection", () => {
     ).toEqual(createModelSelection(instanceId, "openai/gpt-5.5"));
   });
 
+  it("keeps a thread's stored options while the draft holds options for another provider", () => {
+    const codex = ProviderInstanceId.make("codex");
+    const claude = ProviderInstanceId.make("claudeAgent");
+    const providers = [
+      provider({ instanceId: "codex", models: ["gpt-5.5", "gpt-5.4"] }),
+      provider({
+        provider: ProviderDriverKind.make("claudeAgent"),
+        instanceId: "claudeAgent",
+        models: ["claude-opus-5-5"],
+      }),
+    ];
+    const stored = createModelSelection(codex, "gpt-5.5", [
+      { id: "reasoningEffort", value: "high" },
+      { id: "fastMode", value: true },
+    ]);
+    const claudePick = createModelSelection(claude, "claude-opus-5-5", [
+      { id: "effort", value: "max" },
+    ]);
+    const optionsFor = (
+      draftSelections: Record<string, ReturnType<typeof createModelSelection>>,
+      threadModelSelection = stored,
+    ) =>
+      deriveEffectiveComposerModelState({
+        threadStarted: true,
+        draft: {
+          activeProvider: codex,
+          modelSelectionByProvider: draftSelections,
+          modelSelectionExplicit: true,
+        },
+        providers,
+        selectedProvider: ProviderDriverKind.make("codex"),
+        selectedInstanceId: codex,
+        threadModelSelection,
+        projectModelSelection: null,
+        settings: DEFAULT_UNIFIED_SETTINGS,
+      }).modelOptions;
+
+    expect(
+      optionsFor({ [claude]: claudePick, [codex]: createModelSelection(codex, "gpt-5.5") }),
+    ).toEqual({ [claude]: claudePick.options, [codex]: stored.options });
+    // Claude turned off after an unsent pick: the composer is back on the thread's instance.
+    expect(optionsFor({ [claude]: claudePick })?.[codex]).toEqual(stored.options);
+    const fastOff = createModelSelection(codex, "gpt-5.5", [
+      { id: "reasoningEffort", value: "high" },
+      { id: "fastMode", value: false },
+    ]);
+    expect(optionsFor({ [claude]: claudePick, [codex]: fastOff })?.[codex]).toEqual(
+      fastOff.options,
+    );
+    // A stored alias of the shown model still counts as that model.
+    const storedAlias = createModelSelection(codex, "gpt-5-codex", stored.options);
+    expect(optionsFor({ [claude]: claudePick }, storedAlias)?.[codex]).toEqual(stored.options);
+    const storedOtherModel = createModelSelection(codex, "gpt-5.4", stored.options);
+    expect(
+      optionsFor(
+        { [claude]: claudePick, [codex]: createModelSelection(codex, "gpt-5.5") },
+        storedOtherModel,
+      )?.[codex],
+    ).toBeUndefined();
+  });
+
   it("keeps the default instance's draft model off a custom instance of the same driver", () => {
     const driver = ProviderDriverKind.make("opencode");
     const defaultInstanceId = ProviderInstanceId.make("opencode");
@@ -787,6 +969,7 @@ describe("instance-scoped model selection", () => {
       provider({ provider: driver, instanceId: kimiInstanceId, models: [kimiModel] }),
     ];
     const state = deriveEffectiveComposerModelState({
+      threadStarted: false,
       draft: {
         activeProvider: kimiInstanceId,
         modelSelectionByProvider: {
@@ -869,6 +1052,60 @@ describe("instance-scoped model selection", () => {
     expect(resolveAppModelSelectionState(settings, [unsupported])).toEqual(
       NO_PROVIDER_MODEL_SELECTION,
     );
+  });
+
+  it("excludes customized extension models while preserving unknown custom and thread models", () => {
+    const pi = provider({
+      provider: ProviderDriverKind.make("pi"),
+      instanceId: "pi",
+      models: ["default", "demo/demo-model"],
+    });
+    const providers = [
+      {
+        ...pi,
+        models: pi.models.map((model) =>
+          model.slug === "demo/demo-model" ? { ...model, supportsTextGeneration: false } : model,
+        ),
+      },
+    ];
+    const settings: UnifiedSettings = {
+      ...DEFAULT_UNIFIED_SETTINGS,
+      providerInstances: {
+        [pi.instanceId]: {
+          driver: ProviderDriverKind.make("pi"),
+          config: {
+            customModels: [
+              { slug: "demo/demo-model", name: "My extension model" },
+              { slug: "unknown/model", name: "My custom model" },
+            ],
+          },
+        },
+      },
+      textGenerationModelSelection: createModelSelection(pi.instanceId, "demo/demo-model"),
+    };
+    const supported = providers.filter((provider) => provider.supportsTextGeneration !== false);
+    expect(
+      getTextGenerationModelOptionsByInstance(settings, supported, pi.instanceId, "demo/demo-model")
+        .get(pi.instanceId)
+        ?.map((option) => option.slug),
+    ).toEqual(["default", "unknown/model"]);
+    expect(resolveAppModelSelectionState(settings, supported)).toEqual(
+      createModelSelection(pi.instanceId, "default"),
+    );
+    expect(
+      resolveAppModelSelectionState(
+        {
+          ...settings,
+          textGenerationModelSelection: createModelSelection(pi.instanceId, "unknown/model"),
+        },
+        supported,
+      ).model,
+    ).toBe("unknown/model");
+    expect(
+      getCustomModelOptionsByInstance(settings, providers)
+        .get(pi.instanceId)
+        ?.map((option) => option.slug),
+    ).toEqual(["default", "demo/demo-model", "unknown/model"]);
   });
 });
 
@@ -953,6 +1190,7 @@ describe("default model settings and new-thread composer parity", () => {
       };
       // ChatView builds the local draft with the project default as its thread selection.
       const composer = deriveEffectiveComposerModelState({
+        threadStarted: false,
         draft: null,
         providers,
         selectedProvider: driver,

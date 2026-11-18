@@ -9,6 +9,7 @@ import {
   EventId,
   TurnItemId,
   type OrchestrationV2Run,
+  type OrchestrationV2TurnItem,
   type OrchestrationV2AppThread,
   ProjectId,
   ProviderInstanceId,
@@ -26,7 +27,9 @@ import {
   makeSubagentConversationArtifacts,
   endOrphanedNativeSubagent,
   endRunlessRootTurns,
+  PROVIDER_STOP_REASON_SIGNAL,
 } from "@supaterm/provider-core/server/subagentProjection";
+import * as IdAllocator from "@supaterm/provider-core/server/IdAllocator";
 
 import * as SqlitePersistence from "../persistence/Sqlite.ts";
 import * as ProjectionStore from "./ProjectionStore.ts";
@@ -126,7 +129,7 @@ it("keeps a subagent child awake when its parent thread is snoozed", () => {
 });
 
 it.effect.each(["provider", "mcp"] as const)(
-  "a %s child does not inherit parent mark-done protections and is marked done once idle",
+  "a %s child does not inherit parent mark-done protections and is marked done once its parent is done",
   (creationSource) =>
     Effect.gen(function* () {
       const store = yield* ProjectionStore.ProjectionStoreV2;
@@ -179,6 +182,21 @@ it.effect.each(["provider", "mcp"] as const)(
       assert.deepEqual(savedParent.pinnedAt, parentCreatedAt);
       assert.equal(savedParent.pinOrderKey, "a0");
       assert.deepEqual(savedParent.autoMarkDoneDisabledAt, parentCreatedAt);
+      // A subagent child waits for its parent, so mark the pinned parent done first.
+      assert.deepEqual(yield* store.getAutoMarkDoneCandidates(), []);
+      yield* store.apply({
+        id: EventId.make(`event:${parentThreadId}:marked-done`),
+        type: "thread.marked-done",
+        threadId: parentThreadId,
+        occurredAt: childCreatedAt,
+        payload: {
+          ...savedParent,
+          doneOverride: "done",
+          doneAt: childCreatedAt,
+          pinnedAt: null,
+          pinOrderKey: null,
+        },
+      });
       const candidates = yield* store.getAutoMarkDoneCandidates();
       assert.deepEqual(
         candidates.map((candidate) => candidate.id),
@@ -352,6 +370,95 @@ it("waits for nested work and retains the report across monitor acknowledgements
   });
   assert.equal(progress.state, "result_available");
   assert.equal(progress.resultRun?.id, report.id);
+  const ended = { ...report, id: RunId.make("monitor-ended"), ordinal: 4 };
+  const afterMonitorEnded = delegatedTaskProgress({
+    ...projection,
+    runs: [run, report, monitor, ended],
+    messages: [
+      {
+        ...artifacts.message,
+        runId: monitor.id,
+        notification: {
+          source: { kind: "monitor" },
+          outcome: "updated",
+          summary: "Monitor update",
+        },
+      },
+      {
+        ...artifacts.message,
+        runId: ended.id,
+        notification: {
+          source: { kind: "monitor" },
+          outcome: "completed",
+          summary: 'Monitor "ticks" finished',
+        },
+      },
+    ],
+  });
+  assert.equal(afterMonitorEnded.resultRun?.id, ended.id);
+});
+
+it("keeps the report when a run queued behind it ends without assistant text", () => {
+  const { projection, run } = taskFixture();
+  const report = makeSubagentConversationArtifacts({
+    messageId: MessageId.make("report"),
+    turnItemId: TurnItemId.make("report"),
+    threadId: parentThreadId,
+    rootNodeId: NodeId.make("root"),
+    providerThreadId: null,
+    providerTurnId: null,
+    nativeItemRef: null,
+    role: "assistant",
+    text: "REPORT-OK",
+    ordinal: 1,
+    now: childCreatedAt,
+  });
+  const queued: OrchestrationV2Run = {
+    ...run,
+    id: RunId.make("queued-after-report"),
+    ordinal: 2,
+    userMessageId: MessageId.make("queued-message"),
+    startedAt: DateTime.makeUnsafe("2026-07-24T10:00:00.000Z"),
+    completedAt: DateTime.makeUnsafe("2026-07-24T10:00:01.000Z"),
+  };
+  for (const notification of [
+    undefined,
+    {
+      source: { kind: "command" as const },
+      outcome: "completed" as const,
+      summary: "1 command finished",
+    },
+  ]) {
+    const child = {
+      ...projection,
+      runs: [run, queued],
+      messages: [
+        { ...report.message, runId: run.id },
+        {
+          ...report.message,
+          id: MessageId.make("queued-message"),
+          runId: queued.id,
+          role: "user" as const,
+          text: "ACK-SILENT",
+          ...(notification ? { notification } : {}),
+        },
+      ],
+      turnItems: [{ ...report.turnItem, runId: run.id }],
+    };
+    const progress = delegatedTaskProgress(child);
+    assert.equal(progress.state, "result_available");
+    assert.equal(subagentResultForRun(child, progress.resultRun!).text, "REPORT-OK");
+    // Another task's run, or one that did not complete, keeps its own outcome.
+    for (const other of [
+      { ...queued, delegatedTaskId: NodeId.make("follow-up") },
+      { ...queued, status: "interrupted" as const },
+    ]) {
+      assert.notInclude(
+        subagentResultForRun({ ...child, runs: [run, other] }, other).text,
+        "REPORT-OK",
+      );
+    }
+  }
 });
 
 it("exposes the provider failure rather than a progress message from the failed run", () => {
@@ -388,6 +495,81 @@ it("exposes the provider failure rather than a progress message from the failed 
   assert.equal(result.text, failure.message);
   assert.equal(result.turnItemId, artifacts.turnItem.id);
   assert.isNull(result.messageId);
+});
+
+it("reports a provider's stop reason for a completed run without an assistant result", () => {
+  const { projection, run } = taskFixture();
+  const notice = {
+    id: IdAllocator.derive.runSignalTurnItem({
+      runId: run.id,
+      signal: PROVIDER_STOP_REASON_SIGNAL,
+    }),
+    threadId: parentThreadId,
+    runId: run.id,
+    nodeId: NodeId.make("root"),
+    providerThreadId: null,
+    providerTurnId: null,
+    nativeItemRef: null,
+    parentItemId: null,
+    ordinal: 98,
+    status: "completed",
+    title: "Stopped by the provider",
+    startedAt: childCreatedAt,
+    completedAt: childCreatedAt,
+    updatedAt: childCreatedAt,
+    type: "system_notice",
+    level: "warning",
+    message: "sessionStart hook (user): Plugin guard blocked this session.",
+  } satisfies OrchestrationV2TurnItem;
+  assert.equal(
+    subagentResultForRun({ ...projection, turnItems: [notice] }, run).text,
+    `Child task completed without an assistant result.\n\n${notice.message}`,
+  );
+});
+
+it("keeps the final report of a run that failed after its turn ended", () => {
+  const { projection, run } = taskFixture();
+  const failedRun = { ...run, status: "failed" as const };
+  const artifacts = makeSubagentConversationArtifacts({
+    messageId: MessageId.make("report"),
+    turnItemId: TurnItemId.make("report"),
+    threadId: parentThreadId,
+    rootNodeId: NodeId.make("root"),
+    providerThreadId: null,
+    providerTurnId: null,
+    nativeItemRef: null,
+    role: "assistant",
+    text: "Review complete: no blocking issues.",
+    ordinal: 1,
+    now: childCreatedAt,
+  });
+  if (artifacts.turnItem.type !== "assistant_message") throw new Error("Expected assistant item");
+  const failure = {
+    class: "unknown" as const,
+    message: "Connection failed repeatedly",
+    code: null,
+    retryable: false,
+  };
+  const result = subagentResultForRun(
+    {
+      ...projection,
+      messages: [{ ...artifacts.message, runId: run.id }],
+      turnItems: [
+        { ...artifacts.turnItem, runId: run.id },
+        {
+          ...artifacts.turnItem,
+          id: TurnItemId.make("error"),
+          ordinal: 2,
+          type: "error",
+          runId: run.id,
+          failure,
+        },
+      ],
+    },
+    failedRun,
+  );
+  assert.include(result.text, failure.message);
+  assert.include(result.text, "Review complete: no blocking issues.");
 });
 
 it("orders a task's assistant messages by turn item, not by timestamps", () => {

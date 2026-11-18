@@ -44,8 +44,9 @@ conflicts=('supaterm')
 options=('!debug' '!strip')
 
 _appimage="supaterm-${pkgver}-x86_64.AppImage"
+_asset="$_appimage"
 source=(
-  "$_appimage::https://github.com/supabitapp/supaterm/releases/download/v${pkgver}/$_appimage"
+  "$_appimage::https://github.com/supabitapp/supaterm/releases/download/v${pkgver}/$_asset"
   "${pkgname}-${pkgver}-LICENSE::https://raw.githubusercontent.com/supabitapp/supaterm/v${pkgver}/LICENSE"
 )
 sha256sums=(
@@ -73,7 +74,9 @@ package() {
 
   install -Dm755 /dev/stdin "$pkgdir/usr/bin/supaterm" <<'EOF'
 #!/bin/sh
-exec /opt/supaterm-bin/AppRun "$@"
+# AppRun computes APPDIR but doesn't export it. The server's AppImage env scrub needs it
+# to keep /opt/supaterm-bin/usr/lib etc. out of terminal and agent shells (#28993).
+exec env APPDIR=/opt/supaterm-bin /opt/supaterm-bin/AppRun "$@"
 EOF
   ln -s supaterm "$pkgdir/usr/bin/supaterm-desktop"
 
@@ -94,7 +97,7 @@ TryExec=supaterm
 Terminal=false
 Type=Application
 Icon=supaterm
-StartupWMClass=supaterm
+StartupWMClass=com.supaterm.desktop
 Categories=Development;
 MimeType=x-scheme-handler/supaterm;
 EOF

@@ -1,4 +1,4 @@
-import type { EnvironmentId, RunId, ThreadId } from "@supaterm/contracts";
+import type { EnvironmentId, OrchestrationV2Run, RunId, ThreadId } from "@supaterm/contracts";
 import { nextPromptSuggestionRunId } from "@supaterm/client-runtime/state/orchestration";
 import { useAtomValue } from "@effect/atom-react";
 import { useEffect, useState } from "react";
@@ -24,8 +24,9 @@ export function useNextPromptSuggestion(input: {
   readonly threadId: ThreadId | null;
   readonly enabled: boolean;
   readonly latestRun: ThreadShell["latestRun"] | undefined;
+  readonly runs: ReadonlyArray<OrchestrationV2Run>;
 }) {
-  const { environmentId, threadId, enabled, latestRun } = input;
+  const { environmentId, threadId, enabled, latestRun, runs } = input;
   // A request made before the environment connects fails, and nothing would retry it.
   const connected = useEnvironment(environmentId)?.connection.phase === "connected";
   const canSuggest = useAtomValue(
@@ -39,7 +40,7 @@ export function useNextPromptSuggestion(input: {
   );
   const [result, setResult] = useState<(SuggestedRun & { readonly text: string }) | null>(null);
   const [dismissed, setDismissed] = useState<SuggestedRun | null>(null);
-  const runId = nextPromptSuggestionRunId({ enabled, connected, canSuggest, latestRun });
+  const runId = nextPromptSuggestionRunId({ enabled, connected, canSuggest, latestRun, runs });
   const active = threadId !== null && runId !== null;
 
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- requests a next-prompt suggestion from the server for the latest run and ignores stale answers

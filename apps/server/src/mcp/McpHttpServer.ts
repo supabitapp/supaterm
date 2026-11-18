@@ -7,6 +7,7 @@ import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import * as Path from "effect/Path";
+import * as Predicate from "effect/Predicate";
 import * as Schema from "effect/Schema";
 import * as Sink from "effect/Sink";
 import * as Stream from "effect/Stream";
@@ -26,10 +27,13 @@ import * as DeviceService from "../device/DeviceService.ts";
 import * as HtmlRender from "../htmlRender/HtmlRender.ts";
 import * as ThreadCommandExecutor from "../orchestration-v2/ThreadCommandExecutor.ts";
 import * as ThreadManagementService from "../orchestration-v2/ThreadManagementService.ts";
+import * as PullRequestWatchService from "../pullRequest/PullRequestWatchService.ts";
 import { advertisedJsonSchema } from "./advertisedJsonSchema.ts";
 import * as McpInvocationContext from "./McpInvocationContext.ts";
 import * as McpPendingUploads from "./McpPendingUploads.ts";
 import * as McpToolAccess from "./McpToolAccess.ts";
+import * as McpToolExposure from "./McpToolExposure.ts";
+import { MCP_TOOL_EXPOSURE_HEADER } from "@supaterm/provider-core/server/mcpSession";
 import * as OrchestratorMcpService from "./OrchestratorMcpService.ts";
 import { PreviewControlsToolkit } from "./toolkits/previewControls/tools.ts";
 import * as PreviewControlsHandlers from "./toolkits/previewControls/handlers.ts";
@@ -58,6 +62,8 @@ import * as WorktreeHandlers from "./toolkits/worktree/handlers.ts";
 import { WorktreeToolkit } from "./toolkits/worktree/tools.ts";
 import * as WorktreeMcpService from "./WorktreeMcpService.ts";
 import * as PullRequestsHandlers from "./toolkits/pullRequests/handlers.ts";
+import * as ToolSearchHandlers from "./toolkits/toolSearch/handlers.ts";
+import { ToolSearchToolkit } from "./toolkits/toolSearch/tools.ts";
 import { PullRequestsToolkit } from "./toolkits/pullRequests/tools.ts";
 import * as DeviceHandlers from "./toolkits/device/handlers.ts";
 import {
@@ -66,7 +72,10 @@ import {
   DeviceStandardToolkit,
 } from "./toolkits/device/tools.ts";
 import * as HtmlHandlers from "./toolkits/html/handlers.ts";
+import { MessageToolkit } from "./toolkits/message/tools.ts";
+import * as MessageHandlers from "./toolkits/message/handlers.ts";
 import { HtmlPreviewTool, HtmlPreviewToolkit, HtmlRenderToolkit } from "./toolkits/html/tools.ts";
+import { MCP_HTTP_PATH } from "../httpCors.ts";
 import { requestUrl } from "../requestUrl.ts";
 
 const mcpResourceMetadataUrl = (request: HttpServerRequest.HttpServerRequest) =>
@@ -179,11 +188,15 @@ const makeMcpAuthMiddleware = Effect.gen(function* () {
         offerOAuth: Option.isSome(clients) && !looksLikeProviderToken(token),
       });
     }
-    return invocation;
+    const origin = Option.getOrUndefined(Option.map(requestUrl(request), (url) => url.origin));
+    return { ...invocation, origin };
   });
   // Untraced: a span here would wrap the tool call; the HTTP server span already covers it.
   return Effect.fnUntraced(function* (httpEffect) {
-    const admitted = yield* authenticateRequest(yield* HttpServerRequest.HttpServerRequest);
+    const request = yield* HttpServerRequest.HttpServerRequest;
+    // The transport allows no browser Origin; refuse it before credentials, as the MCP spec requires.
+    if (request.headers.origin !== undefined) return HttpServerResponse.empty({ status: 403 });
+    const admitted = yield* authenticateRequest(request);
     if (HttpServerResponse.isHttpServerResponse(admitted)) return admitted;
     return yield* httpEffect.pipe(
       Effect.provideService(McpInvocationContext.McpInvocationContext, admitted),
@@ -203,6 +216,8 @@ const layerMcpAuthMiddleware = HttpRouter.middleware<{
  */
 export const MAX_SNAPSHOT_TEXT_BYTES = 20_000;
 const MAX_SNAPSHOT_VISIBLE_TEXT_CHARS = 8_000;
+// Page text and the ARIA tree both shrink to this before either drops below it.
+const SNAPSHOT_TEXT_FLOOR_CHARS = 2_000;
 const MAX_SNAPSHOT_ELEMENT_NAME_CHARS = 200;
 const MAX_SNAPSHOT_LOG_ENTRIES = 40;
 const MAX_SNAPSHOT_LOG_TEXT_CHARS = 500;
@@ -245,6 +260,11 @@ type SnapshotMetadata = {
   readonly actionTimeline: ReadonlyArray<unknown>;
   readonly [key: string]: unknown;
 };
+
+const halveToFloor = (chars: number) =>
+  chars > SNAPSHOT_TEXT_FLOOR_CHARS
+    ? Math.max(SNAPSHOT_TEXT_FLOOR_CHARS, Math.floor(chars / 2))
+    : Math.floor(chars / 2);
 
 const boundSnapshotMetadata = (metadata: SnapshotMetadata) => {
   const omitted: Array<string> = [];
@@ -319,23 +339,27 @@ const boundSnapshotMetadata = (metadata: SnapshotMetadata) => {
   });
   let text = encodeJsonText(value());
   while (utf8Length(text) > MAX_SNAPSHOT_TEXT_BYTES) {
-    // Elements carry the locators, so they go last; logs shed newest-last.
+    // Logs shed first, oldest first. Below the floors, locator-bearing elements and tree go last.
     const key =
       shedOrder.find(
         (candidate) => candidate !== "interactiveElements" && lists[candidate].length > 0,
       ) ??
-      (visibleTextChars > 0
+      (visibleTextChars > SNAPSHOT_TEXT_FLOOR_CHARS
         ? "visibleText"
-        : lists.interactiveElements.length > 0
-          ? "interactiveElements"
-          : ariaTreeChars > 0
-            ? "accessibilityTree"
-            : undefined);
+        : ariaTreeChars > SNAPSHOT_TEXT_FLOOR_CHARS
+          ? "accessibilityTree"
+          : visibleTextChars > 0
+            ? "visibleText"
+            : lists.interactiveElements.length > 0
+              ? "interactiveElements"
+              : ariaTreeChars > 0
+                ? "accessibilityTree"
+                : undefined);
     if (key === undefined) break;
     if (key === "visibleText") {
-      visibleTextChars = Math.floor(visibleTextChars / 2);
+      visibleTextChars = halveToFloor(visibleTextChars);
     } else if (key === "accessibilityTree") {
-      ariaTreeChars = Math.floor(ariaTreeChars / 2);
+      ariaTreeChars = halveToFloor(ariaTreeChars);
     } else {
       const keep = Math.floor(lists[key].length / 2);
       dropped[key] += lists[key].length - keep;
@@ -409,16 +433,52 @@ const saveScreenshot = Effect.fn("McpHttpServer.saveScreenshot")(function* (
   return screenshotPath;
 });
 
+const MAX_NAMED_ARGUMENTS = 5;
+const MAX_ARGUMENT_NAME_CHARS = 64;
+
+/**
+ * Rejects top-level arguments the advertised schema does not list, naming them. Nested objects stay lenient:
+ * the advertised schema merges tagged unions, so strict decoding would reject keys agents were shown.
+ */
+const advertisedArgumentsOnly = (tool: Tool.Any) => {
+  const { properties } = advertisedJsonSchema(tool);
+  const accepted = new Set(Predicate.isObject(properties) ? Object.keys(properties) : []);
+  const acceptedText = [...accepted].join(", ") || "none";
+  return Schema.Record(Schema.String, Schema.Unknown).check(
+    Schema.makeFilter((input) => {
+      const unknown = Object.keys(input).filter((key) => !accepted.has(key));
+      if (unknown.length === 0) return undefined;
+      const named = unknown
+        .slice(0, MAX_NAMED_ARGUMENTS)
+        .map((key) => JSON.stringify(cutText(key, MAX_ARGUMENT_NAME_CHARS)));
+      const more =
+        unknown.length > named.length ? ` and ${unknown.length - named.length} more` : "";
+      return `Unknown argument${unknown.length === 1 ? "" : "s"} ${named.join(", ")}${more}. Accepted arguments: ${acceptedText}.`;
+    }),
+  );
+};
+
+/** Decode with the advertised JSON codec, which permits null for optional fields that the raw schema rejects. */
 const decodeAsAdvertised = <Tools extends Record<string, Tool.Any>>(
   toolkit: Toolkit.Toolkit<Tools>,
 ): Toolkit.Toolkit<Tools> =>
   Toolkit.make(
     ...Object.values(toolkit.tools).map((tool) =>
-      tool.setParameters(Schema.toCodecJson(tool.parametersSchema)),
+      tool.setParameters(
+        advertisedArgumentsOnly(tool).pipe(
+          Schema.decodeTo(Schema.toCodecJson(tool.parametersSchema)),
+        ),
+      ),
     ),
   ) as unknown as Toolkit.Toolkit<Tools>;
 
+const parameterValidationMessage = (error: unknown) =>
+  AiError.isAiError(error) && error.reason._tag === "ToolParameterValidationError"
+    ? error.reason.message
+    : undefined;
+
 const isPreviewAutomationError = Schema.is(PreviewAutomationError);
+const isPreviewScreenshotSaveError = Schema.is(PreviewScreenshotSaveError);
 
 const previewSnapshotFailure = Effect.fn("previewSnapshotFailure")(function <E>(
   cause: Cause.Cause<E>,
@@ -437,7 +497,12 @@ const previewSnapshotFailure = Effect.fn("previewSnapshotFailure")(function <E>(
       : "PreviewSnapshotError";
   // Preview errors build their message on the server, never from page output,
   // and it tells the agent what to do next, such as falling back to a shell browser.
-  const message = isPreviewAutomationError(firstFailure) ? firstFailure.message : undefined;
+  const message =
+    isPreviewAutomationError(firstFailure) ||
+    isPreviewScreenshotSaveError(firstFailure) ||
+    isOrchestratorMcpFailure(firstFailure)
+      ? firstFailure.message
+      : parameterValidationMessage(firstFailure);
   const result = new McpSchema.CallToolResult({
     isError: true,
     structuredContent: {
@@ -502,17 +567,28 @@ const registerPreviewSnapshot = Effect.fn("McpHttpServer.registerPreviewSnapshot
               const snapshot = encodedResult as SnapshotMetadata & {
                 readonly url: string;
                 readonly screenshot: {
-                  readonly mimeType: "image/png";
-                  readonly data: string;
+                  readonly mimeType?: "image/png";
+                  readonly data?: string;
                   readonly width: number;
                   readonly height: number;
                 };
                 readonly fullScreenshot?: { readonly data: string };
               };
               const { screenshot, fullScreenshot, ...page } = snapshot;
-              const png = new Uint8Array(Buffer.from(screenshot.data, "base64"));
+              const includeImage = payload?.includeImage === true;
+              const needsPixels = payload?.save === true || includeImage;
+              if (needsPixels && (screenshot.mimeType !== "image/png" || !screenshot.data)) {
+                return yield* new OrchestratorMcpFailure({
+                  code: "invalid_request",
+                  message: "Preview snapshot did not contain requested PNG pixels.",
+                });
+              }
+              const png =
+                needsPixels && screenshot.data
+                  ? new Uint8Array(Buffer.from(screenshot.data, "base64"))
+                  : undefined;
               const screenshotPath =
-                payload?.save === true
+                payload?.save === true && png
                   ? yield* saveScreenshot(
                       snapshot.url,
                       fullScreenshot
@@ -520,8 +596,7 @@ const registerPreviewSnapshot = Effect.fn("McpHttpServer.registerPreviewSnapshot
                         : png,
                     )
                   : undefined;
-
-              const includeImage = payload?.includeImage === true;
+              // Providers replay images on later requests, and some reject them; include images only when requested.
               if (screenshotPath !== undefined && !includeImage) {
                 const saved = {
                   url: cutText(snapshot.url, MAX_SNAPSHOT_IDENTIFIER_CHARS),
@@ -536,7 +611,7 @@ const registerPreviewSnapshot = Effect.fn("McpHttpServer.registerPreviewSnapshot
               const metadata = {
                 ...page,
                 screenshot: {
-                  mimeType: screenshot.mimeType,
+                  mimeType: "image/png" as const,
                   width: screenshot.width,
                   height: screenshot.height,
                 },
@@ -565,8 +640,8 @@ const registerPreviewSnapshot = Effect.fn("McpHttpServer.registerPreviewSnapshot
                           text: `Snapshot text was bounded. Omitted: ${bounded.omitted.join("; ")}.`,
                         },
                       ]),
-                  ...(includeImage
-                    ? [{ type: "image" as const, data: png, mimeType: screenshot.mimeType }]
+                  ...(includeImage && png
+                    ? [{ type: "image" as const, data: png, mimeType: "image/png" as const }]
                     : []),
                 ],
               });
@@ -651,7 +726,7 @@ const registerImageTool = Effect.fn("McpHttpServer.registerImageTool")(function*
   R,
 >(
   tool: T,
-  handle: (payload: Tool.Parameters<T>) => Effect.Effect<{ readonly encodedResult: unknown }, E, R>,
+  handle: (payload: Schema.Json) => Effect.Effect<{ readonly encodedResult: unknown }, E, R>,
   provide: (
     effect: Effect.Effect<{ readonly encodedResult: unknown }, E, R>,
   ) => Effect.Effect<
@@ -686,15 +761,12 @@ const registerImageTool = Effect.fn("McpHttpServer.registerImageTool")(function*
           fiber.context,
           McpInvocationContext.McpInvocationContext,
         );
-        return provide(handle(payload as Tool.Parameters<T>)).pipe(
+        return provide(handle(payload)).pipe(
           Effect.provideService(McpInvocationContext.McpInvocationContext, invocation),
           Effect.matchCauseEffect({
             onFailure: imageToolFailure(tool.name, operation, failureText),
             onSuccess: ({ encodedResult }) => {
               const { screenshot, ...rest } = encodedResult as ImageToolResult;
-              const includeImage =
-                (payload as { readonly includeImage?: boolean } | undefined)?.includeImage !==
-                false;
               const metadata = {
                 ...rest,
                 screenshot: {
@@ -709,15 +781,11 @@ const registerImageTool = Effect.fn("McpHttpServer.registerImageTool")(function*
                   structuredContent: metadata,
                   content: [
                     { type: "text", text: JSON.stringify(metadata) },
-                    ...(includeImage
-                      ? [
-                          {
-                            type: "image" as const,
-                            data: new Uint8Array(Buffer.from(screenshot.data, "base64")),
-                            mimeType: screenshot.mimeType,
-                          },
-                        ]
-                      : []),
+                    {
+                      type: "image" as const,
+                      data: new Uint8Array(Buffer.from(screenshot.data, "base64")),
+                      mimeType: screenshot.mimeType,
+                    },
                   ],
                 }),
               );
@@ -746,7 +814,9 @@ const registerDeviceScreenshot = Effect.fn("McpHttpServer.registerDeviceScreensh
     "screenshot",
     (error) => {
       if (!isDeviceToolError(error)) {
-        return isOrchestratorMcpFailure(error) ? error.message : "Device screenshot failed.";
+        return isOrchestratorMcpFailure(error)
+          ? error.message
+          : (parameterValidationMessage(error) ?? "Device screenshot failed.");
       }
       return error._tag === "DeviceOperationError" && error.reason === "hub_rejected"
         ? `${error.message} Call device_list to check the device state, and device_open if it needs to be reopened.`
@@ -911,6 +981,8 @@ export const layerOrchestratorToolkit = toolkitRegistration(
 
 export const layerThreadToolkit = toolkitRegistration(ThreadToolkit, ThreadHandlers.layer);
 
+const layerMessageToolkit = toolkitRegistration(MessageToolkit, MessageHandlers.layer);
+
 const layerWorktreeToolkitRegistration = toolkitRegistration(
   WorktreeToolkit,
   WorktreeHandlers.layer,
@@ -941,7 +1013,7 @@ export const layerTranscriptionToolkit = toolkitRegistration(
 export const layerPullRequestsToolkit = toolkitRegistration(
   PullRequestsToolkit,
   PullRequestsHandlers.layer,
-);
+).pipe(Layer.provide(PullRequestWatchService.layer));
 
 const layerDeviceStandardToolkitRegistration = toolkitRegistration(
   DeviceStandardToolkit,
@@ -981,8 +1053,9 @@ export const layerMcpTransport = <RA, RE, RR>(registrations: Layer.Layer<RA, RE,
   McpServer.layerHttp({
     name: "supaterm",
     version: packageJson.version,
-    path: "/mcp",
-    protocols: [McpProtocol.v2025_06_18],
+    path: MCP_HTTP_PATH,
+    // The first protocol is the fallback for clients that offer an unknown version.
+    protocols: [McpProtocol.v2025_06_18, McpProtocol.v2026_07_28],
     allowSessionTermination: true,
     registrations,
   }).pipe(Layer.provide(layerMcpAuthMiddleware));
@@ -1001,10 +1074,51 @@ export const layerTools = Layer.mergeAll(
   layerPullRequestsToolkit,
   layerDeviceToolkit,
   layerHtmlToolkit,
+  layerMessageToolkit,
 ).pipe(
   // One instance, so an upload prepared through the attachment tools is the
   // same caller's upload the transcription tools check.
   Layer.provide(McpPendingUploads.layer),
 );
 
-export const layer = layerMcpTransport(layerTools);
+const layerToolExposure = Layer.effect(
+  McpToolExposure.McpToolExposure,
+  Effect.gen(function* () {
+    const server = yield* McpServer.McpServer;
+    return McpToolExposure.make(
+      () =>
+        server.tools.map(({ tool }) => ({ name: tool.name, description: tool.description ?? "" })),
+      () => server.notifications["notifications/tools/list_changed"]({}),
+    );
+  }),
+);
+
+/**
+ * A provider session that sends `MCP_TOOL_EXPOSURE_HEADER: deferred` lists only
+ * the direct tools and what its `tool_search` calls loaded. Calls are never
+ * gated, and every other client lists everything but `tool_search`.
+ */
+const layerDeferredListing = McpServer.visibility(
+  Effect.gen(function* () {
+    const exposure = yield* McpToolExposure.McpToolExposure;
+    // Untraced: it runs once per tool on every list request.
+    return Effect.fnUntraced(function* ({ method, target, headers }: McpServer.MiddlewareOptions) {
+      if (method !== "tools/list") return true;
+      const scope = yield* Effect.serviceOption(McpInvocationContext.McpInvocationContext);
+      const providerSessionId = Option.getOrUndefined(scope)?.thread?.providerSessionId;
+      if (headers[MCP_TOOL_EXPOSURE_HEADER] !== "deferred" || providerSessionId === undefined) {
+        return target !== McpToolExposure.TOOL_SEARCH;
+      }
+      return exposure.isListed(providerSessionId, target);
+    });
+  }),
+  { global: true },
+);
+
+/** Outside layerTools: the clients its budget measures never list `tool_search`. */
+export const layerToolSearch = Layer.mergeAll(
+  toolkitRegistration(ToolSearchToolkit, ToolSearchHandlers.layer),
+  layerDeferredListing,
+).pipe(Layer.provide(layerToolExposure));
+
+export const layer = layerMcpTransport(Layer.mergeAll(layerTools, layerToolSearch));

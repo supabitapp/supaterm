@@ -12,6 +12,10 @@ export interface CdpRelayTarget {
     owner?: string,
   ) => Promise<unknown>;
   readonly sessionDetached?: (owner: string) => void;
+  /** Whether a page session, by owner as `send` names it, gets the page's screencast frames. */
+  readonly receivesScreencast: (owner: string | undefined) => boolean;
+  /** Acknowledges a native screencast frame, letting Chromium send the next one. */
+  readonly ackScreencastFrame: (frameId: number) => void;
   /** The page's own CDP target id; Playwright keys the main frame by it. */
   readonly targetId: () => Promise<string>;
   readonly url: () => string;
@@ -111,6 +115,20 @@ export function createCdpRelayConnection(
    * page's events; other ids are the page's own child sessions, such as iframes.
    */
   const sessions = new Map<string, "browser" | "page">([[PAGE_SESSION_ID, "page"]]);
+  // Each page session holds one unacknowledged frame and keeps the newest one skipped meanwhile.
+  const unackedFrames = new Map<string, number>();
+  const skippedFrames = new Map<string, Record<string, unknown>>();
+  // Chromium keeps a few frames in flight and reuses one frame id per run, so pacing it means
+  // leaving frames every session is busy for unacknowledged and releasing one per consumer ack.
+  const heldNativeFrames: Array<number> = [];
+  const releaseHeldFramesWithoutHolders = () => {
+    if (skippedFrames.size === 0)
+      for (const frameId of heldNativeFrames.splice(0)) target.ackScreencastFrame(frameId);
+  };
+  const sendFrame = (sessionId: string, params: Record<string, unknown>) => {
+    unackedFrames.set(sessionId, params["sessionId"] as number);
+    send({ method: "Page.screencastFrame", params, sessionId });
+  };
   let sessionSequence = 0;
   const newSession = (kind: "browser" | "page") => {
     const sessionId = `supaterm-preview-${kind}-${++sessionSequence}`;
@@ -178,6 +196,9 @@ export function createCdpRelayConnection(
         const sessionId = command.params?.["sessionId"];
         if (typeof sessionId === "string" && sessionId !== PAGE_SESSION_ID) {
           sessions.delete(sessionId);
+          unackedFrames.delete(sessionId);
+          skippedFrames.delete(sessionId);
+          releaseHeldFramesWithoutHolders();
           target.sessionDetached?.(sessionId);
         }
         return {};
@@ -198,6 +219,8 @@ export function createCdpRelayConnection(
     }
   };
 
+  let runtimeReset: Promise<unknown> | undefined;
+
   const pageCommand = (command: CdpCommand): Promise<unknown> => {
     const child = sessions.get(command.sessionId!) === "page" ? undefined : command.sessionId;
     const owner =
@@ -207,6 +230,35 @@ export function createCdpRelayConnection(
     }
     // Playwright asks for this on every page; the host emulates focus only while it is in use.
     if (command.method === "Emulation.setFocusEmulationEnabled") return Promise.resolve({});
+    if (command.method === "Page.screencastFrameAck" && child === undefined) {
+      // A restart keeps the slot too, or restarting would let frames past an unacknowledged one.
+      const sessionId = command.sessionId!;
+      if (unackedFrames.get(sessionId) === command.params?.["sessionId"]) {
+        unackedFrames.delete(sessionId);
+        const skipped = skippedFrames.get(sessionId);
+        skippedFrames.delete(sessionId);
+        if (
+          skipped !== undefined &&
+          target.receivesScreencast(sessionId === PAGE_SESSION_ID ? undefined : sessionId)
+        )
+          sendFrame(sessionId, skipped);
+        const released = heldNativeFrames.shift();
+        if (released !== undefined) target.ackScreencastFrame(released);
+      }
+      return Promise.resolve({});
+    }
+    if (command.method === "Page.stopScreencast" && child === undefined) {
+      skippedFrames.delete(command.sessionId!);
+      releaseHeldFramesWithoutHolders();
+    }
+    // The shared debugger keeps Runtime enabled after an earlier connection, and a repeated
+    // enable reports no existing contexts; Playwright waits for them, so reset once per connection.
+    if (command.method === "Runtime.enable" && child === undefined) {
+      runtimeReset ??= target.send("Runtime.disable", {}, undefined, owner).catch(() => undefined);
+      return runtimeReset.then(() =>
+        target.send(command.method, command.params ?? {}, undefined, owner),
+      );
+    }
     return target.send(command.method, command.params ?? {}, child, owner);
   };
 
@@ -258,6 +310,27 @@ export function createCdpRelayConnection(
       // Electron reports the page's own events with an empty session id.
       if (sessionId) {
         send({ method, params, sessionId });
+        return;
+      }
+      if (method === "Page.screencastFrame") {
+        const frame = (params ?? {}) as Record<string, unknown>;
+        const frameId = frame["sessionId"];
+        if (typeof frameId !== "number") return;
+        let held = false;
+        let delivered = false;
+        for (const [id, kind] of sessions) {
+          if (kind !== "page") continue;
+          if (!target.receivesScreencast(id === PAGE_SESSION_ID ? undefined : id)) continue;
+          if (unackedFrames.has(id)) {
+            skippedFrames.set(id, frame);
+            held = true;
+          } else {
+            sendFrame(id, frame);
+            delivered = true;
+          }
+        }
+        if (held && !delivered) heldNativeFrames.push(frameId);
+        else target.ackScreencastFrame(frameId);
         return;
       }
       for (const [id, kind] of sessions)

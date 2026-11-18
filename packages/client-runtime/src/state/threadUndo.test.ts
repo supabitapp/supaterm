@@ -11,11 +11,26 @@ describe("planThreadUndo", () => {
         snoozedUntil: "2099-01-01T09:00:00.000Z",
       }),
     ).toEqual([
-      { action: "reopen" },
+      { action: "reopen", restoreReopenedAt: null },
       { action: "pin", orderKey: "m" },
       { action: "snooze", snoozedUntil: "2099-01-01T09:00:00.000Z" },
     ]);
     expect(planThreadUndo("mark-done", null)).toEqual([{ action: "reopen" }]);
+  });
+
+  it("puts an unpinned thread back at its manual position or its Active anchor", () => {
+    expect(
+      planThreadUndo("mark-done", {
+        activeOrderKey: "b5",
+        reopenedAt: "2026-01-02T00:00:00.000Z",
+      }),
+    ).toEqual([
+      { action: "reopen", restoreReopenedAt: "2026-01-02T00:00:00.000Z" },
+      { action: "reorderActive", orderKey: "b5" },
+    ]);
+    expect(planThreadUndo("mark-done", { pinnedAt: null, activeOrderKey: null })).toEqual([
+      { action: "reopen", restoreReopenedAt: null },
+    ]);
   });
 
   it("only restores the snooze when the thread was already Done", () => {

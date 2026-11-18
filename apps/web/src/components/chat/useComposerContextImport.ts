@@ -46,6 +46,7 @@ import { useAtomQueryRunner } from "~/state/use-atom-query-runner";
 import { orchestrationEnvironment } from "~/state/orchestration";
 import { randomUUID } from "~/lib/utils";
 import { pendingDraftWork } from "./pendingDraftWork";
+import { readComposerImageBytes } from "./composerAttachmentFiles";
 import { toastManager } from "../ui/toast";
 import type { PendingUserInput } from "../../session-logic";
 import { useStableCallback } from "../../hooks/useStableCallback";
@@ -186,6 +187,8 @@ export function useComposerContextImport(input: {
         fail("Downloading it from the source failed.");
         return;
       }
+      file = new File([blob], record.name, { type: record.mimeType || blob.type });
+      if (record.kind === "image") await readComposerImageBytes(file);
       // Question attachments have no inline reference; annotations can own their screenshots.
       const references = new Set(collectInlineContextIds(promptRef.current));
       if (
@@ -200,7 +203,6 @@ export function useComposerContextImport(input: {
         )
       )
         return;
-      file = new File([blob], record.name, { type: record.mimeType || blob.type });
     }
     // The draft these bytes belong to may have been sent or switched away from while they
     // downloaded. Dropping them here keeps them out of whatever draft is open now.
@@ -236,6 +238,7 @@ export function useComposerContextImport(input: {
             sizeBytes: file.size,
             previewUrl: URL.createObjectURL(file),
             file,
+            ...(record.source ? { source: record.source } : {}),
           },
         ],
         {
@@ -296,7 +299,7 @@ export function useComposerContextImport(input: {
     for (const candidate of orderedRecords) {
       // Producer ids fold into context ids, so two different excerpts can collide. Only skip
       // when the draft already holds the same payload; a colliding but different record is
-      // re-minted under a fresh id so both survive the paste.
+      // re-minted under a fresh id so both survive the paste. Threads resolve below.
       const record = asKnownContextRecord(candidate);
       if (!record) continue;
       const existing = dependentAttachmentLocalIds.has(record.contextId)
@@ -336,8 +339,8 @@ export function useComposerContextImport(input: {
       if (
         existingRecord &&
         isSameComposerContextPayload(existingRecord, record) &&
-        ((record.kind !== "thread" && record.kind !== "model") ||
-          referenceDraftTarget === attachmentDraftTarget)
+        record.kind !== "thread" &&
+        (record.kind !== "model" || referenceDraftTarget === attachmentDraftTarget)
       ) {
         if (record.kind === "preview-annotation" && record.screenshotContextId) {
           skippedDependentAttachmentIds.add(record.screenshotContextId);
@@ -382,10 +385,29 @@ export function useComposerContextImport(input: {
           rewritten.set(record.contextId, previewAnnotationContextId(annotation.id));
           break;
         }
-        case "thread":
-        case "model": {
+        case "thread": {
           // The agent can only read threads on its own server; a pasted foreign one is dropped.
-          if (record.kind === "thread" && record.environmentId !== environmentId) break;
+          if (record.environmentId !== environmentId) break;
+          // Threads reuse their destination record by identity, reminting only on an ID collision.
+          const references = getComposerDraft(referenceDraftTarget)?.referenceContexts ?? [];
+          const attached = references.find(
+            (reference) =>
+              reference.kind === "thread" &&
+              reference.environmentId === record.environmentId &&
+              reference.threadId === record.threadId,
+          );
+          const imported =
+            attached ??
+            (references.some((reference) => reference.contextId === record.contextId)
+              ? { ...record, contextId: toKindScopedComposerContextId("thread", randomUUID()) }
+              : record);
+          addComposerDraftReferenceContexts(referenceDraftTarget, [imported], {
+            appendReference: false,
+          });
+          rewritten.set(record.contextId, imported.contextId);
+          break;
+        }
+        case "model": {
           addComposerDraftReferenceContexts(referenceDraftTarget, [record], {
             appendReference: false,
           });

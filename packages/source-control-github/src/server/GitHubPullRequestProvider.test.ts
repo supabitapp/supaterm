@@ -3,7 +3,7 @@ import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Redacted from "effect/Redacted";
 import * as TestClock from "effect/testing/TestClock";
-import type { PullRequestReaction } from "@supaterm/contracts";
+import { SourceControlProviderKind, type PullRequestReaction } from "@supaterm/contracts";
 
 import * as GitHubRequestPolicy from "./GitHubRequestPolicy.ts";
 import * as SourceControlRateLimit from "@supaterm/source-control-core/server/SourceControlRateLimit";
@@ -451,6 +451,7 @@ describe("gitHubViewerPermissions", () => {
               comments: [],
               commits: [],
             }),
+          listUnfinishedWorkflowRuns: () => Effect.succeed([]),
           listWorkflowRunsRequiringApproval: () =>
             Effect.succeed([
               {
@@ -506,7 +507,17 @@ const openDetail = {
   commits: [],
 };
 
-it.effect("does not classify same-repository gates as fork workflow approvals", () =>
+const sameRepositoryChecks = [
+  { name: "CodeRabbit", status: "skipped" as const, description: null, url: null },
+  {
+    name: "lint",
+    status: "pending" as const,
+    description: null,
+    url: "https://github.com/acme/web/actions/runs/201/job/1",
+  },
+];
+
+it.effect("adds unstarted same-repository workflow runs as pending, not as approvals", () =>
   Effect.gen(function* () {
     const provider = yield* make;
     const detail = yield* provider.getChangeRequest({
@@ -517,12 +528,27 @@ it.effect("does not classify same-repository gates as fork workflow approvals", 
     });
 
     expect(detail.workflowApprovalsRequired).toBe(0);
-    expect(detail.checks).toEqual([]);
+    expect(detail.checks).toEqual([
+      ...sameRepositoryChecks,
+      {
+        name: "CI",
+        status: "pending",
+        description: "This workflow run has not finished.",
+        url: "https://github.com/acme/web/actions/runs/202",
+      },
+    ]);
   }).pipe(
     Effect.provide(
       Layer.mock(GitHubPullRequestApi.GitHubPullRequestApi)({
         revalidateChecks: (_input, read) => read,
-        getPullRequestDetail: () => Effect.succeed({ ...openDetail, isCrossRepository: false }),
+        getPullRequestDetail: () =>
+          Effect.succeed({ ...openDetail, isCrossRepository: false, checks: sameRepositoryChecks }),
+        // Run 201 is represented by its running job; run 202 is queued before any job exists.
+        listUnfinishedWorkflowRuns: () =>
+          Effect.succeed([
+            { id: 201, name: "Lint", url: "https://github.com/acme/web/actions/runs/201" },
+            { id: 202, name: "CI", url: "https://github.com/acme/web/actions/runs/202" },
+          ]),
         listWorkflowRunsRequiringApproval: () =>
           Effect.die("same-repository pull requests must not probe fork workflow approvals"),
         getViewerAccess: () =>
@@ -564,6 +590,7 @@ it.effect("keeps an unsafe workflow approval scope visible as unknown", () =>
       Layer.mock(GitHubPullRequestApi.GitHubPullRequestApi)({
         revalidateChecks: (_input, read) => read,
         getPullRequestDetail: () => Effect.succeed(openDetail),
+        listUnfinishedWorkflowRuns: () => Effect.succeed([]),
         listWorkflowRunsRequiringApproval: () =>
           Effect.fail(
             new GitHubPullRequestApi.GitHubWorkflowApprovalRefusedError({
@@ -746,6 +773,7 @@ describe("getChangeRequest commits", () => {
               authors: [],
             },
           ],
+          truncated: false,
         }),
       listReviewThreadComments: () => Effect.succeed({ ...baseThreadComments, commits }),
     });
@@ -795,7 +823,7 @@ describe("getChangeRequest commits", () => {
   );
 });
 
-describe("getChangeRequestActivity dismissed reviews", () => {
+describe("getChangeRequestActivity", () => {
   const dismissedReview = (body: string) => ({
     id: "PRR_1",
     kind: "review" as const,
@@ -826,7 +854,12 @@ describe("getChangeRequestActivity dismissed reviews", () => {
     Layer.mock(GitHubPullRequestApi.GitHubPullRequestApi)({
       revalidateChecks: (_input, read) => read,
       getPullRequestActivity: () =>
-        Effect.succeed({ author: null, comments: [dismissedReview(body)], commits: [] }),
+        Effect.succeed({
+          author: null,
+          comments: [dismissedReview(body)],
+          commits: [],
+          truncated: false,
+        }),
       listReviewThreadComments: () => Effect.succeed(threadComments),
     });
   const readActivity = Effect.gen(function* () {
@@ -848,6 +881,59 @@ describe("getChangeRequestActivity dismissed reviews", () => {
       }),
       Effect.provide(layerFor("<!-- Macroscope (Approvability) review body marker -->")),
     ),
+  );
+
+  const failingThreadRead = (error: GitHubPullRequestApi.GitHubPullRequestApiError) =>
+    Layer.mock(GitHubPullRequestApi.GitHubPullRequestApi)({
+      getPullRequestActivity: () =>
+        Effect.succeed({ author: null, comments: [], commits: [], truncated: false }),
+      listReviewThreadComments: () => Effect.fail(error),
+    });
+  const retryAt = 1_900_000_000_000;
+
+  it.effect.each([
+    {
+      name: "rate limit",
+      error: new GitHubRequestPolicy.GitHubApiRateLimitError({
+        host: "github.com",
+        operation: "listReviewThreadComments",
+        retryAt,
+      }),
+    },
+    {
+      name: "rate-limit pause",
+      error: new SourceControlRateLimit.SourceControlRateLimitPausedError({
+        provider: SourceControlProviderKind.make("github"),
+        host: "github.com",
+        retryAt,
+      }),
+    },
+  ])("fails rate-limited when the review-thread read hits a $name", ({ error }) =>
+    readActivity.pipe(
+      Effect.flip,
+      Effect.map((failure) => expect(failure).toMatchObject({ reason: "rate-limited", retryAt })),
+      Effect.provide(failingThreadRead(error)),
+    ),
+  );
+
+  it.effect(
+    "keeps activity with truncated threads when the review-thread read fails otherwise",
+    () =>
+      readActivity.pipe(
+        Effect.map((activity) => {
+          expect(activity.reviewThreads).toEqual([]);
+          expect(activity.reviewThreadsTruncated).toBe(true);
+        }),
+        Effect.provide(
+          failingThreadRead(
+            new GitHubRequestPolicy.GitHubApiResponseError({
+              host: "github.com",
+              operation: "listReviewThreadComments",
+              status: 500,
+            }),
+          ),
+        ),
+      ),
   );
 });
 

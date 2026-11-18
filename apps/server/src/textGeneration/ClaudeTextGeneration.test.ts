@@ -62,6 +62,7 @@ function withFakeClaudeEnv<A, E, R>(
     exitCode?: number;
     stderr?: string;
     argsMustContain?: string;
+    expectedTools?: string;
     argsMustNotContain?: string;
     stdinMustContain?: string;
     configDirMustBe?: string;
@@ -83,6 +84,7 @@ function withFakeClaudeEnv<A, E, R>(
     const previousExitCode = process.env.SUPATERM_FAKE_CLAUDE_EXIT_CODE;
     const previousStderr = process.env.SUPATERM_FAKE_CLAUDE_STDERR;
     const previousArgsMustContain = process.env.SUPATERM_FAKE_CLAUDE_ARGS_MUST_CONTAIN;
+    const previousExpectedTools = process.env.SUPATERM_FAKE_CLAUDE_EXPECTED_TOOLS;
     const previousArgsMustNotContain = process.env.SUPATERM_FAKE_CLAUDE_ARGS_MUST_NOT_CONTAIN;
     const previousStdinMustContain = process.env.SUPATERM_FAKE_CLAUDE_STDIN_MUST_CONTAIN;
     const previousConfigDirMustBe = process.env.SUPATERM_FAKE_CLAUDE_CONFIG_DIR_MUST_BE;
@@ -115,6 +117,12 @@ function withFakeClaudeEnv<A, E, R>(
           process.env.SUPATERM_FAKE_CLAUDE_ARGS_MUST_CONTAIN = input.argsMustContain;
         } else {
           delete process.env.SUPATERM_FAKE_CLAUDE_ARGS_MUST_CONTAIN;
+        }
+
+        if (input.expectedTools !== undefined) {
+          process.env.SUPATERM_FAKE_CLAUDE_EXPECTED_TOOLS = input.expectedTools;
+        } else {
+          delete process.env.SUPATERM_FAKE_CLAUDE_EXPECTED_TOOLS;
         }
 
         if (input.argsMustNotContain !== undefined) {
@@ -176,6 +184,12 @@ function withFakeClaudeEnv<A, E, R>(
             process.env.SUPATERM_FAKE_CLAUDE_ARGS_MUST_CONTAIN = previousArgsMustContain;
           }
 
+          if (previousExpectedTools === undefined) {
+            delete process.env.SUPATERM_FAKE_CLAUDE_EXPECTED_TOOLS;
+          } else {
+            process.env.SUPATERM_FAKE_CLAUDE_EXPECTED_TOOLS = previousExpectedTools;
+          }
+
           if (previousArgsMustNotContain === undefined) {
             delete process.env.SUPATERM_FAKE_CLAUDE_ARGS_MUST_NOT_CONTAIN;
           } else {
@@ -214,10 +228,34 @@ function withFakeClaudeEnv<A, E, R>(
 }
 
 it.layer(layerClaudeTextGenerationTest)("ClaudeTextGeneration", (it) => {
+  it.effect("loads only user settings when generating review guides", () =>
+    withFakeClaudeEnv(
+      {
+        output: JSON.stringify({ structured_output: { stops: [] } }),
+        argsMustContain: "--setting-sources user",
+        expectedTools: "Read,Grep,Glob,Bash",
+      },
+      (textGeneration) =>
+        textGeneration.generateReviewGuide({
+          cwd: process.cwd(),
+          number: 12,
+          title: "Review a change",
+          description: "",
+          baseBranch: "main",
+          baseCommit: "base",
+          settledReview: "",
+          modelSelection: createModelSelection(
+            ProviderInstanceId.make("claudeAgent"),
+            SYNTHETIC_CLAUDE_CAPABLE_MODEL,
+          ),
+        }),
+    ),
+  );
+
   it.effect("overrides saved Fast for structured generation while unavailable", () =>
     withFakeClaudeEnv(
       {
-        output: JSON.stringify({ structured_output: { title: "Title" } }),
+        output: JSON.stringify({ structured_output: { title: "Fast mode check" } }),
         argsMustContain: '--settings {"disableAllHooks":true,"fastMode":false}',
         fastModeBlocked: Effect.succeed(true),
       },
@@ -232,7 +270,9 @@ it.layer(layerClaudeTextGenerationTest)("ClaudeTextGeneration", (it) => {
               [{ id: "fastMode", value: true }],
             ),
           })
-          .pipe(Effect.tap((result) => Effect.sync(() => expect(result.title).toBe("Title")))),
+          .pipe(
+            Effect.tap((result) => Effect.sync(() => expect(result.title).toBe("Fast mode check"))),
+          ),
     ),
   );
 
@@ -314,7 +354,7 @@ it.layer(layerClaudeTextGenerationTest)("ClaudeTextGeneration", (it) => {
     withFakeClaudeEnv(
       {
         output: JSON.stringify({ structured_output: { title: "Reconnect failures" } }),
-        stdinMustContain: "Additional instructions:\nUse two to four words.",
+        stdinMustContain: "Title instructions from the user:\nUse two to four words.",
       },
       (textGeneration) =>
         textGeneration.generateThreadTitle({
@@ -358,6 +398,35 @@ it.layer(layerClaudeTextGenerationTest)("ClaudeTextGeneration", (it) => {
           }),
       );
     }),
+  );
+
+  it.effect("passes --settings from the instance launch args to Claude text generation", () =>
+    withFakeClaudeEnv(
+      {
+        output: JSON.stringify({
+          structured_output: {
+            title: "Use instance settings",
+          },
+        }),
+        argsMustContain: `"env":{"ANTHROPIC_VERTEX_PROJECT_ID":"vertex-project-a"}`,
+        claudeConfig: {
+          launchArgs: `--settings '{"env":{"ANTHROPIC_VERTEX_PROJECT_ID":"vertex-project-a"}}'`,
+        },
+      },
+      (textGeneration) =>
+        Effect.gen(function* () {
+          const generated = yield* textGeneration.generateThreadTitle({
+            cwd: process.cwd(),
+            message: "thread title",
+            modelSelection: {
+              instanceId: ProviderInstanceId.make("claudeAgent"),
+              model: SYNTHETIC_CLAUDE_STANDARD_MODEL,
+            },
+          });
+
+          expect(generated.title).toBe(sanitizeThreadTitle("Use instance settings"));
+        }),
+    ),
   );
 
   it.effect("retries without --no-session-persistence when the Claude CLI rejects it", () =>

@@ -210,6 +210,16 @@ describe("fixed-time scheduled tasks", () => {
     });
     expect(draft.timeOfDay).toBe("09:05");
   });
+
+  it("keeps a fixed run time and rejects a cleared one", () => {
+    const draft = taskToDraft({
+      ...legacyTask,
+      schedule: { type: "fixed_time", timeOfDay: "14:30" },
+    });
+    expect(scheduleFromDraft(draft)).toEqual({ type: "fixed_time", timeOfDay: "14:30" });
+    // A native time input reports "" when it is cleared or only partly filled.
+    expect(scheduleFromDraft({ ...draft, timeOfDay: "" })).toBeNull();
+  });
 });
 
 describe("scheduled task destination", () => {
@@ -428,4 +438,11 @@ describe("automations search", () => {
     });
     expect(validateAutomationsSearch({ project: " ", machine: "", taskId: 4 })).toEqual({});
   });
+});
+
+it("names the server zone on fixed-time labels when the server sends one", () => {
+  expect(scheduleLabel({ type: "fixed_time", timeOfDay: "16:31" }, "Etc/UTC")).toBe(
+    "Daily at 16:31 UTC",
+  );
+  expect(scheduleLabel({ type: "interval", everyMs: 60_000 }, "Etc/UTC")).toBe("Every 1 min");
 });

@@ -64,8 +64,8 @@ function AutomationStatusIcon({ task, now }: { task: ScheduledTask; now: number 
   );
 }
 
-function taskScheduleLine(task: ScheduledTask, now: number) {
-  const schedule = scheduleLabel(task.schedule);
+function taskScheduleLine(task: ScheduledTask, now: number, timeZone: string | undefined) {
+  const schedule = scheduleLabel(task.schedule, timeZone, task.nextRunAt);
   if (!task.enabled) return `${schedule} · paused`;
   if (task.nextRunAt === null) return schedule;
   return `${schedule} · ${nextRunLabel(task, now)}`;
@@ -185,12 +185,14 @@ export function ThreadAutomationsPanel(props: {
                   {task.title}
                 </span>
                 <p className="truncate text-2xs text-muted-foreground">
-                  {taskScheduleLine(task, now)}
+                  {taskScheduleLine(task, now, tasksQuery.data?.timeZone)}
                 </p>
               </TooltipTrigger>
               <TooltipPopup side="left">
                 <p className="font-medium">{task.title}</p>
-                <p className="text-muted-foreground">{taskScheduleLine(task, now)}</p>
+                <p className="text-muted-foreground">
+                  {taskScheduleLine(task, now, tasksQuery.data?.timeZone)}
+                </p>
               </TooltipPopup>
             </Tooltip>
             <Tooltip>

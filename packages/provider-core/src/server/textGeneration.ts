@@ -2,6 +2,7 @@ import type {
   BranchNamingOptions,
   ChatAttachment,
   ModelSelection,
+  ProjectId,
   PullRequestReviewGuide,
   TextGenerationError,
 } from "@supaterm/contracts";
@@ -20,6 +21,7 @@ export interface CommitMessageGenerationInput {
   policy?: TextGenerationPolicy | undefined;
 
   modelSelection: ModelSelection;
+  projectId?: ProjectId | null | undefined;
 }
 
 export interface CommitMessageGenerationResult {
@@ -41,6 +43,7 @@ export interface PrContentGenerationInput {
   policy?: TextGenerationPolicy | undefined;
 
   modelSelection: ModelSelection;
+  projectId?: ProjectId | null | undefined;
 }
 
 export interface PrContentGenerationResult {
@@ -55,6 +58,7 @@ export interface BranchNameGenerationInput {
   attachments?: ReadonlyArray<ChatAttachment> | undefined;
 
   modelSelection: ModelSelection;
+  projectId?: ProjectId | null | undefined;
 }
 
 export interface BranchNameGenerationResult {
@@ -65,13 +69,14 @@ export interface ThreadTitleGenerationInput {
   linkedContext?: string | undefined;
   cwd: string;
   message: string;
-
+  projectTitle?: string | undefined;
   previousTitle?: string | undefined;
   forkSource?: ThreadTitleForkSource | undefined;
   attachments?: ReadonlyArray<ChatAttachment> | undefined;
   instructions?: string | undefined;
 
   modelSelection: ModelSelection;
+  projectId?: ProjectId | null | undefined;
 }
 
 export interface ThreadTitleGenerationResult {
@@ -97,6 +102,7 @@ export interface ReviewGuideGenerationInput {
   instructions?: string | undefined;
   stack?: ReadonlyArray<ReviewGuideStackLayer> | undefined;
   modelSelection: ModelSelection;
+  projectId?: ProjectId | null | undefined;
 }
 
 export type ReviewGuideGenerationResult = Omit<

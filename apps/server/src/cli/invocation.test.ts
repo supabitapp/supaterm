@@ -6,6 +6,7 @@ import * as FileSystem from "effect/FileSystem";
 import * as Path from "effect/Path";
 
 import packageJson from "../../package.json" with { type: "json" };
+import { posixLauncherScript } from "../service/pinnedRuntime.ts";
 import {
   resolveHostCliCommand,
   resolveRootCliCommand,
@@ -55,7 +56,7 @@ it.layer(NodeServices.layer)("root CLI commands", (it) => {
           path: yield* pathWithSupaterm,
         }),
       ).toBe('sudo env "PATH=$PATH" supaterm browser setup');
-    }).pipe(Effect.scoped),
+    }),
   );
 
   it.effect("runs the current script install when WSL has no global command or desktop shim", () =>
@@ -76,7 +77,7 @@ it.layer(NodeServices.layer)("root CLI commands", (it) => {
           env: { ELECTRON_RUN_AS_NODE: "1" },
         }),
       ).toBe(`sudo env ELECTRON_RUN_AS_NODE=1 /opt/runtime/electron '${entry}' browser setup`);
-    }).pipe(Effect.scoped),
+    }),
   );
 
   it.effect("keeps the arguments, so root runs setup on the same Supaterm home", () =>
@@ -98,7 +99,7 @@ it.layer(NodeServices.layer)("root CLI commands", (it) => {
           args,
         }),
       ).toBe("sudo /opt/supaterm/supaterm browser setup --base-dir '/srv/supaterm home'");
-    }).pipe(Effect.scoped),
+    }),
   );
 
   it.effect("names this install's launcher when supaterm is not on PATH", () =>
@@ -137,13 +138,44 @@ it.layer(NodeServices.layer)("root CLI commands", (it) => {
         }),
       ).toBe("sudo /opt/supaterm/supaterm browser setup");
 
+      // A standalone executable started directly (systemd, no launcher) is still this install.
+      expect(
+        yield* rootCommand({
+          node: "/opt/supaterm/supaterm",
+          entry: "/opt/supaterm/supaterm",
+          executable: true,
+          path: yield* pathWithSupaterm,
+        }),
+      ).toBe("sudo /opt/supaterm/supaterm browser setup");
+
+      // A global npm launcher runs the downloaded executable; PATH's `supaterm` is that launcher.
+      const prefix = path.join(home, "npm");
+      const npmLauncher = path.join(prefix, "lib/node_modules/supaterm/bin/supaterm.mjs");
+      yield* fs.makeDirectory(path.dirname(npmLauncher), { recursive: true });
+      yield* fs.makeDirectory(path.join(prefix, "bin"));
+      yield* fs.writeFileString(npmLauncher, "", { mode: 0o755 });
+      yield* fs.writeFileString(
+        path.join(prefix, "lib/node_modules/supaterm/package.json"),
+        `{"name":"supaterm","version":"${packageJson.version}"}`,
+      );
+      yield* fs.symlink(npmLauncher, path.join(prefix, "bin/supaterm"));
+      expect(
+        yield* rootCommand({
+          node: "/home/theo/.supaterm/runtime/versions/1.0.0/supaterm",
+          entry: "/home/theo/.supaterm/runtime/versions/1.0.0/supaterm",
+          executable: true,
+          path: path.join(prefix, "bin"),
+          env: { SUPATERM_NPM_LAUNCHER_PATH: npmLauncher },
+        }),
+      ).toBe('sudo env "PATH=$PATH" supaterm browser setup');
+
       expect(
         yield* rootCommand({
           ...desktop,
           env: { SUPATERM_CLI_SHIM_PATH: path.join(home, "gone") },
         }),
       ).toBe('sudo env "PATH=$PATH" supaterm browser setup');
-    }).pipe(Effect.scoped),
+    }),
   );
 });
 
@@ -196,7 +228,7 @@ it.layer(NodeServices.layer)("host CLI commands", (it) => {
       expect((yield* hostCommand("linux", { SUPATERM_CLI_SHIM_PATH: shim })).command).toMatch(
         / doctor --base-dir 'C:\\Users\\Jane Doe\\\.supaterm'$/,
       );
-    }).pipe(Effect.scoped),
+    }),
   );
 });
 
@@ -222,7 +254,7 @@ it.layer(NodeServices.layer)("host CLI commands through an Electron runtime", (i
       expect((yield* hostCommand("win32")).command).toBe(
         `$env:ELECTRON_RUN_AS_NODE=1; & "/opt/supaterm/supaterm" "${entry}" doctor "--base-dir" "/home/jane/.supaterm"`,
       );
-    }).pipe(Effect.scoped),
+    }),
   );
 });
 
@@ -328,6 +360,57 @@ it.layer(NodeServices.layer)("manual server installation ownership", (it) => {
         );
         expect(yield* resolve).toEqual(expected);
       }
+    }),
+  );
+
+  it.effect("names the launcher that started a downloaded runtime", () =>
+    Effect.gen(function* () {
+      const fs = yield* FileSystem.FileSystem;
+      const path = yield* Path.Path;
+      const root = yield* fs.realPath(yield* fs.makeTempDirectoryScoped());
+      // The install script's launcher names ~/.supaterm, which here links to a home elsewhere.
+      const executable = path.join(root, "data/supaterm/runtime/versions/1.0.0/supaterm");
+      const launcher = path.join(root, "bin/supaterm");
+      const copy = path.join(root, "bin/supaterm-copy");
+      yield* fs.makeDirectory(path.dirname(executable), { recursive: true });
+      yield* fs.makeDirectory(path.dirname(launcher), { recursive: true });
+      yield* fs.writeFileString(executable, "", { mode: 0o755 });
+      yield* fs.writeFileString(copy, "", { mode: 0o755 });
+      yield* fs.symlink(path.join(root, "data/supaterm"), path.join(root, ".supaterm"));
+      yield* fs.symlink(path.join(root, ".supaterm/runtime/versions/1.0.0/supaterm"), launcher);
+      // Earlier PATH entries hold a directory and a non-executable file named supaterm.
+      yield* fs.makeDirectory(path.join(root, "shadow-dir/supaterm"), { recursive: true });
+      yield* fs.makeDirectory(path.join(root, "shadow-file"));
+      yield* fs.writeFileString(path.join(root, "shadow-file/supaterm"), "");
+      const resolve = (invokedAs: string, PATH = "shadow-dir:shadow-file:bin") =>
+        resolveServerInstallation.pipe(
+          Effect.provideService(HostProcess.ExecutablePath, executable),
+          Effect.provideService(HostProcess.IsExecutable, true),
+          Effect.provideService(HostProcess.InvokedAs, invokedAs),
+          Effect.provideService(HostProcess.WorkingDirectory, root),
+          Effect.provideService(HostProcess.Environment, { PATH }),
+          Effect.provideService(HostProcess.HomeDirectory, root),
+          Effect.provideService(HostProcess.Platform, "linux"),
+        );
+      const baseDir = path.join(root, ".supaterm");
+
+      expect(yield* resolve("supaterm")).toEqual({ kind: "supaterm-launcher", launcher, baseDir });
+      expect(yield* resolve(launcher)).toEqual({ kind: "supaterm-launcher", launcher, baseDir });
+      expect(yield* resolve(executable)).toBeNull();
+      expect(yield* resolve(copy)).toBeNull();
+
+      // The script launcher execs the runtime by absolute path, so argv0 names the runtime.
+      yield* fs.remove(launcher);
+      yield* fs.writeFileString(
+        launcher,
+        posixLauncherScript(path.join(root, ".supaterm/runtime/versions/1.0.0/supaterm")),
+        { mode: 0o755 },
+      );
+      expect(yield* resolve(executable, path.join(root, "bin"))).toEqual({
+        kind: "supaterm-launcher",
+        launcher,
+        baseDir,
+      });
     }),
   );
 

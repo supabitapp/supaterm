@@ -163,6 +163,8 @@ Supaterm checks every route at once, including relay, and prefers the
 highest-priority route that answers.
 Supaterm checks for a preferred route when your network changes, when you return
 to the app, and periodically while using a fallback.
+A route whose machine refused this device's sign-in is marked **Sign-in
+refused**; pair that address again with **Add route** to use it.
 A browser opened over HTTPS needs HTTPS routes; it cannot connect to plain HTTP
 LAN addresses.
 
@@ -205,6 +207,13 @@ set to **Manual only** remains excluded. Mobile keeps its manual environment sel
 Join both devices to the same tailnet. In the desktop app, enable **Tailscale
 HTTPS** in **Settings → Sharing & access**. **Network access** can stay off; Tailscale
 reaches the backend on this machine. Turn it off there to remove that route.
+
+Your tailnet needs MagicDNS and HTTPS certificates enabled; see
+[Tailscale's HTTPS setup](https://tailscale.com/docs/how-to/set-up-https-certificates).
+On Linux, Supaterm also needs permission to manage Tailscale; see
+[operator permission](https://tailscale.com/docs/reference/troubleshooting/linux/linux-operator-permission)
+for non-root users. If any of these is missing, Supaterm still starts but can't
+add the HTTPS route.
 
 To start a command-line server with Tailscale HTTPS:
 
@@ -327,8 +336,10 @@ The server shows the exact line for how you started it, and keeps your `PATH`
 when you started it with `npx` and Node is installed only for your user. Where `supaterm` is not on your `PATH`, such as with only the
 desktop app installed, it names the full path of the app's own `supaterm` instead. It allows Chrome's sandbox with an AppArmor profile and installs
 any missing libraries and system fonts with apt; pages that load without text
-can mean the host has no fonts. It is safe to run again. Without `sudo`, it only
-reports what it would change.
+can mean the host has no fonts. It is safe to run again, and each run reloads
+the AppArmor profile: run it again if the browser reports a blocked sandbox on a
+host restored from an image or snapshot, where the profile can be on disk
+without being loaded. Without `sudo`, it only reports what it would change.
 
 The browser runs in Chrome's sandbox by default. Chrome cannot start that sandbox
 as root. If your Supaterm server runs as root, run it as a nonroot user to keep
@@ -425,6 +436,9 @@ desktop app, open **Settings → Environments** and switch off **Local
 environment**. Supaterm restarts without a local server: no local agents or terminals run, WSL
 backends stay off, and other devices can no longer connect to this computer. Your projects,
 history, and saved connections are kept, and you keep working through paired environments or SSH.
+If a [background service](./background-service.md) on this computer uses the same Supaterm home, the
+app still treats it as this computer: **Open in** and file reveal for its projects run here,
+whichever connection you reach it through.
 
 Switch **Local environment** back on in the same place to restart with your previous local
 settings.

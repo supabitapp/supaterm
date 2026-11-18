@@ -2,12 +2,15 @@ import {
   ORCHESTRATION_V2_WS_METHODS,
   type EnvironmentId,
   type OrchestrationV2CommandOutputFrame,
+  type OrchestrationV2Run,
   type OrchestrationV2RunStatus,
   type RunId,
   type ThreadId,
   type OrchestrationV2ThreadLinkMetadata,
   type OrchestrationGetTurnDiffResult,
+  type OrchestrationV2GetTurnItemInput,
 } from "@supaterm/contracts";
+import { latestExecutedRun } from "@supaterm/shared/orchestrationV2ThreadError";
 import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
 import * as Stream from "effect/Stream";
@@ -15,7 +18,11 @@ import * as SubscriptionRef from "effect/SubscriptionRef";
 import type { HttpClient } from "effect/http";
 import { Atom } from "effect/reactivity";
 
-import { applyCommandOutputFrame, EMPTY_COMMAND_OUTPUT } from "./commandOutput.ts";
+import {
+  applyCommandOutputFrame,
+  EMPTY_COMMAND_OUTPUT,
+  type CommandOutputView,
+} from "./commandOutput.ts";
 
 import {
   createEnvironmentQueryAtomFamily,
@@ -41,7 +48,7 @@ const commandOutputViews = <E, R>(frames: Stream.Stream<OrchestrationV2CommandOu
 export function createOrchestrationEnvironmentAtoms<R, E>(
   runtime: Atom.AtomRuntime<EnvironmentRegistry | HttpClient.HttpClient | R, E>,
   options: {
-    /** Re-checks `threadTitles` when one of their threads leaves the shell. */
+    /** Re-checks `threadTitles` when one of their threads leaves the shell, and the archive on any removal. */
     readonly shellState?: (
       environmentId: EnvironmentId,
     ) => Atom.Atom<Pick<EnvironmentShellState, "removedAt">>;
@@ -57,6 +64,19 @@ export function createOrchestrationEnvironmentAtoms<R, E>(
       ? {}
       : { onAnswer: options.onCheckpointDiffAnswer };
   const shellState = options.shellState;
+  const liveTurnItem = createEnvironmentRpcQueryAtomFamily(runtime, {
+    label: "environment-data:orchestration:turn-item",
+    tag: ORCHESTRATION_V2_WS_METHODS.getTurnItem,
+    staleTimeMs: 60_000,
+    idleTtlMs: 60_000,
+  });
+  // A settled item's revision is its updatedAt, so the answer for it never goes stale.
+  const settledTurnItem = createEnvironmentRpcQueryAtomFamily(runtime, {
+    label: "environment-data:orchestration:turn-item",
+    tag: ORCHESTRATION_V2_WS_METHODS.getTurnItem,
+    staleTimeMs: Number.POSITIVE_INFINITY,
+    idleTtlMs: 5 * 60_000,
+  });
   const refreshThreadLookup = ({
     environmentId,
     input,
@@ -143,12 +163,15 @@ export function createOrchestrationEnvironmentAtoms<R, E>(
         tag: ORCHESTRATION_V2_WS_METHODS.subscribeThread,
         idleTtlMs: 0,
       }),
-      // One expanded command row's output. Mounted only while the row is open,
-      // and released as soon as it closes, so hidden rows receive nothing.
+      // One expanded command row's output. A running command's subscription ends
+      // as soon as its row closes, so hidden rows receive nothing; a finished
+      // command's final output stays cached so reopening it does not refetch.
       commandOutput: createEnvironmentRpcSubscriptionAtomFamily(runtime, {
         label: "environment-data:orchestration-v2:command-output",
         tag: ORCHESTRATION_V2_WS_METHODS.subscribeCommandOutput,
         idleTtlMs: 0,
+        completeWhen: (view: CommandOutputView) => !view.running,
+        completedTtlMs: 5 * 60_000,
         transform: commandOutputViews,
       }),
       // One pending background command's output, while its details are open.
@@ -189,12 +212,13 @@ export function createOrchestrationEnvironmentAtoms<R, E>(
       label: "environment-data:orchestration:force-stop-thread",
       tag: ORCHESTRATION_V2_WS_METHODS.forceStopThread,
     }),
-    turnItem: createEnvironmentRpcQueryAtomFamily(runtime, {
-      label: "environment-data:orchestration:turn-item",
-      tag: ORCHESTRATION_V2_WS_METHODS.getTurnItem,
-      staleTimeMs: 60_000,
-      idleTtlMs: 60_000,
-    }),
+    turnItem: (target: {
+      readonly environmentId: EnvironmentId;
+      readonly input: OrchestrationV2GetTurnItemInput;
+    }) =>
+      target.input.revision === undefined || target.input.revision === "live"
+        ? liveTurnItem(target)
+        : settledTurnItem(target),
     fullThreadDiff: createEnvironmentRpcQueryAtomFamily(runtime, {
       label: "environment-data:orchestration:full-thread-diff",
       tag: ORCHESTRATION_V2_WS_METHODS.getFullThreadDiff,
@@ -215,12 +239,19 @@ export function createOrchestrationEnvironmentAtoms<R, E>(
     threadSearch: createEnvironmentRpcQueryAtomFamily(runtime, {
       label: "environment-data:orchestration:thread-search",
       tag: ORCHESTRATION_V2_WS_METHODS.searchThreads,
-      staleTimeMs: 30_000,
-      idleTtlMs: 60_000,
+      staleTimeMs: 0,
+      idleTtlMs: 0,
     }),
     archivedShellSnapshot: createEnvironmentRpcQueryAtomFamily(runtime, {
       label: "environment-data:orchestration:archived-shell-snapshot",
       tag: ORCHESTRATION_V2_WS_METHODS.getArchivedShellSnapshot,
+      // The shell reports archiving a thread, and deleting or changing an archived one, as a removal,
+      // and replaces `removedAt` on each one.
+      refreshTrigger: ({ environmentId }) => {
+        if (shellState === undefined) return undefined;
+        const state = shellState(environmentId);
+        return Atom.make((get) => get(state).removedAt);
+      },
     }),
     threadFamily: createEnvironmentRpcQueryAtomFamily(runtime, {
       label: "environment-data:orchestration:thread-family-for-delete",
@@ -238,18 +269,36 @@ export function createOrchestrationEnvironmentAtoms<R, E>(
   };
 }
 
-/** The completed run a client asks for a next prompt suggestion about, or null when it should not ask. */
+/**
+ * The completed run a client asks for a next prompt suggestion about, or null when it should not ask.
+ * A message promoted to Steer leaves its queued run cancelled before it started, still the latest
+ * run, so the last run that ran answers instead. Detail can lag the shell, so that skip waits until
+ * `runs` include the cancelled run.
+ */
 export function nextPromptSuggestionRunId(input: {
   readonly enabled: boolean;
   readonly connected: boolean;
   readonly canSuggest: boolean;
   readonly latestRun:
-    | { readonly runId: RunId; readonly status: OrchestrationV2RunStatus }
+    | {
+        readonly runId: RunId;
+        readonly status: OrchestrationV2RunStatus;
+        readonly startedAt?: string | null;
+      }
     | null
     | undefined;
+  readonly runs?: ReadonlyArray<OrchestrationV2Run>;
 }): RunId | null {
-  const { enabled, connected, canSuggest, latestRun } = input;
-  return enabled && connected && canSuggest && latestRun?.status === "completed"
-    ? latestRun.runId
-    : null;
+  const { enabled, connected, canSuggest, latestRun, runs = [] } = input;
+  if (!enabled || !connected || !canSuggest || !latestRun) return null;
+  if (latestRun.status === "completed") return latestRun.runId;
+  const steered =
+    latestRun.status === "cancelled" &&
+    latestRun.startedAt === null &&
+    runs.some(
+      (run) => run.id === latestRun.runId && run.status === "cancelled" && run.startedAt === null,
+    );
+  if (!steered) return null;
+  const executed = latestExecutedRun(runs);
+  return executed?.status === "completed" ? executed.id : null;
 }

@@ -161,7 +161,7 @@ export function NewTaskDraftScreen(props: {
   const projects = useProjects();
   const flow = useNewTaskFlow();
   const navigation = useNavigation();
-  const goBack = useWorkspaceBackNavigation("threads");
+  const goBack = useWorkspaceBackNavigation();
   const focused = useIsFocused();
   const { panes } = useWorkspacePaneState();
   const heldDraftKey = focused && panes.primarySidebarVisible ? flow.draftKey : null;
@@ -292,9 +292,14 @@ export function NewTaskDraftScreen(props: {
     setIsReturningToProjectPicker(false);
   }
   // A route naming a draft that is gone, or whose project is gone, also
-  // returns to the picker.
+  // returns to the picker; a draft that survives goes along with it.
+  const pickerDraftId =
+    flow.unopenableRouteDraft?.kind === "pickProject"
+      ? flow.unopenableRouteDraft.draftId
+      : undefined;
   const isProjectPickerReturnActive =
-    (isReturningToProjectPicker && !requestedInitialProjectAvailable) || flow.routeDraftMissing;
+    (isReturningToProjectPicker && !requestedInitialProjectAvailable) ||
+    flow.unopenableRouteDraft !== null;
   const isIncomingShareAwaitingServerConfig = Boolean(
     incomingShare?.attachments.some((attachment) => attachment.type === "file") &&
     selectedEnvironmentServerConfig === null,
@@ -373,10 +378,6 @@ export function NewTaskDraftScreen(props: {
   const cycleEnvironmentCommands =
     flow.served && environments.length > 1 ? (["cycleHost"] as const) : [];
   useHardwareKeyboardCommand(cycleEnvironmentCommands, cycleEnvironment);
-  const composerWorkspaceCwd =
-    (flow.workspaceMode === "worktree"
-      ? selectedProject?.workspaceRoot
-      : (flow.selectedWorktreePath ?? selectedProject?.workspaceRoot)) || null;
   const preventRemove =
     (isIncomingShareHoldingRoute && !isProjectPickerReturnActive) || flow.submitting;
   usePreventRemove(preventRemove, () => undefined);
@@ -393,11 +394,14 @@ export function NewTaskDraftScreen(props: {
     // Wait for usePreventRemove to disable before replacing, or the transfer guard swallows the fallback.
     const frame = requestAnimationFrame(() => {
       navigation.dispatch(
-        StackActions.replace("NewTaskProject", { incomingShareId: props.incomingShareId }),
+        StackActions.replace("NewTaskProject", {
+          incomingShareId: props.incomingShareId,
+          draftId: pickerDraftId,
+        }),
       );
     });
     return () => cancelAnimationFrame(frame);
-  }, [isProjectPickerReturnActive, navigation, props.incomingShareId]);
+  }, [isProjectPickerReturnActive, navigation, pickerDraftId, props.incomingShareId]);
   const lastInitialProjectRefRef = useRef(props.initialProjectRef);
   const initialPickerRef = useRef<"open" | "dismissed" | null>(null);
 
@@ -950,7 +954,7 @@ export function NewTaskDraftScreen(props: {
       <ThreadScreenBinding
         environmentId={selectedProject.environmentId}
         header={
-          <DraftThreadHeader thread={thread} project={selectedProject} cwd={composerWorkspaceCwd} />
+          <DraftThreadHeader thread={thread} project={selectedProject} cwd={flow.workspaceCwd} />
         }
         draftMode={{
           content: heroViewport,
@@ -990,7 +994,7 @@ export function NewTaskDraftScreen(props: {
         onCancelQueuedRunEdit={() => {}}
         onRemoveQueuedEditAttachment={() => {}}
         projectWorkspaceRoot={selectedProject.workspaceRoot}
-        threadCwd={composerWorkspaceCwd}
+        threadCwd={flow.workspaceCwd}
         selectedThreadQueueCount={0}
         queuedMessages={[]}
         dispatchingMessageId={null}

@@ -19,27 +19,23 @@ const reachable = (origin: string) =>
     });
   });
 it.effect("shares one environment listener across tabs and closes after the last owner", () =>
-  Effect.scoped(
-    Effect.gen(function* () {
-      const service = yield* RelayCompanion;
-      const a = yield* service.open(address, "tab-a");
-      const b = yield* service.open(address, "tab-b");
-      expect(a).toBe(b);
-      yield* service.close(address, "tab-a");
-      expect(yield* Effect.promise(() => reachable(b))).toBe(true);
-      yield* service.close(address, "tab-b");
-      expect(yield* Effect.promise(() => reachable(b))).toBe(false);
-      const reopened = yield* service.open(address, "tab-c");
-      expect(yield* Effect.promise(() => reachable(reopened))).toBe(true);
-    }).pipe(Effect.provide(layer())),
-  ),
+  Effect.gen(function* () {
+    const service = yield* RelayCompanion;
+    const a = yield* service.open(address, "tab-a");
+    const b = yield* service.open(address, "tab-b");
+    expect(a).toBe(b);
+    yield* service.close(address, "tab-a");
+    expect(yield* Effect.promise(() => reachable(b))).toBe(true);
+    yield* service.close(address, "tab-b");
+    expect(yield* Effect.promise(() => reachable(b))).toBe(false);
+    const reopened = yield* service.open(address, "tab-c");
+    expect(yield* Effect.promise(() => reachable(reopened))).toBe(true);
+  }).pipe(Effect.provide(layer())),
 );
 it.effect("rejects ordinary network destinations", () =>
-  Effect.scoped(
-    Effect.gen(function* () {
-      const service = yield* RelayCompanion;
-      const result = yield* service.open("https://example.com", "tab").pipe(Effect.result);
-      expect(result._tag).toBe("Failure");
-    }).pipe(Effect.provide(layer())),
-  ),
+  Effect.gen(function* () {
+    const service = yield* RelayCompanion;
+    const result = yield* service.open("https://example.com", "tab").pipe(Effect.result);
+    expect(result._tag).toBe("Failure");
+  }).pipe(Effect.provide(layer())),
 );

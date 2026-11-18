@@ -17,6 +17,7 @@ import { describe, expect, it, vi } from "vite-plus/test";
 
 import { DraftId } from "../../composerDraftStore";
 import { makeThreadProjectionFixture } from "../../test-fixtures";
+import { usePendingUserInputDraft } from "./usePendingThreadRequests";
 import { usePendingThreadRequestsWithTimerPause } from "./usePendingThreadRequestsWithTimerPause";
 
 const state = vi.hoisted(() => ({ pause: vi.fn(), command: vi.fn() }));
@@ -127,7 +128,8 @@ function projection(overrides: Partial<RuntimeRequest> = {}) {
 }
 
 let screen: Screen;
-let requests: ReturnType<typeof usePendingThreadRequestsWithTimerPause>;
+let requests: ReturnType<typeof usePendingThreadRequestsWithTimerPause> &
+  ReturnType<typeof usePendingUserInputDraft>;
 const setThreadError = vi.fn();
 
 function Probe({ serverProjection }: { serverProjection: OrchestrationV2ThreadProjection }) {
@@ -142,9 +144,15 @@ function Probe({ serverProjection }: { serverProjection: OrchestrationV2ThreadPr
     composerRef: { current: null },
     setThreadError,
   });
+  const draft = usePendingUserInputDraft({
+    environmentId,
+    activeThreadId: threadId,
+    activePendingUserInput: current.activePendingUserInput,
+    supportsQuestionAttachments: false,
+  });
   useLayoutEffect(() => {
-    requests = current;
-  }, [current]);
+    requests = { ...current, ...draft };
+  }, [current, draft]);
   return null;
 }
 

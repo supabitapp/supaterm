@@ -2,6 +2,8 @@ import { PREVIEW_ZOOM, stepPreviewZoom } from "@supaterm/client-runtime/preview-
 import { MinusIcon, PlusIcon, XIcon } from "@supaterm/icons";
 import { createContext, type ReactNode, use, useEffect, useRef, useState } from "react";
 
+import { observeResize } from "~/lib/observeResize";
+
 import { Button } from "../ui/button";
 import { Dialog, DialogPopup, DialogTitle } from "../ui/dialog";
 
@@ -9,20 +11,31 @@ import { Dialog, DialogPopup, DialogTitle } from "../ui/dialog";
 // open dialog with it; hosts that recycle rows pin the row while this reports open.
 export const ExpandedPreviewHostContext = createContext<((open: boolean) => void) | null>(null);
 
-// Auto margins center content smaller than the viewport and collapse once it overflows.
-// `place-items: safe center` does the same but stops Chromium's keyboard scrolling.
-const FIT_CLASS_NAMES = {
-  fill: "m-auto h-[100cqh] w-[100cqw]",
-  center: "m-auto p-6",
-} as const;
+/** Content that reflows to the card's width and is as tall as it says, so only the card scrolls. */
+interface ContentFit {
+  readonly heightAtWidth: (layoutWidth: number) => number;
+  readonly initialWidth: number;
+}
 
 export function ExpandedPreviewDialog(props: {
   readonly title: string;
-  readonly fit: keyof typeof FIT_CLASS_NAMES;
+  readonly fit: ContentFit;
   readonly onClose: () => void;
   readonly children: ReactNode;
 }) {
   const [zoom, setZoom] = useState(1);
+  const [width, setWidth] = useState(props.fit.initialWidth);
+  // A callback ref, since the popup can mount after this component's first commit.
+  const measureBox = (box: HTMLDivElement) => {
+    setWidth(box.clientWidth);
+    return observeResize(box, ([entry]) => {
+      // Rounded like clientWidth, so the two writes agree at fractional widths.
+      if (entry) setWidth(Math.round(entry.contentRect.width));
+    });
+  };
+  // Zoom divides the page's layout width, so the page reflows to fill the card
+  // at every level, and the frame is as tall as the page so only the card scrolls.
+  const height = props.fit.heightAtWidth(width / zoom);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const reportOpen = use(ExpandedPreviewHostContext);
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- tells the host timeline row the dialog is open so the virtualized list keeps it mounted; clears it on unmount
@@ -40,7 +53,8 @@ export function ExpandedPreviewDialog(props: {
         initialFocus={closeButtonRef}
       >
         <DialogTitle className="sr-only">Expanded {props.title} preview</DialogTitle>
-        <div className="relative w-[92vw]">
+        {/* 1144px is the widest the server measures a page; pages are written for the reply column and stretch badly beyond it. */}
+        <div className="relative w-[min(92vw,1176px)]">
           <Button
             ref={closeButtonRef}
             aria-label="Close"
@@ -53,11 +67,10 @@ export function ExpandedPreviewDialog(props: {
           </Button>
           <div
             tabIndex={0}
-            style={props.fit === "fill" ? { padding: 16 } : undefined}
-            className="grid h-[min(86vh,calc(100vh-160px))] overflow-auto overscroll-contain rounded-lg bg-background shadow-2xl ring-1 ring-border/70 outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset [container-type:size]"
+            className="max-h-[min(86vh,calc(100vh-160px))] overflow-y-auto overscroll-contain rounded-lg bg-background p-4 shadow-2xl ring-1 ring-border/70 outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
           >
-            <div className={FIT_CLASS_NAMES[props.fit]} style={{ zoom }}>
-              {props.children}
+            <div ref={measureBox}>
+              <div style={{ zoom, height }}>{props.children}</div>
             </div>
           </div>
           <div className="mt-2 flex min-w-0 items-center justify-center gap-3 text-xs text-white/80">

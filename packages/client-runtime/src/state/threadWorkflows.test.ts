@@ -137,7 +137,8 @@ describe("thread workflows", () => {
         ...projection,
         providerThreads: [{ ...projection.providerThreads[0]!, nativeThreadRef: null }],
       }),
-    ).toBe(false);
+    ).toBe(true);
+    expect(threadSupportsProviderHandoff({ ...projection, providerThreads: [] })).toBe(false);
   });
 
   it("sorts queued messages and gates promotion from capabilities", () => {
@@ -379,10 +380,16 @@ describe("thread workflows", () => {
     ]);
   });
 
-  it.each(["preparing", "starting", "waiting"] as const)(
-    "does not promote queued work into a %s run",
-    (status) => {
-      const state = deriveThreadQueueWorkflowState({
+  it.each([
+    { status: "preparing", deferredSteering: true, canPromote: true },
+    { status: "starting", deferredSteering: true, canPromote: true },
+    { status: "waiting", deferredSteering: true, canPromote: false },
+    { status: "preparing", deferredSteering: false, canPromote: false },
+    { status: "starting", deferredSteering: false, canPromote: false },
+  ] as const)(
+    "defers steering during setup only on servers that deliver it ($status, $deferredSteering)",
+    ({ status, deferredSteering, canPromote }) => {
+      const projection = {
         thread: { id: "thread", activeProviderThreadId: "provider-thread" },
         runs: [
           {
@@ -416,9 +423,11 @@ describe("thread workflows", () => {
             capabilities: capabilities({ queued: true, steer: true }),
           },
         ],
-      } as never);
+      } as never;
 
-      expect(state.canPromoteToSteer).toBe(false);
+      expect(
+        deriveThreadQueueWorkflowState(projection, { deferredSteering }).canPromoteToSteer,
+      ).toBe(canPromote);
     },
   );
 

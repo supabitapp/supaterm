@@ -49,7 +49,7 @@ jobs:
           else
             echo "EXPO_TOKEN is not available; skipping mobile preview."
           fi
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         if: steps.expo-token.outputs.present == 'true'
         with:
           ref: ${{ github.event.pull_request.head.sha }}
@@ -73,7 +73,7 @@ jobs:
       - id: history
         name: Find a compatible preview build
         if: steps.expo-token.outputs.present == 'true'
-        uses: actions/github-script@v9.0.0
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         env:
           MOBILE_VERSION: ${{ steps.config.outputs.version }}
           MOBILE_FINGERPRINT: ${{ steps.config.outputs.fingerprint }}
@@ -94,7 +94,7 @@ jobs:
           profile: preview:dev
       - name: Save signed preview binary
         if: steps.build.outcome == 'success'
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: mobile-preview-${{ matrix.platform }}-${{ github.run_attempt }}
           path: ${{ steps.build.outputs.binary }}
@@ -113,7 +113,7 @@ jobs:
           echo "url=$url" >> "$GITHUB_OUTPUT"
       - name: Record completed preview build
         if: steps.upload.outcome == 'success'
-        uses: actions/github-script@v9.0.0
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         env:
           MOBILE_VERSION: ${{ steps.config.outputs.version }}
           MOBILE_FINGERPRINT: ${{ steps.build.outputs.fingerprint }}
@@ -145,7 +145,7 @@ jobs:
           echo "group=$group" >> "$GITHUB_OUTPUT"
       - name: Link preview on PR
         if: steps.update.outcome == 'success'
-        uses: actions/github-script@v9.0.0
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         env:
           MOBILE_BUILD_URL: ${{ steps.upload.outputs.url || steps.history.outputs.url }}
           MOBILE_UPDATE_GROUP: ${{ steps.update.outputs.group }}

@@ -5,10 +5,12 @@ import type {
   ProjectId,
   WorktreeSubmodules,
 } from "@supaterm/contracts";
+import type { ThreadStructureRuntime } from "@supaterm/client-runtime/state/shell";
 import * as Schema from "effect/Schema";
 import { sanitizeNewRefName } from "@supaterm/shared/git";
 import { workspaceRelativeFilePath } from "@supaterm/shared/path";
 import { toSortableTimestamp } from "@supaterm/client-runtime/state/thread-sort";
+import { deriveCanInterruptRunningThread } from "../session-logic";
 export { deriveLocalBranchNameFromRemoteRef, sanitizeNewRefName } from "@supaterm/shared/git";
 
 export interface EnvironmentOption {
@@ -101,7 +103,7 @@ export function resolveLockedWorkspaceLabel(
   activeWorktreePath: string | null,
   effectiveEnvMode: EnvMode,
 ): string {
-  if (activeWorktreePath) return "Worktree";
+  if (activeWorktreePath) return resolveWorkspaceDisplayName(activeWorktreePath) ?? "Worktree";
   return effectiveEnvMode === "worktree" ? resolveEnvModeLabel("worktree") : "Local checkout";
 }
 
@@ -179,15 +181,19 @@ export function resolveDraftEnvModeAfterBranchChange(input: {
 }
 
 /** Resolve the base once for both the branch picker and worktree submission. */
+/**
+ * The base a New worktree thread gets. Without a selection only a listed ref qualifies: during a
+ * clone the status names an unborn HEAD that no ref backs.
+ */
 export function resolveWorktreeBaseBranch(input: {
   selectedBranch: string | null;
-  refs: ReadonlyArray<Pick<VcsRef, "name" | "isDefault">>;
+  refs: ReadonlyArray<Pick<VcsRef, "name" | "isDefault" | "current">>;
   refsLoading: boolean;
-  currentGitBranch: string | null;
 }): string | null {
   if (input.selectedBranch) return input.selectedBranch;
   if (input.refsLoading) return null;
-  return input.refs.find((ref) => ref.isDefault)?.name ?? input.currentGitBranch;
+  const { refs } = input;
+  return (refs.find((ref) => ref.isDefault) ?? refs.find((ref) => ref.current))?.name ?? null;
 }
 
 export function resolveBranchToolbarValue(input: {
@@ -201,6 +207,36 @@ export function resolveBranchToolbarValue(input: {
     return activeThreadBranch;
   }
   return currentGitBranch ?? activeThreadBranch;
+}
+
+export interface BranchHold {
+  readonly branch: string | null;
+  readonly environmentId: EnvironmentId;
+  /**
+   * Each checkout the thread can show before it catches up, with the branch its status reported
+   * before the switch. A move from a worktree to the project root lists both.
+   */
+  readonly checkouts: ReadonlyArray<{ readonly cwd: string; readonly replaces: string | null }>;
+}
+
+/**
+ * A finished checkout's branch stays on screen until status reports any change, because the status
+ * stream and the RPC reply are not ordered and showing status first would flip back to the old branch.
+ */
+export function isBranchHoldCurrent(
+  hold: BranchHold,
+  current: {
+    readonly canonicalBranch: string | null;
+    readonly environmentId: EnvironmentId;
+    readonly cwd: string | null;
+  },
+): boolean {
+  return (
+    hold.environmentId === current.environmentId &&
+    hold.checkouts.some(
+      (checkout) => checkout.cwd === current.cwd && checkout.replaces === current.canonicalBranch,
+    )
+  );
 }
 
 export function resolveBranchTriggerLabel(input: {
@@ -252,6 +288,20 @@ export function resolveLocalCheckoutBranchMismatch(input: {
   return { threadBranch: activeThreadBranch, currentBranch: currentGitBranch };
 }
 
+/**
+ * Keeps a picked ref's worktree claim only when a read in that worktree finds it checked out.
+ * `freshRead` is `null` when the read failed.
+ */
+export function resolveConfirmedSelectedRef(
+  listedRef: VcsRef,
+  freshRead: { readonly refs: ReadonlyArray<VcsRef> } | null,
+): VcsRef {
+  const checkedOut =
+    freshRead?.refs.some((ref) => ref.name === listedRef.name && !ref.isRemote && ref.current) ??
+    false;
+  return checkedOut ? listedRef : { ...listedRef, worktreePath: null };
+}
+
 export function resolveBranchSelectionTarget(input: {
   activeProjectCwd: string;
   activeProjectCheckoutRoot?: string | undefined;
@@ -261,6 +311,7 @@ export function resolveBranchSelectionTarget(input: {
   checkoutCwd: string;
   nextWorktreePath: string | null;
   reuseExistingWorktree: boolean;
+  staysInActiveCheckout: boolean;
 } {
   const { activeProjectCwd, activeWorktreePath, refName } = input;
 
@@ -270,10 +321,13 @@ export function resolveBranchSelectionTarget(input: {
       input.activeProjectCheckoutRoot === undefined
         ? workspaceRelativeFilePath(activeProjectCwd, refName.worktreePath) !== null
         : workspaceRelativeFilePath(input.activeProjectCheckoutRoot, refName.worktreePath) === ".";
+    const nextWorktreePath = isProjectCheckout ? null : refName.worktreePath;
     return {
       checkoutCwd: refName.worktreePath,
-      nextWorktreePath: isProjectCheckout ? null : refName.worktreePath,
+      nextWorktreePath,
       reuseExistingWorktree: true,
+      // Listed refs can predate a checkout made outside the picker, so only Git can confirm this one.
+      staysInActiveCheckout: nextWorktreePath === activeWorktreePath,
     };
   }
 
@@ -284,7 +338,19 @@ export function resolveBranchSelectionTarget(input: {
     checkoutCwd: nextWorktreePath ?? activeProjectCwd,
     nextWorktreePath,
     reuseExistingWorktree: false,
+    staysInActiveCheckout: nextWorktreePath === activeWorktreePath,
   };
+}
+
+export function isWorktreeChangeBlocked(input: {
+  runtime: ThreadStructureRuntime | null;
+  currentWorktreePath: string | null;
+  nextWorktreePath: string | null;
+}): boolean {
+  return (
+    input.nextWorktreePath !== input.currentWorktreePath &&
+    deriveCanInterruptRunningThread(true, input.runtime)
+  );
 }
 
 export function shouldIncludeBranchPickerItem(input: {

@@ -1,6 +1,9 @@
 import type { EnvironmentId, RunId, ThreadId } from "@supaterm/contracts";
 import { assistantCitationsToPlainText } from "@supaterm/shared/assistantCitations";
-import { isAttachmentOnlyBootstrapPrompt } from "@supaterm/shared/composerContextReferences";
+import {
+  isAttachmentOnlyBootstrapPrompt,
+  replaceComposerContextReferences,
+} from "@supaterm/shared/composerContextReferences";
 
 export const REMOVE_QUEUED_MESSAGE_ACCESSIBILITY_LABEL = "Remove queued message";
 
@@ -35,7 +38,9 @@ export function resolveThreadQueueRowControls(input: {
     dismissAccessibilityLabel: REMOVE_QUEUED_MESSAGE_ACCESSIBILITY_LABEL,
     displayText: isAttachmentOnlyBootstrapPrompt(input.text)
       ? ""
-      : assistantCitationsToPlainText(input.text),
+      : assistantCitationsToPlainText(
+          replaceComposerContextReferences(input.text, (reference) => reference.label),
+        ).trim(),
     isEditing,
   };
 }

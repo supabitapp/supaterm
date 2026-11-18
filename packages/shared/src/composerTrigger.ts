@@ -18,8 +18,10 @@ function composerFileLinkBasename(path: string): string {
   return separatorIndex >= 0 ? path.slice(separatorIndex + 1) : path;
 }
 
+// Emphasis markers too: `__init__.py` would otherwise render as bold "init.py",
+// which no longer matches the path, so the label shows beside the chip.
 function escapeMarkdownLinkLabel(label: string): string {
-  return label.replaceAll("\\", "\\\\").replaceAll("[", "\\[").replaceAll("]", "\\]");
+  return label.replace(/[\\[\]*_]/g, "\\$&");
 }
 
 function encodeMarkdownLinkDestination(path: string): string {
@@ -70,6 +72,19 @@ function isCurrencyAmountQuery(query: string): boolean {
   return /^\.?[0-9][0-9,._]*(?:[kKmMbBtT]|[eE][0-9]+)?[.,;:!?)]*$/.test(query);
 }
 
+function detectComposerPullRequestTrigger(token: string, cursor: number) {
+  if (/^[@\p{Sc}]/u.test(token)) return null;
+  const match = /(?:^|\p{Ps})#([\p{L}\p{N}][\p{L}\p{N}_-]*)?$/u.exec(token);
+  if (!match) return null;
+  const query = match[1] ?? "";
+  return {
+    kind: "pull-request" as const,
+    query,
+    rangeStart: cursor - query.length - 1,
+    rangeEnd: cursor,
+  };
+}
+
 /**
  * Detect an active trigger (@path, #pull-request, $skill, /command at prompt
  * start, /skill elsewhere) at the cursor position.
@@ -80,7 +95,7 @@ export function detectComposerTrigger(text: string, cursorInput: number): Compos
   const token = text.slice(tokenStart, cursor);
   if (token.startsWith("/")) {
     const word = text.slice(tokenStart, tokenEndForCursor(text, cursor));
-    if (word.slice(1).includes("/")) return null;
+    if (/[/\\]/.test(word.slice(1))) return null;
     if (Array.from(text.slice(0, tokenStart)).every(isWhitespace)) {
       return {
         kind: "slash-command",
@@ -97,15 +112,8 @@ export function detectComposerTrigger(text: string, cursorInput: number): Compos
     };
   }
 
-  const pullRequestMatch = /^#([\p{L}\p{N}][\p{L}\p{N}_-]*)?$/u.exec(token);
-  if (pullRequestMatch) {
-    return {
-      kind: "pull-request",
-      query: pullRequestMatch[1] ?? "",
-      rangeStart: tokenStart,
-      rangeEnd: cursor,
-    };
-  }
+  const pullRequestTrigger = detectComposerPullRequestTrigger(token, cursor);
+  if (pullRequestTrigger) return pullRequestTrigger;
   const skillPrefix = /^\p{Sc}/u.exec(token);
   if (skillPrefix) {
     if (isCurrencyAmountQuery(token.slice(skillPrefix[0].length))) return null;

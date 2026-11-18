@@ -1,6 +1,7 @@
 import {
   formatSubagentDisplayTitle,
   resolveSubagentMetadata,
+  subagentCardDetail,
   subagentDetailPreview,
 } from "@supaterm/client-runtime/state/subagent-display";
 import {
@@ -11,8 +12,6 @@ import {
 import { REASONING_EFFORT_OPTION_IDS } from "@supaterm/client-runtime/state/thread-execution";
 import type { OrchestrationV2Subagent, ServerProvider } from "@supaterm/contracts";
 import { resolveSelectableModel } from "@supaterm/shared/model";
-
-import { subagentCardDetail } from "./subagent-card-presentation";
 
 const PROMPT_TITLE_LIMIT = 80;
 

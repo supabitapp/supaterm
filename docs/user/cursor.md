@@ -17,7 +17,9 @@ not expose yet.
 
 Custom Cursor MCP servers and plugins are not configured in Supaterm. They load from the environment
 machine's Cursor config when the agent opens: project `.cursor/mcp.json`, user `~/.cursor/mcp.json`,
-and installed plugins under `~/.cursor/plugins`. Plugin tools
+and installed plugins under `~/.cursor/plugins`. The project `.cursor` layer (rules, skills, hooks,
+and `.cursor/mcp.json`) loads only in Full access with sandbox and auto-review off, so a cloned
+repository cannot run its hooks without your approval. Plugin tools
 can appear without a login; OAuth MCP servers still need credentials. Run `agent mcp login <server>`
 with the cwd set to the Supaterm project root (tokens land in
 `~/.cursor/projects/<folder-slug>/mcp-auth.json`). Cursor desktop Connections auth does not write
@@ -49,17 +51,20 @@ The adapter supports:
 - assistant text, reasoning, tool activity, plans, and todo streaming;
 - thread-scoped Supaterm MCP tools alongside ambient Cursor MCP/plugins from disk;
 - image attachments;
-- interruption, queued app messages, and orchestrator-owned interrupt/restart steering;
+- interruption, queued app messages, and in-turn steering;
 - provider conversation snapshots through `Agent.messages.list()`;
 - Cursor `task` subagents, projected as read-only child app threads with their tool activity and
   final result.
 
-The public SDK does not currently expose native agent fork, conversation rollback, active steering,
-or interactive approval callbacks. Direct active steering is advertised as unsupported, while V2
-steering uses the orchestrator's interrupt-and-restart path and preserves the app run identity across
-provider turns. Same-provider Cursor forks use the orchestrator's portable full-thread context
-handoff into a fresh Cursor agent. The SDK has in-process custom callback tools, but the V2 adapter
-intentionally uses the authenticated, thread-scoped MCP server instead.
+The public SDK does not currently expose native agent fork, conversation rollback, or interactive
+approval callbacks. A text-only steer reaches the current run without restarting it.
+When Cursor cannot deliver the steer, the same message is queued for the next turn after
+this run finishes. If you press Stop, that follow-up stays held until you resume the queue. Steers
+with attachments and provider or runtime changes that must apply immediately interrupt and restart
+the run.
+Same-provider Cursor forks use the orchestrator's portable full-thread context handoff into a fresh
+Cursor agent. The SDK has in-process custom callback tools, but the V2 adapter intentionally uses the
+authenticated, thread-scoped MCP server instead.
 
 Portable handoffs summarize eligible timeline items and can omit the end of long messages. Read
 [Context in portable handoffs](./portable-handoffs.md) before using a fork for work whose exact

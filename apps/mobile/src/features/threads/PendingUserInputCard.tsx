@@ -1,13 +1,14 @@
 import { Button } from "../../components/ui/Button";
 import { QuestionAttachments } from "./QuestionAttachments";
 import * as Haptics from "expo-haptics";
-import type { EnvironmentId, RuntimeRequestId } from "@supaterm/contracts";
+import type { EnvironmentId, RuntimeRequestId, ThreadId } from "@supaterm/contracts";
 import type { ThreadUserInputQuestion } from "@supaterm/client-runtime/state/thread-requests";
 import {
   markdownProseDirection,
   textDirection,
   type TextDirection,
 } from "@supaterm/shared/textDirection";
+import { useNavigation } from "@react-navigation/native";
 import {
   useCallback,
   useEffect,
@@ -50,9 +51,15 @@ import { ControlPill } from "../../components/ui/ControlPill";
 import { cn } from "../../lib/cn";
 import { playDecisionHaptic } from "../../lib/decisionHaptic";
 import { SYSTEM_FONT_FAMILY } from "../../lib/fonts";
+import { resolveMarkdownLinkPresentation } from "../../lib/markdownLinks";
 import { SelectableMarkdownText } from "../../native/SelectableMarkdownText";
 import { useOpenPullRequest } from "../../native/useOpenPullRequest";
 import { useMarkdownPreviewStyles } from "../files/FileMarkdownPreview";
+import {
+  fileRoutePathSegments,
+  resolveFileLinkPath,
+  resolveWorkspaceRelativeFilePath,
+} from "../files/filePath";
 import { useLiveThreadLinkLabels } from "../../state/entities";
 import {
   isPendingUserInputOptionSelected,
@@ -64,6 +71,8 @@ import type { PendingUserInput } from "../../lib/threadActivity";
 
 export interface PendingUserInputCardProps {
   readonly environmentId: EnvironmentId;
+  readonly threadId: ThreadId;
+  readonly workspaceRoot: string | null;
   readonly canOperateThread: boolean;
   readonly pendingUserInput: PendingUserInput;
   readonly maxHeight: DerivedValue<number>;
@@ -172,11 +181,32 @@ function proseDirectionStyle(text: string, setDirection: TextDirection | undefin
 function QuestionText(props: {
   readonly markdown: string;
   readonly environmentId: EnvironmentId;
+  readonly threadId: ThreadId;
+  readonly workspaceRoot: string | null;
   readonly setDirection: TextDirection | undefined;
+  readonly preserveSoftBreaks?: boolean;
 }) {
   const styles = useMarkdownPreviewStyles();
   const markdown = useLiveThreadLinkLabels(props.markdown, props.environmentId);
-  const openLink = useOpenPullRequest();
+  const navigation = useNavigation();
+  const openPullRequest = useOpenPullRequest();
+  const openLink = (href: string) => {
+    const link = resolveMarkdownLinkPresentation(href);
+    if (link.kind !== "file") {
+      void openPullRequest(href);
+      return;
+    }
+    const path = resolveFileLinkPath(props.workspaceRoot, link.path);
+    if (path === null) return;
+    navigation.navigate("ThreadFile", {
+      environmentId: String(props.environmentId),
+      threadId: String(props.threadId),
+      path: fileRoutePathSegments(
+        resolveWorkspaceRelativeFilePath(props.workspaceRoot, path) ?? path,
+      ),
+      ...(link.line ? { line: String(link.line) } : {}),
+    });
+  };
   const textStyle = useMemo(
     () => ({ ...styles.nativeTextStyle, fontFamily: SYSTEM_FONT_FAMILY, fontWeight: "500" }),
     [styles.nativeTextStyle],
@@ -190,7 +220,8 @@ function QuestionText(props: {
       textAlign={
         Platform.OS === "android" ? undefined : props.setDirection === "rtl" ? "right" : "left"
       }
-      onLinkPress={(href) => void openLink(href)}
+      onLinkPress={openLink}
+      preserveSoftBreaks={props.preserveSoftBreaks}
     />
   );
 }
@@ -324,6 +355,19 @@ export function PendingUserInputCard(props: PendingUserInputCardProps) {
   const autoDismissAt = props.supportsQuestionAutoDismiss
     ? (props.pendingUserInput.autoDismissAt ?? null)
     : null;
+  const stopButton = props.onStopThread ? (
+    <ControlPill
+      accessibilityLabel="Stop"
+      icon="stop.fill"
+      variant="danger"
+      className="h-9 w-9"
+      disabled={!props.canOperateThread}
+      onPress={() => {
+        void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+        props.onStopThread?.();
+      }}
+    />
+  ) : null;
   const bar = (
     <View
       onLayout={handleBarLayout}
@@ -362,19 +406,7 @@ export function PendingUserInputCard(props: PendingUserInputCardProps) {
           </>
         )}
       </QuestionAutoDismissToggle>
-      {props.onStopThread ? (
-        <ControlPill
-          accessibilityLabel="Stop"
-          icon="stop.fill"
-          variant="danger"
-          className="h-9 w-9"
-          disabled={!props.canOperateThread}
-          onPress={() => {
-            void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-            props.onStopThread?.();
-          }}
-        />
-      ) : null}
+      {stopButton}
     </View>
   );
   const card = (
@@ -386,47 +418,52 @@ export function PendingUserInputCard(props: PendingUserInputCardProps) {
       className="overflow-hidden gap-2.5 rounded-[20px] border border-border bg-card-alt p-4"
       style={cardAnimatedStyle}
     >
-      <QuestionAutoDismissToggle
-        deadline={autoDismissAt}
-        accessibilityLabel={describeQuestion(questionIndex)}
-        accessibilityHint="Collapses user input"
-        onPress={props.onToggleCollapsed}
-        className="flex-row items-center gap-2"
-      >
-        {(timer) => (
-          <>
-            <View className="min-w-[33%] flex-1 overflow-hidden">
-              <QuestionPage
-                questionId={question?.id}
-                direction={pushDirection}
-                className="flex-row items-center gap-2"
-              >
-                <Text
-                  numberOfLines={1}
-                  className="shrink font-supaterm-bold text-2xs uppercase tracking-[1.1px] text-foreground-secondary"
-                  style={question ? proseDirectionStyle(question.header, setDirection) : undefined}
+      <View className="flex-row items-center gap-2">
+        <QuestionAutoDismissToggle
+          deadline={autoDismissAt}
+          accessibilityLabel={describeQuestion(questionIndex)}
+          accessibilityHint="Collapses user input"
+          onPress={props.onToggleCollapsed}
+          className="flex-1 flex-row items-center gap-2"
+        >
+          {(timer) => (
+            <>
+              <View className="min-w-[33%] flex-1 overflow-hidden">
+                <QuestionPage
+                  questionId={question?.id}
+                  direction={pushDirection}
+                  className="flex-row items-center gap-2"
                 >
-                  {question?.header ?? FALLBACK_TITLE}
-                </Text>
-                {questionCount > 1 ? (
-                  <Text className="font-sans text-xs tabular-nums text-foreground-muted">
-                    {questionIndex + 1} of {questionCount}
+                  <Text
+                    numberOfLines={1}
+                    className="shrink font-supaterm-bold text-2xs uppercase tracking-[1.1px] text-foreground-secondary"
+                    style={
+                      question ? proseDirectionStyle(question.header, setDirection) : undefined
+                    }
+                  >
+                    {question?.header ?? FALLBACK_TITLE}
                   </Text>
-                ) : null}
-              </QuestionPage>
-            </View>
-            {timer}
-            <View className="h-8 w-8 items-center justify-center rounded-full bg-subtle-strong">
-              <SymbolView
-                name="chevron.down"
-                size={13}
-                tintColorClassName={"accent-icon-subtle"}
-                type="monochrome"
-              />
-            </View>
-          </>
-        )}
-      </QuestionAutoDismissToggle>
+                  {questionCount > 1 ? (
+                    <Text className="font-sans text-xs tabular-nums text-foreground-muted">
+                      {questionIndex + 1} of {questionCount}
+                    </Text>
+                  ) : null}
+                </QuestionPage>
+              </View>
+              {timer}
+              <View className="h-8 w-8 items-center justify-center rounded-full bg-subtle-strong">
+                <SymbolView
+                  name="chevron.down"
+                  size={13}
+                  tintColorClassName={"accent-icon-subtle"}
+                  type="monochrome"
+                />
+              </View>
+            </>
+          )}
+        </QuestionAutoDismissToggle>
+        {stopButton}
+      </View>
       {/* Remounting per question also starts each page scrolled to its top. */}
       <QuestionPage
         questionId={question?.id}
@@ -454,7 +491,10 @@ export function PendingUserInputCard(props: PendingUserInputCardProps) {
               <QuestionText
                 markdown={question.question}
                 environmentId={props.environmentId}
+                threadId={props.threadId}
+                workspaceRoot={props.workspaceRoot}
                 setDirection={setDirection}
+                preserveSoftBreaks
               />
               {question.multiSelect ? (
                 <Text className="font-sans text-xs text-foreground-muted">
@@ -472,37 +512,50 @@ export function PendingUserInputCard(props: PendingUserInputCardProps) {
                   const description =
                     option.description !== option.label ? option.description : undefined;
                   return (
-                    <Pressable
-                      key={optionValue}
-                      accessibilityRole={question.multiSelect ? "checkbox" : "radio"}
-                      accessibilityState={{ checked: selected, disabled: responseDisabled }}
-                      disabled={responseDisabled}
-                      className={cn(
-                        "min-h-12 w-full rounded-2xl border px-3.5 py-3",
-                        selected ? "border-primary bg-primary/10" : "border-border bg-input",
-                      )}
-                      onPress={() => selectOption(question, optionValue)}
-                    >
-                      <View className="min-w-0 flex-1 gap-0.5">
-                        <Text
-                          className={cn(
-                            "font-supaterm-medium text-sm",
-                            selected ? "text-foreground" : "text-foreground-secondary",
-                          )}
-                          style={proseDirectionStyle(option.label, setDirection)}
-                        >
-                          {option.label}
-                        </Text>
-                        {description ? (
+                    <View key={optionValue} className="gap-1.5">
+                      <Pressable
+                        accessibilityRole={question.multiSelect ? "checkbox" : "radio"}
+                        accessibilityState={{ checked: selected, disabled: responseDisabled }}
+                        disabled={responseDisabled}
+                        className={cn(
+                          "min-h-12 w-full rounded-2xl border px-3.5 py-3",
+                          selected ? "border-primary bg-primary/10" : "border-border bg-input",
+                        )}
+                        onPress={() => selectOption(question, optionValue)}
+                      >
+                        <View className="min-w-0 flex-1 gap-0.5">
                           <Text
-                            className="font-sans text-sm leading-5 text-foreground-muted"
-                            style={proseDirectionStyle(description, setDirection)}
+                            className={cn(
+                              "font-supaterm-medium text-sm",
+                              selected ? "text-foreground" : "text-foreground-secondary",
+                            )}
+                            style={proseDirectionStyle(option.label, setDirection)}
                           >
-                            {description}
+                            {option.label}
                           </Text>
-                        ) : null}
-                      </View>
-                    </Pressable>
+                          {description ? (
+                            <Text
+                              className="font-sans text-sm leading-5 text-foreground-muted"
+                              style={proseDirectionStyle(description, setDirection)}
+                            >
+                              {description}
+                            </Text>
+                          ) : null}
+                        </View>
+                      </Pressable>
+                      {option.preview ? (
+                        <View className="px-3.5">
+                          <QuestionText
+                            markdown={option.preview}
+                            environmentId={props.environmentId}
+                            threadId={props.threadId}
+                            workspaceRoot={props.workspaceRoot}
+                            setDirection={setDirection}
+                            preserveSoftBreaks
+                          />
+                        </View>
+                      ) : null}
+                    </View>
                   );
                 })}
               </View>

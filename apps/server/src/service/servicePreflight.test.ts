@@ -34,6 +34,21 @@ it.each([1])("blocks legacy launcher protocol %i with exact recovery steps", (la
   expect(reason).toContain("which -a supaterm");
 });
 
+// regression: #34502 every installed launcher was protocol 3, so protocol 4 blocked every remote update
+it.each([3, SERVICE_LAUNCHER_PROTOCOL])(
+  "is ready under launcher protocol %i and reports it back",
+  (launcherProtocol) => {
+    // A released server accepts a ready result only when it names that server's own protocol.
+    expect(
+      runServicePreflight({
+        databasePath: "/missing/state.sqlite",
+        launcherProtocol,
+        version: "9.8.7",
+      }),
+    ).toEqual({ status: "ready", version: "9.8.7", launcherProtocol });
+  },
+);
+
 it.layer(NodeServices.layer)("service preflight database", (it) => {
   it.effect("blocks a database that a newer build migrated", () =>
     Effect.gen(function* () {
@@ -52,6 +67,18 @@ it.layer(NodeServices.layer)("service preflight database", (it) => {
 
       expect(preflight().status).toBe("ready");
       expect(databaseMigrationHead(databasePath)).toBe(BUILD_MIGRATION_HEAD);
+
+      db.prepare("UPDATE effect_sql_migrations SET name = ? WHERE migration_id = ?").run(
+        "ForkMigration",
+        BUILD_MIGRATION_HEAD,
+      );
+      const conflict = preflight();
+      expect(conflict.status).toBe("blocked");
+      expect(conflict.status === "blocked" ? conflict.reason : "").toContain("ForkMigration");
+      db.prepare("UPDATE effect_sql_migrations SET name = ? WHERE migration_id = ?").run(
+        migrationManifest.at(-1)![1],
+        BUILD_MIGRATION_HEAD,
+      );
 
       const newerId = Math.max(...migrationManifest.map(([id]) => id)) + 1;
       insert.run(newerId, "FromNightly");

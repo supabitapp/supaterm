@@ -80,9 +80,9 @@ export function sortOlderDoneScopes(
 
 /**
  * Changes whenever the older count can: any removal (by largest sequence, so a repeat counts), an
- * older row that arrives or changes, or an old row arriving outside the set (unsettled). Threads
- * created after the cut never enter it, as threads are marked done after creation. Archived-thread events
- * arrive as removals too, each costing one count read.
+ * older row that arrives, changes or moves project, or an old row arriving outside the set
+ * (reopened). Threads created after the cut never enter it, as threads are marked done after
+ * creation. Archived-thread events arrive as removals too, each costing one count read.
  */
 export function olderDoneCountKey(
   threads: ReadonlyArray<OrchestrationV2ThreadShell>,
@@ -96,7 +96,7 @@ export function olderDoneCountKey(
     if (!isListedThreadLineage(thread.lineage)) continue;
     const older = isOlderDoneThreadShell(thread, beforeMs);
     if (older || DateTime.toEpochMillis(thread.createdAt) < beforeMs) {
-      rows.push(`${thread.id}:${older ? 1 : 0}`);
+      rows.push(`${thread.id}:${thread.projectId}:${older ? 1 : 0}`);
     }
   }
   return `${lastRemoval}|${rows.sort().join(",")}`;
@@ -395,7 +395,8 @@ export function createOlderDoneThreadAtoms<R, ER, E>(
   );
   const searchReadAtom = createEnvironmentQueryAtomFamily(runtime, {
     label: "environment-data:orchestration:older-done-search",
-    idleTtlMs: 60_000,
+    staleTimeMs: 0,
+    idleTtlMs: 0,
     execute: Effect.fn("OlderDoneThreads.search")(function* (input: {
       readonly generation: number;
       readonly search: OrchestrationV2SearchThreadsInput;

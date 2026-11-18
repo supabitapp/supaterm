@@ -30,6 +30,10 @@ vi.mock("../state/presentation", () => ({
 vi.mock("../rpc/atomRegistry", () => ({
   appAtomRegistry: { get: () => testState.connectedEnvironmentIds },
 }));
+vi.mock("../state/environments", () => ({
+  readEnvironment: () => null,
+  readEnvironmentProviders: () => undefined,
+}));
 vi.mock("../state/olderDoneShelf", () => ({ readUnloadedThreadCount: () => 0 }));
 vi.mock("./supatermProjectFileDefaults", () => ({
   readSupatermProjectFile: async () => {
@@ -142,7 +146,6 @@ describe("moveDraftToProject", () => {
       draftId,
       project: to,
       logicalProjectKey: "to-repo",
-      serverSettings: null,
       workspace: { envMode: "local", startFromOrigin: false },
     });
 
@@ -169,7 +172,6 @@ describe("moveDraftToProject", () => {
       draftId,
       project: to,
       logicalProjectKey: "to-repo",
-      serverSettings: null,
       workspace: { envMode: "local", startFromOrigin: false },
     });
 

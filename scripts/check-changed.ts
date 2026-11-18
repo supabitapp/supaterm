@@ -36,14 +36,53 @@ const MOBILE_NATIVE =
   /^apps\/mobile\/.*\.(swift|kt|kts)$|^apps\/mobile\/(\.swiftlint\.yml|detekt\.yml|\.editorconfig|Brewfile)$|^scripts\/mobile-native-static-check\.ts$|^package\.json$|^\.github\/workflows\/ci\.yml$/;
 
 // quotePath=false keeps non-ASCII paths as real paths instead of quoted escapes.
-const git = (...args: Array<string>) =>
+const gitOutput = (...args: Array<string>) =>
   NodeChildProcess.execFileSync("git", ["-c", "core.quotePath=false", ...args], {
     cwd: root,
     encoding: "utf8",
     maxBuffer: 64 * 1024 * 1024,
-  })
+  });
+const git = (...args: Array<string>) =>
+  gitOutput(...args)
     .split("\n")
     .filter(Boolean);
+
+// Ignored files that checks read: generated sources, declarations, and env files.
+const checkInput = /(^|\/)\.(generated|astro)\/|\.d\.ts$|(^|\/)\.env[^/]*$/;
+const inNodeModules = /(^|\/)node_modules\//;
+
+// Pathspecs don't stop git from walking an ignored directory, and on Windows it follows pnpm's
+// junctions in node_modules until MAX_PATH. `--directory` lists one without entering it.
+const ignoredCheckInputs = () => {
+  const list = (...args: Array<string>) =>
+    gitOutput("ls-files", "-z", ...args)
+      .split("\0")
+      .filter(Boolean);
+  const ignored = ["--others", "--ignored", "--exclude-standard"];
+  // `--directory` hides a directory where the index has a file; `-k` lists those.
+  const entries = [
+    ...new Set([...list(...ignored, "--directory"), ...list("-k", "--directory")]),
+  ].sort();
+  // git lists an untracked directory whose contents are all ignored together with them;
+  // listing it again would walk its node_modules.
+  const directories = entries.filter(
+    (entry, index) =>
+      entry.endsWith("/") && !inNodeModules.test(entry) && !entries[index + 1]?.startsWith(entry),
+  );
+  const files = entries.filter((entry) => !entry.endsWith("/"));
+  // Calls fit Windows' 32,767-character command line: 16 covers `:(literal)`, quotes, a space.
+  // `.git/` matches nothing; it stops git starting its walk inside a nested repository.
+  const longest = directories.reduce((max, dir) => Math.max(max, dir.length), 0);
+  const size = Math.max(1, Math.floor(30_000 / (longest + 16)));
+  for (let start = 0; start < directories.length; start += size) {
+    const batch = directories.slice(start, start + size).map((dir) => `:(literal)${dir}`);
+    files.push(...list(...ignored, "--", ":(literal).git/", ...batch));
+  }
+  // A nested repository is listed by its directory, as the old pathspecs listed it.
+  return files
+    .filter((file) => !inNodeModules.test(file) && (file.endsWith("/") || checkInput.test(file)))
+    .sort();
+};
 
 const USAGE = "usage: vp run check:changed [<ref>] [--concurrency <n>] [--timeout <seconds>]";
 const positiveInt = (name: string, value: string | undefined) => {
@@ -134,18 +173,7 @@ const inputKey = () => {
       { cwd: root, maxBuffer: 1024 * 1024 * 1024 },
     ),
   );
-  const ignored = git(
-    "ls-files",
-    "--others",
-    "--ignored",
-    "--exclude-standard",
-    "--",
-    ":(glob)**/.generated/**",
-    ":(glob)**/.astro/**",
-    ":(glob)**/*.d.ts",
-    ":(glob)**/.env*",
-    ":(exclude,glob)**/node_modules/**",
-  );
+  const ignored = ignoredCheckInputs();
   for (const file of [
     // Raw bytes of changed files too: .gitattributes normalizes line endings in
     // the diff, but the formatter reads the file as it is on disk.

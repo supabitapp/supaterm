@@ -1,9 +1,10 @@
-import { AuthPreviewOperateScope, type KeybindingCommand } from "@supaterm/contracts";
+import { AuthPreviewOperateScope, type EnvironmentId } from "@supaterm/contracts";
 import type { AnyRouter } from "@tanstack/react-router";
 
 import { stackedThreadToast, toastManager } from "~/components/ui/toast";
 import { isPreviewAvailableFor } from "../browser/previewRuntime";
 import { isCommandPaletteOpen, openCommandPalette } from "../commandPaletteBus";
+import { useComposerDraftStore } from "../composerDraftStore";
 import { dispatchPreviewAction, type PreviewAction } from "../components/preview/previewActionBus";
 import { isAppModalPage } from "../components/sidebar/mainAppLocation";
 import {
@@ -21,17 +22,9 @@ import { readEnvironmentScope } from "../state/session";
 import { selectThreadTerminalUiState, useTerminalUiStateStore } from "../terminalUiStateStore";
 import { useThreadSelectionStore } from "../threadSelectionStore";
 import { resolveThreadRouteTarget } from "../threadRoutes";
-import { registerCommands } from "./dispatcher";
+import { type CommandHandlers, registerCommands } from "./dispatcher";
 
 const CHAT_ROUTE_ID = "/_chat";
-
-const PREVIEW_ACTION_BY_COMMAND: Partial<Record<KeybindingCommand, PreviewAction>> = {
-  "preview.refresh": "refresh",
-  "preview.focusUrl": "focus-url",
-  "preview.zoomIn": "zoom-in",
-  "preview.zoomOut": "zoom-out",
-  "preview.resetZoom": "reset-zoom",
-};
 
 function leavePullRequestsPage(router: AnyRouter) {
   const activeElement = document.activeElement;
@@ -59,9 +52,17 @@ export function installChatRouteCommands(router: AnyRouter): () => void {
     handleNewThread,
   });
 
+  const readRouteTarget = () => resolveThreadRouteTarget(router.state.matches.at(-1)?.params ?? {});
   const readRouteThreadRef = () => {
-    const target = resolveThreadRouteTarget(router.state.matches.at(-1)?.params ?? {});
+    const target = readRouteTarget();
     return target?.kind === "server" ? target.threadRef : null;
+  };
+  const readRouteEnvironmentId = () => {
+    const target = readRouteTarget();
+    if (!target) return null;
+    return target.kind === "server"
+      ? target.threadRef.environmentId
+      : (useComposerDraftStore.getState().getDraftSession(target.draftId)?.environmentId ?? null);
   };
   const readPreviewOpen = () => {
     const threadRef = readRouteThreadRef();
@@ -71,68 +72,67 @@ export function installChatRouteCommands(router: AnyRouter): () => void {
       ? selectActiveRightPanel(useRightPanelStore.getState().byThreadKey, threadRef) === "preview"
       : false;
   };
-  const canOperatePreview = () => {
-    const threadRef = readRouteThreadRef();
-    return (
-      threadRef !== null && readEnvironmentScope(threadRef.environmentId, AuthPreviewOperateScope)
-    );
+  const canOperatePreview = (environmentId: EnvironmentId) =>
+    readEnvironmentScope(environmentId, AuthPreviewOperateScope);
+
+  const startNewThread = () => {
+    void startNewThreadInCurrentProject(router, handleNewThread).then((started) => {
+      if (!started) openCommandPalette({ open: "new-thread-in" });
+    });
   };
 
-  /** Returns false when the command is not one of these, or cannot run right now. */
-  const runChatRouteCommand = (command: KeybindingCommand, repeat: boolean): boolean => {
-    switch (command) {
-      case "chat.new":
-      case "chat.newLocal":
-        void startNewThreadInCurrentProject(router, handleNewThread).then((started) => {
-          if (!started) openCommandPalette({ open: "new-thread-in" });
-        });
-        return true;
-      case "chat.newWithoutProject": {
-        const { activeThread, activeDraftThread } = readRouteThreadContext(router);
-        const environmentId = scratch.scratchEnvironmentId(
-          activeThread?.environmentId ?? activeDraftThread?.environmentId ?? primaryEnvironmentId(),
+  const previewCommand = (action: PreviewAction) => () => {
+    const environmentId = readRouteEnvironmentId();
+    if (environmentId && canOperatePreview(environmentId)) dispatchPreviewAction(action);
+  };
+
+  const commands: CommandHandlers = {
+    "chat.new": startNewThread,
+    "chat.newLocal": startNewThread,
+    "chat.newWithoutProject": () => {
+      const { activeThread, activeDraftThread } = readRouteThreadContext(router);
+      const environmentId = scratch.scratchEnvironmentId(
+        activeThread?.environmentId ?? activeDraftThread?.environmentId ?? primaryEnvironmentId(),
+      );
+      if (environmentId === null) return false;
+      void scratch.startScratchThread(environmentId);
+    },
+    "projectPicker.toggle": ({ repeat }) => {
+      if (repeat) return;
+      const projectTrigger =
+        document.querySelector<HTMLButtonElement>(
+          '[data-chat-pane][data-focused="true"] [data-draft-project-trigger]',
+        ) ?? document.querySelector<HTMLButtonElement>("[data-draft-project-trigger]");
+      if (projectTrigger) {
+        projectTrigger.focus({ preventScroll: true });
+        projectTrigger.click();
+      } else {
+        openCommandPalette({ open: "new-thread-in" });
+      }
+    },
+    "preview.toggle": () => {
+      const threadRef = readRouteThreadRef();
+      if (!threadRef || (!canOperatePreview(threadRef.environmentId) && !readPreviewOpen())) {
+        return;
+      }
+      if (!isPreviewAvailableFor(threadRef.environmentId)) {
+        toastManager.add(
+          stackedThreadToast({
+            type: "info",
+            title: "Preview is desktop-only",
+            description: "Open Supaterm in the desktop app to use the in-app preview.",
+          }),
         );
-        if (environmentId === null) return false;
-        void scratch.startScratchThread(environmentId);
-        return true;
+        return;
       }
-      case "projectPicker.toggle": {
-        if (repeat) return true;
-        const projectTrigger =
-          document.querySelector<HTMLButtonElement>(
-            '[data-chat-pane][data-focused="true"] [data-draft-project-trigger]',
-          ) ?? document.querySelector<HTMLButtonElement>("[data-draft-project-trigger]");
-        if (projectTrigger) {
-          projectTrigger.focus({ preventScroll: true });
-          projectTrigger.click();
-        } else {
-          openCommandPalette({ open: "new-thread-in" });
-        }
-        return true;
-      }
-      case "preview.toggle": {
-        const threadRef = readRouteThreadRef();
-        if (!threadRef || (!canOperatePreview() && !readPreviewOpen())) return true;
-        if (!isPreviewAvailableFor(threadRef.environmentId)) {
-          toastManager.add(
-            stackedThreadToast({
-              type: "info",
-              title: "Preview is desktop-only",
-              description: "Open Supaterm in the desktop app to use the in-app preview.",
-            }),
-          );
-          return true;
-        }
-        dispatchPreviewAction("toggle-panel");
-        return true;
-      }
-      default: {
-        const previewAction = PREVIEW_ACTION_BY_COMMAND[command];
-        if (previewAction === undefined) return false;
-        if (canOperatePreview()) dispatchPreviewAction(previewAction);
-        return true;
-      }
-    }
+      dispatchPreviewAction("toggle-panel");
+    },
+    "preview.refresh": previewCommand("refresh"),
+    "preview.focusUrl": previewCommand("focus-url"),
+    "preview.zoomIn": previewCommand("zoom-in"),
+    "preview.zoomOut": previewCommand("zoom-out"),
+    "preview.resetZoom": previewCommand("reset-zoom"),
+    "preview.find": previewCommand("find"),
   };
 
   const when = () =>
@@ -140,7 +140,7 @@ export function installChatRouteCommands(router: AnyRouter): () => void {
     !router.state.matches.some((match) => isAppModalPage(match.pathname)) &&
     !isCommandPaletteOpen();
 
-  return registerCommands((command, { repeat }) => runChatRouteCommand(command, repeat), {
+  return registerCommands(commands, {
     when,
     context: () => {
       const threadRef = readRouteThreadRef();

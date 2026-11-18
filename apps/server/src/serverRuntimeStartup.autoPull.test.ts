@@ -17,6 +17,7 @@ import * as NetAddress from "effect/net/NetAddress";
 
 import * as EnvironmentAuth from "./auth/EnvironmentAuth.ts";
 import * as ServiceLauncherClient from "./service/serviceLauncherClient.ts";
+import { SERVICE_LAUNCHER_PROTOCOL } from "./service/serviceProtocol.ts";
 import * as ServerConfig from "./config.ts";
 import * as ServerEnvironment from "./environment/ServerEnvironment.ts";
 import * as DirectEndpoints from "./environment/DirectEndpoints.ts";
@@ -37,171 +38,169 @@ import * as ServerSettings from "./serverSettings.ts";
 import * as GitVcsDriver from "./vcs/GitVcsDriver.ts";
 
 it.effect("parks automatic pull until activation without delaying command readiness", () =>
-  Effect.scoped(
-    Effect.gen(function* () {
-      const activation = yield* Deferred.make<void>();
-      const prepared = yield* Deferred.make<void>();
-      const commitTrial = yield* Deferred.make<void>();
-      const statusCalled = yield* Deferred.make<string>();
-      const statusInterrupted = yield* Deferred.make<void>();
-      const pairingEndpointsReady = yield* Deferred.make<void>();
-      const pairingEndpointsWaiting = yield* Deferred.make<void>();
-      const pairingIssued = yield* Deferred.make<void>();
-      const cwd = "/auto-pull-project";
-      const updatedAt = "2026-01-01T00:00:00.000Z";
-      const snapshot = {
-        projects: [
-          {
-            id: ProjectId.make("auto-pull-project"),
-            title: "Auto pull project",
-            workspaceRoot: cwd,
-            repositoryIdentity: null,
-            defaultModelSelection: null,
-            scripts: [],
-            createdAt: updatedAt,
-            updatedAt,
-            deletedAt: null,
-          },
-        ],
-        updatedAt,
-      };
-      const recovery = {
-        terminalizedRuns: 0,
-        stoppedSessions: 0,
-        closedRequests: 0,
-        retiredEffects: 0,
-        requeuedEffects: 0,
-      };
-      const dependencies: Layer.Layer<
-        Layer.Services<ReturnType<typeof ServerRuntimeStartup.layerWithOptions>>
-      > = Layer.mergeAll(
-        Layer.mock(DirectEndpoints.DirectEndpoints)({ resolve: () => Effect.succeed([]) }),
-        Layer.mock(ServerEnvironment.ServerEnvironmentIdentity)({
-          getEnvironmentId: Effect.succeed(EnvironmentId.make("auto-pull-environment")),
+  Effect.gen(function* () {
+    const activation = yield* Deferred.make<void>();
+    const prepared = yield* Deferred.make<void>();
+    const commitTrial = yield* Deferred.make<void>();
+    const statusCalled = yield* Deferred.make<string>();
+    const statusInterrupted = yield* Deferred.make<void>();
+    const pairingEndpointsReady = yield* Deferred.make<void>();
+    const pairingEndpointsWaiting = yield* Deferred.make<void>();
+    const pairingIssued = yield* Deferred.make<void>();
+    const cwd = "/auto-pull-project";
+    const updatedAt = "2026-01-01T00:00:00.000Z";
+    const snapshot = {
+      projects: [
+        {
+          id: ProjectId.make("auto-pull-project"),
+          title: "Auto pull project",
+          workspaceRoot: cwd,
+          repositoryIdentity: null,
+          defaultModelSelection: null,
+          scripts: [],
+          createdAt: updatedAt,
+          updatedAt,
+          deletedAt: null,
+        },
+      ],
+      updatedAt,
+    };
+    const recovery = {
+      terminalizedRuns: 0,
+      stoppedSessions: 0,
+      closedRequests: 0,
+      retiredEffects: 0,
+      requeuedEffects: 0,
+    };
+    const dependencies: Layer.Layer<
+      Layer.Services<ReturnType<typeof ServerRuntimeStartup.layerWithOptions>>
+    > = Layer.mergeAll(
+      Layer.mock(DirectEndpoints.DirectEndpoints)({ resolve: () => Effect.succeed([]) }),
+      Layer.mock(ServerEnvironment.ServerEnvironmentIdentity)({
+        getEnvironmentId: Effect.succeed(EnvironmentId.make("auto-pull-environment")),
+      }),
+      Layer.mock(ServerConfig.ServerConfig)({
+        ...(yield* ServerConfig.deriveServerPaths(cwd, undefined).pipe(Effect.provide(Path.layer))),
+        baseDir: cwd,
+        logLevel: "Error",
+        traceMinLevel: "Info",
+        traceTimingEnabled: false,
+        traceBatchWindowMs: 200,
+        traceMaxBytes: 1024,
+        traceMaxFiles: 1,
+        otlpTracesUrl: undefined,
+        otlpMetricsUrl: undefined,
+        otlpLogsUrl: undefined,
+        otlpTracesExport: DEFAULT_SIGNAL_EXPORT,
+        otlpMetricsExport: DEFAULT_SIGNAL_EXPORT,
+        otlpLogsExport: DEFAULT_SIGNAL_EXPORT,
+        otelEnvironment: OtelEnvironment.none,
+        staticDir: undefined,
+        devAllowedOrigins: [],
+        desktopBootstrapToken: undefined,
+        logWebSocketEvents: false,
+        tailscaleServeEnabled: false,
+        tailscaleServePort: 443,
+        mode: "web",
+        cwd,
+        host: "localhost",
+        port: 3773,
+        devUrl: undefined,
+        noBrowser: true,
+        startupPresentation: "browser",
+        autoBootstrapProjectFromCwd: false,
+      }),
+      Layer.mock(Keybindings.Keybindings)({ start: Effect.void }),
+      Layer.mock(ProviderRuntimeRecovery.ProviderRuntimeRecoveryService)({
+        recover: Effect.succeed(recovery),
+        prepareForShutdown: Effect.void,
+        reconcile: () => Effect.succeed(recovery),
+      }),
+      Layer.mock(Orchestrator.OrchestratorV2)({ recoverDelegatedTasks: Effect.void }),
+      Layer.mock(ProviderSessionManager.ProviderSessionManagerV2)({ shutdown: Effect.void }),
+      Layer.mock(EffectWorker.OrchestrationEffectWorkerV2)({ runOnce: () => Effect.never }),
+      Layer.mock(ServerLifecycleEvents.ServerLifecycleEvents)({
+        publish: (event) => Effect.succeed({ ...event, sequence: 1 }),
+      }),
+      Layer.mock(ServerSettings.ServerSettingsService)({
+        start: Effect.void,
+        getSettings: Effect.succeed({ ...DEFAULT_SERVER_SETTINGS, defaultAutoPull: true }),
+      }),
+      Layer.mock(ServerEnvironment.ServerEnvironment)({
+        getDescriptor: Effect.succeed({
+          environmentId: EnvironmentId.make("auto-pull-environment"),
+          label: "Test environment",
+          platform: { os: "darwin", arch: "arm64" },
+          serverVersion: "0.0.0-test",
+          orchestrationProtocolVersion: ORCHESTRATION_PROTOCOL_VERSION,
+          capabilities: {},
         }),
-        Layer.mock(ServerConfig.ServerConfig)({
-          ...(yield* ServerConfig.deriveServerPaths(cwd, undefined).pipe(
-            Effect.provide(Path.layer),
-          )),
-          baseDir: cwd,
-          logLevel: "Error",
-          traceMinLevel: "Info",
-          traceTimingEnabled: false,
-          traceBatchWindowMs: 200,
-          traceMaxBytes: 1024,
-          traceMaxFiles: 1,
-          otlpTracesUrl: undefined,
-          otlpMetricsUrl: undefined,
-          otlpLogsUrl: undefined,
-          otlpTracesExport: DEFAULT_SIGNAL_EXPORT,
-          otlpMetricsExport: DEFAULT_SIGNAL_EXPORT,
-          otlpLogsExport: DEFAULT_SIGNAL_EXPORT,
-          otelEnvironment: OtelEnvironment.none,
-          staticDir: undefined,
-          devAllowedOrigins: [],
-          desktopBootstrapToken: undefined,
-          logWebSocketEvents: false,
-          tailscaleServeEnabled: false,
-          tailscaleServePort: 443,
-          mode: "web",
-          cwd,
-          host: "localhost",
-          port: 3773,
-          devUrl: undefined,
-          noBrowser: true,
-          startupPresentation: "browser",
-          autoBootstrapProjectFromCwd: false,
-        }),
-        Layer.mock(Keybindings.Keybindings)({ start: Effect.void }),
-        Layer.mock(ProviderRuntimeRecovery.ProviderRuntimeRecoveryService)({
-          recover: Effect.succeed(recovery),
-          prepareForShutdown: Effect.void,
-          reconcile: () => Effect.succeed(recovery),
-        }),
-        Layer.mock(Orchestrator.OrchestratorV2)({ recoverDelegatedTasks: Effect.void }),
-        Layer.mock(ProviderSessionManager.ProviderSessionManagerV2)({ shutdown: Effect.void }),
-        Layer.mock(EffectWorker.OrchestrationEffectWorkerV2)({ runOnce: Effect.never }),
-        Layer.mock(ServerLifecycleEvents.ServerLifecycleEvents)({
-          publish: (event) => Effect.succeed({ ...event, sequence: 1 }),
-        }),
-        Layer.mock(ServerSettings.ServerSettingsService)({
-          start: Effect.void,
-          getSettings: Effect.succeed({ ...DEFAULT_SERVER_SETTINGS, defaultAutoPull: true }),
-        }),
-        Layer.mock(ServerEnvironment.ServerEnvironment)({
-          getDescriptor: Effect.succeed({
-            environmentId: EnvironmentId.make("auto-pull-environment"),
-            label: "Test environment",
-            platform: { os: "darwin", arch: "arm64" },
-            serverVersion: "0.0.0-test",
-            orchestrationProtocolVersion: ORCHESTRATION_PROTOCOL_VERSION,
-            capabilities: {},
-          }),
-        }),
-        Layer.mock(ProjectStore.ProjectStoreV2)({
-          listShells: () => Effect.succeed(snapshot.projects),
-        }),
-        Layer.mock(ProjectService.ProjectService)({ snapshot: Effect.succeed(snapshot) }),
-        Layer.mock(ThreadManagement.ThreadManagementService)({}),
-        Layer.mock(ThreadLaunch.ThreadLaunchService)({}),
-        Layer.mock(ServiceLauncherClient.ServiceLauncherClient)({
-          managed: true,
-          prepareTrial: Deferred.succeed(prepared, undefined).pipe(
+      }),
+      Layer.mock(ProjectStore.ProjectStoreV2)({
+        listShells: () => Effect.succeed(snapshot.projects),
+      }),
+      Layer.mock(ProjectService.ProjectService)({ snapshot: Effect.succeed(snapshot) }),
+      Layer.mock(ThreadManagement.ThreadManagementService)({}),
+      Layer.mock(ThreadLaunch.ThreadLaunchService)({}),
+      Layer.mock(ServiceLauncherClient.ServiceLauncherClient)({
+        managed: true,
+        protocol: SERVICE_LAUNCHER_PROTOCOL,
+        prepareTrial: () =>
+          Deferred.succeed(prepared, undefined).pipe(
             Effect.andThen(Deferred.await(commitTrial)),
             Effect.as(undefined),
           ),
-        }),
-        Layer.mock(GitVcsDriver.GitVcsDriver)({
-          statusDetails: (root) =>
-            Deferred.succeed(statusCalled, root).pipe(
-              Effect.andThen(Effect.never),
-              Effect.onInterrupt(() => Deferred.succeed(statusInterrupted, undefined)),
-            ),
-        }),
-        NodeCrypto.layer,
-        Layer.mock(EnvironmentAuth.EnvironmentAuth)({
-          issueStartupPairingUrl: () =>
-            Deferred.succeed(pairingIssued, undefined).pipe(
-              Effect.as("http://localhost/pair#token=test"),
-            ),
-        }),
-        Layer.mock(ExternalLauncher.ExternalLauncher)({}),
-        Layer.mock(HttpServer.HttpServer)({
-          address: NetAddress.inetAddressFromIpStringUnsafe("127.0.0.1", 3773),
-        }),
-        Path.layer,
-      );
+      }),
+      Layer.mock(GitVcsDriver.GitVcsDriver)({
+        statusDetails: (root) =>
+          Deferred.succeed(statusCalled, root).pipe(
+            Effect.andThen(Effect.never),
+            Effect.onInterrupt(() => Deferred.succeed(statusInterrupted, undefined)),
+          ),
+      }),
+      NodeCrypto.layer,
+      Layer.mock(EnvironmentAuth.EnvironmentAuth)({
+        issueStartupPairingUrl: () =>
+          Deferred.succeed(pairingIssued, undefined).pipe(
+            Effect.as("http://localhost/pair#token=test"),
+          ),
+      }),
+      Layer.mock(ExternalLauncher.ExternalLauncher)({}),
+      Layer.mock(HttpServer.HttpServer)({
+        address: NetAddress.inetAddressFromIpStringUnsafe("127.0.0.1", 3773),
+      }),
+      Path.layer,
+    );
 
-      yield* Effect.gen(function* () {
-        const startup = yield* ServerRuntimeStartup.ServerRuntimeStartup;
-        yield* startup.markHttpListening;
+    yield* Effect.gen(function* () {
+      const startup = yield* ServerRuntimeStartup.ServerRuntimeStartup;
+      yield* startup.markHttpListening;
 
-        yield* Effect.raceFirst(Deferred.await(prepared), Deferred.await(statusCalled));
-        expect(yield* Deferred.isDone(activation)).toBe(false);
-        expect(yield* Deferred.isDone(statusCalled)).toBe(false);
-        expect(yield* Deferred.isDone(prepared)).toBe(true);
+      yield* Effect.raceFirst(Deferred.await(prepared), Deferred.await(statusCalled));
+      expect(yield* Deferred.isDone(activation)).toBe(false);
+      expect(yield* Deferred.isDone(statusCalled)).toBe(false);
+      expect(yield* Deferred.isDone(prepared)).toBe(true);
 
-        yield* Deferred.succeed(commitTrial, undefined);
-        yield* Deferred.await(activation);
-        expect(yield* Deferred.await(statusCalled)).toBe(cwd);
-        yield* startup.awaitCommandReady;
-        yield* Deferred.await(pairingEndpointsWaiting);
-        expect(yield* Deferred.isDone(pairingIssued)).toBe(false);
-        yield* Deferred.succeed(pairingEndpointsReady, undefined);
-        yield* Deferred.await(pairingIssued);
-      }).pipe(
-        Effect.provide(
-          ServerRuntimeStartup.layerWithOptions({
-            activate: Deferred.succeed(activation, undefined).pipe(Effect.asVoid),
-            awaitAuxiliaryParked: Effect.void,
-            awaitPairingEndpoints: Deferred.succeed(pairingEndpointsWaiting, undefined).pipe(
-              Effect.andThen(Deferred.await(pairingEndpointsReady)),
-            ),
-          }).pipe(Layer.provide(dependencies)),
-        ),
-        Effect.provideService(ServerActivation, Deferred.await(activation)),
-      );
-      expect(yield* Deferred.isDone(statusInterrupted)).toBe(true);
-    }),
-  ),
+      yield* Deferred.succeed(commitTrial, undefined);
+      yield* Deferred.await(activation);
+      expect(yield* Deferred.await(statusCalled)).toBe(cwd);
+      yield* startup.awaitCommandReady;
+      yield* Deferred.await(pairingEndpointsWaiting);
+      expect(yield* Deferred.isDone(pairingIssued)).toBe(false);
+      yield* Deferred.succeed(pairingEndpointsReady, undefined);
+      yield* Deferred.await(pairingIssued);
+    }).pipe(
+      Effect.provide(
+        ServerRuntimeStartup.layerWithOptions({
+          activate: Deferred.succeed(activation, undefined).pipe(Effect.asVoid),
+          awaitAuxiliaryParked: Effect.void,
+          awaitPairingEndpoints: Deferred.succeed(pairingEndpointsWaiting, undefined).pipe(
+            Effect.andThen(Deferred.await(pairingEndpointsReady)),
+          ),
+        }).pipe(Layer.provide(dependencies)),
+      ),
+      Effect.provideService(ServerActivation, Deferred.await(activation)),
+    );
+    expect(yield* Deferred.isDone(statusInterrupted)).toBe(true);
+  }),
 );

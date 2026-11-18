@@ -69,6 +69,7 @@
     "CircleGauge": "Gauge",
     "CircleHelp": "Question",
     "CircleSlash": "Prohibit",
+    "CircleStop": "StopCircle",
     "CircleX": "XCircle",
     "CircleXFilled": {
       "icon": "XCircle",
@@ -264,6 +265,7 @@
     "Rows": "Rows",
     "Sailboat": "Sailboat",
     "Scale": "Scales",
+    "ScrollText": "Scroll",
     "Search": "MagnifyingGlass",
     "Send": "PaperPlaneTilt",
     "Server": "HardDrives",

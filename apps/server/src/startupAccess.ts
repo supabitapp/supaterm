@@ -1,5 +1,6 @@
 import * as NodeOS from "node:os";
 
+import { formatHostForUrl, isWildcardHost } from "@supaterm/shared/hostClassification";
 import { QrCode } from "@supaterm/shared/qrCode";
 import { buildPairingAppLink, buildPairingUrl } from "@supaterm/shared/remote";
 import * as Effect from "effect/Effect";
@@ -33,16 +34,10 @@ export const isLoopbackHost = (host: string | undefined): boolean => {
   );
 };
 
-export const isWildcardHost = (host: string | undefined): boolean =>
-  host === "0.0.0.0" || host === "::" || host === "[::]";
-
-export const formatHostForUrl = (host: string): string =>
-  host.includes(":") && !host.startsWith("[") ? `[${host}]` : host;
-
 export const loopbackUrlHostForAddress = (address: NetAddress.InetAddress): string =>
-  address._tag === "InetAddressV6" && NetAddress.isLoopback(address.address)
-    ? "[::1]"
-    : "127.0.0.1";
+  NetAddress.isUnspecified(address.address)
+    ? "127.0.0.1"
+    : NetAddress.formatUrlHostString(NetAddress.formatIp(address.address));
 
 const normalizeHost = (host: string): string =>
   host.startsWith("[") && host.endsWith("]") ? host.slice(1, -1) : host;

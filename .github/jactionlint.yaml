@@ -20,6 +20,9 @@ ignores:
     file: .github/workflows/thread-transfer-report.yml
     reason: Loads its publisher from the default branch and reads the PR artifact as data. pull-requests write posts the report comment.
   - rule: concurrency-limits
+    file: .github/workflows/agent-context-budget.yml
+    reason: Label events arrive in bursts, and a cancelled run reports as a failed required check. Each run only compares one JSON file.
+  - rule: concurrency-limits
     file: .github/workflows/mobile-showcase-screenshots.yml
     reason: A reusable workflow whose runs differ by inputs; a group here would cancel unrelated captures or deadlock with its caller.
   - rule: secrets-inherit

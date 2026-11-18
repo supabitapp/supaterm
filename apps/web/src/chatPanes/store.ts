@@ -40,6 +40,7 @@ import {
   retargetPane,
   showInPane,
   showParkedSideChat,
+  showSideChatBesideParent,
   swapInSideChat,
   untieSideChat,
 } from "./sideChats";
@@ -168,6 +169,11 @@ interface ChatPaneState {
     readonly parent: ThreadRouteTarget;
     readonly sideChat: ThreadRouteTarget;
   }) => boolean;
+  /** Shows a side chat tied to its on-screen parent, which keeps focus; false without room. */
+  showSideChatBesideParent: (
+    pair: { readonly parent: ThreadRouteTarget; readonly sideChat: ThreadRouteTarget },
+    workspace: PaneLayoutSize | null,
+  ) => boolean;
   /** Unties a side chat that became a full thread, so it stays when its parent leaves. */
   unlinkSideChat: (sideChat: ThreadRouteTarget) => void;
   promoteParkedDraft: (draftId: DraftId, threadRef: ScopedThreadRef) => void;
@@ -318,6 +324,15 @@ export const useChatPaneStore = create<ChatPaneState>()(
         const swapped = swapInSideChat({ layout, parkedSideChats }, parentPane.id, sideChat);
         if (!swapped) return false;
         set({ ...swapped, historyMode: "push" });
+        return true;
+      },
+      showSideChatBesideParent: ({ parent, sideChat }, workspace) => {
+        const { layout, parkedSideChats } = get();
+        const shown =
+          layout &&
+          showSideChatBesideParent({ layout, parkedSideChats }, parent, sideChat, workspace);
+        if (!shown) return false;
+        set({ ...shown, historyMode: "replace" });
         return true;
       },
       unlinkSideChat: (sideChat) =>

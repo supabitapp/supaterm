@@ -1,16 +1,85 @@
 import type { ServerSelfUpdateOutcome } from "@supaterm/contracts";
 
-// Protocol 3 requires the standalone executable layout. Bump when runtimePaths
-// or the installed runtime tree changes incompatibly; launchers survive self-updates.
-export const SERVICE_LAUNCHER_PROTOCOL = 3 as const;
+// Protocol 4 launchers coordinate selection writes and reconcile the unit. A remote update
+// replaces only the child, so an installed protocol-3 launcher stays until a local update or
+// service install restarts the service.
+export const SERVICE_LAUNCHER_PROTOCOL = 4 as const;
+/** Launchers this runtime runs under. Protocol 3 has the same IPC and durable format, and
+    refusing it stops every remote update until someone opens a shell on the host. */
+export type SupportedLauncherProtocol = 3 | typeof SERVICE_LAUNCHER_PROTOCOL;
+export const isSupportedLauncherProtocol = (
+  protocol: unknown,
+): protocol is SupportedLauncherProtocol =>
+  protocol === 3 || protocol === SERVICE_LAUNCHER_PROTOCOL;
 export const SERVICE_LAUNCHER_CONTEXT_ENV = "SUPATERM_SERVICE_LAUNCHER_CONTEXT";
 export const SERVICE_ENV_FILE = "service.env";
 export const SERVICE_STATE_FILE = "service-state.json";
+/** Set by the unit or launch agent to its own file name, so the launcher can
+    find the definition that started it. */
+export const SERVICE_UNIT_ENV = "SUPATERM_BOOT_SERVICE_UNIT";
 /** Written by `supaterm update` when the unit was repointed at a new version but the
     running service was deliberately left on the old one. The launcher removes
     it when it starts (whoever restarted the service), so while it exists the
     service is known to be behind its unit and status reports it that way. */
 export const SERVICE_RESTART_PENDING_FILE = ".restart-pending";
+/** Held by a launcher while it has, or is about to start, a server: an SSH launch waits for that
+    server instead of starting its own. Released while the launcher idles. */
+export const SERVICE_SERVING_LOCK_FILE = "service-serving.lock";
+
+const unquoteSystemdValue = (raw: string) =>
+  (raw.startsWith('"') && raw.endsWith('"')
+    ? raw.slice(1, -1).replaceAll('\\"', '"').replaceAll("\\\\", "\\")
+    : raw
+  ).replaceAll("%%", "%");
+
+const unescapeXmlText = (value: string) =>
+  value.replaceAll("&lt;", "<").replaceAll("&gt;", ">").replaceAll("&amp;", "&");
+
+export function serviceUnitEnvironmentValueOf(
+  contents: string,
+  name: "SUPATERM_HOME" | "SUPATERM_INSTALL_BIN_DIR",
+): string | undefined {
+  const systemd = new RegExp(`^Environment=${name}=(.*)$`, "m").exec(contents)?.[1];
+  if (systemd !== undefined) return unquoteSystemdValue(systemd.trim());
+  const plist = new RegExp(`<key>${name}</key>\\s*<string>([^<]*)</string>`).exec(contents)?.[1];
+  return plist === undefined ? undefined : unescapeXmlText(plist);
+}
+
+export function serviceUnitBaseDirOf(contents: string): string | undefined {
+  return serviceUnitEnvironmentValueOf(contents, "SUPATERM_HOME");
+}
+
+/**
+ * The user unit directory a systemd manager reads, from its UnitPath property. The persistent
+ * control directory identifies the manager's config root despite UnitPath overrides.
+ */
+export function systemdUnitDirectoryOf(unitPath: ReadonlyArray<string>): string | undefined {
+  const controlDirectory = unitPath.find(
+    (directory) =>
+      directory.startsWith("/") &&
+      directory.endsWith("/systemd/user.control") &&
+      unitPath.includes(directory.slice(0, -".control".length)),
+  );
+  return controlDirectory?.slice(0, -".control".length);
+}
+
+/** The file systemd or launchd appends the service's output to. */
+export function serviceUnitLogPathOf(contents: string): string | undefined {
+  const systemd = /^StandardOutput=append:(.*)$/m.exec(contents)?.[1];
+  if (systemd !== undefined) return unquoteSystemdValue(systemd.trim());
+  const plist = /<key>StandardOutPath<\/key>\s*<string>([^<]*)<\/string>/.exec(contents)?.[1];
+  return plist === undefined ? undefined : unescapeXmlText(plist);
+}
+
+/** The executable an installed unit or plist starts: the launcher's runtime. */
+export function serviceUnitProgramOf(contents: string): string | undefined {
+  const systemd = /^ExecStart=("(?:\\.|[^"\\])*"|\S+)/m.exec(contents)?.[1];
+  if (systemd !== undefined) return unquoteSystemdValue(systemd);
+  const plist = /<key>ProgramArguments<\/key>\s*<array>\s*<string>([^<]*)<\/string>/.exec(
+    contents,
+  )?.[1];
+  return plist === undefined ? undefined : unescapeXmlText(plist);
+}
 
 export interface PendingServiceUpdate {
   readonly id: string;
@@ -29,7 +98,7 @@ export interface ServiceState {
 }
 
 export interface ServiceLauncherContext {
-  readonly protocol: typeof SERVICE_LAUNCHER_PROTOCOL;
+  readonly protocol: SupportedLauncherProtocol;
   readonly childVersion: string;
   readonly update?: ServiceUpdateRecord;
 }
@@ -145,7 +214,8 @@ export function decodeServiceState(value: unknown): ServiceState | undefined {
   if (!isRecord(value)) return undefined;
   const update = value.update === undefined ? undefined : decodeServiceUpdate(value.update);
   if (
-    value.protocol !== SERVICE_LAUNCHER_PROTOCOL ||
+    // A protocol-3 installer can select a protocol-4 runtime.
+    !isSupportedLauncherProtocol(value.protocol) ||
     typeof value.activeVersion !== "string" ||
     !isExactServiceVersion(value.activeVersion) ||
     (value.update !== undefined && update === undefined) ||
@@ -168,6 +238,24 @@ export function decodeServiceState(value: unknown): ServiceState | undefined {
 export function parseServiceState(value: string): ServiceState | undefined {
   try {
     return decodeServiceState(JSON.parse(value) as unknown);
+  } catch {
+    return undefined;
+  }
+}
+
+export function parseLegacyServiceState(value: string) {
+  try {
+    const parsed: unknown = JSON.parse(value);
+    if (
+      !isRecord(parsed) ||
+      Object.keys(parsed).length !== 2 ||
+      parsed.protocol !== 2 ||
+      typeof parsed.activeVersion !== "string" ||
+      !isExactServiceVersion(parsed.activeVersion)
+    ) {
+      return undefined;
+    }
+    return { protocol: 2, activeVersion: parsed.activeVersion } as const;
   } catch {
     return undefined;
   }
@@ -204,7 +292,7 @@ export function decodeServiceLauncherContext(value: string): ServiceLauncherCont
   }
   if (
     !isRecord(parsed) ||
-    parsed.protocol !== SERVICE_LAUNCHER_PROTOCOL ||
+    !isSupportedLauncherProtocol(parsed.protocol) ||
     typeof parsed.childVersion !== "string" ||
     !isExactServiceVersion(parsed.childVersion)
   ) {
@@ -222,7 +310,7 @@ export function decodeServiceLauncherContext(value: string): ServiceLauncherCont
     return undefined;
   }
   return {
-    protocol: SERVICE_LAUNCHER_PROTOCOL,
+    protocol: parsed.protocol,
     childVersion: parsed.childVersion,
     ...(update === undefined ? {} : { update }),
   };

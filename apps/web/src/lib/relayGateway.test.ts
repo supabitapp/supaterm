@@ -58,7 +58,7 @@ it.effect("restarts the desktop relay only when its direct candidates change", (
     ]);
     yield* Effect.promise(() => gateway.release(address));
     expect(bridge.stopRelay).toHaveBeenCalledOnce();
-  }).pipe(Effect.provide(layer), Effect.scoped);
+  }).pipe(Effect.provide(layer));
 });
 
 it.effect("reports the desktop tunnel's pushed transport for its own address until closed", () => {
@@ -91,5 +91,5 @@ it.effect("reports the desktop tunnel's pushed transport for its own address unt
     expect(gateway.via(address)).toBeUndefined();
     expect(notified).toBe(5);
     unsubscribe();
-  }).pipe(Effect.provide(layer), Effect.scoped);
+  }).pipe(Effect.provide(layer));
 });

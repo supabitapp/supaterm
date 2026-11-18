@@ -86,7 +86,6 @@ function Probe() {
     ownerKey: key,
     label: key,
     readDraftMessage: () => drafts.get(key) ?? null,
-    subscribeToDraftChanges: store.subscribe,
     selection: { start: text.length, end: text.length },
     onChangeDraftMessage: (value) => {
       drafts.set(key, value);

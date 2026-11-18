@@ -1,4 +1,5 @@
-import { RunId } from "@supaterm/contracts";
+import { type OrchestrationV2Run, RunId } from "@supaterm/contracts";
+import * as DateTime from "effect/DateTime";
 import { describe, expect, it } from "vite-plus/test";
 
 import { nextPromptSuggestionRunId } from "./orchestration.ts";
@@ -14,6 +15,28 @@ describe("nextPromptSuggestionRunId", () => {
 
   it("asks about the thread's latest run once it has completed", () => {
     expect(nextPromptSuggestionRunId(ready)).toBe(runId);
+  });
+
+  it("asks about the run a steer continued once the detail shows its queued run cancelled", () => {
+    const steered = RunId.make("run-2");
+    const run = (id: RunId, ordinal: number, status: OrchestrationV2Run["status"]) =>
+      ({
+        id,
+        ordinal,
+        status,
+        startedAt: status === "cancelled" ? null : DateTime.makeUnsafe(0),
+        completedAt: DateTime.makeUnsafe(ordinal * 1000),
+      }) as OrchestrationV2Run;
+    const latestRun = { runId: steered, status: "cancelled", startedAt: null } as const;
+
+    expect(nextPromptSuggestionRunId({ ...ready, latestRun })).toBeNull();
+    expect(
+      nextPromptSuggestionRunId({
+        ...ready,
+        latestRun,
+        runs: [run(runId, 1, "completed"), run(steered, 2, "cancelled")],
+      }),
+    ).toBe(runId);
   });
 
   it.each([

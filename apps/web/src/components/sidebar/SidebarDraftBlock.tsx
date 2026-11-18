@@ -2,6 +2,9 @@ import { SortableSidebarMarker } from "./SidebarListMarkers";
 import { ThreadHoverCard, ThreadHoverCardPopup } from "../ThreadHoverCard";
 import { CollapsibleSectionHeader } from "../ui/collapsible-section-header";
 import { discardComposerDraft } from "../../lib/discardComposerDraft";
+import type { ContextMenuSource } from "@supaterm/contracts";
+import { contextMenuSourceOf } from "../../contextMenuSource";
+import { assistantCitationsToPlainText } from "@supaterm/shared/assistantCitations";
 import { replaceComposerContextReferences } from "@supaterm/shared/composerContextReferences";
 import * as Schema from "effect/Schema";
 import { SquarePenIcon } from "@supaterm/icons";
@@ -44,11 +47,17 @@ const SidebarDraftRow = memo(function SidebarDraftRow(props: {
   inOtherPane: boolean;
   onNavigate: (draftId: DraftId) => void;
   onDiscard: (draftId: DraftId) => void;
-  onContextMenu: (draftId: DraftId, position: { x: number; y: number }) => void;
+  onContextMenu: (
+    draftId: DraftId,
+    position: { x: number; y: number },
+    source: ContextMenuSource,
+  ) => void;
 }) {
   const { composer, draftId, onContextMenu, onDiscard, onNavigate } = props;
   const promptPreview =
-    replaceComposerContextReferences(composer.prompt, (occurrence) => occurrence.label)
+    assistantCitationsToPlainText(
+      replaceComposerContextReferences(composer.prompt, (occurrence) => occurrence.label),
+    )
       .trim()
       .split("\n", 1)[0] ?? "";
   // images mirrors persistedAttachments once rehydration finishes; before
@@ -78,7 +87,7 @@ const SidebarDraftRow = memo(function SidebarDraftRow(props: {
     if (event.key === "ContextMenu" || (event.shiftKey && event.key === "F10")) {
       event.preventDefault();
       const rect = event.currentTarget.getBoundingClientRect();
-      onContextMenu(draftId, { x: rect.left, y: rect.bottom });
+      onContextMenu(draftId, { x: rect.left, y: rect.bottom }, "keyboard");
     } else if (event.key === "Enter" || event.key === " ") {
       event.preventDefault();
       onNavigate(draftId);
@@ -86,7 +95,7 @@ const SidebarDraftRow = memo(function SidebarDraftRow(props: {
   };
   const handleContextMenu = (event: ReactMouseEvent) => {
     event.preventDefault();
-    onContextMenu(draftId, { x: event.clientX, y: event.clientY });
+    onContextMenu(draftId, { x: event.clientX, y: event.clientY }, contextMenuSourceOf(event));
   };
   const handleDiscard = (event: ReactMouseEvent) => {
     event.preventDefault();
@@ -128,16 +137,12 @@ const SidebarDraftRow = memo(function SidebarDraftRow(props: {
             handleDiscard(event);
           }}
         >
-          <span className="sr-only">{preview}</span>
           <div className="relative z-10 h-12 px-2.5 pt-1.5">
             <div className="flex h-5 min-w-0 items-center gap-1.5">
               {props.project ? (
                 <ProjectFavicon project={props.project} className="size-4 shrink-0" />
               ) : null}
-              <span
-                aria-hidden
-                className="min-w-0 flex-1 truncate text-sm font-medium text-foreground/90"
-              >
+              <span className="min-w-0 flex-1 truncate text-sm font-medium text-foreground/90">
                 {preview}
               </span>
               <span className="ml-auto flex h-5 min-w-5 shrink-0 items-center justify-end">
@@ -180,7 +185,11 @@ export const SidebarDraftBlock = memo(function SidebarDraftBlock(props: {
   scopedProjectKeys: ReadonlySet<string> | null;
   routeDraftId: string | null;
   onNavigateToDraft: (draftId: DraftId) => void;
-  onDraftContextMenu: (draftId: DraftId, position: { x: number; y: number }) => void;
+  onDraftContextMenu: (
+    draftId: DraftId,
+    position: { x: number; y: number },
+    source: ContextMenuSource,
+  ) => void;
 }) {
   const [draftsShelfExpanded, setDraftsShelfExpanded] = useLocalStorage(
     DRAFTS_SHELF_EXPANDED_KEY,

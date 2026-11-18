@@ -123,6 +123,7 @@ export function EnvironmentRoutesList({
                   position={index + 1}
                   inUse={connectionRouteId(route.target) === activeRouteId}
                   unused={unused}
+                  refused={environment.refusedRouteIds.includes(connectionRouteId(route.target))}
                   // Learned routes are refreshed from the server and are not
                   // removed manually unless a connect skips them; paired
                   // routes can be removed individually.
@@ -164,6 +165,7 @@ function SortableRouteRow({
   position,
   inUse,
   unused,
+  refused,
   removable,
   onRemove,
 }: {
@@ -171,6 +173,7 @@ function SortableRouteRow({
   readonly position: number;
   readonly inUse: boolean;
   readonly unused: boolean;
+  readonly refused: boolean;
   readonly removable: boolean;
   readonly onRemove: () => void;
 }) {
@@ -240,6 +243,11 @@ function SortableRouteRow({
               </TooltipPopup>
             </Tooltip>
           ) : null}
+          {refused ? (
+            <span className="text-2xs font-normal text-destructive-foreground">
+              Sign-in refused
+            </span>
+          ) : null}
           {unused ? <span className="text-2xs font-normal">Not used</span> : null}
         </p>
         {address !== null ? (
@@ -251,6 +259,11 @@ function SortableRouteRow({
               <TooltipPopup side="top">{address}</TooltipPopup>
             </Tooltip>
             {isLearned(route) ? <span className="shrink-0">Discovered</span> : null}
+          </p>
+        ) : null}
+        {refused && address !== null ? (
+          <p className="text-2xs text-muted-foreground sm:col-span-2">
+            The host refused this device's sign-in. Pair this address again with Add route.
           </p>
         ) : null}
       </div>

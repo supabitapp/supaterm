@@ -140,6 +140,12 @@ export function createSidebarListMotion(parent: HTMLUListElement) {
     },
     update(animate: boolean, shelfToggled = false) {
       if (disposed) return;
+      // A hidden list (the closed narrow sheet stays mounted) reports zero
+      // offsets, which would make the first pass after it opens animate every row.
+      if (parent.getClientRects().length === 0) {
+        suspend();
+        return;
+      }
       const viewport = shelfToggled ? readViewport() : null;
       const previousViewport = preparedViewport;
       preparedViewport = null;

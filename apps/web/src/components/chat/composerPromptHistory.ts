@@ -1,8 +1,15 @@
 import { resolveUserMessagePresentation } from "@supaterm/client-runtime/user-message";
 import {
+  ModelContextRecord,
+  type OrchestrationMessageContext,
+  ThreadContextRecord,
+} from "@supaterm/contracts";
+import {
   ATTACHMENT_ONLY_BOOTSTRAP_PROMPT,
   collectComposerContextReferences,
 } from "@supaterm/shared/composerContextReferences";
+import { Schema } from "effect";
+import type { ReferenceContextRecord } from "../../lib/composerContextRecords";
 import { PLAN_IMPLEMENTATION_PROMPT_PREFIX } from "../../proposedPlan";
 
 const CLAUDE_ULTRATHINK_PREFIX = "Ultrathink:\n";
@@ -10,13 +17,24 @@ const REVIEW_COMMENT_BLOCK_PATTERN = /<review_comment\b[^>]*>[\s\S]*?<\/review_c
 const TRAILING_LEGACY_CONTEXT =
   /\n*<(terminal_context|element_context|preview_annotation)>\n([\s\S]*?)\n<\/\1>\s*$/;
 
+const isReferenceContextRecord = Schema.is(Schema.Union([ThreadContextRecord, ModelContextRecord]));
+
 type ComposerPromptHistoryMessage = Parameters<typeof resolveUserMessagePresentation>[0] & {
   readonly id: string;
+  readonly context?: OrchestrationMessageContext | undefined;
 };
+
+/** Thread and model mentions; the draft holds these records, so recall can restore their chips. */
+export interface ComposerPromptHistoryMentions {
+  readonly referenceContexts: ReadonlyArray<ReferenceContextRecord>;
+}
+
+export const NO_PROMPT_HISTORY_MENTIONS: ComposerPromptHistoryMentions = { referenceContexts: [] };
 
 interface ComposerPromptHistoryEntry {
   readonly id: string;
   readonly prompt: string;
+  readonly mentions: ComposerPromptHistoryMentions;
 }
 
 export interface ComposerPromptHistoryPosition {
@@ -36,6 +54,7 @@ function findActive(
 interface ComposerPromptHistoryStep {
   readonly position: ComposerPromptHistoryPosition | null;
   readonly prompt: string;
+  readonly mentions: ComposerPromptHistoryMentions;
 }
 
 function stripTrailingReviewComments(prompt: string): string {
@@ -70,7 +89,10 @@ function stripInlineTerminalLabels(prompt: string, headers: ReadonlyArray<string
   return result;
 }
 
-export function recallableComposerPrompt(messageText: string): string {
+export function recallableComposerPrompt(
+  messageText: string,
+  keptContextIds: ReadonlySet<string> = new Set(),
+): string {
   let prompt = messageText.trim();
   if (prompt.startsWith(CLAUDE_ULTRATHINK_PREFIX)) {
     prompt = prompt.slice(CLAUDE_ULTRATHINK_PREFIX.length);
@@ -99,8 +121,9 @@ export function recallableComposerPrompt(messageText: string): string {
     break;
   }
 
-  // Recall strips chips because their backing records are absent.
+  // Chips without a record the draft can hold would render as unavailable.
   for (const reference of collectComposerContextReferences(prompt).toReversed()) {
+    if (keptContextIds.has(reference.contextId)) continue;
     let { start, end } = reference;
     if (prompt[end] === " ") end += 1;
     else if (prompt[start - 1] === " ") start -= 1;
@@ -117,6 +140,27 @@ export function recallableComposerPrompt(messageText: string): string {
   return trimmed;
 }
 
+/** A sent message's text as the composer can hold it, with the mention records its chips need. */
+export function recallComposerMessage(
+  message: Pick<ComposerPromptHistoryMessage, "text" | "context">,
+): Pick<ComposerPromptHistoryEntry, "prompt" | "mentions"> {
+  const referenceRecords = (message.context?.records ?? []).filter(isReferenceContextRecord);
+  const prompt = recallableComposerPrompt(
+    message.text,
+    new Set(referenceRecords.map((record) => record.contextId)),
+  );
+  // A record whose chip is gone from the text would put the chip back when written to the draft.
+  const referenced = new Set<string>(
+    collectComposerContextReferences(prompt).map((reference) => reference.contextId),
+  );
+  return {
+    prompt,
+    mentions: {
+      referenceContexts: referenceRecords.filter((record) => referenced.has(record.contextId)),
+    },
+  };
+}
+
 export function buildComposerPromptHistoryEntries(
   messages: ReadonlyArray<ComposerPromptHistoryMessage>,
 ): ComposerPromptHistoryEntry[] {
@@ -125,16 +169,25 @@ export function buildComposerPromptHistoryEntries(
     if (message.role !== "user") continue;
 
     if (resolveUserMessagePresentation(message).attribution !== null) continue;
-    const prompt = recallableComposerPrompt(message.text);
+    const { prompt, mentions } = recallComposerMessage(message);
     if (prompt.length === 0) continue;
+    const entry = { id: message.id, prompt, mentions };
     const previous = entries[entries.length - 1];
     if (previous && previous.prompt === prompt) {
-      entries[entries.length - 1] = { id: message.id, prompt };
+      entries[entries.length - 1] = entry;
       continue;
     }
-    entries.push({ id: message.id, prompt });
+    entries.push(entry);
   }
   return entries;
+}
+
+function recall(entry: ComposerPromptHistoryEntry): ComposerPromptHistoryStep {
+  return {
+    position: { entryId: entry.id, recalled: entry.prompt },
+    prompt: entry.prompt,
+    mentions: entry.mentions,
+  };
 }
 
 export function stepComposerPromptHistory(input: {
@@ -151,11 +204,11 @@ export function stepComposerPromptHistory(input: {
     if (activeIndex < 0 && currentPrompt.length > 0) return null;
     const entry = entries[activeIndex < 0 ? entries.length - 1 : activeIndex - 1];
     if (!entry) return null;
-    return { position: { entryId: entry.id, recalled: entry.prompt }, prompt: entry.prompt };
+    return recall(entry);
   }
 
   if (activeIndex < 0) return null;
   const entry = entries[activeIndex + 1];
-  if (!entry) return { position: null, prompt: "" };
-  return { position: { entryId: entry.id, recalled: entry.prompt }, prompt: entry.prompt };
+  if (!entry) return { position: null, prompt: "", mentions: NO_PROMPT_HISTORY_MENTIONS };
+  return recall(entry);
 }

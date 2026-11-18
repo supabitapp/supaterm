@@ -1,7 +1,12 @@
-import { type ThreadPullRequestLink, type ThreadPullRequestSnapshot } from "@supaterm/contracts";
+import {
+  ThreadId,
+  type ThreadPullRequestLink,
+  type ThreadPullRequestSnapshot,
+} from "@supaterm/contracts";
 import { beforeEach, describe, expect, it } from "vite-plus/test";
 
 import {
+  canStartThreadPullRequestWatch,
   legacyThreadPullRequestKey,
   threadPullRequestSearchTerms,
   resolveThreadCurrentPullRequest,
@@ -183,14 +188,6 @@ describe("resolveThreadCurrentPullRequest", () => {
   it("orders an open set without stack data by most recent link", () => {
     const current = resolveThreadCurrentPullRequest([link(1), link(2)]);
     expect(current).toMatchObject({ kind: "stack", top: { number: 2 } });
-  });
-
-  it("falls back to the most recently updated terminal link", () => {
-    const current = resolveThreadCurrentPullRequest([
-      link(1, { snapshot: snapshot({ state: "merged", updatedAt: "2026-01-03T00:00:00.000Z" }) }),
-      link(2, { snapshot: snapshot({ state: "closed", updatedAt: "2026-01-02T00:00:00.000Z" }) }),
-    ]);
-    expect(current).toMatchObject({ kind: "single", link: { number: 1 } });
   });
 });
 
@@ -474,5 +471,35 @@ describe("threadPullRequestSearchTerms", () => {
     expect(terms).toContain("Fix login");
     expect(terms).toContain("#34");
     expect(terms.join(" ")).not.toContain("56");
+  });
+});
+
+describe("canStartThreadPullRequestWatch", () => {
+  it("offers a new watch only where the server accepts one", () => {
+    const active = {
+      archivedAt: null,
+      doneAt: null,
+      doneOverride: null,
+      lineage: {
+        parentThreadId: null,
+        relationshipToParent: null,
+        rootThreadId: ThreadId.make("thread-watch"),
+      },
+    } as const;
+    expect(canStartThreadPullRequestWatch(active)).toBe(true);
+    expect(canStartThreadPullRequestWatch({ ...active, doneOverride: "active" })).toBe(true);
+    expect(canStartThreadPullRequestWatch({ ...active, doneOverride: "done" })).toBe(false);
+    expect(canStartThreadPullRequestWatch({ ...active, doneAt: "2026-01-01T00:00:00Z" })).toBe(
+      false,
+    );
+    expect(canStartThreadPullRequestWatch({ ...active, archivedAt: "2026-01-01T00:00:00Z" })).toBe(
+      false,
+    );
+    expect(
+      canStartThreadPullRequestWatch({
+        ...active,
+        lineage: { ...active.lineage, relationshipToParent: "subagent" },
+      }),
+    ).toBe(false);
   });
 });

@@ -5,7 +5,7 @@ import React, { use, useState, type ReactNode } from "react";
 
 import { useIncrementalHighlightedDocument } from "../../hooks/useIncrementalHighlightedDocument";
 import { useCopyToClipboard } from "../../hooks/useCopyToClipboard";
-import { getClientSettings } from "../../hooks/useSettings";
+import { useClientSettings } from "../../hooks/useSettings";
 import type { DiffThemeName } from "../../lib/diffRendering";
 import { highlightCodeDocument } from "../../lib/incrementalHighlighting";
 import { LRUCache } from "../../lib/lruCache";
@@ -150,7 +150,9 @@ export function MarkdownCodeBlock({
   diagram?: boolean;
   children: ReactNode;
 }) {
-  const [wrapped, setWrapped] = useState(() => getClientSettings().wordWrap);
+  const defaultWrapped = useClientSettings((settings) => settings.wordWrap);
+  const [wrapOverride, setWrapOverride] = useState<boolean | null>(null);
+  const wrapped = wrapOverride ?? defaultWrapped;
   const [confirmingCommand, setConfirmingCommand] = useState<string | null>(null);
   // The shared clipboard helper falls back to execCommand where navigator.clipboard is missing,
   // such as remote clients served over plain HTTP.
@@ -195,7 +197,7 @@ export function MarkdownCodeBlock({
             type="button"
             variant="ghost-muted"
             size="icon-xs"
-            onClick={() => copyToClipboard(code)}
+            onClick={() => copyToClipboard(code.endsWith("\n") ? code.slice(0, -1) : code)}
             aria-label={copyLabel}
           />
         }
@@ -236,7 +238,7 @@ export function MarkdownCodeBlock({
                     variant={wrapped ? "secondary" : "ghost-muted"}
                     size="icon-xs"
                     aria-pressed={wrapped}
-                    onClick={() => setWrapped((value) => !value)}
+                    onClick={() => setWrapOverride(!wrapped)}
                     aria-label={wrapLabel}
                   />
                 }
@@ -379,7 +381,7 @@ function UncachedShikiCodeBlock({
       highlightedCodeCache.set(
         cacheKey,
         highlightedHtml,
-        estimateHighlightedSize(highlightedHtml, code),
+        estimateHighlightedSize(highlightedHtml, cacheKey),
       );
     }
     return result;

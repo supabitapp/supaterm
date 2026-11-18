@@ -10,6 +10,13 @@ import { resolveCommandPath } from "@supaterm/shared/shell";
 import { resolveSelfInvocation } from "@supaterm/shared/nodeRuntime";
 
 import packageJson from "../../package.json" with { type: "json" };
+import {
+  findPosixLauncher,
+  readPosixLauncherTarget,
+  resolveLauncherPath,
+} from "../service/pinnedRuntime.ts";
+
+const PINNED_RUNTIME_ENTRY = /^(.*)\/runtime\/versions\/[^/]+\/supaterm$/;
 
 export type CliRunner = "npx" | "pnpm dlx" | "bunx";
 
@@ -69,6 +76,32 @@ export const resolveServerInstallation = Effect.gen(function* () {
   const path = yield* Path.Path;
   const platform = yield* HostProcess.Platform;
   const entry = yield* fs.realPath(yield* resolveEntryPath);
+  const runtime = PINNED_RUNTIME_ENTRY.exec(entry);
+  if (runtime) {
+    const launchedAs = yield* resolveLauncherPath;
+    if (launchedAs === undefined) return null;
+    const link = yield* fs.readLink(launchedAs).pipe(Effect.option);
+    // A launcher script execs the runtime itself, so look for the script that runs it.
+    const launcher = Option.isSome(link)
+      ? launchedAs
+      : yield* findPosixLauncher({
+          launchedAs,
+          versionsDir: path.join(runtime[1] || "/", "runtime/versions"),
+        });
+    // None for a runtime started directly, as SSH launches do, or through a copy.
+    if (launcher === undefined) return null;
+    const target = Option.isSome(link)
+      ? path.resolve(path.dirname(launcher), link.value)
+      : yield* readPosixLauncherTarget(launcher);
+    // Keep the home as the launcher spells it; `supaterm update` only repoints launchers into that spelling.
+    const linked = target === undefined ? null : PINNED_RUNTIME_ENTRY.exec(target);
+    if (!linked || (yield* fs.realPath(linked[1] || "/")) !== (runtime[1] || "/")) return null;
+    return {
+      kind: "supaterm-launcher",
+      launcher,
+      baseDir: linked[1] || "/",
+    } satisfies ServerInstallation;
+  }
   const match = /^(.*)\/lib\/node_modules\/supaterm\/bin\/supaterm\.mjs$/.exec(entry);
   if (!match) {
     const runner = detectCliRunner(entry);
@@ -196,8 +229,17 @@ export const resolveHostCliCommand = Effect.fn("invocation.resolveHostCliCommand
     const shim = (yield* HostProcess.Environment).SUPATERM_CLI_SHIM_PATH?.trim();
     const fs = yield* FileSystem.FileSystem;
     const real = (file: string) => fs.realPath(file).pipe(Effect.orElseSucceed(() => null));
-    const shimReal = shim ? yield* real(shim) : null;
-    if (shimReal === null || shimReal === (yield* real(onPath))) {
+    // Windows `supaterm.cmd` shims are text files that never realpath to the executable they run.
+    const own = shim
+      ? yield* real(shim)
+      : platform !== "win32" && (yield* HostProcess.IsExecutable)
+        ? yield* resolveEntryPath.pipe(
+            Effect.flatMap((entry) =>
+              real(entry).pipe(Effect.map((resolved) => resolved ?? entry)),
+            ),
+          )
+        : null;
+    if (own === null || own === (yield* real(onPath))) {
       return { command: withArgs(command), launcher: false };
     }
   }
@@ -209,6 +251,17 @@ export const resolveHostCliCommand = Effect.fn("invocation.resolveHostCliCommand
   const runAsNode = launcher.value.runAsNode ? electronRunAsNodePrefix(platform) : "";
   return { command: withArgs(`${runAsNode}${call} ${subcommand}`), launcher: true };
 });
+
+/** A hint's command, run against the caller's `--base-dir` when one was given. */
+export const resolveHostCliHint = (
+  subcommand: string,
+  baseDir: Option.Option<string>,
+  args: ReadonlyArray<string> = [],
+) =>
+  resolveHostCliCommand(subcommand, [
+    ...Option.match(baseDir, { onNone: () => [], onSome: (dir) => ["--base-dir", dir] }),
+    ...args,
+  ]).pipe(Effect.map(({ command }) => command));
 
 export const resolveRootCliCommand = Effect.fn("invocation.resolveRootCliCommand")(function* (
   subcommand: string,

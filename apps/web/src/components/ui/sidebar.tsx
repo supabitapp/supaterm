@@ -39,7 +39,7 @@ type SidebarContextProps = {
   setOpen: (open: boolean) => void;
   openMobile: boolean;
   mobileSheetMounted: boolean;
-  setMobileSheetElement: (element: HTMLDivElement | null) => void;
+  setMobileSheetMounted: (mounted: boolean) => void;
   setOpenMobile: (open: boolean) => void;
   isMobile: boolean;
   toggleSidebar: () => void;
@@ -65,6 +65,12 @@ function useSidebar() {
 function useSidebarVisibility() {
   const { isMobile, open, openMobile } = useSidebar();
   return isMobile ? openMobile : open;
+}
+
+/** Whether the mobile sidebar sheet covers the page; false outside a SidebarProvider. */
+function useMobileSidebarSheetMounted() {
+  const context = React.use(SidebarContext);
+  return context !== null && context.isMobile && context.mobileSheetMounted;
 }
 
 // The md breakpoint, also read when a shortcut fires.
@@ -155,9 +161,13 @@ function SidebarProvider({
     store.getSnapshot,
   );
   const [mobileSheetMounted, setMobileSheetMounted] = React.useState(false);
-  const setMobileSheetElement = (element: HTMLDivElement | null) => {
-    setMobileSheetMounted(element !== null);
-  };
+  if (openMobile && !mobileSheetMounted) {
+    setMobileSheetMounted(true);
+  }
+  // Widening mid-close unmounts the sheet before its close completes.
+  if (!isMobile && !openMobile && mobileSheetMounted) {
+    setMobileSheetMounted(false);
+  }
 
   const state = resolveSidebarState({ isMobile, open, openMobile });
 
@@ -166,7 +176,7 @@ function SidebarProvider({
     open,
     openMobile,
     mobileSheetMounted,
-    setMobileSheetElement,
+    setMobileSheetMounted,
     setOpen: store.setOpen,
     setOpenMobile: store.setOpenMobile,
     state,
@@ -209,7 +219,7 @@ function Sidebar({
   /** Omit for a fixed-width sidebar. */
   resizable?: SidebarResizableOptions;
 }) {
-  const { isMobile, open, setOpen, state, openMobile, setOpenMobile, setMobileSheetElement } =
+  const { isMobile, open, setOpen, state, openMobile, setOpenMobile, setMobileSheetMounted } =
     useSidebar();
   const defaultWidth = resizable?.defaultWidth ?? SIDEBAR_WIDTH;
   const { panelProps, handleProps } = useCollapsiblePanel({
@@ -224,9 +234,16 @@ function Sidebar({
 
   if (isMobile) {
     return (
-      <Sheet onOpenChange={setOpenMobile} open={openMobile}>
+      <Sheet
+        onOpenChange={setOpenMobile}
+        onOpenChangeComplete={(open) => {
+          if (!open) setMobileSheetMounted(false);
+        }}
+        open={openMobile}
+      >
+        {/* Children stay mounted while closed so their window shortcuts, like thread jumps, keep working. */}
         <SheetPopup
-          ref={setMobileSheetElement}
+          keepMounted
           className={cn(
             "w-(--sidebar-width) max-w-none bg-sidebar surface-grain p-0 text-sidebar-foreground",
             className,
@@ -667,6 +684,7 @@ export {
   SidebarMenuSubItem,
   SidebarProvider,
   SidebarTrigger,
+  useMobileSidebarSheetMounted,
   useSidebar,
   useSidebarVisibility,
 };

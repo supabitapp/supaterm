@@ -3,6 +3,7 @@ import { AuthFilesystemReadScope, AuthOrchestrationReadScope } from "@supaterm/c
 
 import {
   createBrowseNavigationCoordinator,
+  filterFilesystemBrowseEntries,
   getFilesystemBrowsePath,
   getFilesystemBrowseTabCompletion,
   resolveFilesystemReadAccess,
@@ -95,6 +96,42 @@ describe("filesystem browse model", () => {
       isComplete: false,
     });
     expect(getFilesystemBrowseTabCompletion([], "x")).toBeNull();
+    // The list also shows substring and fuzzy matches; Tab completes only the typed name.
+    expect(
+      getFilesystemBrowseTabCompletion([entry("supaterm"), entry("my-supaterm")], "supaterm"),
+    ).toEqual({
+      name: "supaterm",
+      isComplete: true,
+    });
+    expect(
+      getFilesystemBrowseTabCompletion(
+        [entry("OpenSourced"), entry("OpenAI"), entry("reopen"), entry("photos")],
+        "op",
+      ),
+    ).toEqual({ name: "Open", isComplete: false });
+    expect(getFilesystemBrowseTabCompletion([entry("supaterm")], "tcd")).toBeNull();
+  });
+
+  it("matches folder names stored decomposed, as macOS Finder names them", () => {
+    const entry = { name: "De\u0301veloppement", fullPath: "/Users/me/De\u0301veloppement" };
+    expect(filterFilesystemBrowseEntries([entry], "d\u00e9v")).toEqual({
+      visibleEntries: [entry],
+      exactEntry: null,
+    });
+    expect(filterFilesystemBrowseEntries([entry], "De").visibleEntries).toEqual([entry]);
+    expect(filterFilesystemBrowseEntries([entry], "dévpt").visibleEntries).toEqual([entry]);
+    expect(filterFilesystemBrowseEntries([entry], "D\u00e9veloppement").exactEntry).toBe(entry);
+    // Linux keeps both spellings as separate folders; the one typed exactly wins.
+    const composed = { name: "D\u00e9veloppement", fullPath: "/home/me/D\u00e9veloppement" };
+    expect(filterFilesystemBrowseEntries([entry, composed], "D\u00e9veloppement").exactEntry).toBe(
+      composed,
+    );
+    // Two spellings that both normalize to the query are ambiguous; neither is picked.
+    const angstroms = [
+      { name: "\u212B", fullPath: "/home/me/\u212B" },
+      { name: "A\u030A", fullPath: "/home/me/A\u030A" },
+    ];
+    expect(filterFilesystemBrowseEntries(angstroms, "\u00C5").exactEntry).toBeNull();
   });
 });
 
@@ -120,5 +157,46 @@ describe("browse navigation", () => {
 
     await expect(invalidatedRun).resolves.toBe(false);
     expect(commits).toEqual(["second"]);
+  });
+});
+
+describe("browse entry filtering", () => {
+  const entries = ["my-supaterm", "supaterm", "cotton", "Supaterm-old", ".supaterm", "docs"].map(
+    (name) => ({
+      name,
+      fullPath: `~/code/${name}`,
+    }),
+  );
+  const names = (query: string) =>
+    filterFilesystemBrowseEntries(entries, query).visibleEntries.map((entry) => entry.name);
+
+  it("keeps every visible entry in order for an empty query", () => {
+    expect(names("")).toEqual(["my-supaterm", "supaterm", "cotton", "Supaterm-old", "docs"]);
+  });
+
+  it("matches substrings and subsequences, best match first", () => {
+    expect(names("term")).toEqual(["supaterm", "Supaterm-old", "my-supaterm"]);
+    expect(names("supa")).toEqual(["supaterm", "Supaterm-old", "my-supaterm"]);
+    expect(names("spt")).toEqual(["supaterm", "Supaterm-old", "my-supaterm"]);
+    expect(names("xyz")).toEqual([]);
+  });
+
+  it("ranks a word-start match in a long name above any substring match", () => {
+    const longName = `${"a".repeat(240)}-foo`;
+    const folders = [
+      { name: "xfoo", fullPath: "~/xfoo" },
+      { name: longName, fullPath: "~/long" },
+    ];
+    expect(
+      filterFilesystemBrowseEntries(folders, "foo").visibleEntries.map((entry) => entry.name),
+    ).toEqual([longName, "xfoo"]);
+  });
+
+  it("shows dot folders only when the query starts with a dot", () => {
+    expect(names("supaterm")).not.toContain(".supaterm");
+    expect(filterFilesystemBrowseEntries(entries, ".supaterm")).toEqual({
+      visibleEntries: [entries[4]],
+      exactEntry: entries[4],
+    });
   });
 });

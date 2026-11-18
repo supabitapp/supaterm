@@ -314,6 +314,51 @@ export function createThreadOutboxManager<Message extends { readonly createdAt: 
       return true;
     });
 
+  // Bookkeeping such as uploaded attachment ids. `change` sees the message as it stands when this
+  // mutation's turn comes, so amendments compose, and the revision stays put, so an edit saved
+  // against it still lands. `null` leaves the message unchanged.
+  const amend = (
+    messageId: MessageId,
+    change: (message: Message) => Message | null,
+  ): Promise<boolean> =>
+    serialize(async () => {
+      const current = currentMessages().find(
+        (candidate) => identify(candidate).messageId === messageId,
+      );
+      if (current === undefined) return false;
+      const next = change(current);
+      if (next === null) return false;
+      const revision = revisions.get(messageId) ?? 0;
+      try {
+        if ((await options.storage.write(next)) === false) {
+          setMessages(
+            currentMessages().filter((candidate) => identify(candidate).messageId !== messageId),
+          );
+          bumpRevision(messageId);
+          return false;
+        }
+      } catch (cause) {
+        throw failure("update", cause, next);
+      }
+      // An enqueue publishes without waiting its turn; when one replaced the message during the
+      // write, it wins and stays durable.
+      if ((revisions.get(messageId) ?? 0) !== revision || !currentMessages().includes(current)) {
+        const winner = currentMessages().find(
+          (candidate) => identify(candidate).messageId === messageId,
+        );
+        if (winner !== undefined) {
+          try {
+            await options.storage.write(winner);
+          } catch (cause) {
+            throw failure("update", cause, winner);
+          }
+        }
+        return false;
+      }
+      setMessages(currentMessages().map((candidate) => (candidate === current ? next : candidate)));
+      return true;
+    });
+
   // `expectedRevision` keeps an edit accepted after the caller decided to remove queued.
   // `canRemove` adds a live ownership check for state such as an open editor, which can
   // change without writing a new message revision.
@@ -481,6 +526,7 @@ export function createThreadOutboxManager<Message extends { readonly createdAt: 
     /** Current write revision for a queued message; input to update's CAS. */
     revisionOf: (messageId: MessageId): number => revisions.get(messageId) ?? 0,
     update,
+    amend,
     remove,
     clearEnvironment,
   };

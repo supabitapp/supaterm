@@ -84,10 +84,13 @@ and npm are proven by the real path (symlinks followed): a versioned keg or cask
 `brew --prefix`, or `<prefix>/lib/node_modules/<pkg>/` (Windows: the shim beside `node_modules`).
 Native installer layouts and the global directories of pnpm, Bun, Yarn, and Vite+ may match on
 either the resolved path or its real target, since those installers place real files or their own
-symlinks there. Volta is proven by its `volta-shim` link plus the package's image directory. When
-nothing is proven, the provider's own updater (`claude update`, `codex update`, `opencode upgrade`,
-`pi update --self`, `grok update`) runs instead, because each one detects its installer itself;
-the runner's version check catches an updater that exits 0 without updating. Mise is checked
+symlinks there. Volta is proven by the package's image directory plus either its `volta-shim` link
+or, on Windows, the exact cmd or bash forwarding script Volta generates; a custom script that merely
+calls `volta run` does not qualify. When nothing is proven, Pi's and Grok's own updaters
+(`pi update --self`, `grok update`) run instead, because each detects its installer itself; the
+runner's version check catches an updater that exits 0 without updating. Claude, Codex, and
+OpenCode updaters only act on their own native layout, so those providers stay manual-only unless
+that layout is proven. Mise is checked
 first, since a `mise x` wrapper can sit at a native installer's path, and `MISE_DATA_DIR` can put
 installs anywhere, so `mise which` is asked whenever mise is on `PATH`. Each driver names its fixed
 mise tool; mise must resolve the binary and list it in an active install of that tool requested as
@@ -95,8 +98,9 @@ mise tool; mise must resolve the binary and list it in an active install of that
 path must be a shim or under the tool's `latest` link, which the upgrade repoints: a version
 directory (including one `mise activate` put on `PATH`) would keep running the old binary until mise
 prunes it. Everything else mise touches (fixed version paths, pinned tools, wrappers) stays
-manual-only, so Supaterm never edits mise config. A detected OpenCode 1.x gets no update from any
-installer: 2.x converts the shared OpenCode database in place, so that move is the user's to make.
+manual-only, so Supaterm never edits mise config. Nix store installs stay manual-only too, since the
+store is read-only. A detected OpenCode 1.x gets no update from any installer: 2.x converts the
+shared OpenCode database in place, so that move is the user's to make.
 `mise latest` supplies the version, because settings such as
 `minimum_release_age` can hold mise behind npm. A Grok cask whose Homebrew prefix
 cannot be verified also stays manual-only: `grok update` would install a second copy. npm updates pin `--prefix` because the

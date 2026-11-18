@@ -7,7 +7,11 @@ it("keeps its host from recycling it while open", async () => {
   const reportOpen = vi.fn();
   await using screen = await render(
     <ExpandedPreviewHostContext value={reportOpen}>
-      <ExpandedPreviewDialog title="Diagram" fit="center" onClose={() => {}}>
+      <ExpandedPreviewDialog
+        title="Diagram"
+        fit={{ initialWidth: 600, heightAtWidth: () => 100 }}
+        onClose={() => {}}
+      >
         <pre>diagram</pre>
       </ExpandedPreviewDialog>
     </ExpandedPreviewHostContext>,

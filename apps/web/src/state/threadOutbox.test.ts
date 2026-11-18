@@ -79,6 +79,7 @@ vi.mock("./threadCommands", () => ({
     updateMetadata: { label: "branch" },
     setRuntimeMode: { label: "runtime" },
     setInteractionMode: { label: "interaction" },
+    linkPullRequest: { label: "link" },
     snapshotAtom: () => "snapshot",
   },
 }));
@@ -262,6 +263,7 @@ describe("web thread outbox delivery", () => {
       });
       expect(harness.run.mock.calls[1]![2].input).toMatchObject({
         commandId: "stable-command",
+        resendAfterSocketLoss: false,
         message: {
           messageId: "message",
           text: "Saved prompt",
@@ -516,6 +518,27 @@ describe("web thread outbox delivery", () => {
       expect.anything(),
     );
     expect(harness.records.size).toBe(0);
+  });
+
+  it("links a checked-out pull request after creating its thread, and a failed link still delivers", async () => {
+    using _warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const url = "https://github.com/acme/widgets/pull/42";
+    const { pendingWorktree: _, ...creation } = worktreeTarget();
+    harness.online = true;
+    harness.run.mockImplementation(async (_registry, operation) => {
+      if (operation.label === "link") throw new Error("Link rejected.");
+      return AsyncResult.success({ sequence: 1 });
+    });
+    const { enqueueThreadOutboxTurn, webThreadOutbox } = await import("./threadOutbox");
+    await enqueueThreadOutboxTurn({ ...creation, linkPullRequestUrl: url });
+    await webThreadOutbox.drain();
+
+    expect(harness.run.mock.calls.map((call) => call[1].label)).toEqual(["send", "link"]);
+    expect(harness.run.mock.calls[1]![2]).toMatchObject({
+      environmentId: "environment",
+      input: { threadId: "thread", url, number: 42, source: "manual" },
+    });
+    expect(harness.records.get("message")?.status).toBe("delivered");
   });
 
   it("persists an uploaded file reference before dispatch and reuses it after a transport failure", async () => {

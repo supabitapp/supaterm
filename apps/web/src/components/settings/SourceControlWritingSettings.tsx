@@ -7,7 +7,7 @@ import type {
 } from "@supaterm/contracts";
 import { DEFAULT_UNIFIED_SETTINGS } from "@supaterm/contracts/settings";
 import { isProviderReviewGuideCapable } from "@supaterm/contracts";
-import { createModelSelection } from "@supaterm/shared/model";
+import { createModelSelection, pickModelSelection } from "@supaterm/shared/model";
 import {
   resolveReviewGuideModelSelection,
   resolveSourceControlWriterModelSelection,
@@ -22,7 +22,7 @@ import { useScopedModelDisabledReason } from "./useScopedModelAvailability";
 import { useSettingsScope } from "./SettingsScopeContext";
 import { providerInstanceEntriesFor } from "../../providerInstances";
 import {
-  getCustomModelOptionsByInstance,
+  getTextGenerationModelOptionsByInstance,
   resolveAppModelSelectionState,
 } from "../../modelSelection";
 import { useEnvironmentProviders } from "../../state/environments";
@@ -139,13 +139,15 @@ export function SourceControlWritingSettingsSection() {
     (entry) =>
       entry.instanceId === defaultModelSelection.instanceId && entry.enabled && entry.isAvailable,
   );
-  const modelOptionsByInstance = getCustomModelOptionsByInstance(
+  const modelOptionsByInstance = getTextGenerationModelOptionsByInstance(
     settings,
     projectEffectiveTextGenerationProviders,
     activeSelection.instanceId,
     activeSelection.model,
   );
-  const writerModelDisabledReason = useScopedModelDisabledReason(settings, instanceEntries);
+  const writerModelDisabledReason = useScopedModelDisabledReason(settings, instanceEntries, {
+    textGeneration: true,
+  });
   const writerInstanceEntry = instanceEntries.find(
     (entry) => entry.instanceId === activeSelection.instanceId,
   );
@@ -170,7 +172,7 @@ export function SourceControlWritingSettingsSection() {
     },
     reviewGuideProviders,
   );
-  const reviewGuideModelOptionsByInstance = getCustomModelOptionsByInstance(
+  const reviewGuideModelOptionsByInstance = getTextGenerationModelOptionsByInstance(
     settings,
     reviewGuideProviders,
     reviewGuideSelection.instanceId,
@@ -182,7 +184,7 @@ export function SourceControlWritingSettingsSection() {
   const reviewGuideModelDisabledReason = useScopedModelDisabledReason(
     settings,
     reviewGuideEntries,
-    isProviderReviewGuideCapable,
+    { supportsCapability: isProviderReviewGuideCapable },
   );
 
   return (
@@ -391,7 +393,11 @@ export function SourceControlWritingSettingsSection() {
                       return;
                     }
                     updateSettings({
-                      sourceControlWriterModelSelection: createModelSelection(instanceId, model),
+                      sourceControlWriterModelSelection: pickModelSelection(
+                        mixedWriterModel ? null : activeSelection,
+                        instanceId,
+                        model,
+                      ),
                     });
                   }}
                 />
@@ -421,7 +427,21 @@ export function SourceControlWritingSettingsSection() {
               <Switch
                 checked={usesDedicatedModel}
                 disabled={!usesDedicatedModel && !canEnableDedicatedModel}
-                onCheckedChange={(checked) =>
+                onCheckedChange={(checked) => {
+                  if (checked) {
+                    const reason = writerModelDisabledReason(
+                      defaultModelSelection.instanceId,
+                      defaultModelSelection.model,
+                    );
+                    if (reason) {
+                      toastManager.add({
+                        type: "error",
+                        title: "Writer model not saved",
+                        description: reason,
+                      });
+                      return;
+                    }
+                  }
                   updateSettings({
                     sourceControlWriterModelSelection: checked
                       ? createModelSelection(
@@ -430,8 +450,8 @@ export function SourceControlWritingSettingsSection() {
                           defaultModelSelection.options,
                         )
                       : null,
-                  })
-                }
+                  });
+                }}
                 aria-label="Use a separate source control writer model"
               />
             </div>
@@ -497,7 +517,11 @@ export function SourceControlWritingSettingsSection() {
                           return;
                         }
                         updateSettings({
-                          reviewGuideModelSelection: createModelSelection(instanceId, model),
+                          reviewGuideModelSelection: pickModelSelection(
+                            mixedReviewGuideModel ? null : reviewGuideSelection,
+                            instanceId,
+                            model,
+                          ),
                         });
                       }}
                     />

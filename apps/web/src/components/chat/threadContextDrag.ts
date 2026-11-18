@@ -1,4 +1,4 @@
-import type { EnvironmentId, ScopedThreadRef } from "@supaterm/contracts";
+import type { EnvironmentId } from "@supaterm/contracts";
 import { type RefObject, useEffect, useEffectEvent, useSyncExternalStore } from "react";
 
 import {
@@ -8,6 +8,7 @@ import {
   setPaneDropHover,
   type PaneDragPayload,
 } from "../../chatPanes/paneDrop";
+import type { ThreadContextDropRef } from "./threadContextDrop.logic";
 
 export const THREAD_CONTEXT_DROP_EVENT = "supaterm-thread-context-drop";
 
@@ -15,7 +16,7 @@ export function useThreadContextDrop(
   targetRef: RefObject<EventTarget | null>,
   environmentId: EnvironmentId,
   targetKey: string,
-  onDrop: (refs: ReadonlyArray<ScopedThreadRef>, isActive: () => boolean) => void,
+  onDrop: (refs: ReadonlyArray<ThreadContextDropRef>, isActive: () => boolean) => void,
 ) {
   const handleDrop = useEffectEvent(onDrop);
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- subscribes the target element to thread-context drop events and marks old drops inactive
@@ -24,7 +25,7 @@ export function useThreadContextDrop(
     if (!target) return;
     let active = true;
     const listener = (event: Event) =>
-      handleDrop((event as CustomEvent<ReadonlyArray<ScopedThreadRef>>).detail, () => active);
+      handleDrop((event as CustomEvent<ReadonlyArray<ThreadContextDropRef>>).detail, () => active);
     target.addEventListener(THREAD_CONTEXT_DROP_EVENT, listener);
     return () => {
       active = false;

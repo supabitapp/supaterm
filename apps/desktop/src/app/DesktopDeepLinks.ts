@@ -5,6 +5,8 @@ import { readPairingAppLink } from "@supaterm/shared/remote";
 import * as DesktopWebLinks from "./DesktopWebLinks.ts";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
+import * as FileSystem from "effect/FileSystem";
+import * as Path from "effect/Path";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import * as Scope from "effect/Scope";
@@ -17,6 +19,7 @@ import * as HostProcess from "@supaterm/shared/HostProcess";
 import * as ElectronApp from "../electron/ElectronApp.ts";
 import * as ElectronProtocol from "../electron/ElectronProtocol.ts";
 import * as ElectronWindow from "../electron/ElectronWindow.ts";
+import * as DesktopPreReadyFileSystem from "./DesktopPreReadyFileSystem.ts";
 import * as DesktopUserData from "./DesktopUserData.ts";
 import * as DesktopEnvironment from "./DesktopEnvironment.ts";
 import * as DesktopOpenEvents from "./DesktopOpenEvents.ts";
@@ -52,6 +55,16 @@ export const make = Effect.gen(function* () {
   } else {
     yield* electronApp.quit;
     return yield* Effect.interrupt;
+  }
+  // Chromium opens these caches at the first event-loop turn, before ready. Plain Node has none.
+  if (process.versions.electron) {
+    yield* DesktopUserData.clearStaleGpuCaches({
+      userDataPath: DesktopUserData.userDataPath(environment),
+      electronVersion: process.versions.electron,
+    }).pipe(
+      Effect.provideService(FileSystem.FileSystem, DesktopPreReadyFileSystem.make),
+      Effect.provideService(Path.Path, environment.path),
+    );
   }
 
   return DesktopDeepLinks.of({

@@ -45,8 +45,9 @@ options=('!debug' '!strip')
 
 _upstream_version="${pkgver/_nightly./-nightly.}"
 _appimage="supaterm-${_upstream_version}-x86_64.AppImage"
+_asset="$_appimage"
 source=(
-  "$_appimage::https://github.com/supabitapp/supaterm/releases/download/v${_upstream_version}/$_appimage"
+  "$_appimage::https://github.com/supabitapp/supaterm/releases/download/v${_upstream_version}/$_asset"
   "${pkgname}-${pkgver}-LICENSE::https://raw.githubusercontent.com/supabitapp/supaterm/v${_upstream_version}/LICENSE"
 )
 sha256sums=(
@@ -74,7 +75,9 @@ package() {
 
   install -Dm755 /dev/stdin "$pkgdir/usr/bin/supaterm-nightly" <<'EOF'
 #!/bin/sh
-exec /opt/supaterm-nightly-bin/AppRun "$@"
+# AppRun computes APPDIR but doesn't export it. The server's AppImage env scrub needs it
+# to keep /opt/supaterm-nightly-bin/usr/lib etc. out of terminal and agent shells (#28993).
+exec env APPDIR=/opt/supaterm-nightly-bin /opt/supaterm-nightly-bin/AppRun "$@"
 EOF
   ln -s supaterm-nightly "$pkgdir/usr/bin/supaterm-nightly-desktop"
 
@@ -95,7 +98,7 @@ TryExec=supaterm-nightly
 Terminal=false
 Type=Application
 Icon=supaterm-nightly
-StartupWMClass=supaterm
+StartupWMClass=com.supaterm.desktop
 Categories=Development;
 MimeType=x-scheme-handler/supaterm;
 EOF
