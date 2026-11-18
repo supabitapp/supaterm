@@ -14,13 +14,17 @@ export interface HomeListFilterMenuEnvironment {
 
 export function homeListFilterEnvironments(environments: ReadonlyArray<WorkspaceEnvironment>) {
   return Arr.sort(
-    environments
-      .filter((environment) => environment.isEnabled)
-      .map((environment) => ({
-        environmentId: environment.environmentId,
-        label: environment.environmentLabel,
-        connectionState: environment.connectionState,
-      })),
+    environments.flatMap((environment) =>
+      environment.isEnabled
+        ? [
+            {
+              environmentId: environment.environmentId,
+              label: environment.environmentLabel,
+              connectionState: environment.connectionState,
+            },
+          ]
+        : [],
+    ),
     Order.mapInput(Order.String, (environment: { readonly label: string }) => environment.label),
   );
 }

@@ -1,4 +1,4 @@
-import { act } from "react";
+import { act, useLayoutEffect } from "react";
 import { createRoot } from "react-dom/client";
 import { expect, it, vi } from "vite-plus/test";
 
@@ -33,7 +33,7 @@ it("/model clears only its trigger and opens the model picker", async () => {
   const onOpenModelPicker = vi.fn();
   let menu: ReturnType<typeof useComposerCommandMenu> | undefined;
   function Probe() {
-    menu = useComposerCommandMenu({
+    const current = useComposerCommandMenu({
       draftMessage: "/mod fix this",
       ownerKey: "draft",
       environmentId: null,
@@ -43,6 +43,9 @@ it("/model clears only its trigger and opens the model picker", async () => {
       hasCompactableConversation: false,
       onChangeDraftMessage,
       onOpenModelPicker,
+    });
+    useLayoutEffect(() => {
+      menu = current;
     });
     return null;
   }
