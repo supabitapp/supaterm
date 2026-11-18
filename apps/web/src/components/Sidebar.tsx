@@ -73,6 +73,7 @@ import {
   type ContextMenuSource,
   ProjectId,
   type ScopedThreadRef,
+  THREAD_JUMP_KEYBINDING_COMMANDS,
   type ThreadId,
 } from "@supaterm/contracts";
 import { PlusIcon } from "@supaterm/icons";
@@ -319,6 +320,11 @@ const NO_HIDDEN_ENVIRONMENTS: ReadonlySet<EnvironmentId> = new Set();
 
 // Done-tail paging: recent history is the common lookup; the deep tail
 // stays behind an explicit Show more.
+const THREAD_NAVIGATION_COMMANDS: ReadonlyArray<KeybindingCommand> = [
+  "thread.previous",
+  "thread.next",
+  ...THREAD_JUMP_KEYBINDING_COMMANDS,
+];
 const DONE_TAIL_INITIAL_COUNT = 10;
 const DONE_TAIL_PAGE_COUNT = 25;
 const PINNED_SHELF_EXPANDED_KEY = "supaterm:sidebar:pinned-expanded";
@@ -2764,10 +2770,18 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- registers thread traversal and jump commands with the dispatcher for the sidebar's lifetime
   useEffect(
     () =>
-      registerCommands((command, invocation) => navigateForCommand(command, invocation), {
-        when: () => !isCommandPaletteOpen() && !isModelPickerOpen(),
-        context: () => readRoutePanelsOpen(),
-      }),
+      registerCommands(
+        Object.fromEntries(
+          THREAD_NAVIGATION_COMMANDS.map((command) => [
+            command,
+            (invocation: CommandInvocation) => navigateForCommand(command, invocation),
+          ]),
+        ),
+        {
+          when: () => !isCommandPaletteOpen() && !isModelPickerOpen(),
+          context: () => readRoutePanelsOpen(),
+        },
+      ),
     [],
   );
 

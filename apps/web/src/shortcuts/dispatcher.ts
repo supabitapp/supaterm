@@ -199,6 +199,15 @@ function pushScope<T>(list: T[], scope: T): () => void {
 
 /** Commands for keys, menus and devices; the handlers and their guard are registered once. */
 export function registerCommands(
+  commands: CommandHandlers,
+  options?: CommandScopeOptions,
+): () => void;
+/** A runner owns every command, so it runs ahead of widgets that ask which keys are bound. */
+export function registerCommands(
+  commands: CommandRunner,
+  options: CommandScopeOptions & { readonly capture: true },
+): () => void;
+export function registerCommands(
   commands: CommandHandlers | CommandRunner,
   options: CommandScopeOptions = {},
 ): () => void {

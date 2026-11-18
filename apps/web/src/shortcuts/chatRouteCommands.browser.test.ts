@@ -6,7 +6,7 @@ import { DraftId, useComposerDraftStore } from "../composerDraftStore";
 import { type PreviewAction, subscribePreviewAction } from "../components/preview/previewActionBus";
 import { useThreadSelectionStore } from "../threadSelectionStore";
 import { installChatRouteCommands } from "./chatRouteCommands";
-import { runCommand } from "./dispatcher";
+import { hasCommandForKeyDown, runCommand } from "./dispatcher";
 
 vi.mock("../state/session", async (original) => ({
   ...(await original<typeof import("../state/session")>()),
@@ -148,6 +148,17 @@ describe("chat route commands", () => {
     pressProjectPicker();
 
     expect(clicked).toEqual(["right", "left"]);
+  });
+
+  it("claims only keys bound to its own commands, so a focused composer keeps the rest", () => {
+    using _platform = vi.spyOn(navigator, "platform", "get").mockReturnValue("Linux x86_64");
+    const { router } = routerAt(CHAT);
+    using stack = new DisposableStack();
+    stack.defer(installChatRouteCommands(router));
+    const keydown = (key: string) => new KeyboardEvent("keydown", { key, ctrlKey: true });
+
+    expect(hasCommandForKeyDown(keydown("."))).toBe(true);
+    expect(hasCommandForKeyDown(keydown("b"))).toBe(false);
   });
 
   it("runs preview commands on a draft thread, in the draft's environment", () => {
