@@ -729,7 +729,7 @@ it.effect.each([
   { status: "completed" as const, followUp: "held-notification", marksDone: true },
   { status: "completed" as const, followUp: "user", marksDone: false },
   { status: "completed" as const, followUp: "steered-notification", marksDone: false },
-  // Send now cancels the queued run; its message joins the run that asked to settle.
+  // Send now cancels the queued run; its message joins the run that asked to mark the thread done.
   { status: "completed" as const, followUp: "promoted-to-steer", marksDone: true },
 ])("markDoneAfterRun handles $status with $followUp follow-up", ({ status, followUp, marksDone }) =>
   Effect.gen(function* () {
