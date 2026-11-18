@@ -55,6 +55,7 @@ vi.mock("~/state/entities", () => ({
     ref === null || threadDetail.content === undefined
       ? null
       : { projection: threadDetail.content },
+  useQuietThreadShell: () => null,
 }));
 vi.mock("~/state/query", () => ({
   useEnvironmentQuery: (atom: { environmentId: EnvironmentId } | null) => ({
