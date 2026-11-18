@@ -81,8 +81,8 @@ export function mergeCursorFetch(
   };
 }
 
-export const CURSOR_ACCOUNT_CACHE_FILE_NAME = "usage-cursor-account-cache-v1.json";
-const CURSOR_ACCOUNT_CACHE_VERSION = 1;
+export const CURSOR_ACCOUNT_CACHE_FILE_NAME = "usage-cursor-account-cache-v2.json";
+const CURSOR_ACCOUNT_CACHE_VERSION = 2;
 
 type SerializedRecord = readonly [
   timestampMs: number,

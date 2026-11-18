@@ -90,6 +90,7 @@ function candidate(
         { role: "assistant" as const, text: "Fixed", createdAt: timestamp },
       ],
     },
+    worktree: null as { path: string; branch: string | null } | null,
   } satisfies AgentSessionScanner.AgentSessionRecentThread;
 }
 
@@ -297,6 +298,7 @@ it.effect(
       );
       const unowned = candidate(CODEX_MODEL_SELECTION, "unowned");
       unowned.thread.omittedMessageCount = 1;
+      unowned.worktree = { path: "/workspace/project/.claude/worktrees/feat", branch: "feat" };
       const unownedPi = candidate(PI_MODEL_SELECTION, "unowned-pi", "pi");
       const importer = yield* makeImporter([
         active,
@@ -349,6 +351,8 @@ it.effect(
           expect(notices).toEqual([]);
         }
         expect(records.thread.historyOrigin).toBe("v1_import");
+        expect(records.thread.worktreePath).toBe(source.worktree?.path ?? null);
+        expect(records.thread.branch).toBe(source.worktree?.branch ?? null);
         expect(records.thread.activeProviderThreadId).toBe(records.providerThreads[0]?.id);
         expect(records.providerThreads[0]?.nativeThreadRef?.nativeId).toBe(nativeId(source));
         expect(Option.getOrThrow(yield* runtimes.getByThreadId({ threadId }))).toMatchObject({
@@ -357,7 +361,10 @@ it.effect(
             source.source.provider === "claudeAgent"
               ? { threadId, resume: source.source.providerSessionId }
               : { threadId: nativeId(source) },
-          runtimePayload: { importedTranscripts: [source.source] },
+          runtimePayload: {
+            cwd: source.worktree?.path ?? "/workspace/project",
+            importedTranscripts: [source.source],
+          },
         });
       }
     }).pipe(Effect.scoped, Effect.provide(persistence)),

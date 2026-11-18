@@ -67,7 +67,8 @@ export type SupatermMcpToolSummaryAction =
   | "browser"
   | "device"
   | "html-preview"
-  | "html-render";
+  | "html-render"
+  | "send-to-user";
 
 export interface SupatermMcpToolDefinition {
   readonly displayName: string;
@@ -407,6 +408,7 @@ const SUPATERM_MCP_TOOLS: Readonly<Record<string, SupatermMcpToolDefinition>> = 
   ),
   html_preview: tool(["Preview", "Previewing", "Previewed", "an HTML page"], "html-preview"),
   html_render: tool(["Render", "Rendering", "Rendered", "an HTML page"], "html-render"),
+  send_to_user: tool(["Send", "Sending", "Sent", "a message"], "send-to-user"),
 };
 
 export const SUPATERM_MCP_TOOL_NAMES: ReadonlySet<string> = new Set(

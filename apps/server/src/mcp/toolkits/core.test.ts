@@ -1309,6 +1309,7 @@ it.effect(
           Layer.provide(
             Layer.mock(ThreadManagement.ThreadManagementService)({
               listProjectThreads: () => Effect.succeed([open, done]),
+              getShellSnapshot: () => Effect.succeed({ threads: [open, done] } as never),
             }),
           ),
           Layer.provide(ServerSettings.layerTest()),

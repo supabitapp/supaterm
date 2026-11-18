@@ -5,6 +5,8 @@ import { defineConfig, mergeConfig } from "vite-plus";
 
 import baseConfig from "../../vite.config.ts";
 import { SEA_NODE_VERSION } from "./scripts/seaNodeVersion.ts";
+import { resolveTaggedSourceVersion } from "../../scripts/lib/tagged-source-version.ts";
+import packageJson from "./package.json" with { type: "json" };
 import { WeightedShardSequencer } from "./src/testUtils/weightedShardSequencer.ts";
 
 // NSIS install time tracks file count, not bytes.
@@ -15,6 +17,11 @@ import {
 
 export { shouldBundleCliDependency };
 
+const serverManifestPath = NodePath.join(import.meta.dirname, "package.json");
+// The desktop packager passes APP_VERSION; it can equal the manifest at a commit tagged otherwise.
+const buildVersion =
+  process.env.APP_VERSION?.trim() ||
+  resolveTaggedSourceVersion(NodePath.join(import.meta.dirname, "../.."), packageJson.version);
 const TELEMETRY_CHANNELS = ["stable", "nightly", "preview", "dev"];
 const telemetryChannel = process.env.SUPATERM_TELEMETRY_CHANNEL?.trim() || "dev";
 if (!TELEMETRY_CHANNELS.includes(telemetryChannel)) {
@@ -78,6 +85,19 @@ export default mergeConfig(
       },
     },
     pack: {
+      plugins: [
+        {
+          // Every server module reads its version from this manifest import.
+          name: "supaterm:build-version",
+          load(id) {
+            if (NodePath.resolve(id) !== serverManifestPath) return;
+            return {
+              code: JSON.stringify({ ...packageJson, version: buildVersion }),
+              moduleType: "json",
+            };
+          },
+        },
+      ],
       // The executable embeds the bootstrap and the CLI as an asset; the history worker becomes
       // a hidden subcommand there instead of a sibling script.
       entry: packBootstrap

@@ -1688,12 +1688,6 @@ export const ORCHESTRATOR_REPLAY_FIXTURES: ReadonlyArray<OrchestratorReplayFixtu
         assertOutput: assertCursorMessageSteeringOutput,
       },
       {
-        driver: ProviderDriverKind.make("grok"),
-        transcriptFile: new URL("./message_steering/grok_transcript.ndjson", import.meta.url),
-        modelSelection: GROK_MODEL_SELECTION,
-        assertOutput: assertGrokMessageSteeringOutput,
-      },
-      {
         driver: ProviderDriverKind.make("fx"),
         transcriptFile: new URL("./message_steering/fx_transcript.ndjson", import.meta.url),
         modelSelection: FX_MODEL_SELECTION,

@@ -203,3 +203,27 @@ describe("thread links", () => {
     expect(formatThreadLink(ref("e", "t1"), " ] ")).toBe("<supaterm-thread://v2/e/t1>");
   });
 });
+
+describe("thread links inside other links", () => {
+  it("leaves a thread link that is part of another link as written", () => {
+    const link = "supaterm-thread://v2/there/t1";
+    const relabeled = `[There](${link})`;
+    const title = titlesIn({ there: { t1: "There" } });
+    for (const [markdown, expected] of [
+      [`[ <${link}> ](https://example.com)`],
+      [`[<${link}>](<https://example.com/a b> "Title")`],
+      [`[a](https://example.com/x_(y)) <${link}>`, `[a](https://example.com/x_(y)) ${relabeled}`],
+      [`(<${link}>) **<${link}>**`, `(${relabeled}) **${relabeled}**`],
+      [`[[[ [old](${link})`, `[[[ ${relabeled}`],
+      [`\\\\[old](${link})`, `\\\\${relabeled}`],
+      [`\\\\\\\\[old](${link})`, `\\\\\\\\${relabeled}`],
+      [`\\[ <${link}> ](https://example.com)`, `\\[ ${relabeled} ](https://example.com)`],
+      [`\\[old](${link}) \\<${link}>`],
+    ] as const) {
+      expect(relabelThreadLinks(markdown, local, title)).toBe(expected ?? markdown);
+      expect(threadLinkRefs(markdown, local)).toEqual(
+        expected === undefined ? [] : [ref("there", "t1")],
+      );
+    }
+  });
+});

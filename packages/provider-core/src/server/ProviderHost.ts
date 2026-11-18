@@ -48,6 +48,8 @@ export class ProviderHost extends Context.Service<
     };
 
     readonly shouldRunBackgroundWork: (scope: BackgroundScope) => Effect.Effect<boolean>;
+    /** Completes once server startup finishes; first provider checks wait for it. */
+    readonly awaitServerReady?: Effect.Effect<void>;
 
     readonly resolveAttachmentPath: (attachment: ChatAttachment) => string | null;
     readonly resolveExtractedTextPath?: (path: string) => Effect.Effect<string | undefined>;
