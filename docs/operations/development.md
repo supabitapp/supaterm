@@ -314,6 +314,7 @@ Build on Linux because the browser-secret helper links against the host's libsec
 Rust, C/C++ build tools, libsecret, libusb, and libudev development headers, pkg-config, and
 ImageMagick. Bytecode preparation also runs packaged Electron and requires GTK, NSS, ALSA, and GBM
 runtime libraries.
+The packaged ELF compatibility check uses binutils’ `readelf`, included by the C/C++ toolchain.
 
 Ubuntu 24.04 and Debian 13:
 

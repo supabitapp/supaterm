@@ -53,6 +53,7 @@ export const ThreadPullRequestSnapshot = Schema.Struct({
   reviewDecision: Schema.optional(Schema.NullOr(PullRequestReviewDecision)),
   checksState: Schema.optional(Schema.NullOr(PullRequestChecksState)),
   mergeability: Schema.optional(PullRequestMergeability),
+  rebaseRequired: Schema.optional(Schema.Boolean),
 });
 export type ThreadPullRequestSnapshot = typeof ThreadPullRequestSnapshot.Type;
 
@@ -99,6 +100,7 @@ export const ThreadPullRequestWatch = Schema.Struct({
   /** Remarks created exactly at `remarksThrough` that were reported, so a late one still counts. */
   remarkIds: Schema.Array(TrimmedNonEmptyString),
   conflicting: Schema.Boolean,
+  rebaseRequired: Schema.optional(Schema.Boolean),
   /** Last removal seen; null after an empty read, absent before the first read. */
   mergeQueueRemovalId: Schema.optional(Schema.NullOr(TrimmedNonEmptyString)),
   /** Comment-only wakes in a row. Watching stops at a limit, so bots cannot loop it. */

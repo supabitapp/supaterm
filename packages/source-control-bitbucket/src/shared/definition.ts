@@ -16,6 +16,7 @@ import {
   repositoryUrlFromPagePath,
   projectChangeRequestHost,
 } from "@supaterm/source-control-core/shared/definition";
+import { parseUrl } from "@supaterm/shared/url";
 import { icon } from "./icon.ts";
 
 const safeShellArgument = /^[A-Za-z0-9._/@+=,-]+$/;
@@ -112,7 +113,7 @@ export const definition = defineSourceControl({
   reviewSummaryRequired: () => false,
   checkoutCommandArgument: () => null,
   isChangeRequestReference: (reference) => {
-    const url = URL.parse(reference);
+    const url = parseUrl(reference);
     return (
       url !== null &&
       isBitbucketHost(url.hostname) &&
