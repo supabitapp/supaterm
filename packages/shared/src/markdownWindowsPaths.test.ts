@@ -78,3 +78,20 @@ it.each(plugins)("%s finds each escape's word after earlier escapes in the text"
     ],
   });
 });
+
+it.each([
+  [String.raw`C:\R&D folder\.supaterm\shot.png`, String.raw`C:\R&D folder\.supaterm\shot.png`],
+  [String.raw`C:\R&amp;D folder\.supaterm\shot.png`, String.raw`C:\R&D folder\.supaterm\shot.png`],
+  [String.raw`C:\work\&stuff\.supaterm\shot.png`, String.raw`C:\work\&stuff\.supaterm\shot.png`],
+  [String.raw`C:\work\&amp;lt;\.supaterm\shot.png`, String.raw`C:\work\&lt;\.supaterm\shot.png`],
+])("preserves separators and decodes references once in %s", (authored, expected) => {
+  const parser = unified().use(remarkParse).use(remarkKeepWindowsPathDestinations);
+  for (const prefix of ["", "!"]) {
+    expect(parser.parse(`${prefix}[shot](<${authored}>)`)).toMatchObject({
+      children: [{ children: [{ url: expected }] }],
+    });
+  }
+  expect(parser.parse(`[shot]: <${authored}>`)).toMatchObject({
+    children: [{ type: "definition", url: expected }],
+  });
+});

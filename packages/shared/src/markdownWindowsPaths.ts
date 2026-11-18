@@ -1,6 +1,7 @@
 import { unified, type Processor } from "unified";
 import remarkParse from "remark-parse";
 import remarkGfm from "remark-gfm";
+import { decodeString } from "micromark-util-decode-string";
 import { isWindowsAbsolutePath } from "./path.ts";
 
 interface DestinationToken {
@@ -72,10 +73,9 @@ export function remarkKeepWindowsPathDestinations(
     const decoded = this.resume();
     const authored = this.sliceSerialize(token);
     const windows = isWindowsAbsolutePath(authored);
-    const preserve = windows && !authored.includes("&");
     const node = this.stack.at(-1);
     if (node) {
-      node.url = preserve ? authored : decoded;
+      node.url = windows ? decodeString(authored.replaceAll("\\", "\\\\")) : decoded;
       if (windows) capture?.(authored, token, node);
     }
   }

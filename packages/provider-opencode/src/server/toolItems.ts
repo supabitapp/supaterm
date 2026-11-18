@@ -1,4 +1,5 @@
 import type { OrchestrationV2TurnItem } from "@supaterm/contracts";
+import { HTML_RENDER_TOOL_NAME } from "@supaterm/shared/htmlRender";
 import { resolveSupatermMcpToolId } from "@supaterm/shared/supatermMcpToolPresentation";
 import { formatReadToolLabel, formatSearchToolLabel } from "@supaterm/shared/toolActivity";
 import {
@@ -121,6 +122,26 @@ export function openCodeCommandFailed(toolName: string, completedMetadata: unkno
     exitCode !== undefined &&
     exitCode !== 0
   );
+}
+
+/** Code Mode reports nested calls with their input but no result, so pages are found by input. */
+export function openCodeCodeModeHtmlRenders(
+  completedMetadata: unknown,
+  mcpServerName: string,
+): ReadonlyArray<{ readonly index: number; readonly input: Record<string, unknown> }> {
+  if (typeof completedMetadata !== "object" || completedMetadata === null) return [];
+  const toolCalls = (completedMetadata as Record<string, unknown>)["toolCalls"];
+  if (!Array.isArray(toolCalls)) return [];
+  return toolCalls.flatMap((call: unknown, index) => {
+    if (typeof call !== "object" || call === null) return [];
+    const { tool, status, input } = call as Record<string, unknown>;
+    return tool === `${mcpServerName}.${HTML_RENDER_TOOL_NAME}` &&
+      status === "completed" &&
+      typeof input === "object" &&
+      input !== null
+      ? [{ index, input: input as Record<string, unknown> }]
+      : [];
+  });
 }
 
 export function openCodeToolTurnItem(

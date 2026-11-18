@@ -151,16 +151,19 @@ export type ServerTools = ReturnType<typeof makeServerTools>;
  * outside agent does, and revokes that session when the command ends.
  */
 export const withServerTools = Effect.fn("cli.serverTools.withServerTools")(function* <A, E, R>(
-  flags: { readonly baseDir: Option.Option<string> },
+  flags: { readonly baseDir: Option.Option<string>; readonly json?: boolean },
   client: { readonly label: string; readonly name: string },
   run: (tools: ServerTools) => Effect.Effect<A, E, R>,
 ) {
   const logLevel = yield* GlobalFlag.LogLevel;
   const worktreeHome = yield* resolveCliWorktreeHome(flags.baseDir);
+  const quietLogs = flags.json === true;
   const config = yield* resolveCliAuthConfig(
     { baseDir: worktreeHome === undefined ? flags.baseDir : Option.some(worktreeHome) },
     logLevel,
+    { quietLogs },
   );
+  const minimumLogLevel = quietLogs ? "Error" : config.logLevel;
   // Checked before the auth layer opens the database, so a home with no server
   // is left untouched.
   const runtimeState = yield* readLiveServerRuntimeState(config.serverRuntimeStatePath);
@@ -193,10 +196,11 @@ export const withServerTools = Effect.fn("cli.serverTools.withServerTools")(func
     return yield* run(makeServerTools(session, origin));
   }).pipe(
     Effect.scoped,
+    Effect.provideService(References.MinimumLogLevel, minimumLogLevel),
     Effect.provide(
       EnvironmentAuth.layerRuntime.pipe(
         Layer.provide(ServerConfig.layer(config)),
-        Layer.provide(Layer.succeed(References.MinimumLogLevel, config.logLevel)),
+        Layer.provide(Layer.succeed(References.MinimumLogLevel, minimumLogLevel)),
       ),
     ),
   );
