@@ -7,9 +7,13 @@ import {
   RuntimeMode,
   ThreadId,
 } from "@supaterm/contracts";
+import * as Cause from "effect/Cause";
 import * as Effect from "effect/Effect";
+import * as Exit from "effect/Exit";
 import * as Layer from "effect/Layer";
 import * as Schema from "effect/Schema";
+import * as Sink from "effect/Sink";
+import * as Stream from "effect/Stream";
 import { McpSchema, McpServer, Tool, Toolkit } from "effect/ai";
 
 import { OrchestratorProjectionError } from "../orchestration-v2/Orchestrator.ts";
@@ -117,9 +121,18 @@ const probe = {
 };
 const ProbeToolkit = Toolkit.make(
   Tool.make("reads", probe),
-  Tool.make("reads_as_caller", probe),
-  Tool.make("acts_as_caller", probe),
-  Tool.make("acts_as_full_thread", probe),
+  Tool.make("reads_as_caller", probe).annotate(
+    McpSchema.EnabledWhen,
+    McpInvocationContext.hiddenFromOutsideClients,
+  ),
+  Tool.make("acts_as_caller", probe).annotate(
+    McpSchema.EnabledWhen,
+    McpInvocationContext.hiddenFromOutsideClients,
+  ),
+  Tool.make("acts_as_full_thread", probe).annotate(
+    McpSchema.EnabledWhen,
+    McpInvocationContext.hiddenFromOutsideClients,
+  ),
   Tool.make("writes", probe),
   Tool.make("writes_with_capability", probe),
   Tool.make("writes_threads", {
@@ -262,7 +275,6 @@ it.effect.each([
   ["writes_environment", readOnlyClient, {}, "capability_denied"],
 
   ["reads_as_caller", ended, {}, "ran"],
-  ["reads_as_caller", fullAccessClient, {}, "thread_credential_required"],
   ["acts_as_caller", supervised, {}, "ran"],
   ["acts_as_caller", ended, {}, "parent_not_active"],
   ["acts_as_caller", background, {}, "ran"],
@@ -270,7 +282,6 @@ it.effect.each([
   ["acts_as_caller", mismatchedProvider, {}, "parent_not_active"],
   ["acts_as_caller", archivedBackground, {}, "parent_not_active"],
   ["acts_as_caller", unknownOwnerBackground, {}, "parent_not_active"],
-  ["acts_as_caller", fullAccessClient, {}, "thread_credential_required"],
 
   ["writes", supervised, {}, "ran"],
   ["writes", ended, {}, "parent_not_active"],
@@ -306,7 +317,6 @@ it.effect.each([
 
   ["acts_as_full_thread", supervised, {}, "ran"],
   ["acts_as_full_thread", ended, {}, "parent_not_active"],
-  ["acts_as_full_thread", fullAccessClient, {}, "thread_credential_required"],
   ["forks_threads", supervised, {}, "ran"],
   ["forks_threads", supervised, { threadId: planThreadId }, "ran"],
   ["forks_threads", supervised, { threadId: fullAccessThreadId }, "runtime_mode_escalation_denied"],
@@ -382,4 +392,37 @@ it.effect("refuses a change when the calling thread cannot be read", () =>
       ),
     ),
   ),
+);
+
+// Discovery hides these tools. The handler must refuse on its own if that ever changes.
+it.effect.each(["reads_as_caller", "acts_as_caller", "acts_as_full_thread"] as const)(
+  "%s refuses an outside client behind discovery",
+  (tool) =>
+    Effect.gen(function* () {
+      const built = yield* ProbeToolkit;
+      const { result } = yield* built
+        .handle(tool, {})
+        .pipe(Stream.unwrap, Stream.run(Sink.last()), Effect.flatMap(Effect.fromOption));
+      expect(result).toMatchObject({ code: "thread_credential_required" });
+    }).pipe(
+      Effect.provide(McpToolAccess.HandlersLayer.layer(layerProbeHandlers)),
+      Effect.provideService(McpInvocationContext.McpInvocationContext, fullAccessClient),
+      Effect.provide(Layer.mock(ThreadManagement.ThreadManagementService)({})),
+    ),
+);
+
+it.effect("refuses to build a thread-bound tool that outside clients would be offered", () =>
+  Effect.gen(function* () {
+    const CallerToolkit = Toolkit.make(Tool.make("reads_as_caller", probe));
+    const built = yield* Layer.build(
+      McpToolAccess.HandlersLayer.layer(
+        McpToolAccess.toLayer(CallerToolkit, {
+          reads_as_caller: McpToolAccess.readsAsCaller(() => ran),
+        }),
+      ),
+    ).pipe(Effect.scoped, Effect.exit);
+    expect(Exit.isFailure(built) && Cause.pretty(built.cause)).toContain(
+      "reads_as_caller acts as its calling thread",
+    );
+  }),
 );

@@ -1276,6 +1276,16 @@ describe("server state projection", () => {
       ).providers[0]?.workspaceSnapshots,
     ).toBeUndefined();
 
+    // A server rescan that changed the skills retires the snapshot fetched before it.
+    expect(
+      withFetchedWorkspaceSnapshots(
+        configWith([
+          { ...provider(claude), workspaceRescannedAt: "2026-10-25T00:09:00.000Z" },
+        ] as unknown as ServerConfig["providers"]),
+        fetched,
+      ).providers[0]?.workspaceSnapshots,
+    ).toBeUndefined();
+
     // Nothing fetched leaves the config as streamed.
     const streamed = configWith([provider(claude)]);
     expect(withFetchedWorkspaceSnapshots(streamed, [])).toBe(streamed);

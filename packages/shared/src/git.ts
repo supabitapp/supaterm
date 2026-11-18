@@ -12,6 +12,8 @@ import * as Arr from "effect/Array";
 import * as Result from "effect/Result";
 import { fileBasename } from "./path.ts";
 
+import { foldLatinDiacritics } from "./path.ts";
+
 export const WORKTREE_BRANCH_PREFIX = "supaterm";
 
 export function resolveDefaultWorktreeBaseBranch(
@@ -29,9 +31,7 @@ export function resolveDefaultWorktreeBaseBranch(
 const TEMP_WORKTREE_BRANCH_PATTERN = new RegExp(`^${WORKTREE_BRANCH_PREFIX}[-/][0-9a-f]{8}$`);
 
 export function sanitizeBranchFragment(raw: string): string {
-  const normalized = raw
-    .normalize("NFKD")
-    .replace(/[̀-ͯ]/g, "")
+  const normalized = foldLatinDiacritics(raw)
     .trim()
     .toLowerCase()
     .replace(/['"`]/g, "")

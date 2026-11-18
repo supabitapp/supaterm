@@ -921,22 +921,23 @@ it.effect("moves a queued message to the end when beforeRunId is null", () => {
   );
 });
 
-it.effect("refuses act-as-caller tools to a client caller", () =>
+it.effect("hides act-as-caller tools from a client caller", () =>
   Effect.gen(function* () {
     const server = yield* McpServer.McpServer;
-    const result = yield* server
+    const error = yield* server
       .callTool({
         name: "delegate_task",
         arguments: { task: "Review", mode: "async" },
       })
       .pipe(
+        Effect.flip,
         Effect.provideService(
           McpInvocationContext.McpInvocationContext,
           clientScope("full-access"),
         ),
         Effect.provideService(McpSchema.McpServerClient, client),
       );
-    expect(declaredFailure(result)).toMatchObject({ code: "thread_credential_required" });
+    expect(error.message).toContain("Tool 'delegate_task' not found");
   }).pipe(
     Effect.provide(
       layerOrchestratorToolkit.pipe(
@@ -1100,6 +1101,51 @@ it.effect.each([
           Layer.mock(ScheduledTaskService.ScheduledTaskService)({
             list: () => Effect.succeed({ tasks }),
             runNow: () => Effect.fail(error),
+          }),
+        ),
+      ),
+    ),
+  ),
+);
+
+it.effect("run_scheduled_task_now reports why a started run failed to dispatch", () =>
+  Effect.gen(function* () {
+    const server = yield* McpServer.McpServer;
+    const result = yield* server
+      .callTool({ name: "run_scheduled_task_now", arguments: { taskId: "task-full-access" } })
+      .pipe(
+        Effect.provideService(
+          McpInvocationContext.McpInvocationContext,
+          clientScope("full-access"),
+        ),
+        Effect.provideService(McpSchema.McpServerClient, client),
+      );
+    expect(result.isError).toBe(false);
+    expect(result.structuredContent).toMatchObject({
+      threadId: null,
+      lastRunStatus: "failed",
+      lastRunError: "the provider is disabled",
+    });
+  }).pipe(
+    Effect.provide(
+      McpHttpServer.layerThreadToolkit.pipe(
+        Layer.provideMerge(McpHttpServer.layerInProcessMcpServer),
+        Layer.provide(NodeCrypto.layer),
+        Layer.provide(Layer.mock(ThreadManagement.ThreadManagementService)({})),
+        Layer.provide(Layer.mock(ThreadSearch.ThreadSearch)({})),
+        Layer.provide(
+          Layer.mock(ScheduledTaskService.ScheduledTaskService)({
+            list: () =>
+              Effect.succeed({ tasks: [scheduledTask("task-full-access", "full-access")] }),
+            runNow: () =>
+              Effect.succeed({
+                threadId: null,
+                task: {
+                  ...(scheduledTask("task-full-access", "full-access") as object),
+                  lastRunStatus: "failed" as const,
+                  lastRunError: "the provider is disabled",
+                },
+              } as never),
           }),
         ),
       ),
