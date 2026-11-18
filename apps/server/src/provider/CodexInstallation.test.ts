@@ -500,7 +500,7 @@ it.effect.each(["cached update", "reverify"] as const)(
           compatibility: [
             {
               driver: "codex",
-              supatermCodeRange: ">=0.0.0",
+              supatermRange: ">=0.0.0",
               ranges: [{ range: ">=0.156.0", status: "supported" }],
             },
           ],
