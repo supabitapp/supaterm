@@ -6,6 +6,8 @@ const dictionary = [
   { term: "Supaterm", aliases: ["super term"] },
   { term: "PostgreSQL", aliases: ["postgres q l"] },
   { term: "Hum", aliases: ["हम"] },
+  { term: "GitHub", aliases: ["git hub"] },
+  { term: "React", aliases: ["瑞安特"] },
 ];
 
 describe("applyDictionary", () => {
@@ -17,6 +19,11 @@ describe("applyDictionary", () => {
     ["an alias spoken across spaces", "back up postgres q   l", "back up PostgreSQL"],
     ["an alias inside a longer word", "supertermination", "supertermination"],
     ["an alias followed by a combining mark", "हमें जाना है।", "हमें जाना है।"],
+    [
+      "a spelling next to Chinese and Japanese text",
+      "我用github和瑞安特，部署到super term上。git hubで管理する。",
+      "我用GitHub和React，部署到Supaterm上。GitHubで管理する。",
+    ],
   ])("spells %s as the dictionary does", (_case, text, expected) => {
     expect(applyDictionary(text, dictionary)).toBe(expected);
   });

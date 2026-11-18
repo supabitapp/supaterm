@@ -252,6 +252,17 @@ export const resolveHostCliCommand = Effect.fn("invocation.resolveHostCliCommand
   return { command: withArgs(`${runAsNode}${call} ${subcommand}`), launcher: true };
 });
 
+/** A hint's command, run against the caller's `--base-dir` when one was given. */
+export const resolveHostCliHint = (
+  subcommand: string,
+  baseDir: Option.Option<string>,
+  args: ReadonlyArray<string> = [],
+) =>
+  resolveHostCliCommand(subcommand, [
+    ...Option.match(baseDir, { onNone: () => [], onSome: (dir) => ["--base-dir", dir] }),
+    ...args,
+  ]).pipe(Effect.map(({ command }) => command));
+
 export const resolveRootCliCommand = Effect.fn("invocation.resolveRootCliCommand")(function* (
   subcommand: string,
   args: ReadonlyArray<string> = [],

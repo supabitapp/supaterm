@@ -110,6 +110,16 @@ if (mode === "cursor-shell") {
     }),
   );
   setTimeout(() => process.exit(0), 500);
+} else if (mode === "stall-abort") {
+  const stall = new DOMException("This operation was aborted", "AbortError");
+  stall.stack = "AbortError: This operation was aborted\\n    at Is.onStall (689.js:1:111536)";
+  Promise.reject(stall);
+  setTimeout(() => process.exit(0), 500);
+} else if (mode === "abort-elsewhere") {
+  const abort = new DOMException("onStall was aborted", "AbortError");
+  abort.stack = "AbortError: onStall was aborted\\n    at somewhereElse (app.js:1:1)";
+  Promise.reject(abort);
+  setTimeout(() => process.exit(0), 500);
 } else if (mode === "closed-stream-message") {
   Promise.reject(new Error("WritableIterable is closed"));
   setTimeout(() => process.exit(0), 500);
@@ -204,6 +214,18 @@ describe("Cursor shell spawn guard", () => {
 
   it("still exits on aborted requests other than a write after end", async () => {
     const result = await runProbe("aborted-other");
+    expect(result.code).toBe(1);
+    expect(result.stderr).not.toContain("The server will keep running.");
+  });
+
+  it("keeps the process alive when the SDK aborts a stalled request", async () => {
+    const result = await runProbe("stall-abort");
+    expect(result.code).toBe(0);
+    expect(result.stderr).toContain("aborted a stalled request");
+  });
+
+  it("still exits on an abort that was not raised from onStall", async () => {
+    const result = await runProbe("abort-elsewhere");
     expect(result.code).toBe(1);
     expect(result.stderr).not.toContain("The server will keep running.");
   });

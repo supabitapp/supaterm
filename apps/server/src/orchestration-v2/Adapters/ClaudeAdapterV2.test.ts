@@ -6595,12 +6595,12 @@ describe("ClaudeAdapterV2 background wake turns", () => {
         { action: "accept", content: { region: "us-east-1" } },
       ],
       [
-        "URL mode as a decline",
+        "URL mode as a cancel",
         { ...approvalOnly, mode: "url", url: "https://example.com/auth" },
-        { action: "decline" },
+        { action: "cancel" },
       ],
       [
-        "a value with no default as a decline",
+        "a value with no default as a cancel",
         {
           ...approvalOnly,
           requestedSchema: {
@@ -6609,7 +6609,7 @@ describe("ClaudeAdapterV2 background wake turns", () => {
             required: ["reason"],
           },
         },
-        { action: "decline" },
+        { action: "cancel" },
       ],
     ] satisfies ReadonlyArray<[string, ElicitationRequest, ElicitationResult]>)(
       "answers %s in Full access without a card",
@@ -6671,7 +6671,7 @@ describe("ClaudeAdapterV2 background wake turns", () => {
       }).pipe(Effect.scoped, Effect.provide(testLayer)),
     );
 
-    it.effect("declines URL and value forms without a card", () =>
+    it.effect("cancels URL and value forms without a card", () =>
       Effect.gen(function* () {
         const { elicit, runtimeRequests } = yield* startElicitationTurn();
         for (const request of [
@@ -6686,7 +6686,7 @@ describe("ClaudeAdapterV2 background wake turns", () => {
           },
           requiredWithDefault,
         ] satisfies ReadonlyArray<ElicitationRequest>) {
-          assert.deepEqual(yield* Fiber.join(yield* elicit(request)), { action: "decline" });
+          assert.deepEqual(yield* Fiber.join(yield* elicit(request)), { action: "cancel" });
         }
         assert.isEmpty(runtimeRequests());
       }).pipe(Effect.scoped, Effect.provide(testLayer)),

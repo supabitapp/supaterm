@@ -36,6 +36,8 @@ import * as SqlClient from "effect/sql/SqlClient";
 import * as ThreadLaunchService from "../orchestration-v2/ThreadLaunchService.ts";
 import * as ManagedProjectFolders from "../project/ManagedProjectFolders.ts";
 import * as ThreadManagementService from "../orchestration-v2/ThreadManagementService.ts";
+import { OrchestratorDispatchError } from "../orchestration-v2/Orchestrator.ts";
+import { userFacingDispatchErrorMessage } from "../orchestration-v2/UserFacingErrors.ts";
 import * as DueHint from "../scheduling/DueHint.ts";
 import * as Scheduler from "../scheduling/Scheduler.ts";
 import { latestRootProviderFailure } from "@supaterm/shared/orchestrationV2ThreadError";
@@ -43,6 +45,7 @@ import { isMissedFixedTimeRun, isSameSchedule, nextScheduledRunAt } from "./Sche
 
 const decodeTask = Schema.decodeUnknownEffect(ScheduledTask);
 const isScheduledTaskError = Schema.is(ScheduledTaskError);
+const isOrchestratorDispatchError = Schema.is(OrchestratorDispatchError);
 const decodeTaskId = Schema.decodeUnknownOption(ScheduledTaskId);
 const decodeScheduleJson = Schema.decodeUnknownEffect(
   Schema.fromJsonString(ScheduledTask.fields.schedule),
@@ -189,6 +192,14 @@ function requireFutureOnce(
 function errorMessage(error: unknown): string {
   const failure = Cause.isCause(error) ? Cause.squash(error) : error;
   return failure instanceof Error ? failure.message : String(failure);
+}
+
+function dispatchErrorMessage(cause: Cause.Cause<unknown>): string {
+  const failure = Cause.squash(cause);
+  // Direct orchestration refusals are user-facing; nested defects can contain private data.
+  return isOrchestratorDispatchError(failure) && typeof failure.cause === "string"
+    ? (userFacingDispatchErrorMessage(failure.cause) ?? errorMessage(failure))
+    : errorMessage(failure);
 }
 
 // Runs per task row; list and lookup operations already own the span.
@@ -761,7 +772,7 @@ export const layer = Layer.effect(
         const completedAt = yield* localNow;
         const runSucceeded = result._tag === "Success";
         const lastRunStatus = runSucceeded ? ("succeeded" as const) : ("failed" as const);
-        const lastRunError = runSucceeded ? null : errorMessage(result.cause);
+        const lastRunError = runSucceeded ? null : dispatchErrorMessage(result.cause);
         const threadId = runSucceeded ? result.value : null;
         // One transaction, so an edit cannot land between reading the schedule and
         // writing the next run computed from it.
