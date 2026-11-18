@@ -740,6 +740,7 @@ function AnchoredToasts() {
         aria-label={undefined}
         className="outline-none"
         data-slot="toast-viewport-anchored"
+        // oxlint-disable-next-line jsx-a11y/aria-role -- drops Base UI's region role so only the corner viewport is a Notifications landmark
         role={undefined}
       >
         {toasts

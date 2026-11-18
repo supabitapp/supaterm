@@ -73,6 +73,7 @@ function NativeFilePreview(props: FilePreviewViewerProps) {
         identifier,
       );
     }
+    // oxlint-disable-next-line react-doctor/no-prop-callback-in-effect -- reports the native viewer opening, so the caller can tell a closed viewer from one still opening
     onPresent(() => NativeControls.isFilePreviewFinished(identifier));
     void presentation
       .catch((error: unknown) => {

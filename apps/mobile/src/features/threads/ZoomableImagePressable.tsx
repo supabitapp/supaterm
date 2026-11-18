@@ -1,7 +1,9 @@
-import { useEffectEvent, useRef, useState, type ComponentProps, type ReactNode } from "react";
+import { useRef, useState, type ComponentProps, type ReactNode } from "react";
 import { Platform, Pressable, StyleSheet } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, { runOnJS, useAnimatedStyle, useSharedValue } from "react-native-reanimated";
+
+import { useStableCallback } from "../../lib/useStableCallback";
 
 const MAX_INLINE_ZOOM = 6;
 // Below UIScrollView's drag hysteresis, so a zoomed pan wins over the feed scroll.
@@ -53,7 +55,7 @@ function IosZoomableImagePressable({
   const pinchStart = useSharedValue({ zoom: FIT, focalX: 0, focalY: 0, scale: 1, pointers: 0 });
   const panStart = useSharedValue({ zoom: FIT, translationX: 0, translationY: 0 });
 
-  const markGestured = useEffectEvent(() => {
+  const markGestured = useStableCallback(() => {
     gestured.current = true;
   });
   const [gesture] = useState(() => {
