@@ -515,8 +515,14 @@ export const make = Effect.fn("EnvironmentSupervisor.make")(function* (
       const next = yield* Queue.take(signals);
       switch (next._tag) {
         case "DisconnectRequested":
-        case "RetryRequested":
           return false;
+        case "RetryRequested":
+          // Once the loop has taken this retry's flag, the running attempt is
+          // the one the retry asked for.
+          if (yield* Ref.get(resetRetryState)) {
+            return false;
+          }
+          break;
         case "NetworkChanged":
           if (target._tag !== "PrimaryConnectionTarget") {
             if (next.network === "offline" && !ignoreOffline) {
@@ -1142,9 +1148,13 @@ export const make = Effect.fn("EnvironmentSupervisor.make")(function* (
     };
 
     for (;;) {
-      if (yield* Ref.getAndSet(resetRetryState, false)) {
+      const retryRequested = yield* Ref.getAndSet(resetRetryState, false);
+      if (retryRequested) {
         failureCount = 0;
         latestFailure = null;
+        // The platform's offline report can stay wrong after the network is back,
+        // so an explicit retry still tries instead of waiting for it to change.
+        attemptWhileOffline = true;
       }
       const currentIntent = yield* Ref.get(intent);
       if (!currentIntent.desired) {

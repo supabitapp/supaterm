@@ -13,6 +13,7 @@ import * as ServerConfig from "../../config.ts";
 import * as IdAllocator from "@supaterm/provider-core/server/IdAllocator";
 import * as ProviderAdapter from "@supaterm/provider-core/server/ProviderAdapter";
 import { ProviderAdapterDriverCreateError } from "@supaterm/provider-core/server/adapterDriver";
+import * as PortScanner from "../../preview/PortScanner.ts";
 import * as ProviderAdapterRegistry from "../ProviderAdapterRegistry.ts";
 import {
   makeReplayServerConfig,
@@ -146,6 +147,7 @@ export function layer(input: {
         NodeServices.layer,
         NodeCrypto.layer,
         IdAllocator.layer,
+        PortScanner.layerTest,
       ),
     ),
   );

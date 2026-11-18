@@ -77,6 +77,9 @@ const gitProcesses = Semaphore.makeUnsafe(8);
 const fetchLocks = KeyedLock.makeUnsafe<string>();
 const sharedConfigLocks = KeyedLock.makeUnsafe<string>();
 const backgroundGitProcesses = Semaphore.makeUnsafe(2);
+// The fetch before `git worktree add` downloads everything the remote gained since
+// the last fetch; on busy repositories that alone outlasts the 30s default.
+const FETCH_REMOTE_TIMEOUT_MS = Duration.toMillis(Duration.minutes(5));
 const WORKTREE_INDEX_REFRESH_TIMEOUT_MS = Duration.toMillis(Duration.minutes(5));
 const WORKTREE_REMOVE_TIMEOUT_MS = Duration.toMillis(Duration.minutes(5));
 const DEFAULT_MAX_OUTPUT_BYTES = 1_000_000;
@@ -4976,6 +4979,7 @@ export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(function* 
     const options = {
       env: STATUS_UPSTREAM_REFRESH_ENV,
       fallbackErrorDetail: `git fetch ${input.remoteName} failed`,
+      timeoutMs: FETCH_REMOTE_TIMEOUT_MS,
     };
     const runFetch = (fetchArgs: readonly string[]) =>
       executeGitWithStableDiagnostics("GitVcsDriver.fetchRemote", input.cwd, fetchArgs, {

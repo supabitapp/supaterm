@@ -660,7 +660,7 @@ describe("RpcSessionFactory", () => {
       for (const event of replay) {
         projection = applyServerConfigProjection(projection, event);
       }
-      expect(Option.getOrThrow(projection).config.environmentThemes).toBeUndefined();
+      expect(Option.getOrThrow(projection).config.environmentThemes).toEqual([]);
     }),
   );
 
@@ -775,7 +775,7 @@ describe("RpcSessionFactory", () => {
       for (const event of recovered.slice(1)) {
         projection = applyServerConfigProjection(projection, event);
       }
-      expect(Option.getOrThrow(projection).config.environmentThemes).toBeUndefined();
+      expect(Option.getOrThrow(projection).config.environmentThemes).toEqual([]);
     }),
   );
 
