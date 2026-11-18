@@ -1345,7 +1345,7 @@ export function withoutClaudeCanUseToolShadowedWarning<A>(run: () => A): A {
     if (typeof options === "object" && options.code === CLAUDE_CAN_USE_TOOL_SHADOWED_WARNING) {
       return;
     }
-    return Reflect.apply(emitWarning, this, args);
+    return emitWarning.apply(this, args);
   } as typeof emitWarning;
   try {
     return run();
