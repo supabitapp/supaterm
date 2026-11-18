@@ -197,9 +197,9 @@ describe("CDP relay extra sessions", () => {
         }),
       );
     const delivered = () => {
-      const frames = written
-        .filter((m) => m["method"])
-        .map((m) => [m["sessionId"], (m["params"] as { sessionId?: number }).sessionId]);
+      const frames = written.flatMap((m) =>
+        m["method"] ? [[m["sessionId"], (m["params"] as { sessionId?: number }).sessionId]] : [],
+      );
       written.length = 0;
       return frames;
     };
