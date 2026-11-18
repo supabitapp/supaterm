@@ -1,5 +1,6 @@
 import type {
   OrchestrationV2ProjectedTurnItem,
+  OrchestrationV2Subagent,
   OrchestrationV2ThreadProjection,
 } from "@supaterm/contracts";
 import { isOrchestrationV2TurnItemVisible } from "@supaterm/shared/orchestrationV2Timeline";
@@ -193,6 +194,17 @@ export function mergeOlderHistoryIntoProjection(
     turnItems: [...turnItemById.values()],
     visibleTurnItems: renumberVisible(visible),
   };
+}
+
+/** Adds the records of older subagents; a record already held is newer and stays. */
+export function mergeOlderSubagentsIntoProjection(
+  projection: OrchestrationV2ThreadProjection,
+  olderSubagents: ReadonlyArray<OrchestrationV2Subagent> | undefined,
+): OrchestrationV2ThreadProjection {
+  const held = new Set(projection.subagents.map((agent) => agent.id));
+  const added = olderSubagents?.filter((agent) => !held.has(agent.id)) ?? [];
+  if (added.length === 0) return projection;
+  return { ...projection, subagents: [...added, ...projection.subagents] };
 }
 
 export function applyHistoryPageMeta(
