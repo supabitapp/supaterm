@@ -43,6 +43,10 @@ vi.mock(import("../../state/threadOutbox"), async (importOriginal) => ({
     send.events.push("enqueue");
     send.enqueued.push(...turns);
   }) as never,
+  enqueueThreadOutboxTurn: (async (turn: unknown) => {
+    send.events.push("enqueue");
+    send.enqueued.push(turn);
+  }) as never,
 }));
 vi.mock(import("../../state/composerQueue"), async (importOriginal) => ({
   ...(await importOriginal()),
@@ -291,11 +295,11 @@ describe("useComposerSend during worktree setup", () => {
     [false, "queue"],
     [true, "steer"],
   ] as const)(
-    "sends a steer with deferredSteering %s as %s",
+    "sends a typed or voice steer with deferredSteering %s as %s",
     async (deferredSteering, dispatchMode) => {
       send.events = [];
       send.enqueued = [];
-      let onSend: ReturnType<typeof useComposerSend>["onSend"] | undefined;
+      let composerSend: ReturnType<typeof useComposerSend> | undefined;
       function Probe() {
         const current = useComposerSend({
           ...sendInput(async () => AsyncResult.success({ sequence: 1 })),
@@ -306,16 +310,23 @@ describe("useComposerSend during worktree setup", () => {
           deferredSteering,
         });
         useLayoutEffect(() => {
-          onSend = current.onSend;
+          composerSend = current;
         });
         return null;
       }
       await using _screen = await render(<Probe />);
       await act(async () => {
-        await onSend?.(undefined, "steer");
+        await composerSend?.onSend(undefined, "steer");
+        await composerSend?.prepareVoiceSend("steer", "en")(
+          { audio: new Blob(), durationMs: 1000 },
+          undefined,
+        );
       });
 
-      expect(send.enqueued).toMatchObject([{ input: { message: { text: prompt }, dispatchMode } }]);
+      expect(send.enqueued).toMatchObject([
+        { input: { message: { text: prompt }, dispatchMode } },
+        { input: { message: { text: "" }, dispatchMode }, voice: { language: "en" } },
+      ]);
     },
   );
 });

@@ -8,7 +8,10 @@ import {
   type PreviewAnnotationPayload,
 } from "@supaterm/contracts";
 import type { VoiceRecordingHandOff } from "@supaterm/client-runtime/voice-input";
-import { type ComposerDispatchMode } from "@supaterm/client-runtime/state/composer-dispatch";
+import {
+  outboxDispatchMode,
+  type ComposerDispatchMode,
+} from "@supaterm/client-runtime/state/composer-dispatch";
 import {
   type ComposerImageAttachment,
   checkoutPullRequestUrlToLink,
@@ -930,12 +933,7 @@ export function useComposerSend(input: ComposerSendInput) {
               titleSeed: title,
               runtimeMode,
               interactionMode: target.interactionMode,
-              // Like mobile, a delayed steer follows current server state at delivery. A steer
-              // during setup stays a steer, so the server delivers it once the turn runs.
-              dispatchMode:
-                turnDispatchMode === "steer" && !sendQueuesBehindSetup
-                  ? ("auto" as const)
-                  : turnDispatchMode,
+              dispatchMode: turnDispatchMode,
               ...(freshArm === undefined ? {} : { freshContext: true }),
               ...(bootstrap ? { bootstrap } : {}),
               createdAt: messageCreatedAt,
@@ -1041,14 +1039,17 @@ export function useComposerSend(input: ComposerSendInput) {
       throw new Error("Voice messages need a thread that has started.");
     }
     const freshArm = freshSessionAvailable ? readFreshSessionArm(routeThreadKey) : undefined;
-    const turnDispatchMode = freshTurnDispatchMode(dispatchMode, freshArm !== undefined);
     const input = {
       threadId: activeThread.id,
       message: { messageId: newMessageId(), role: "user" as const, text: "", attachments: [] },
       modelSelection: sendCtx.selectedModelSelection,
       runtimeMode,
       interactionMode: sendCtx.interactionMode,
-      dispatchMode: turnDispatchMode === "steer" ? ("auto" as const) : turnDispatchMode,
+      dispatchMode: outboxDispatchMode({
+        dispatchMode: freshTurnDispatchMode(dispatchMode, freshArm !== undefined),
+        setupRunning: sendQueuesBehindSetup,
+        deferredSteering,
+      }),
       ...(freshArm === undefined ? {} : { freshContext: true }),
       createdAt: new Date().toISOString(),
     };

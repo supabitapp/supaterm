@@ -10,7 +10,10 @@ import {
   usageLimitRunPresentedAsLatest,
 } from "@supaterm/shared/orchestrationV2ThreadError";
 import * as Option from "effect/Option";
-import type { ComposerDispatchMode } from "@supaterm/client-runtime/state/composer-dispatch";
+import {
+  outboxDispatchMode,
+  type ComposerDispatchMode,
+} from "@supaterm/client-runtime/state/composer-dispatch";
 import { removeInlineContextReference } from "~/lib/composerContextReferences";
 import {
   previewAnnotationContextLabel,
@@ -1367,10 +1370,11 @@ export function planComposerTurn(input: {
       environmentUnavailable: input.environmentUnavailable,
     }),
     baseBranchForWorktree: shouldCreateWorktree ? input.activeThreadBranch : null,
-    turnDispatchMode:
-      input.sendQueuesBehindSetup && !(input.deferredSteering && dispatchMode === "steer")
-        ? ("queue" as const)
-        : dispatchMode,
+    turnDispatchMode: outboxDispatchMode({
+      dispatchMode,
+      setupRunning: input.sendQueuesBehindSetup,
+      deferredSteering: input.deferredSteering,
+    }),
     shouldQueueBehindActiveRun:
       input.sendQueuesBehindSetup || (input.phase === "running" && dispatchMode === "queue"),
   };

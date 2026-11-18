@@ -1384,16 +1384,12 @@ describe("planComposerTurn", () => {
       true,
     );
     expect(planComposerTurn({ ...running, dispatchMode: "steer" })).toMatchObject({
-      turnDispatchMode: "steer",
+      turnDispatchMode: "auto",
       shouldQueueBehindActiveRun: false,
     });
     const settingUp = { ...running, sendQueuesBehindSetup: true, dispatchMode: "steer" as const };
     expect(planComposerTurn(settingUp)).toMatchObject({
       turnDispatchMode: "queue",
-      shouldQueueBehindActiveRun: true,
-    });
-    expect(planComposerTurn({ ...settingUp, deferredSteering: true })).toMatchObject({
-      turnDispatchMode: "steer",
       shouldQueueBehindActiveRun: true,
     });
     // A fresh session cannot join the running turn.
