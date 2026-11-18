@@ -36,6 +36,15 @@ Implement only approved items. If the scope expands, present a revised proposal 
 
 Before declaring a port complete, byte-compare every agent-facing prompt, tool description, MCP schema, and returned instruction against the pinned upstream commit, allowing only required renames and explicitly approved fork exceptions.
 
+## Test every ported feature before the PR
+
+Green tests do not prove a port. Before you open or update the PR, run the integrated branch on desktop and on mobile and exercise every user-visible feature and fix the port brings, plus the fork-only features its conflicts touched:
+
+- **Desktop:** run `vp run dev:desktop` and drive the Electron app (with `agent-desktop` where available). Cover startup, the shell's own surfaces (preview browser, menus, updates, keep awake, drag and drop), and each ported web feature. Use [test-supaterm-app](../test-supaterm-app/SKILL.md) for the web client in the Browser panel and free `Replay (dev)` turns.
+- **Mobile:** follow [test-supaterm-mobile](../test-supaterm-mobile/SKILL.md) on both an iOS simulator and an Android emulator. Run `vp run mobile:install` first, because a port usually changes the native fingerprint. Cover pairing, a turn with an approval, the outbox offline and back online, voice, the terminal, and each ported mobile feature.
+
+Keep a checklist with one line per ported feature and its result on each surface. Capture screenshots for the PR. A feature you could not exercise stays on the checklist as unverified, with the reason, and goes in the PR body. Fix regressions you find before opening the PR.
+
 When the developer asks for a PR, create one including the whole port.
 
 ## Notes
