@@ -14,6 +14,7 @@ import { page, userEvent } from "vite-plus/test/browser";
 import "~/index.css";
 
 import { render } from "../../../test/render";
+import { ComposerHandleContext, type ComposerHandleRef } from "../../composerHandleContext";
 import { __setClientSettingsForTests } from "../../hooks/useSettings";
 import { deriveProviderInstanceEntries } from "../../providerInstances";
 import { ProviderModelPicker } from "./ProviderModelPicker";
@@ -194,4 +195,35 @@ it("opens on the active provider when every favorite belongs to a disabled provi
   );
   await screen.getByRole("button", { name: "Choose model" }).click();
   await expect.element(page.getByRole("option", { name: /Codex model/ })).toBeVisible();
+});
+
+it("on a touch tablet, picking a model leaves the editor unfocused", async () => {
+  const realMatchMedia = window.matchMedia.bind(window);
+  using _touch = vi
+    .spyOn(window, "matchMedia")
+    .mockImplementation((query) => realMatchMedia(query === "(pointer: coarse)" ? "all" : query));
+  const handle = { focusAtEnd: vi.fn() };
+  const composerRef = { current: handle } as unknown as ComposerHandleRef;
+  await using screen = await render(
+    <ComposerHandleContext value={composerRef}>
+      <ProviderModelPicker
+        environmentId={null}
+        activeInstanceId={instanceId}
+        model={opus.slug}
+        lockedProvider={null}
+        instanceEntries={deriveProviderInstanceEntries([provider])}
+        modelOptionsByInstance={new Map([[instanceId, [opus]]])}
+        triggerAriaLabel="Choose model"
+        isComposerOwned
+        onInstanceModelChange={() => {}}
+      />
+    </ComposerHandleContext>,
+  );
+  await screen.getByRole("button", { name: "Choose model" }).click();
+  const option = page.getByRole("option", { name: /Claude Opus 5\.5/ });
+  await expect.element(option).toBeVisible();
+  await userEvent.click(option);
+  await expect.element(option).not.toBeInTheDocument();
+  // Focusing the editor after a tap opens the on-screen keyboard on Android tablets.
+  expect(handle.focusAtEnd).not.toHaveBeenCalled();
 });
