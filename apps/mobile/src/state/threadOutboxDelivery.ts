@@ -62,6 +62,7 @@ import { environmentServerConfigsAtom, serverEnvironment } from "./server";
 import { prepareQueuedThreadCreation } from "./queued-thread-creation";
 import { fetchVcsRefs } from "./vcs";
 import { uploadComposerAttachmentShared } from "./composer-attachment-uploads";
+import { recordQueuedAttachmentUploads } from "./queued-attachment-uploads";
 import { gitEnvironment } from "./git";
 import { environmentSession, readEnvironmentScope, sessionHasScope } from "./session";
 import {
@@ -93,9 +94,11 @@ import {
 import { environmentThreadShells, threadEnvironment, threadFamilies } from "./threads";
 import {
   appendComposerDraftAttachments,
+  applyComposerDraftContent,
+  captureComposerDraftMerge,
   composerDraftsAtom,
   flushComposerDrafts,
-  type ComposerDraft,
+  type ComposerDraftMergeReceipt,
   getComposerDraftSnapshot,
   mergeComposerDraftContent,
   replaceComposerDraftAttachments,
@@ -242,7 +245,6 @@ class ThreadOutboxStorageError extends Schema.TaggedError<ThreadOutboxStorageErr
       "flush-drafts",
       "remove-recovered",
       "remove-restored",
-      "fold-follow-up",
       "hold",
     ]),
     messageId: Schema.String,
@@ -286,7 +288,6 @@ export const prepareQueuedMessageAttachments = Effect.fn("ThreadOutbox.prepareAt
     const revision = threadOutboxRevision(queuedMessage.messageId);
     if (!isQueuedMessagePayloadCurrent(queuedMessage, revision)) return abandoned;
     let persistedMessage = queuedMessage;
-    let deliveryRevision = revision;
     const result = yield* prepareTurnAttachments({
       environmentId: queuedMessage.environmentId,
       attachments: queuedMessage.attachments,
@@ -296,22 +297,28 @@ export const prepareQueuedMessageAttachments = Effect.fn("ThreadOutbox.prepareAt
         draftAttachments: ReadonlyArray<DraftComposerAttachment>,
       ) {
         if (isEditingQueuedMessage(queuedMessage.messageId)) return "abandon" as const;
-        const updatedMessage = { ...queuedMessage, attachments: draftAttachments };
-        if (!(yield* Effect.promise(() => updateThreadOutboxMessage(updatedMessage, revision)))) {
+        const committed = yield* Effect.promise(() =>
+          recordQueuedAttachmentUploads(queuedMessage.messageId, draftAttachments),
+        );
+        if (committed === null || threadOutboxRevision(queuedMessage.messageId) !== revision) {
           return "abandon" as const;
         }
-        persistedMessage = updatedMessage;
-        deliveryRevision = revision + 1;
+        persistedMessage = committed;
         return "persisted" as const;
       }),
     });
     if (
       result.status === "abandoned" ||
-      !isQueuedMessagePayloadCurrent(persistedMessage, deliveryRevision)
+      !isQueuedMessagePayloadCurrent(persistedMessage, revision)
     ) {
       return abandoned;
     }
-    return { status: "ready", prepared: result, persistedMessage, deliveryRevision } as const;
+    return {
+      status: "ready",
+      prepared: result,
+      persistedMessage,
+      deliveryRevision: revision,
+    } as const;
   },
 );
 
@@ -459,11 +466,10 @@ export const restoreRejectedQueuedMessage = Effect.fn("ThreadOutbox.restoreRejec
     const threadKey = scopedThreadKey(queuedMessage.environmentId, queuedMessage.threadId);
     const editing = () => isEditingQueuedMessage(queuedMessage.messageId);
     // Until the queue drops the message, a failure undoes the merge, keeping concurrent edits.
-    let rollback: { readonly snapshot: ComposerDraft; readonly merged: ComposerDraft } | null =
-      null;
-    const undo = (snapshot: ComposerDraft, merged: ComposerDraft) =>
+    let rollback: ComposerDraftMergeReceipt | null = null;
+    const undo = (receipt: ComposerDraftMergeReceipt) =>
       storage("undo-draft-merge", queuedMessage.messageId, () =>
-        undoComposerDraftMerge(draftKey, snapshot, merged),
+        undoComposerDraftMerge(draftKey, receipt.snapshot, receipt.merged),
       );
     return yield* Effect.gen(function* () {
       if (editing() || !(yield* confirmQueued(queuedMessage)) || editing()) {
@@ -472,9 +478,8 @@ export const restoreRejectedQueuedMessage = Effect.fn("ThreadOutbox.restoreRejec
       const revision = threadOutboxRevision(queuedMessage.messageId);
       yield* storage("load-drafts", queuedMessage.messageId, () => waitForComposerDraftsLoaded());
       if (editing()) return "deferred" as const;
-      const originalDraft = getComposerDraftSnapshot(draftKey);
       const existingAttachmentIds = new Set(
-        originalDraft.attachments.map((attachment) => attachment.id),
+        getComposerDraftSnapshot(draftKey).attachments.map((attachment) => attachment.id),
       );
       const addedAttachmentCount = queuedMessage.attachments.filter(
         (attachment) => !existingAttachmentIds.has(attachment.id),
@@ -487,74 +492,55 @@ export const restoreRejectedQueuedMessage = Effect.fn("ThreadOutbox.restoreRejec
         );
         return "blocked" as const;
       }
-
-      const withdraw = (merged: ComposerDraft) =>
-        Effect.sync(() => clearThreadComposerError(threadKey, queuedMessage.messageId)).pipe(
-          Effect.andThen(undo(originalDraft, merged)),
-          Effect.as("deferred" as const),
-        );
-      if (!queuedMessage.creation) {
-        setThreadComposerError(threadKey, message, queuedMessage.messageId);
-      }
-      stampRecoveryDraftProject(queuedMessage, draftKey);
-      // The merge publishes even when persisting it fails, so the rollback is captured either way.
-      yield* storage("restore-to-draft", queuedMessage.messageId, () =>
-        mergeComposerDraftContent(draftKey, {
-          text: queuedMessage.text,
-          context: queuedMessage.context,
-          attachments: queuedMessage.attachments,
-        }),
-      ).pipe(
-        Effect.ensuring(
-          Effect.sync(() => {
-            rollback = { snapshot: originalDraft, merged: getComposerDraftSnapshot(draftKey) };
-          }),
-        ),
-      );
-      if (editing()) return yield* withdraw(getComposerDraftSnapshot(draftKey));
-      updateComposerDraftSettings(draftKey, {
-        ...(queuedMessage.modelSelection ? { modelSelection: queuedMessage.modelSelection } : {}),
-        ...(queuedMessage.runtimeMode ? { runtimeMode: queuedMessage.runtimeMode } : {}),
-        ...(queuedMessage.freshContext ? { freshContext: true } : {}),
-        ...(queuedMessage.creation
-          ? {
-              workspaceSelection: {
-                mode: queuedMessage.creation.workspaceMode,
-                branch: queuedMessage.creation.branch,
-                worktreePath: queuedMessage.creation.worktreePath,
-                pullRequestReference: queuedMessage.creation.pullRequestReference,
-                ...(queuedMessage.creation.startFromOrigin !== undefined
-                  ? { startFromOrigin: queuedMessage.creation.startFromOrigin }
-                  : {}),
-              },
-            }
-          : {}),
-      });
       // Follow-ups queued behind a rejected task have no thread to reach. They join its draft in
       // this same merge, so a rollback takes them out with the task and a retry cannot add them twice.
       const followUps = queuedMessage.creation ? queuedFollowUps(threadKey) : [];
       if (followUps.some((followUp) => isEditingQueuedMessage(followUp.messageId))) {
-        return yield* withdraw(getComposerDraftSnapshot(draftKey));
+        return "deferred" as const;
       }
-      for (const followUp of followUps) {
-        yield* mergeFollowUpIntoDraft(draftKey, followUp).pipe(
-          Effect.ensuring(
-            Effect.sync(() => {
-              rollback = { snapshot: originalDraft, merged: getComposerDraftSnapshot(draftKey) };
-            }),
-          ),
-        );
+
+      if (!queuedMessage.creation) {
+        setThreadComposerError(threadKey, message, queuedMessage.messageId);
       }
-      const restoredDraft = getComposerDraftSnapshot(draftKey);
-      rollback = { snapshot: originalDraft, merged: restoredDraft };
+      const restored = captureComposerDraftMerge(draftKey, () => {
+        stampRecoveryDraftProject(queuedMessage, draftKey);
+        applyComposerDraftContent(draftKey, {
+          text: queuedMessage.text,
+          context: queuedMessage.context,
+          attachments: queuedMessage.attachments,
+        });
+        updateComposerDraftSettings(draftKey, {
+          ...(queuedMessage.modelSelection ? { modelSelection: queuedMessage.modelSelection } : {}),
+          ...(queuedMessage.runtimeMode ? { runtimeMode: queuedMessage.runtimeMode } : {}),
+          ...(queuedMessage.freshContext ? { freshContext: true } : {}),
+          ...(queuedMessage.creation
+            ? {
+                workspaceSelection: {
+                  mode: queuedMessage.creation.workspaceMode,
+                  branch: queuedMessage.creation.branch,
+                  worktreePath: queuedMessage.creation.worktreePath,
+                  pullRequestReference: queuedMessage.creation.pullRequestReference,
+                  ...(queuedMessage.creation.startFromOrigin !== undefined
+                    ? { startFromOrigin: queuedMessage.creation.startFromOrigin }
+                    : {}),
+                },
+              }
+            : {}),
+        });
+        for (const followUp of followUps) foldFollowUpIntoDraft(draftKey, followUp);
+      });
+      rollback = restored;
+      const withdraw = Effect.sync(() =>
+        clearThreadComposerError(threadKey, queuedMessage.messageId),
+      ).pipe(Effect.andThen(undo(restored)), Effect.as("deferred" as const));
       yield* storage("flush-drafts", queuedMessage.messageId, () => flushComposerDrafts());
       if (editing() || !(yield* confirmQueued(queuedMessage)) || editing()) {
-        return yield* withdraw(restoredDraft);
+        return yield* withdraw;
       }
       const removed = yield* storage("remove-restored", queuedMessage.messageId, () =>
         removeThreadOutboxMessage(queuedMessage, revision, () => !editing()),
       );
-      if (!removed) return yield* withdraw(restoredDraft);
+      if (!removed) return yield* withdraw;
       // After queue removal, the draft owns content and must never roll back.
       rollback = null;
       if (queuedMessage.creation) {
@@ -570,7 +556,7 @@ export const restoreRejectedQueuedMessage = Effect.fn("ThreadOutbox.restoreRejec
         for (const followUp of queuedFollowUps(threadKey)) {
           yield* Effect.gen(function* () {
             if (!folded.has(followUp.messageId)) {
-              yield* mergeFollowUpIntoDraft(draftKey, followUp);
+              foldFollowUpIntoDraft(draftKey, followUp);
               yield* storage("flush-drafts", followUp.messageId, () => flushComposerDrafts());
             }
             // The draft holds its content now. One left behind is dropped with the missing thread.
@@ -593,7 +579,7 @@ export const restoreRejectedQueuedMessage = Effect.fn("ThreadOutbox.restoreRejec
         Effect.gen(function* () {
           const pending: typeof rollback = rollback;
           if (pending !== null) {
-            yield* undo(pending.snapshot, pending.merged).pipe(
+            yield* undo(pending).pipe(
               Effect.catch((undoError) =>
                 Effect.logWarning(
                   "[thread-outbox] failed to persist a recovery rollback",
@@ -626,20 +612,14 @@ function queuedFollowUps(threadKey: string): ReadonlyArray<QueuedThreadMessage> 
   ).filter((message) => !message.creation);
 }
 
-const mergeFollowUpIntoDraft = (draftKey: string, followUp: QueuedThreadMessage) =>
-  storage("fold-follow-up", followUp.messageId, () =>
-    mergeComposerDraftContent(draftKey, {
-      text: followUp.text,
-      context: followUp.context,
-      attachments: [],
-    }),
-  ).pipe(
-    Effect.andThen(
-      Effect.sync(() =>
-        appendComposerDraftAttachments(draftKey, followUp.attachments, { restore: true }),
-      ),
-    ),
-  );
+function foldFollowUpIntoDraft(draftKey: string, followUp: QueuedThreadMessage): void {
+  applyComposerDraftContent(draftKey, {
+    text: followUp.text,
+    context: followUp.context,
+    attachments: [],
+  });
+  appendComposerDraftAttachments(draftKey, followUp.attachments, { restore: true });
+}
 
 /** Derive keys from message ids so failed recovery retries reuse the same draft. */
 function recoveryDraftKey(queuedMessage: QueuedThreadMessage): string {

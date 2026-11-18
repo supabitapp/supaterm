@@ -10,10 +10,12 @@ import {
   pickComposerFiles,
   pickComposerMedia,
   removePersistedComposerAttachmentFile,
+  skippedDuplicateAttachmentsMessage,
   type DraftComposerAttachment,
 } from "../lib/composerImages";
 import {
   appendComposerDraftAttachments,
+  type ComposerDraftAttachmentsAppend,
   captureComposerDraftInsertion,
   countComposerDraftAttachmentsAfterSelection,
   getComposerDraftSnapshot,
@@ -34,14 +36,14 @@ export function useComposerAttachmentActions(props: {
     signal: AbortSignal,
     attachments: ReadonlyArray<DraftComposerAttachment>,
     insertion: ComposerDraftInsertion,
-  ) => {
+  ): Promise<ComposerDraftAttachmentsAppend> => {
     if (signal.aborted) {
       await Promise.all(
         attachments.flatMap((item) =>
           item.fileUri ? [removePersistedComposerAttachmentFile(item.fileUri)] : [],
         ),
       );
-      return 0;
+      return { rejected: 0, duplicates: [] };
     }
     return appendComposerDraftAttachments(key, attachments, { appendReference: true, insertion });
   };
@@ -50,12 +52,18 @@ export function useComposerAttachmentActions(props: {
     const operation = startComposerDraftOperation(key);
     await work(operation.signal).finally(operation.finish);
   };
-  const report = (title: string, error: string | null | undefined, rejected: number) => {
+  const report = (
+    title: string,
+    error: string | null | undefined,
+    { rejected, duplicates }: ComposerDraftAttachmentsAppend,
+  ) => {
+    const skipped = skippedDuplicateAttachmentsMessage(duplicates);
     const problems = [
       ...(error ? [error] : []),
       ...(rejected
         ? [`You can attach up to ${PROVIDER_SEND_TURN_MAX_ATTACHMENTS} attachments per message.`]
         : []),
+      ...(skipped ? [skipped] : []),
     ];
     if (problems.length) Dialog.alert(title, problems.join("\n\n"));
   };
@@ -130,12 +138,12 @@ export function useComposerAttachmentActions(props: {
           name,
           maxBytes: clampFileAttachmentUploadBytes(maxUploadBytes),
         });
-        const rejected = await append(key, signal, [attachment], {
+        const appended = await append(key, signal, [attachment], {
           text: paste.value,
           ...paste.selection,
         });
-        if (rejected) await removePersistedComposerAttachmentFile(attachment.fileUri);
-        report("Could not attach pasted text", null, rejected);
+        if (appended.rejected) await removePersistedComposerAttachmentFile(attachment.fileUri);
+        report("Could not attach pasted text", null, appended);
       } catch (error) {
         Dialog.alert(
           "Could not attach pasted text",

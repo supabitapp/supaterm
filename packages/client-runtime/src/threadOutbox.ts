@@ -314,9 +314,10 @@ export function createThreadOutboxManager<Message extends { readonly createdAt: 
       return true;
     });
 
-  // Applies `change` to the message as it stands when this mutation's turn comes, so concurrent
-  // changes compose instead of failing on each other's revision. `null` leaves it unchanged.
-  const modify = (
+  // Bookkeeping such as uploaded attachment ids. `change` sees the message as it stands when this
+  // mutation's turn comes, so amendments compose, and the revision stays put, so an edit saved
+  // against it still lands. `null` leaves the message unchanged.
+  const amend = (
     messageId: MessageId,
     change: (message: Message) => Message | null,
   ): Promise<boolean> =>
@@ -354,7 +355,6 @@ export function createThreadOutboxManager<Message extends { readonly createdAt: 
         }
         return false;
       }
-      bumpRevision(messageId);
       setMessages(currentMessages().map((candidate) => (candidate === current ? next : candidate)));
       return true;
     });
@@ -526,7 +526,7 @@ export function createThreadOutboxManager<Message extends { readonly createdAt: 
     /** Current write revision for a queued message; input to update's CAS. */
     revisionOf: (messageId: MessageId): number => revisions.get(messageId) ?? 0,
     update,
-    modify,
+    amend,
     remove,
     clearEnvironment,
   };

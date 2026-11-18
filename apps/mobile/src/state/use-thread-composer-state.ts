@@ -150,9 +150,11 @@ export function appendReviewCommentToDraft(input: {
     return;
   }
   if (input.attachments && input.attachments.length > 0) {
-    const rejectedCount = appendComposerDraftAttachments(threadKey, input.attachments, {
-      appendReference: true,
-    });
+    const { rejected: rejectedCount } = appendComposerDraftAttachments(
+      threadKey,
+      input.attachments,
+      { appendReference: true },
+    );
     if (rejectedCount > 0) {
       setPendingConnectionError(
         `${rejectedCount} comment attachment${rejectedCount === 1 ? " was" : "s were"} not added. Messages can contain at most ${PROVIDER_SEND_TURN_MAX_ATTACHMENTS} attachments.`,

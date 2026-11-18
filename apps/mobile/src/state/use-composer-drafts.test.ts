@@ -165,6 +165,8 @@ vi.mock("../features/sharing/incoming-share-storage", () => ({
 }));
 
 import type { DraftComposerAttachment } from "../lib/composerImages";
+// Resolves the async mock up front: a dynamic import racing its factory gets the real module.
+import "../lib/composerImages";
 import {
   collectComposerContextReferences,
   formatComposerContextReference,
@@ -846,7 +848,7 @@ describe("mobile composer drafts", () => {
         ],
         { appendReference: true },
       ),
-    ).toBe(1);
+    ).toMatchObject({ rejected: 1 });
     expect(getComposerDraftSnapshot(key)).toEqual(before);
     await cleanup.promise;
   });
@@ -870,7 +872,7 @@ describe("mobile composer drafts", () => {
       rememberComposerDraftSelection(key, insertion.text, { start: 0, end: 6 });
       rememberComposerDraftSelection("another-draft", "unrelated", { start: 0, end: 9 });
       write.resolve(file);
-      expect(await pending).toBe(0);
+      expect(await pending).toMatchObject({ rejected: 0 });
       const draft = getComposerDraftSnapshot(key);
       expect(draft.text).toBe("before [pasted-text.txt](supaterm-context://v1/file/paste) after");
       expect(draft.attachments).toEqual([file]);
@@ -908,7 +910,7 @@ describe("mobile composer drafts", () => {
     setComposerDraftText(key, "Before yaz");
     rememberComposerDraftSelection(key, "Before yaz", { start: 10, end: 10 });
     write.resolve();
-    expect(await pending).toBe(0);
+    expect(await pending).toMatchObject({ rejected: 0 });
     const link = "[picture.png](supaterm-context://v1/file/image)";
     expect(getComposerDraftSnapshot(key).text).toBe(`Before ${link} yaz`);
     const caret = `Before ${link} yaz`.length;
@@ -943,7 +945,7 @@ describe("mobile composer drafts", () => {
       if (kind === "attachment") {
         expect(
           appendComposerDraftAttachments(key, [replacement], { appendReference: true, insertion }),
-        ).toBe(0);
+        ).toMatchObject({ rejected: 0 });
       } else if (kind === "imported context") {
         const record = {
           version: 1 as const,
@@ -1192,7 +1194,7 @@ describe("mobile composer drafts", () => {
       [draftKey]: { text: "send this", attachments: existing },
     });
 
-    const rejected = appendComposerDraftAttachments(draftKey, [
+    const { rejected } = appendComposerDraftAttachments(draftKey, [
       makeAttachment("incoming-1"),
       makeAttachment("incoming-2"),
     ]);
@@ -1206,7 +1208,7 @@ describe("mobile composer drafts", () => {
       makeAttachment("incoming-2").fileUri,
     );
 
-    const overflowRejected = appendComposerDraftAttachments(
+    const { rejected: overflowRejected } = appendComposerDraftAttachments(
       draftKey,
       [makeAttachment("restored-1")],
       { restore: true },
@@ -1237,7 +1239,7 @@ describe("mobile composer drafts", () => {
 
     expect(
       appendComposerDraftAttachments(draftKey, [makeVideo("again"), makeVideo("again-2")]),
-    ).toBe(0);
+    ).toEqual({ rejected: 0, duplicates: [makeVideo("again"), makeVideo("again-2")] });
     expect(appAtomRegistry.get(composerDraftsAtom)[draftKey]?.attachments).toEqual([
       makeVideo("held"),
     ]);

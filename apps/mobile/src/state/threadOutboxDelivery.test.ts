@@ -549,7 +549,7 @@ describe("thread outbox attachment preparation", () => {
     }),
   );
 
-  it.effect("uses the known next revision after persisting uploaded references", () =>
+  it.effect("keeps the delivery revision after persisting uploaded references", () =>
     Effect.gen(function* () {
       const message = queuedMessage({
         messageId: "message-new-upload-revision",
@@ -584,9 +584,12 @@ describe("thread outbox attachment preparation", () => {
       expect(result).toMatchObject({
         status: "ready",
         persistedMessage: { attachments: uploadedAttachments },
-        deliveryRevision: revision + 1,
+        deliveryRevision: revision,
       });
-      expect(harness.manager.revisionOf(message.messageId)).toBe(revision + 1);
+      expect(harness.manager.revisionOf(message.messageId)).toBe(revision);
+      expect(harness.writeOutboxMessage).toHaveBeenLastCalledWith(
+        expect.objectContaining({ attachments: uploadedAttachments }),
+      );
     }),
   );
 
@@ -1268,6 +1271,34 @@ describe("thread outbox recovery rollback", () => {
       );
       expect(remainingMessages()).toEqual([]);
       expect(appAtomRegistry.get(threadComposerErrorsAtom)[draftKey]?.message).toBe("too large");
+    }),
+  );
+
+  it.effect("keeps text typed while a failed recovery merge was persisting", () =>
+    Effect.gen(function* () {
+      const message = queuedMessage({
+        messageId: "message-typed-mid-restore",
+        text: "queued text",
+      });
+      const draftKey = `${message.environmentId}:${message.threadId}`;
+      appAtomRegistry.set(composerDrafts.composerDraftsAtom, {
+        [draftKey]: { text: "typed offline", attachments: [] },
+      });
+      yield* Effect.promise(() => harness.manager.enqueue(message));
+      const unsubscribe = appAtomRegistry.subscribe(composerDrafts.composerDraftsAtom, (drafts) => {
+        if (drafts[draftKey]?.text === "typed offline\n\nqueued text") {
+          unsubscribe();
+          queueMicrotask(() =>
+            composerDrafts.setComposerDraftText(draftKey, "typed offline\n\nqueued text, again"),
+          );
+        }
+      });
+
+      harness.draftFile.setWriteError(new Error("disk full"));
+      expect(yield* restoreRejectedQueuedMessage(message, "too large")).toBe("retry");
+
+      expect(composerDrafts.getComposerDraftSnapshot(draftKey).text).toBe("typed offline, again");
+      expect(remainingMessages()).toEqual([message]);
     }),
   );
 });

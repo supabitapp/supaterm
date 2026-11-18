@@ -1182,9 +1182,14 @@ function isSameAttachment(a: DraftComposerAttachment, b: DraftComposerAttachment
   );
 }
 
+export interface ComposerDraftAttachmentsAppend {
+  readonly rejected: number;
+  readonly duplicates: ReadonlyArray<DraftComposerAttachment>;
+}
+
 /**
  * Restore puts back attachments after failed sends, so it skips the duplicate check and the caps.
- * Returns how many attachments the caps rejected.
+ * Reports how many attachments the caps rejected and which ones repeated an attached one.
  */
 export function appendComposerDraftAttachments(
   draftKey: string,
@@ -1195,9 +1200,9 @@ export function appendComposerDraftAttachments(
     readonly insertion?: ComposerDraftInsertion;
     readonly maxAttachments?: number;
   },
-): number {
+): ComposerDraftAttachmentsAppend {
   if (incoming.length === 0) {
-    return 0;
+    return { rejected: 0, duplicates: [] };
   }
   let rejected: ReadonlyArray<DraftComposerAttachment> = [];
   let removed: ReadonlyArray<DraftComposerAttachment> = [];
@@ -1260,7 +1265,7 @@ export function appendComposerDraftAttachments(
     };
   });
   scheduleUnusedComposerAttachmentCleanup([...rejected, ...removed, ...duplicates]);
-  return rejected.length;
+  return { rejected: rejected.length, duplicates };
 }
 
 export function replaceComposerDraftAttachments(
@@ -1587,6 +1592,25 @@ export function mergeComposerDraftContentState(
   };
 }
 
+/** Publishes into loaded drafts and schedules persistence. Returns how many attachments the cap dropped. */
+export function applyComposerDraftContent(draftKey: string, content: ComposerDraftContent): number {
+  let skippedAttachmentCount = 0;
+  updateComposerDrafts((current) => {
+    const next = mergeComposerDraftContentState(current, draftKey, content);
+    const keptIds = new Set(
+      [
+        ...normalizeDraft(current[draftKey]).attachments,
+        ...normalizeDraft(next[draftKey]).attachments,
+      ].map((attachment) => attachment.id),
+    );
+    skippedAttachmentCount = content.attachments.filter(
+      (attachment) => !keptIds.has(attachment.id),
+    ).length;
+    return next;
+  });
+  return skippedAttachmentCount;
+}
+
 /**
  * The durable write happens before the share inbox item can be acknowledged.
  */
@@ -1594,30 +1618,31 @@ export async function mergeComposerDraftContent(
   draftKey: string,
   content: ComposerDraftContent,
 ): Promise<{ readonly skippedAttachmentCount: number }> {
-  ensureComposerDraftsLoaded();
-  if (loadPromise !== null) {
-    await loadPromise;
-  }
-  const current = appAtomRegistry.get(composerDraftsAtom);
-  const next = mergeComposerDraftContentState(current, draftKey, content);
-  const currentAttachmentIds = new Set(
-    normalizeDraft(current[draftKey]).attachments.map((attachment) => attachment.id),
-  );
-  const nextAttachmentIds = new Set(
-    normalizeDraft(next[draftKey]).attachments.map((attachment) => attachment.id),
-  );
-  const skippedAttachmentCount = content.attachments.filter(
-    (attachment) =>
-      !currentAttachmentIds.has(attachment.id) && !nextAttachmentIds.has(attachment.id),
-  ).length;
+  await waitForComposerDraftsLoaded();
   // Publish the content and its import receipt together before the filesystem
   // await. Typing during persistence then builds on the receipt-bearing state,
   // and its debounced write is serialized after this transaction.
-  if (next !== current) {
-    appAtomRegistry.set(composerDraftsAtom, next);
-  }
+  const skippedAttachmentCount = applyComposerDraftContent(draftKey, content);
   await persistComposerStateNow();
   return { skippedAttachmentCount };
+}
+
+export interface ComposerDraftMergeReceipt {
+  readonly snapshot: ComposerDraft;
+  readonly merged: ComposerDraft;
+}
+
+/**
+ * Runs synchronous writes to a loaded draft and returns what undoComposerDraftMerge takes back out.
+ * The caller persists afterwards, so edits made during that await never count as part of the merge.
+ */
+export function captureComposerDraftMerge(
+  draftKey: string,
+  merge: () => void,
+): ComposerDraftMergeReceipt {
+  const snapshot = getComposerDraftSnapshot(draftKey);
+  merge();
+  return { snapshot, merged: getComposerDraftSnapshot(draftKey) };
 }
 
 export function sameComposerDraftState(a: ComposerDraft, b: ComposerDraft): boolean {
