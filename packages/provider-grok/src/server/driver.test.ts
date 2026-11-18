@@ -228,7 +228,9 @@ it.layer(layerTest)("GrokDriver", (it) => {
     Effect.gen(function* () {
       const fs = yield* FileSystem.FileSystem;
       const path = yield* Path.Path;
-      const home = yield* fs.realPath(yield* fs.makeTempDirectoryScoped({ prefix: "supaterm-grok-" }));
+      const home = yield* fs.realPath(
+        yield* fs.makeTempDirectoryScoped({ prefix: "supaterm-grok-" }),
+      );
       const downloaded = path.join(home, ".grok", "downloads", "grok-linux-x86_64");
       const binaryPath = path.join(home, ".grok", "bin", "grok");
       yield* fs.makeDirectory(path.dirname(downloaded), { recursive: true });

@@ -97,7 +97,9 @@ describe("filesystem browse model", () => {
     });
     expect(getFilesystemBrowseTabCompletion([], "x")).toBeNull();
     // The list also shows substring and fuzzy matches; Tab completes only the typed name.
-    expect(getFilesystemBrowseTabCompletion([entry("supaterm"), entry("my-supaterm")], "supaterm")).toEqual({
+    expect(
+      getFilesystemBrowseTabCompletion([entry("supaterm"), entry("my-supaterm")], "supaterm"),
+    ).toEqual({
       name: "supaterm",
       isComplete: true,
     });

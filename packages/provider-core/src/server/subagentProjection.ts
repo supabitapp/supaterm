@@ -209,13 +209,11 @@ type MonitorNotice = Pick<OrchestrationV2ConversationMessage, "runId" | "notific
 /** Runs that only acknowledge a monitor update are never a task's work. */
 function monitorUpdateRunIds(messages: ReadonlyArray<MonitorNotice>) {
   return new Set(
-    messages
-      .filter(
-        (message) =>
-          message.notification?.source.kind === "monitor" &&
-          message.notification.outcome === "updated",
-      )
-      .map((message) => message.runId),
+    messages.flatMap((message) =>
+      message.notification?.source.kind === "monitor" && message.notification.outcome === "updated"
+        ? [message.runId]
+        : [],
+    ),
   );
 }
 
