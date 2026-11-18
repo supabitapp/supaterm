@@ -95,16 +95,7 @@ export const loadCaller = Effect.fn("mcp.loadCaller")(function* () {
   } satisfies Caller;
 });
 
-export const assertTargetWithinLimits = (
-  limits: CallerLimits,
-  target: { readonly runtimeMode: RuntimeMode; readonly interactionMode: ProviderInteractionMode },
-) =>
-  OrchestrationMcp.resolveRuntimeMode(limits.runtimeMode, target.runtimeMode).pipe(
-    Effect.andThen(
-      OrchestrationMcp.resolveInteractionMode(limits.interactionMode, target.interactionMode),
-    ),
-    Effect.asVoid,
-  );
+export { assertTargetWithinLimits } from "./OrchestratorMcpService.ts";
 
 /** Thread callers need a live run or its background subagent in an unarchived thread. OAuth clients rely on their session and ceiling. */
 export function assertLiveCaller({ caller, scope }: Caller) {
