@@ -83,6 +83,7 @@ function cursorProjectSlug(projectRoot: string): string {
 export const cursorWorkspaceMcpServers = Effect.fn("cursorWorkspaceMcpServers")(function* (
   cwd: string,
   environment: NodeJS.ProcessEnv,
+  includeProject: boolean,
 ) {
   const fileSystem = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
@@ -144,7 +145,7 @@ export const cursorWorkspaceMcpServers = Effect.fn("cursorWorkspaceMcpServers")(
   const seen = new Set<string>();
   const servers: Record<string, McpServerConfig> = {};
   for (const file of [
-    path.join(projectRoot, ".cursor", "mcp.json"),
+    ...(includeProject ? [path.join(projectRoot, ".cursor", "mcp.json")] : []),
     path.join(userHome, ".cursor", "mcp.json"),
   ]) {
     const contents = yield* readJsonc(file);

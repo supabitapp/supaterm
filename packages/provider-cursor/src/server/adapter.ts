@@ -209,6 +209,16 @@ export function cursorRuntimeAgentPolicy(
   };
 }
 
+function cursorLoadsProjectLayer(
+  runtimePolicy: ProviderAdapter.ProviderAdapterV2RuntimePolicy,
+  platform: NodeJS.Platform,
+): boolean {
+  const policy = cursorRuntimeAgentPolicy(runtimePolicy, platform);
+  return (
+    runtimePolicy.runtimeMode === "full-access" && !policy.autoReview && !policy.sandboxEnabled
+  );
+}
+
 export function cursorMcpServers(
   session: McpProviderSession.McpProviderSessionConfig | undefined,
 ): Record<string, McpServerConfig> | undefined {
@@ -328,12 +338,9 @@ export function makeCursorAgentOptions(input: {
     local: {
       ...(input.runtimePolicy.cwd === null ? {} : { cwd: input.runtimePolicy.cwd }),
       autoReview: policy.autoReview,
-      settingSources:
-        input.runtimePolicy.runtimeMode === "full-access" &&
-        !policy.autoReview &&
-        !policy.sandboxEnabled
-          ? [...CURSOR_AGENT_SETTING_SOURCES]
-          : CURSOR_AGENT_SETTING_SOURCES.filter((source) => source !== "project"),
+      settingSources: cursorLoadsProjectLayer(input.runtimePolicy, input.platform)
+        ? [...CURSOR_AGENT_SETTING_SOURCES]
+        : CURSOR_AGENT_SETTING_SOURCES.filter((source) => source !== "project"),
       sandboxOptions: {
         enabled: policy.sandboxEnabled,
       },
@@ -2498,17 +2505,23 @@ export const makeCursorAdapterV2 = Effect.fn("makeCursorAdapterV2")(function* (
           }
         };
 
-        const resolveWorkspaceMcpServers = (cwd: string | null) =>
-          cwd === null
+        const resolveWorkspaceMcpServers = (
+          runtimePolicy: ProviderAdapter.ProviderAdapterV2RuntimePolicy,
+        ) =>
+          runtimePolicy.cwd === null
             ? Effect.succeed({})
-            : cursorWorkspaceMcpServers(cwd, adapterOptions.environment).pipe(
+            : cursorWorkspaceMcpServers(
+                runtimePolicy.cwd,
+                adapterOptions.environment,
+                cursorLoadsProjectLayer(runtimePolicy, platform),
+              ).pipe(
                 Effect.provideService(FileSystem.FileSystem, fileSystem),
                 Effect.provideService(Path.Path, path),
                 Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, spawner),
                 // Unreadable Cursor state leaves startup to the SDK rather than failing the turn.
                 Effect.catch((cause) =>
                   Effect.logWarning("orchestration-v2.cursor-workspace-mcp-unresolved", {
-                    cwd,
+                    cwd: runtimePolicy.cwd,
                     cause,
                   }).pipe(Effect.as({})),
                 ),
@@ -2729,7 +2742,7 @@ export const makeCursorAdapterV2 = Effect.fn("makeCursorAdapterV2")(function* (
             // A send-time set replaces the create-time set, so the workspace servers go only here and are
             // read again each turn from mcp.json and mcp-disabled.json; both merge with settingSources.
             const turnMcpServers = {
-              ...(yield* resolveWorkspaceMcpServers(turnInput.runtimePolicy.cwd)),
+              ...(yield* resolveWorkspaceMcpServers(turnInput.runtimePolicy)),
               ...mcpServers,
             };
             const sdkRun = yield* agent.session
