@@ -292,8 +292,8 @@ export function ComposerActionButton(props: {
               : "bg-primary",
         )}
       >
-        {/* Fade the icon as one layer: a translucent tint, or opacity on a Tabler icon (which
-            copies it onto every path), stacks where the SVG strokes overlap. */}
+        {/* Fade the icon as one layer: a translucent tint, or opacity on an Android
+            Phosphor icon (which copies it onto every path), stacks where the SVG strokes overlap. */}
         <View
           className={fadeIcon ? "opacity-38" : undefined}
           needsOffscreenAlphaCompositing={fadeIcon}
