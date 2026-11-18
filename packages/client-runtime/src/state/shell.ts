@@ -419,9 +419,7 @@ export const makeEnvironmentShellState = Effect.fn("EnvironmentShellState.make")
         ? undefined
         : previousOrigin?.generation === progress.generation &&
             previousOrigin.snapshotAt === snapshotAt &&
-            (subscription === null ||
-              (previousOrigin.omitIdleSubagents === subscription.omitIdleSubagents &&
-                previousOrigin.omitOlderDone === subscription.omitOlderDone))
+            (subscription === null || sameOmissions(previousOrigin, subscription))
           ? previousOrigin
           : subscription === null
             ? undefined
@@ -657,7 +655,6 @@ export const makeEnvironmentShellState = Effect.fn("EnvironmentShellState.make")
         const config = Option.getOrUndefined(yield* session.initialConfig.pipe(Effect.option));
         const generation = config?.shellSyncGeneration ?? null;
         const omissions = shellOmissions(config ?? {});
-        const { omitIdleSubagents, omitOlderDone } = omissions;
         // The same live session, or a new session to the same server run after these rows (in
         // memory or cached) synchronized from a recent snapshot with the same omissions, resumes
         // from the cursor.
@@ -684,12 +681,7 @@ export const makeEnvironmentShellState = Effect.fn("EnvironmentShellState.make")
           sameOmissions(early.omissions, omissions)
             ? earlyExit.value
             : null;
-        yield* Ref.set(activeSubscription, {
-          session,
-          generation,
-          omitIdleSubagents,
-          omitOlderDone,
-        });
+        yield* Ref.set(activeSubscription, { session, generation, ...omissions });
         yield* Ref.set(awaitingCompletion, true);
         yield* setSynchronizing;
         if (loaded?.kind === "snapshot") yield* Ref.set(lastAuthoritativeSession, session);
@@ -718,8 +710,8 @@ export const makeEnvironmentShellState = Effect.fn("EnvironmentShellState.make")
 
         const current = yield* SubscriptionRef.get(state);
         const omission = {
-          ...(omitIdleSubagents ? { omitIdleSubagents: true as const } : {}),
-          ...(omitOlderDone ? { omitOlderDone: true as const } : {}),
+          ...(omissions.omitIdleSubagents ? { omitIdleSubagents: true as const } : {}),
+          ...(omissions.omitOlderDone ? { omitOlderDone: true as const } : {}),
         };
         if (Option.isNone(current.snapshot) || !(resumingHeldRows || loaded?.kind === "snapshot")) {
           return { ...omission, requestCompletionMarker: true as const };
