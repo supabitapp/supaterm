@@ -462,7 +462,10 @@ const stopEarlierBackgroundWork = ({
                 threadId,
               },
         );
-        yield* stalledRun === "returned-interrupt" ? drainUnconfirmedStop : worker.drain();
+        yield* stalledRun === "returned-interrupt" ||
+        stalledRun === "returned-interrupt-newer-roster"
+          ? drainUnconfirmedStop
+          : worker.drain();
         const after = yield* orchestrator.getThreadProjection(threadId);
         const interrupted = stalledRun !== "superseded-attempt";
         assert.equal(after.runs[0]?.status, interrupted ? "interrupted" : "running");
