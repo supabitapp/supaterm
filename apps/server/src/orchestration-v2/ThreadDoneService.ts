@@ -627,12 +627,14 @@ export const make = Effect.gen(function* () {
         ? null
         : noPullRequestRechecks.select(
             nowMs,
-            [...groups]
+            groups
+              .entries()
               .filter(([key]) => key.startsWith('["branch",'))
               .map(([key, group]) => ({
                 key,
                 activityAtMs: Math.max(...group.map(threadActivityAtMs)),
-              })),
+              }))
+              .toArray(),
           );
 
     yield* Effect.forEach(
