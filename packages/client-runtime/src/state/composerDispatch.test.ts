@@ -1,6 +1,26 @@
 import { expect, it } from "vite-plus/test";
 
-import { compactionBlocksSteering, composerRunsDraftLocally } from "./composerDispatch.ts";
+import {
+  compactionBlocksSteering,
+  composerRunsDraftLocally,
+  outboxDispatchMode,
+} from "./composerDispatch.ts";
+
+it.each([
+  { dispatchMode: "steer", setupRunning: true, deferredSteering: true, expected: "steer" },
+  { dispatchMode: "steer", setupRunning: true, deferredSteering: false, expected: "queue" },
+  { dispatchMode: "queue", setupRunning: true, deferredSteering: true, expected: "queue" },
+  { dispatchMode: "auto", setupRunning: true, deferredSteering: true, expected: "queue" },
+  { dispatchMode: "restart", setupRunning: true, deferredSteering: true, expected: "queue" },
+  { dispatchMode: "steer", setupRunning: false, deferredSteering: true, expected: "auto" },
+  { dispatchMode: "queue", setupRunning: false, deferredSteering: true, expected: "queue" },
+  { dispatchMode: "restart", setupRunning: false, deferredSteering: false, expected: "restart" },
+] as const)(
+  "sends $dispatchMode during setup $setupRunning with deferredSteering $deferredSteering as $expected",
+  ({ expected, ...input }) => {
+    expect(outboxDispatchMode(input)).toBe(expected);
+  },
+);
 
 it("blocks steering for explicit compaction, and for automatic compaction unless the provider takes steers then", () => {
   const during = (
