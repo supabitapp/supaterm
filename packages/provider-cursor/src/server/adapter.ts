@@ -1369,7 +1369,9 @@ export const makeCursorAdapterV2 = Effect.fn("makeCursorAdapterV2")(function* (
             | "completedAt"
             | "updatedAt"
           >;
-          const outputText = cursorToolOutputText(toolCall) || active.streamedOutput;
+          const outputText =
+            cursorToolOutputText(toolCall) ||
+            active.streamedOutput.slice(-MAX_CURSOR_STREAMED_OUTPUT_CHARS);
           let turnItem: OrchestrationV2TurnItem;
           switch (toolCall.type) {
             case "shell":
@@ -2119,9 +2121,13 @@ export const makeCursorAdapterV2 = Effect.fn("makeCursorAdapterV2")(function* (
               // The completed call persists the final output once. Re-emitting the
               // whole accumulated output on every delta grew the event store
               // quadratically; live output goes to the command output hub instead.
-              shell.streamedOutput = (shell.streamedOutput + chunk).slice(
-                -MAX_CURSOR_STREAMED_OUTPUT_CHARS,
-              );
+              shell.streamedOutput += chunk;
+              // Trimming on every chunk would flatten and copy the whole tail each time.
+              if (shell.streamedOutput.length > 2 * MAX_CURSOR_STREAMED_OUTPUT_CHARS) {
+                shell.streamedOutput = shell.streamedOutput.slice(
+                  -MAX_CURSOR_STREAMED_OUTPUT_CHARS,
+                );
+              }
               yield* emitProviderEvent({
                 type: "command_output.delta",
                 driver: CursorAgentSdk.CURSOR_PROVIDER,

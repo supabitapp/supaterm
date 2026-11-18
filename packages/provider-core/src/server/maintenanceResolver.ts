@@ -429,22 +429,20 @@ const runProbe = Effect.fn("runProbe")(function* (
   );
 });
 
-const decodePnpmOutdated = Schema.decodeUnknownOption(
+const decodeOutdated = Schema.decodeUnknownOption(
   Schema.fromJsonString(
     Schema.Record(Schema.String, Schema.Struct({ latest: Schema.optional(Schema.String) })),
   ),
 );
-const decodePnpmList = Schema.decodeUnknownOption(
-  Schema.fromJsonString(
-    Schema.Array(
-      Schema.Struct({
-        dependencies: Schema.optional(
-          Schema.Record(Schema.String, Schema.Struct({ version: Schema.optional(Schema.String) })),
-        ),
-      }),
-    ),
+const GlobalPackageList = Schema.Struct({
+  dependencies: Schema.optional(
+    Schema.Record(Schema.String, Schema.Struct({ version: Schema.optional(Schema.String) })),
   ),
+});
+const decodePnpmList = Schema.decodeUnknownOption(
+  Schema.fromJsonString(Schema.Array(GlobalPackageList)),
 );
+const decodeNpmList = Schema.decodeUnknownOption(Schema.fromJsonString(GlobalPackageList));
 
 const resolvePnpmGlobalLatestVersion = Effect.fn("resolvePnpmGlobalLatestVersion")(function* (
   packageName: string,
@@ -462,9 +460,7 @@ const resolvePnpmGlobalLatestVersion = Effect.fn("resolvePnpmGlobalLatestVersion
 
     [0, 1],
   );
-  const outdatedEntries = outdated
-    ? Option.getOrUndefined(decodePnpmOutdated(outdated))
-    : undefined;
+  const outdatedEntries = outdated ? Option.getOrUndefined(decodeOutdated(outdated)) : undefined;
   if (!outdatedEntries) return null;
   const latest = nonEmptyString(outdatedEntries[packageName]?.latest);
   if (latest) return latest;
@@ -476,6 +472,41 @@ const resolvePnpmGlobalLatestVersion = Effect.fn("resolvePnpmGlobalLatestVersion
   );
   const listedEntries = listed ? Option.getOrUndefined(decodePnpmList(listed)) : undefined;
   return nonEmptyString(listedEntries?.[0]?.dependencies?.[packageName]?.version);
+});
+
+// Unlike `npm view`, `outdated` applies min-release-age, before and their excludes.
+const resolveNpmGlobalLatestVersion = Effect.fn("resolveNpmGlobalLatestVersion")(function* (
+  packageName: string,
+  npmPrefix: string,
+  env: NodeJS.ProcessEnv,
+) {
+  // Match the updater's npm and environment.
+  const npmPath = yield* resolveCommandPath("npm", {
+    env: { ...(yield* HostProcess.Environment), ...env },
+  });
+  if (!npmPath) return null;
+  const outdated = yield* runProbe(
+    npmPath,
+    ["outdated", "-g", "--prefix", npmPrefix, "--json", packageName],
+    env,
+    // npm outdated exits 1 when updates are available.
+    [0, 1],
+  );
+  const outdatedEntries = outdated ? Option.getOrUndefined(decodeOutdated(outdated)) : undefined;
+  // npm prints failures such as an unreachable registry as `{"error": ...}`, also exiting 1.
+  if (!outdatedEntries || "error" in outdatedEntries) return null;
+  const latest = nonEmptyString(outdatedEntries[packageName]?.latest);
+  if (latest) return latest;
+  // An empty result means the installed version is still the eligible release.
+  const listed = yield* runProbe(
+    npmPath,
+    ["ls", "-g", "--prefix", npmPrefix, "--depth", "0", "--json", packageName],
+    env,
+    // npm ls still prints the tree but exits 1 when other globals have problems.
+    [0, 1],
+  );
+  const listedEntries = listed ? Option.getOrUndefined(decodeNpmList(listed)) : undefined;
+  return nonEmptyString(listedEntries?.dependencies?.[packageName]?.version);
 });
 
 // npm names the tarball `${name}-${version}.tgz`, dropping a scope's `@` and its `/`.
@@ -930,10 +961,11 @@ export const resolvePackageManagedProviderMaintenance = Effect.fn(
   // `Cellar/node/<ver>/lib/node_modules/`, and that is npm's install, not brew's.
   const npmPrefix = yield* resolveNpmGlobalPrefix(context, packageName);
   if (npmPrefix) {
+    const services = yield* Effect.context<ProviderMaintenanceResolverServices>();
     // npm 12 blocks install scripts by default and still exits 0, leaving a package whose
     // postinstall finishes the install (claude's native binary) broken while reporting
     // success. Older npm warns about the unknown config and continues.
-    return makeProviderMaintenanceCapabilities({
+    const capabilities = makeProviderMaintenanceCapabilities({
       provider: definition.provider,
       packageName,
       updateExecutable: "npm",
@@ -947,7 +979,22 @@ export const resolvePackageManagedProviderMaintenance = Effect.fn(
       ],
       updateLockKey: `npm-global:${normalizeCommandPath(npmPrefix)}`,
       env: context.env,
+      // Inside min-release-age `@latest` installs an older release than the
+      // registry's tag, so only npm's own answer is worth advertising.
+      latestVersion: null,
+      lookupLatestVersion: resolveNpmGlobalLatestVersion(packageName, npmPrefix, context.env).pipe(
+        Effect.provideContext(services),
+      ),
     });
+    return {
+      ...capabilities,
+      latestVersionCacheKey: [
+        "npm-global",
+        normalizeCommandPath(npmPrefix),
+        packageName,
+        environmentCacheKey(context.env),
+      ].join("\0"),
+    };
   }
 
   const homebrew = homebrewOwnershipFromCommandPath(context.realCommandPath);
@@ -1146,21 +1193,9 @@ const withConfiguredNpmVersionLookup = Effect.fn("withConfiguredNpmVersionLookup
   const npmPath = yield* resolveCommandPath("npm", { env });
   if (!npmPath) return capabilities;
   const services = yield* Effect.context<ProviderMaintenanceResolverServices>();
-  const update = capabilities.update;
-  const prefixIndex = update?.lockKey.startsWith("npm-global:")
-    ? update.args.indexOf("--prefix")
-    : -1;
-  const prefix = prefixIndex >= 0 ? update?.args[prefixIndex + 1] : undefined;
   const lookup = runProbe(
     npmPath,
-    [
-      "view",
-      "--global",
-      ...(prefix ? ["--prefix", prefix] : []),
-      "--json",
-      `${packageName}@latest`,
-      "version",
-    ],
+    ["view", "--global", "--json", `${packageName}@latest`, "version"],
     env,
   ).pipe(
     Effect.map((stdout) => {
@@ -1182,7 +1217,6 @@ const withConfiguredNpmVersionLookup = Effect.fn("withConfiguredNpmVersionLookup
       "configured-npm",
       npmPath,
       packageName,
-      prefix ?? "",
       environmentCacheKey(env),
       installerLatestVersionKey(capabilities) ?? "",
     ].join("\0"),

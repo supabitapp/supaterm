@@ -22,6 +22,9 @@ export const SERVICE_UNIT_ENV = "SUPATERM_BOOT_SERVICE_UNIT";
     it when it starts (whoever restarted the service), so while it exists the
     service is known to be behind its unit and status reports it that way. */
 export const SERVICE_RESTART_PENDING_FILE = ".restart-pending";
+/** Held by a launcher while it has, or is about to start, a server: an SSH launch waits for that
+    server instead of starting its own. Released while the launcher idles. */
+export const SERVICE_SERVING_LOCK_FILE = "service-serving.lock";
 
 const unquoteSystemdValue = (raw: string) =>
   (raw.startsWith('"') && raw.endsWith('"')

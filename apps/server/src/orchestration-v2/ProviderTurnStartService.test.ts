@@ -380,6 +380,13 @@ it.each([
 
 function makeLocalCommandHarness(input: {
   readonly text: string;
+  readonly manualContinuation?: boolean;
+  readonly nativeResumeUnsupported?: boolean;
+  readonly steeringRestart?: boolean;
+  readonly unsentResume?: boolean;
+  readonly repeatedResume?: boolean;
+  readonly acceptedResume?: boolean;
+  readonly restartedResume?: boolean;
   readonly nativeGoals?: boolean;
   readonly goalDriver?: "opencode" | "antigravity";
   readonly worktreePath?: string;
@@ -444,6 +451,7 @@ function makeLocalCommandHarness(input: {
   const messageId = MessageId.make("message-native-account-command");
   const projectId = ProjectId.make("project-native-account-command");
   const run: OrchestrationV2ThreadProjection["runs"][number] = {
+    ...(input.manualContinuation ? { manualContinuationOfRunId: RunId.make("stopped-run") } : {}),
     id: runId,
     threadId,
     ordinal: 2,
@@ -526,7 +534,7 @@ function makeLocalCommandHarness(input: {
         providerInstanceId: newInstanceId,
         providerThreadId,
         providerTurnId: null,
-        reason: "initial",
+        reason: input.steeringRestart ? "steering_restart" : "initial",
         status: "pending",
         startedAt: null,
         completedAt: null,
@@ -835,6 +843,83 @@ function makeLocalCommandHarness(input: {
           }),
     };
   }
+  if (input.unsentResume) {
+    const originalMessageId = MessageId.make("original-unsent-message");
+    projection = {
+      ...projection,
+      runs: [
+        {
+          ...run,
+          id: RunId.make("stopped-run"),
+          manualContinuationOfRunId: undefined,
+          userMessageId: originalMessageId,
+          status: "interrupted",
+          ordinal: 1,
+        },
+        ...projection.runs,
+      ],
+      messages: [
+        { ...message, id: originalMessageId, text: "Original request" },
+        ...projection.messages,
+      ],
+    };
+  }
+  if (input.repeatedResume) {
+    const retry = RunId.make("stopped-resume");
+    projection = {
+      ...projection,
+      runs: projection.runs
+        .map((r) => (r.id === runId ? { ...r, manualContinuationOfRunId: retry } : r))
+        .concat({
+          ...run,
+          id: retry,
+          manualContinuationOfRunId: RunId.make("stopped-run"),
+          status: "interrupted",
+        }),
+    };
+  }
+  if (input.acceptedResume) {
+    const acceptedId = RunAttemptId.make("accepted-original");
+    projection = {
+      ...projection,
+      attempts: [
+        ...projection.attempts,
+        {
+          ...projection.attempts[0]!,
+          id: acceptedId,
+          runId: RunId.make("stopped-run"),
+          providerThreadId: oldProviderThreadId,
+          status: "interrupted",
+        },
+        ...(input.restartedResume
+          ? [
+              {
+                ...projection.attempts[0]!,
+                id: RunAttemptId.make("unaccepted-replacement"),
+                runId: RunId.make("stopped-run"),
+                attemptOrdinal: 2,
+                reason: "steering_restart" as const,
+                status: "interrupted" as const,
+              },
+            ]
+          : []),
+      ],
+      providerTurns: [
+        ...projection.providerTurns,
+        {
+          id: ProviderTurnId.make("accepted-original-turn"),
+          runAttemptId: acceptedId,
+          providerThreadId: oldProviderThreadId,
+          nodeId: rootNodeId,
+          ordinal: 1,
+          nativeTurnRef: null,
+          status: "interrupted",
+          startedAt: now,
+          completedAt: now,
+        },
+      ],
+    };
+  }
   if ("historyReadFailureAfterFallback" in input || "resumeFailure" in input) {
     const nativeThreadRef = {
       driver: providerThread.driver,
@@ -1005,6 +1090,10 @@ function makeLocalCommandHarness(input: {
     resumeThread: () => Effect.succeed(sideChatThread),
     forkThread,
     startTurn,
+    resumeTurn: input.nativeResumeUnsupported
+      ? undefined
+      : (input: ProviderAdapter.ProviderAdapterV2ResumeTurnInput) =>
+          startTurn(ProviderAdapter.resumeTurnInput(input)),
   };
   const open = vi.fn(() =>
     startsProviderTurn
@@ -1042,7 +1131,13 @@ function makeLocalCommandHarness(input: {
     (input: RunExecutionService.RunExecutionServiceV2StartRootRunInput) => Effect.Effect<void>
   >((runInput) =>
     startsProviderTurn
-      ? runInput.session.startTurn(runInput as never).pipe(Effect.orDie)
+      ? (runInput.resume
+          ? runInput.session.resumeTurn!({
+              ...runInput,
+              messageId: runInput.message.messageId,
+            } as never)
+          : runInput.session.startTurn(runInput as never)
+        ).pipe(Effect.orDie)
       : input.failReadsAfterRunning === true || input.previousTurn !== undefined
         ? Effect.suspend(() =>
             providerBusy ? Effect.die("The previous provider turn is still running.") : Effect.void,
@@ -1561,6 +1656,67 @@ effectIt.effect("recovers an abandoned failed turn before continuing its native 
   }),
 );
 
+effectIt.effect("sends new steering text when restarting a manual continuation", () =>
+  Effect.gen(function* () {
+    const harness = makeLocalCommandHarness({
+      text: "New steering instruction",
+      manualContinuation: true,
+      steeringRestart: true,
+      nativeResumeUnsupported: true,
+      promotedSideChat: { earlierRun: { text: "Look into it", accepted: true } },
+    });
+    yield* harness.start;
+    expect(harness.startTurn.mock.calls[0]?.[0].message.text).toBe("New steering instruction");
+    expect(harness.startRootRun.mock.calls[0]?.[0].resume).toBe(false);
+  }),
+);
+
+effectIt.effect.each([
+  { name: "native resume", expected: "", resume: true },
+  { name: "unsent original", unsentResume: true, expected: "Original request", resume: false },
+  {
+    name: "repeated unsent original",
+    unsentResume: true,
+    repeatedResume: true,
+    expected: "Original request",
+    resume: false,
+  },
+  {
+    name: "accepted original",
+    unsentResume: true,
+    acceptedResume: true,
+    expected: "",
+    resume: true,
+  },
+  {
+    name: "accepted original with an unaccepted steering restart",
+    unsentResume: true,
+    acceptedResume: true,
+    restartedResume: true,
+    expected: "Original request",
+    resume: false,
+  },
+  {
+    name: "provider without native resume",
+    nativeResumeUnsupported: true,
+    expected: "Continue where you left off.",
+    resume: false,
+  },
+] as const)("resumes a stopped run: $name", ({ name: _name, expected, resume, ...options }) =>
+  Effect.gen(function* () {
+    const harness = makeLocalCommandHarness({
+      text: "",
+      manualContinuation: true,
+      promotedSideChat: { earlierRun: { text: "Look into it", accepted: true } },
+      ...options,
+    });
+    yield* harness.start;
+    expect(harness.startTurn.mock.calls.map(([turn]) => turn.message.text)).toEqual([expected]);
+    expect(harness.startTurn.mock.calls[0]?.[0].resume === true).toBe(resume);
+    expect(harness.startRootRun).toHaveBeenCalledTimes(1);
+  }),
+);
+
 effectIt.effect.each([
   { contextRun: "current", context: "SIDE_CHAT_CONTEXT" },
   { contextRun: "failed", context: "SIDE_CHAT_CONTEXT" },
@@ -1687,26 +1843,48 @@ effectIt.effect.each([
     }),
 );
 
-effectIt.effect.each([
-  { goalDriver: "opencode", nativeGoals: false },
-  { goalDriver: "opencode", nativeGoals: true },
-  { goalDriver: "antigravity", nativeGoals: false },
-  { goalDriver: "antigravity", nativeGoals: true },
-] as const)(
-  "$goalDriver goal prompts defer switched-provider history only with native support: $nativeGoals",
-  ({ goalDriver, nativeGoals }) =>
+effectIt.effect.each(
+  (
+    [
+      { goalDriver: "opencode", nativeGoals: false },
+      { goalDriver: "opencode", nativeGoals: true },
+      { goalDriver: "antigravity", nativeGoals: false },
+      { goalDriver: "antigravity", nativeGoals: true },
+    ] as const
+  ).flatMap((choice) => [
+    { ...choice, resuming: false },
+    { ...choice, resuming: true },
+  ]),
+)(
+  "$goalDriver goal prompts defer switched-provider history only with native support: $nativeGoals, resuming: $resuming",
+  ({ goalDriver, nativeGoals, resuming }) =>
     Effect.gen(function* () {
       const harness = makeLocalCommandHarness({
-        text: "/goal all tests pass",
+        text: resuming ? "" : "/goal all tests pass",
+        manualContinuation: resuming,
         goalDriver,
         nativeGoals,
+        unsentResume: resuming,
         sideChat: { contextRun: "failed", switchedProvider: true },
       });
+      if (resuming) {
+        const projection = harness.projection();
+        harness.setProjection({
+          ...projection,
+          messages: projection.messages.map((message) =>
+            message.id === "original-unsent-message"
+              ? { ...message, text: "/goal all tests pass" }
+              : message,
+          ),
+        });
+      }
       harness.tryHandlePromptCommand.mockReturnValue(Effect.succeed(false));
       yield* harness.start;
       expect(harness.startTurn.mock.calls[0]?.[0].message.text.includes("SIDE_CHAT_CONTEXT")).toBe(
         !nativeGoals,
       );
+      if (nativeGoals)
+        expect(harness.startTurn.mock.calls[0]?.[0].message.text).toBe("/goal all tests pass");
     }),
 );
 

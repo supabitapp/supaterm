@@ -350,10 +350,13 @@ also edit or remove it. On web and desktop, removing takes two presses of the ro
 the message is discarded, not returned to the composer.
 
 If you stop the agent or the server restarts, queued messages keep their order and are held.
-Press **Resume** in an empty composer to continue. **Resume** also continues a stopped run or one
-that hit a usage limit, even with nothing queued. Sending a new message also resumes the queue,
-unless it steers a turn that is already running. You can edit or remove held messages without
-starting them. **Send now** on a held row starts a turn with that message ahead of the others.
+Press **Resume** in an empty composer to continue. For stopped runs and usage limits, Claude,
+Codex and OpenCode continue natively without a new prompt; other providers receive "Continue where
+you left off." If the original request never reached the provider, Resume sends that request again.
+
+Sending a new message also resumes the queue, unless it steers a turn that is already running. You
+can edit or remove held messages without starting them. **Send now** on a held row starts a turn
+with that message ahead of the others.
 
 The pencil on a queued row opens that message in the composer for editing. The original message
 stays in the queue until you save, and its row is highlighted while you edit. The message's

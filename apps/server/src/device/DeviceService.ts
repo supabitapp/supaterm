@@ -1391,7 +1391,8 @@ export const make = Effect.gen(function* () {
           (cause) =>
             new DeviceOperationError({
               operation: "update device tool",
-              reason: "command_failed",
+              reason:
+                cause.reason === "npm_not_found" ? "package_manager_missing" : "command_failed",
               ...(cause.exitCode !== undefined ? { exitCode: cause.exitCode } : {}),
               cause,
             }),

@@ -279,6 +279,7 @@ it.effect.each([
 const layerRecordingTools = (calls: Array<unknown>) => {
   const RecordingToolkit = Toolkit.make(
     OrchestratorToolkit.tools.delegate_task,
+    OrchestratorToolkit.tools.supaterm_thread_list,
     OrchestratorToolkit.tools.supaterm_thread_read,
     OrchestratorToolkit.tools.supaterm_thread_wait,
     ProjectToolkit.tools.supaterm_project_update,
@@ -295,6 +296,7 @@ const layerRecordingTools = (calls: Array<unknown>) => {
     RecordingToolkit,
     McpToolAccess.toLayer(RecordingToolkit, {
       delegate_task: record,
+      supaterm_thread_list: record,
       supaterm_thread_read: record,
       supaterm_thread_wait: record,
       supaterm_project_update: record,
@@ -741,6 +743,22 @@ it.effect.each(["limit", "runLimit", "maxCharsPerItem"])(
 
       expect(String(rejected)).toContain("greater than or equal to 1");
       expect(calls).toEqual([]);
+    }).pipe(Effect.provide(layerRecordingTools(calls)));
+  },
+);
+
+it.effect(
+  "clamps a supaterm_thread_list limit above its maximum instead of rejecting the call",
+  () => {
+    const calls: Array<unknown> = [];
+    return Effect.gen(function* () {
+      yield* callTool("supaterm_thread_list", { allProjects: true, limit: 200 });
+      yield* callTool("supaterm_thread_list", { allProjects: true, limit: 7 });
+
+      expect(calls).toEqual([
+        { allProjects: true, limit: 100 },
+        { allProjects: true, limit: 7 },
+      ]);
     }).pipe(Effect.provide(layerRecordingTools(calls)));
   },
 );
