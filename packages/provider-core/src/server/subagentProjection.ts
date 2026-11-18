@@ -260,7 +260,7 @@ export function subagentResultForRun(
   };
 }
 
-function subagentHoldsCompletion(
+export function subagentHoldsCompletion(
   task: Pick<OrchestrationV2ThreadProjection["subagents"][number], "status" | "completionDelivery">,
 ): boolean {
   return (

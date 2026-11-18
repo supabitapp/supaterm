@@ -130,6 +130,7 @@ import {
   cancelledBeforeStart,
   continuationFailedBeforePrompt,
   continuationStartRetryDelayMs,
+  delegatedTaskAwaitsWork,
   delegatedTaskResultRun,
   neverStarted,
   delegatedTaskRuns,
@@ -13432,13 +13433,7 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
       if (
         taskRuns.some((taskRun) => taskRun.status !== "rolled_back") &&
         !taskRuns.every(neverStarted) &&
-        delegatedTaskProgress({
-          ...childControls,
-          runs: taskRuns,
-          subagents: childControls.subagents.filter((task) =>
-            taskRuns.some((run) => run.id === task.runId),
-          ),
-        }).state !== "result_available"
+        delegatedTaskAwaitsWork(taskRuns, childControls)
       )
         return;
 
@@ -14956,13 +14951,7 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
         if (runs.every(neverStarted)) return false;
         if (
           runs.some((taskRun) => taskRun.status !== "rolled_back") &&
-          delegatedTaskProgress({
-            ...child,
-            runs,
-            subagents: child.subagents.filter((task) =>
-              runs.some((taskRun) => taskRun.id === task.runId),
-            ),
-          }).state !== "result_available"
+          delegatedTaskAwaitsWork(runs, child)
         )
           return true;
         return yield* childAwaitsRestartContinuation(runs, run);

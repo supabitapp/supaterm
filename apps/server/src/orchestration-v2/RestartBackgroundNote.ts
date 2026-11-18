@@ -2,12 +2,16 @@ import type {
   NodeId,
   OrchestrationV2ConversationMessage,
   OrchestrationV2PendingBackgroundTask,
+  OrchestrationV2ProviderThread,
   OrchestrationV2ProviderTurn,
   OrchestrationV2RestartCancelledBackgroundWork,
   OrchestrationV2Run,
   OrchestrationV2RunAttempt,
+  OrchestrationV2Subagent,
   OrchestrationV2TurnItem,
 } from "@supaterm/contracts";
+import { subagentHoldsCompletion } from "@supaterm/provider-core/server/subagentProjection";
+import { backgroundWorkHoldsCompletion } from "@supaterm/shared/orchestrationV2PendingBackgroundWork";
 import {
   latestRootProviderFailure,
   runRanAfter,
@@ -223,6 +227,30 @@ export function delegatedTaskRuns(
     }
   }
   return projection.runs.filter((run) => owned.has(run.id));
+}
+
+/**
+ * A follow-up task's runs still owe a subagent they started its result, or the child still
+ * awaits background work, as the original task waits on both.
+ */
+export function delegatedTaskAwaitsWork(
+  runs: ReadonlyArray<OrchestrationV2Run>,
+  child: {
+    readonly subagents: ReadonlyArray<
+      Pick<OrchestrationV2Subagent, "runId" | "status" | "completionDelivery">
+    >;
+    readonly providerThreads: ReadonlyArray<
+      Pick<OrchestrationV2ProviderThread, "pendingBackgroundTasks">
+    >;
+  },
+): boolean {
+  const runIds = new Set<string | null>(runs.map((run) => run.id));
+  return (
+    child.subagents.some((task) => runIds.has(task.runId) && subagentHoldsCompletion(task)) ||
+    child.providerThreads.some((thread) =>
+      backgroundWorkHoldsCompletion(thread.pendingBackgroundTasks ?? []),
+    )
+  );
 }
 
 /** A follow-up task's latest run, passing over queued work it no longer waits on, as the original task does. */

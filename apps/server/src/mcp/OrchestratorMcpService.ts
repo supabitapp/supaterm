@@ -109,6 +109,7 @@ import type {
   ProjectionRecordFilter,
 } from "../orchestration-v2/ProjectionStore.ts";
 import {
+  delegatedTaskAwaitsWork,
   delegatedTaskResultRun,
   delegatedTaskRuns,
   neverStarted,
@@ -1754,18 +1755,13 @@ const make = Effect.gen(function* () {
     const taskWorkState =
       followupRuns === undefined
         ? progress.state
-        : taskResultRun !== undefined &&
-            isTerminalTaskStatus(taskStatusForRun(taskResultRun)) &&
-            (followupRuns.every(neverStarted) ||
-              followupRuns.every((run) => run.status === "rolled_back"))
-          ? "result_available"
-          : delegatedTaskProgress({
-              ...childControls,
-              runs: followupRuns,
-              subagents: childControls.subagents.filter((subagent) =>
-                followupRuns.some((run) => run.id === subagent.runId),
-              ),
-            }).state;
+        : !isTerminalTaskStatus(taskStatusForRun(taskResultRun))
+          ? "working"
+          : !followupRuns.every(neverStarted) &&
+              followupRuns.some((run) => run.status !== "rolled_back") &&
+              delegatedTaskAwaitsWork(followupRuns, childControls)
+            ? "waiting_for_children"
+            : "result_available";
     const resultRunIds = [
       ...new Set(
         [taskResultRun?.id, terminalRun?.id].filter((id): id is RunId => id !== undefined),
