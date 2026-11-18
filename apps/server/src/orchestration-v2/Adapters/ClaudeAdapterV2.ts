@@ -78,6 +78,7 @@ import {
 } from "@supaterm/shared/mcpApp";
 import { AgentScope } from "@supaterm/shared/AgentScope";
 import * as ProviderProcesses from "../../process/providerProcesses.ts";
+import * as SpawnWorker from "../../process/SpawnWorker.ts";
 import * as HostProcess from "@supaterm/shared/HostProcess";
 import { applyClaudePromptEffortPrefix } from "@supaterm/shared/model";
 import { compareSemverVersions } from "@supaterm/shared/semver";
@@ -635,6 +636,7 @@ export interface ClaudeAgentSdkQuerySession {
   readonly setPermissionMode: (
     mode: PermissionMode,
   ) => Effect.Effect<void, ClaudeAgentSdkQueryRunnerError>;
+  readonly renameSession: (title: string) => Effect.Effect<void, ClaudeAgentSdkQueryRunnerError>;
   readonly stopTask: (taskId: string) => Effect.Effect<void, ClaudeAgentSdkQueryRunnerError>;
   readonly backgroundTasks: (
     toolUseId: string,
@@ -827,7 +829,7 @@ function closeClaudeQuery(queryRuntime: ClaudeQuery) {
 
 // SDK 0.3.316 types `mcp_call` and `list_permission_rules` but has no Query method for them; its own readMcpResource sends control requests this way.
 interface ClaudeControlRequest {
-  readonly subtype: "mcp_call" | "list_permission_rules";
+  readonly subtype: "mcp_call" | "list_permission_rules" | "rename_session";
   readonly [key: string]: unknown;
 }
 
@@ -1059,6 +1061,14 @@ export type ClaudeAgentSdkProtocolLogEvent =
       readonly payload: {
         readonly type: "query.set_permission_mode";
         readonly mode: PermissionMode;
+      };
+    }
+  | {
+      readonly direction: "outgoing";
+      readonly stage: "decoded";
+      readonly payload: {
+        readonly type: "query.rename_session";
+        readonly title: string;
       };
     }
   | {
@@ -1496,12 +1506,11 @@ export const layerQueryRunner: Layer.Layer<
                 }
                 return child;
               }
-              const child = NodeChildProcess.spawn(spawnOptions.command, spawnOptions.args, {
+              const child = SpawnWorker.spawnPiped(spawnOptions.command, spawnOptions.args, {
                 cwd: spawnOptions.cwd,
                 env: spawnOptions.env,
                 signal: spawnOptions.signal,
                 windowsHide: true,
-                stdio: ["pipe", "pipe", "pipe"],
               });
               child.stderr
                 .setEncoding("utf8")
@@ -1729,6 +1738,28 @@ export const layerQueryRunner: Layer.Layer<
                     payload: {
                       type: "query.set_permission_mode",
                       mode,
+                    },
+                  }),
+                ),
+              ),
+            renameSession: (title) =>
+              Effect.tryPromise({
+                try: () =>
+                  sendClaudeControlRequest(queryRuntime, {
+                    subtype: "rename_session",
+                    title,
+                    source: "host",
+                  }),
+                catch: (cause) => queryRunnerError(cause, "renameSession"),
+              }).pipe(
+                Effect.asVoid,
+                Effect.tap(() =>
+                  logProtocolEvent({
+                    direction: "outgoing",
+                    stage: "decoded",
+                    payload: {
+                      type: "query.rename_session",
+                      title,
                     },
                   }),
                 ),
@@ -2361,8 +2392,8 @@ export const CLAUDE_READ_ONLY_SUPATERM_MCP_ALLOWED_TOOLS: ReadonlyArray<string> 
 ];
 
 // Claude Code aborts an HTTP MCP call after 60 s unless the server config sets `timeout`.
-// Supaterm's wait tools block for up to MAX_WAIT_TIMEOUT_MS (an hour), so the budget sits
-// just above that and the server's own wait timeout ends a long call.
+// request_secret can wait an hour, so the budget sits just above that and the server's own
+// wait timeout ends a long call.
 export const CLAUDE_SUPATERM_MCP_TOOL_TIMEOUT_MS = 65 * 60 * 1_000;
 
 // `allowedTools` only pre-approves calls, and headless modes like `dontAsk` deny the rest.
@@ -2528,6 +2559,12 @@ function resultTextFromSdkMessage(
     nativeItemId: message.uuid,
     text: message.result,
   };
+}
+
+function normalizeClaudeSessionTitle(title: string | null | undefined): string | null {
+  if (title === null || title === undefined) return null;
+  const trimmed = title.trim();
+  return trimmed.length > 0 ? trimmed : null;
 }
 
 function makeProviderThread(input: {
@@ -3549,6 +3586,14 @@ const CLAUDE_SCHEDULED_WAKEUP_TASK: OrchestrationV2PendingBackgroundTask = {
 // Claude Code jitters one-shot wakeups early but never before the requested time, which is at
 // most 60 s before the minute-rounded scheduledFor it reports; the rest is slack.
 const CLAUDE_SCHEDULED_WAKEUP_EARLY_FIRE_MARGIN_MS = 120_000;
+
+// The CLI answers a control request such as setModel with a replayed local-command user frame.
+// It belongs to no turn, so on an idle session it is not the start of a wake.
+function isClaudeLocalCommandEcho(message: SDKMessage): boolean {
+  if (message.type !== "user" || !("isReplay" in message) || !message.isReplay) return false;
+  const content = message.message.content;
+  return typeof content === "string" && content.startsWith("<local-command-stdout>");
+}
 
 function claudePendingBackgroundTasksFromRoster(
   roster: ReadonlyMap<string, OrchestrationV2PendingBackgroundTask>,
@@ -4786,6 +4831,8 @@ interface ActiveClaudeTurnContext {
     readonly resetAt: string | null;
   } | null;
   compactionFailure: { readonly message: string | undefined } | null;
+  // The title a `session_title_changed` frame reported; a `/rename` result applies it to the thread.
+  nativeSessionTitle: string | null;
   // Usage of the results that steers ended, oldest first. The final result's
   // usage covers only its own segment, so the turn bills these as well.
   readonly steeredSegmentUsage: Array<SDKResultMessage["usage"]>;
@@ -4870,6 +4917,8 @@ interface ClaudeLiveQueryContext {
   claudeCodeVersion: string | undefined;
   permissionMode: PermissionMode;
   stopping: boolean;
+  // A turn that had not attached when the CLI exited fails its start with this cause.
+  exitCause: Cause.Cause<ClaudeAgentSdkQueryRunnerError> | undefined;
   readonly subagentsFromEarlierProcesses: ReadonlySet<ActiveClaudeSubagent>;
   // Subagents this process still ran when a replacement took over; only its exit can end them.
   handedOffSubagents: ReadonlySet<ActiveClaudeSubagent>;
@@ -5622,6 +5671,9 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
           new Map<string, OrchestrationV2ProviderThread>(),
         );
         const goalsByNativeThread = new Map<string, OrchestrationV2ProviderGoal | null>();
+        // The title Supaterm last applied to each native session, so a turn renames it only when the
+        // thread title changed. A native `/rename` Supaterm never applied survives later turns.
+        const appliedSessionTitles = new Map<string, string>();
         const goalCheckedTurns = new Set<string>();
         // Subagent registry that survives turn settle: a background subagent
         // (Agent with run_in_background) can complete after the root turn
@@ -5925,27 +5977,47 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
         const runtimeContext = yield* Effect.context<never>();
         const runPromise = Effect.runPromiseWith(runtimeContext);
 
-        const emitProviderEvent = (event: ProviderAdapter.ProviderAdapterV2Event) => {
-          if (event.type === "provider_thread.updated") {
-            const budget = pdfBudgets.get(event.providerThread.nativeThreadRef?.nativeId ?? "");
-            if (budget !== undefined) {
-              event = {
-                ...event,
-                providerThread: {
-                  ...event.providerThread,
-                  nativeMetadata: {
-                    ...event.providerThread.nativeMetadata,
+        // Overlays state the adapter owns per native session onto persisted provider metadata.
+        const withAdapterNativeMetadata = (
+          providerThread: OrchestrationV2ProviderThread,
+          nativeThreadId: string,
+        ): OrchestrationV2ProviderThread => {
+          const budget = pdfBudgets.get(nativeThreadId);
+          const hasAppliedTitle = appliedSessionTitles.has(nativeThreadId);
+          const recordedTitle = providerThread.nativeMetadata?.title;
+          if (budget === undefined && !hasAppliedTitle && recordedTitle === undefined) {
+            return providerThread;
+          }
+          return {
+            ...providerThread,
+            nativeMetadata: {
+              ...providerThread.nativeMetadata,
+              ...(budget === undefined
+                ? {}
+                : {
                     claudeAttachmentBudget: {
                       bytesUsed: budget.committed.bytes,
                       pagesUsed: budget.committed.pages,
                     },
-                  },
-                },
-              };
-            }
-            const nativeSessionId = clearedNativeSessions.get(
-              event.providerThread.nativeThreadRef?.nativeId ?? "",
-            );
+                  }),
+              // A cleared title makes the next turn after a restart retry a rename that failed.
+              ...(hasAppliedTitle
+                ? { title: normalizeClaudeSessionTitle(appliedSessionTitles.get(nativeThreadId)) }
+                : recordedTitle === undefined
+                  ? {}
+                  : { title: null }),
+            },
+          };
+        };
+
+        const emitProviderEvent = (event: ProviderAdapter.ProviderAdapterV2Event) => {
+          if (event.type === "provider_thread.updated") {
+            const nativeThreadId = event.providerThread.nativeThreadRef?.nativeId ?? "";
+            event = {
+              ...event,
+              providerThread: withAdapterNativeMetadata(event.providerThread, nativeThreadId),
+            };
+            const nativeSessionId = clearedNativeSessions.get(nativeThreadId);
             if (nativeSessionId !== undefined) {
               event = {
                 ...event,
@@ -6120,8 +6192,9 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
             if (nativeThreadId === undefined || nativeThreadId === null) {
               return;
             }
+            const enriched = withAdapterNativeMetadata(providerThread, nativeThreadId);
             yield* Ref.update(lastProviderThreadByNativeThread, (current) =>
-              new Map(current).set(nativeThreadId, providerThread),
+              new Map(current).set(nativeThreadId, enriched),
             );
           });
 
@@ -10189,6 +10262,9 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
             (yield* Ref.get(activeTurn)) ??
             (yield* settledTurnForSubagentFrame(liveQuery.nativeThreadId, message));
           if (context === null) {
+            if (isClaudeLocalCommandEcho(message)) {
+              return;
+            }
             yield* applyWorkflowProgressWithoutTurn(message);
             // task_notification must buffer wake evidence while still tracked
             // on the roster; clearing first would drop the wake pin.
@@ -10937,6 +11013,35 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
                 return messages.length === entry.messages.length
                   ? current
                   : new Map(current).set(liveQuery.nativeThreadId, { ...entry, messages });
+              });
+            }
+          }
+
+          if (
+            message.type === "system" &&
+            (message.subtype as string) === "session_title_changed" &&
+            "title" in message &&
+            typeof message.title === "string"
+          ) {
+            context.nativeSessionTitle = normalizeClaudeSessionTitle(message.title);
+          }
+
+          if (
+            message.type === "result" &&
+            message.subtype === "success" &&
+            !message.is_error &&
+            message.local_command === "rename" &&
+            context.nativeSessionTitle !== null
+          ) {
+            const title = context.nativeSessionTitle;
+            context.nativeSessionTitle = null;
+            // The native session already has this title; the next turn must not send it back.
+            appliedSessionTitles.set(liveQuery.nativeThreadId, title);
+            if (title !== context.input.appThread.title) {
+              yield* emitProviderEvent({
+                type: "app_thread.created",
+                driver: CLAUDE_PROVIDER,
+                appThread: { ...context.input.appThread, title },
               });
             }
           }
@@ -12489,6 +12594,11 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
             updated.add(nativeThreadId);
             return updated;
           });
+          // A new session's spawn applied this turn's title. A resume keeps the session's stored
+          // title, so the last applied one stays authoritative until a turn compares again.
+          if (!shouldResume) {
+            appliedSessionTitles.set(nativeThreadId, turnInput.appThread.title);
+          }
           yield* resetBackgroundTaskStateForNativeThreadProcess(nativeThreadId, {
             status: "active",
           });
@@ -12512,6 +12622,7 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
             claudeCodeVersion: undefined,
             permissionMode: queryOptions.permissionMode,
             stopping: false,
+            exitCause: undefined,
             handedOffSubagents: new Set(),
             subagentsFromEarlierProcesses: new Set(
               [...(yield* Ref.get(sessionSubagentsByTaskId)).values()].filter(
@@ -12582,6 +12693,7 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
             Effect.exit,
             Effect.flatMap(
               Effect.fnUntraced(function* (exit: ClaudeQueryStreamExit) {
+                if (exit._tag === "Failure") context.exitCause = exit.cause;
                 const heldContext = yield* Ref.get(activeTurn);
                 if (
                   (yield* Ref.get(queryContext))?.query === querySession &&
@@ -12681,6 +12793,12 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
               const used = turnInput.providerThread.nativeMetadata?.claudeAttachmentBudget;
               pdfBudgets.set(nativeThreadId, makeClaudeAttachmentBudget(used));
             }
+            if (!appliedSessionTitles.has(nativeThreadId)) {
+              const recordedTitle = turnInput.providerThread.nativeMetadata?.title;
+              if (recordedTitle !== undefined && recordedTitle !== null) {
+                appliedSessionTitles.set(nativeThreadId, recordedTitle);
+              }
+            }
             const skills =
               promptUuid === null
                 ? undefined
@@ -12725,6 +12843,24 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
                       Effect.provideService(Path.Path, path),
                     );
             const querySession = yield* openQuery(turnInput, nativeThreadId);
+            // `claude --resume` shows the native title. A failed or timed-out rename forgets the
+            // applied title so the next turn, even after a restart, sends it again.
+            if (appliedSessionTitles.get(nativeThreadId) !== turnInput.appThread.title) {
+              const renamed = yield* querySession.query
+                .renameSession(turnInput.appThread.title)
+                .pipe(Effect.timeout("10 seconds"), Effect.isSuccess);
+              if (renamed) {
+                appliedSessionTitles.set(nativeThreadId, turnInput.appThread.title);
+              } else {
+                appliedSessionTitles.delete(nativeThreadId);
+              }
+              const remembered = (yield* Ref.get(lastProviderThreadByNativeThread)).get(
+                nativeThreadId,
+              );
+              if (remembered !== undefined) {
+                yield* rememberProviderThread(remembered);
+              }
+            }
             const autoCompactWindow = yield* resolveAutoCompactWindow(
               querySession.settingsCwd,
               turnInput.modelSelection,
@@ -12772,6 +12908,7 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
               rateLimitResetTimes: new Map(),
               latestAssistantRateLimit: null,
               compactionFailure: null,
+              nativeSessionTitle: null,
               steeredSegmentUsage: [],
               steersClosed: false,
               subagentsByTaskId: new Map(),
@@ -12804,6 +12941,9 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
                 return yield* new ProviderAdapter.ProviderAdapterProtocolError({
                   driver: CLAUDE_PROVIDER,
                   detail: CLAUDE_QUERY_ENDED_BEFORE_TURN_DETAIL,
+                  ...(querySession.exitCause === undefined
+                    ? {}
+                    : { cause: querySession.exitCause }),
                 });
               }
               yield* emitProviderEvent({
@@ -13443,14 +13583,22 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
             function* (threadInput: ProviderAdapter.ProviderAdapterV2EnsureThreadInput) {
               const createdAt = yield* DateTime.now;
               const nativeThreadId = yield* queryRunner.allocateSessionId;
-              return makeProviderThread({
+              if (threadInput.title !== undefined) {
+                appliedSessionTitles.set(nativeThreadId, threadInput.title);
+              }
+              const providerThread = makeProviderThread({
                 idAllocator,
                 providerInstanceId: adapterOptions.instanceId,
                 appThreadId: threadInput.threadId,
                 providerSessionId: input.providerSessionId,
                 nativeThreadId,
+                ...(threadInput.title !== undefined
+                  ? { nativeMetadata: { title: normalizeClaudeSessionTitle(threadInput.title) } }
+                  : {}),
                 now: createdAt,
               });
+              yield* rememberProviderThread(providerThread);
+              return providerThread;
             },
             (effect, threadInput) =>
               effect.pipe(
@@ -13467,6 +13615,12 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
           resumeThread: Effect.fn("ClaudeAdapterV2.resumeThread")(
             function* (threadInput: { readonly providerThread: OrchestrationV2ProviderThread }) {
               const nativeThreadId = threadInput.providerThread.nativeThreadRef?.nativeId;
+              if (nativeThreadId !== undefined && nativeThreadId !== null) {
+                const recordedTitle = threadInput.providerThread.nativeMetadata?.title;
+                if (recordedTitle !== undefined && recordedTitle !== null) {
+                  appliedSessionTitles.set(nativeThreadId, recordedTitle);
+                }
+              }
               if (
                 nativeThreadId !== undefined &&
                 nativeThreadId !== null &&
@@ -13481,12 +13635,26 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
                 });
               }
               const updatedAt = yield* DateTime.now;
-              return {
+              const appliedTitle =
+                nativeThreadId !== undefined && nativeThreadId !== null
+                  ? appliedSessionTitles.get(nativeThreadId)
+                  : undefined;
+              const providerThread: OrchestrationV2ProviderThread = {
                 ...threadInput.providerThread,
                 providerSessionId: input.providerSessionId,
                 status: "idle" as const,
+                ...(appliedTitle !== undefined
+                  ? {
+                      nativeMetadata: {
+                        ...threadInput.providerThread.nativeMetadata,
+                        title: normalizeClaudeSessionTitle(appliedTitle),
+                      },
+                    }
+                  : {}),
                 updatedAt,
               };
+              yield* rememberProviderThread(providerThread);
+              return providerThread;
             },
             (effect, threadInput) =>
               effect.pipe(

@@ -1489,8 +1489,8 @@ export const CODEX_THREAD_CONFIG = {
   "features.concurrent_reasoning_summaries": true,
 } as const;
 
-// Supaterm wait tools can block for up to an hour. Keep Codex's MCP timeout above
-// that limit so the server's own wait timeout ends a long call.
+// request_secret can wait an hour. Keep Codex's MCP timeout above that limit so the
+// server's own wait timeout ends a long call.
 const CODEX_SUPATERM_MCP_TOOL_TIMEOUT_SEC = 65 * 60;
 // Holds Supaterm tools Codex must call directly, never from Code Mode. Calls arrive as
 // `supaterm-direct.<tool>`; supatermMcpToolPresentation.ts must keep resolving that form.
@@ -4776,6 +4776,8 @@ export const makeCodexAdapterV2 = Effect.fn("makeCodexAdapterV2")(function* (
               context,
               nativeItemId: `turn-plan:${payload.turnId}`,
               status: "active",
+              // Each update is a complete snapshot; nothing later completes the item.
+              completed: true,
               ...(explanation === undefined ? {} : { explanation }),
               steps,
             });

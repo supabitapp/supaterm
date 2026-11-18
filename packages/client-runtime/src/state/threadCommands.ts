@@ -519,7 +519,14 @@ export function createThreadEnvironmentAtoms<R, E>(
       ...thread,
       doneOverride: input.reason === "user" ? "active" : null,
       doneAt: null,
-      reopenedAt: thread.doneOverride === "active" ? (thread.reopenedAt ?? null) : now,
+      reopenedAt:
+        thread.doneOverride === "active"
+          ? (thread.reopenedAt ?? null)
+          : input.restoreReopenedAt === undefined
+            ? now
+            : input.restoreReopenedAt === null
+              ? null
+              : DateTime.makeUnsafe(input.restoreReopenedAt),
     })),
     snooze: optimistic.wrap(commands.snooze, (thread, input, now, accepted) =>
       (!accepted &&

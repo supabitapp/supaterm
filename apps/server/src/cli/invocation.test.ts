@@ -6,6 +6,7 @@ import * as FileSystem from "effect/FileSystem";
 import * as Path from "effect/Path";
 
 import packageJson from "../../package.json" with { type: "json" };
+import { posixLauncherScript } from "../service/pinnedRuntime.ts";
 import {
   resolveHostCliCommand,
   resolveRootCliCommand,
@@ -362,7 +363,7 @@ it.layer(NodeServices.layer)("manual server installation ownership", (it) => {
     }),
   );
 
-  it.effect("names the launcher symlink that started a downloaded runtime", () =>
+  it.effect("names the launcher that started a downloaded runtime", () =>
     Effect.gen(function* () {
       const fs = yield* FileSystem.FileSystem;
       const path = yield* Path.Path;
@@ -381,13 +382,14 @@ it.layer(NodeServices.layer)("manual server installation ownership", (it) => {
       yield* fs.makeDirectory(path.join(root, "shadow-dir/supaterm"), { recursive: true });
       yield* fs.makeDirectory(path.join(root, "shadow-file"));
       yield* fs.writeFileString(path.join(root, "shadow-file/supaterm"), "");
-      const resolve = (invokedAs: string) =>
+      const resolve = (invokedAs: string, PATH = "shadow-dir:shadow-file:bin") =>
         resolveServerInstallation.pipe(
           Effect.provideService(HostProcess.ExecutablePath, executable),
           Effect.provideService(HostProcess.IsExecutable, true),
           Effect.provideService(HostProcess.InvokedAs, invokedAs),
           Effect.provideService(HostProcess.WorkingDirectory, root),
-          Effect.provideService(HostProcess.Environment, { PATH: "shadow-dir:shadow-file:bin" }),
+          Effect.provideService(HostProcess.Environment, { PATH }),
+          Effect.provideService(HostProcess.HomeDirectory, root),
           Effect.provideService(HostProcess.Platform, "linux"),
         );
       const baseDir = path.join(root, ".supaterm");
@@ -396,6 +398,19 @@ it.layer(NodeServices.layer)("manual server installation ownership", (it) => {
       expect(yield* resolve(launcher)).toEqual({ kind: "supaterm-launcher", launcher, baseDir });
       expect(yield* resolve(executable)).toBeNull();
       expect(yield* resolve(copy)).toBeNull();
+
+      // The script launcher execs the runtime by absolute path, so argv0 names the runtime.
+      yield* fs.remove(launcher);
+      yield* fs.writeFileString(
+        launcher,
+        posixLauncherScript(path.join(root, ".supaterm/runtime/versions/1.0.0/supaterm")),
+        { mode: 0o755 },
+      );
+      expect(yield* resolve(executable, path.join(root, "bin"))).toEqual({
+        kind: "supaterm-launcher",
+        launcher,
+        baseDir,
+      });
     }),
   );
 

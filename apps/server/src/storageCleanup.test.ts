@@ -26,11 +26,13 @@ import * as ServerConfig from "./config.ts";
 import * as StorageCleanup from "./storageCleanup.ts";
 import * as GitVcsDriver from "./vcs/GitVcsDriver.ts";
 import * as GitManager from "./git/GitManager.ts";
+import * as GitWorkflowService from "./git/GitWorkflowService.ts";
 import * as Settings from "./serverSettings.ts";
 import * as ProjectionStore from "./orchestration-v2/ProjectionStore.ts";
 import * as ProviderSessionManager from "./orchestration-v2/ProviderSessionManager.ts";
 import * as ProjectStore from "./orchestration-v2/ProjectStore.ts";
 import * as Orchestrator from "./orchestration-v2/Orchestrator.ts";
+import * as ThreadManagement from "./orchestration-v2/ThreadManagementService.ts";
 import * as TerminalManager from "./terminal/Manager.ts";
 import { CodexProviderCapabilitiesV2 } from "./orchestration-v2/Adapters/CodexAdapterV2.ts";
 import { ServerActivation } from "./serverActivation.ts";
@@ -46,6 +48,7 @@ import {
   RuntimeRequestId,
   ThreadId,
   type OrchestrationV2DomainEvent,
+  type OrchestrationV2ServerCommand,
   type OrchestrationV2ThreadShell,
 } from "@supaterm/contracts";
 import * as DateTime from "effect/DateTime";
@@ -429,6 +432,31 @@ const cleanupFixture = (
         getThreadShell: (threadId: ThreadId) =>
           Effect.sync(() => threads.find((thread) => thread.id === threadId) ?? null),
       } as unknown as ProjectionStore.ProjectionStoreV2["Service"]),
+      Effect.provideService(ThreadManagement.ThreadManagementService, {
+        getShellSnapshot: (input?: { threadIds?: ReadonlyArray<ThreadId> }) =>
+          Effect.sync(() => ({
+            threads: threads.filter((thread) => input?.threadIds?.includes(thread.id) ?? true),
+            archivedThreads: [],
+          })),
+        dispatch: (command: OrchestrationV2ServerCommand) =>
+          Effect.sync(() => {
+            if (command.type === "thread.metadata.update" && command.branch != null) {
+              const branch = command.branch;
+              threads = threads.map((thread) =>
+                thread.id === command.threadId && thread.branch === command.expectedBranch
+                  ? { ...thread, branch }
+                  : thread,
+              );
+            }
+            return { sequence: 0, storedEvents: [] };
+          }),
+      } as unknown as ThreadManagement.ThreadManagementService["Service"]),
+      Effect.provideService(GitWorkflowService.GitWorkflowService, {
+        currentBranch: (cwd: string) =>
+          command(cwd, ["branch", "--show-current"]).pipe(
+            Effect.map((result) => result.stdout.trim() || null),
+          ),
+      } as unknown as GitWorkflowService.GitWorkflowService["Service"]),
       Effect.provideService(ProviderSessionManager.ProviderSessionManagerV2, {
         isLive: () =>
           Effect.sync(() => {
@@ -528,6 +556,7 @@ const cleanupFixture = (
       setThreads: (next: typeof threads) => {
         threads = next;
       },
+      threadBranches: () => threads.map((thread) => thread.branch),
       setOnLiveCheck: (hook: Effect.Effect<void>) => {
         onLiveCheck = hook;
       },
@@ -748,8 +777,26 @@ it.live("keeps an ignored repository inside a registered submodule", () =>
 it.live("removes clean submodules recursively, including deinitialized repositories", () =>
   runCleanupTest(
     Effect.gen(function* () {
-      const { service, fs, repo, worktree, submodule, command, recordSubmodules } =
-        yield* submoduleCleanupFixture();
+      const fs = yield* FileSystem.FileSystem;
+      const git = yield* GitVcsDriver.GitVcsDriver;
+      let editedDuringClean = false;
+      const { service, repo, worktree, submodule, command, recordSubmodules, setPolicy } =
+        yield* submoduleCleanupFixture().pipe(
+          Effect.provideService(GitVcsDriver.GitVcsDriver, {
+            ...git,
+            execute: (input) =>
+              git.execute(input).pipe(
+                Effect.tap(() => {
+                  if (input.args[0] !== "clean") return Effect.void;
+                  editedDuringClean = true;
+                  return fs.writeFileString(`${input.cwd}/tracked.txt`, "late edit\n");
+                }),
+              ),
+          }),
+        );
+      setPolicy("tracked-changes");
+      yield* fs.writeFileString(`${worktree}/notes.txt`, "untracked\n");
+      yield* fs.writeFileString(`${worktree}/.env`, "ignored\n");
       yield* command(submodule, [
         "-c",
         "protocol.file.allow=always",
@@ -793,6 +840,7 @@ it.live("removes clean submodules recursively, including deinitialized repositor
       yield* command(submodule, ["submodule", "deinit", "stored"]);
       const admin = (yield* command(worktree, ["rev-parse", "--absolute-git-dir"])).stdout.trim();
       const report = yield* service.runNow;
+      expect(editedDuringClean).toBe(false);
       expect(report.entries.find((entry) => entry.path === worktree)).toMatchObject({
         outcome: "removed",
       });
@@ -898,15 +946,21 @@ it.live("keeps unpushed submodule history after checkout and deinitialization", 
 it.live("keeps submodules when stored repository metadata is malformed", () =>
   runCleanupTest(
     Effect.gen(function* () {
-      const { service, fs, worktree, submodule, child, command } = yield* submoduleCleanupFixture();
+      const { service, fs, worktree, submodule, child, command, setPolicy } =
+        yield* submoduleCleanupFixture();
+      setPolicy("tracked-changes");
       const childGit = (yield* command(child, ["rev-parse", "--absolute-git-dir"])).stdout.trim();
       yield* command(submodule, ["submodule", "deinit", "child"]);
       yield* fs.writeFileString(`${childGit}/HEAD`, "not a ref\n");
+      yield* fs.writeFileString(`${worktree}/notes.txt`, "keep while the worktree stays\n");
       expect(
         (yield* service.runNow).entries.find((entry) => entry.path === worktree),
       ).toMatchObject({ outcome: "kept", reason: expect.stringContaining("inspected") });
       expect(yield* fs.exists(worktree)).toBe(true);
       expect(yield* fs.readFileString(`${childGit}/HEAD`)).toBe("not a ref\n");
+      expect(yield* fs.readFileString(`${worktree}/notes.txt`)).toBe(
+        "keep while the worktree stays\n",
+      );
     }),
   ),
 );
@@ -1388,6 +1442,28 @@ describe("deleted thread worktrees", () => {
         });
         expect(yield* fixture.fs.exists(fixture.worktree)).toBe(false);
       }).pipe(Effect.provide(cleanupTestLayer)),
+  );
+
+  it.effect("leaves a deleted owner's subagent on the owner's saved branch", () =>
+    Effect.gen(function* () {
+      yield* TestClock.setTime(NOW_MS);
+      const fixture = yield* cleanupFixture({
+        ...DEFAULT_SERVER_SETTINGS.storageCleanup,
+        worktreeAfterDays: null,
+        worktreeOnDelete: true,
+      });
+      const owner = parent(fixture.worktree);
+      fixture.setDeletedThreads([owner]);
+      fixture.setThreads([subagent(owner)]);
+      yield* fixture.command(fixture.worktree, ["switch", "-c", "renamed"]);
+      expect((yield* fixture.service.runNow).entries[0]).toMatchObject({
+        threadId: owner.id,
+        outcome: "kept",
+        reason: "Repository or branch changed",
+      });
+      // The deleted owner cannot follow, so moving its subagent would split their records.
+      expect(fixture.threadBranches()).toEqual(["feature"]);
+    }).pipe(Effect.provide(cleanupTestLayer), Effect.scoped),
   );
 
   it.effect("applies the remaining subagent's rules when deletion cleanup is off", () =>
@@ -3035,6 +3111,20 @@ describe("storage cleanup reports and local file policies", () => {
       }),
     ),
   );
+  it.live("follows a branch switched while nothing watched the worktree", () =>
+    runCleanupTest(
+      Effect.gen(function* () {
+        const { service, worktree, command, threadBranches } = yield* cleanupFixture();
+        yield* command(worktree, ["switch", "-c", "renamed"]);
+        expect((yield* service.runNow).entries[0]).toMatchObject({
+          outcome: "kept",
+          reason: "Repository or branch changed",
+        });
+        expect(threadBranches()).toEqual(["renamed"]);
+        expect((yield* service.runNow).entries[0]).toMatchObject({ outcome: "removed" });
+      }),
+    ),
+  );
   it.live("does not measure a worktree kept for an open provider session", () =>
     runCleanupTest(
       Effect.gen(function* () {
@@ -3086,7 +3176,8 @@ describe("storage cleanup reports and local file policies", () => {
   it.live("compares the checked-out branch without a full status", () =>
     runCleanupTest(
       Effect.gen(function* () {
-        const { service, fs, repo, worktree, command, fullStatusCalls } = yield* cleanupFixture();
+        const { service, fs, repo, worktree, command, fullStatusCalls, threadBranches } =
+          yield* cleanupFixture();
         const changed = { outcome: "kept", reason: "Repository or branch changed" };
         yield* command(worktree, ["checkout", "--detach"]);
         expect((yield* service.runNow).entries[0]).toMatchObject(changed);
@@ -3096,6 +3187,8 @@ describe("storage cleanup reports and local file policies", () => {
         // Newer Git refuses to create a tag named HEAD, but still reads one.
         yield* command(worktree, ["update-ref", "refs/tags/HEAD", "refs/heads/feature"]);
         yield* command(worktree, ["switch", "feature"]);
+        expect((yield* service.runNow).entries[0]).toMatchObject(changed);
+        expect(threadBranches()).toEqual(["feature"]);
         const index = (yield* command(worktree, ["rev-parse", "--git-path", "index"])).stdout;
         yield* fs.writeFileString(`${index.trim()}.lock`, "");
         const locked = (yield* service.runNow).entries[0];

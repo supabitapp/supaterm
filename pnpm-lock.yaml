@@ -311,6 +311,7 @@ packageExtensionsChecksum: sha256-UoRxygENKhPfc+td23kkPtl2A3aMuUr0ktMujrVM+0w=
 pnpmfileChecksum: sha256-uE8bbaA71OHC+F6ZQAr3QqX6lPPE57JS2ZbxBtKHxmU=
 
 patchedDependencies:
+  '@effect/platform-node-shared@4.1.2': 06952843c6f431ca83c78762fd18d23cda76883801049ee311feced2438ecf14
   '@expo/ui@58.0.27': 9f2547678939f4ec78fe45163b6455aad63d3c80353d7e0cc783f6a61a7ccc2f
   '@ff-labs/fff-node@0.11.0': 7f7dcf03fe49f94d1540572e18425ff63c3ceaa5e0f4a434afe88f427d000a01
   '@legendapp/list@3.7.2': 84f253761536cd9c2919d0d11c5fa68fcce42ce06e00ec00142ba7b0d42ede34
@@ -327,7 +328,7 @@ patchedDependencies:
   mdast-util-math@3.0.0: afe6b2c89e1eaddfd3c90cf2723f12c9a17d513e65beff51653781486013251c
   mdast-util-to-hast@13.2.1: 57ea46c73aea3c876ab8d351fe0482ddd081dcb4a0610576e399dbe5eb59d2b1
   micromark-extension-gfm-table@2.1.2: 402d3326edb13ea048fd36fa0cdd74638d4ee53836ee3ae775f85f152ce1a379
-  micromark-extension-llm-math@3.1.1-20250610: 7dc8bf93bfe218e8ea712dcf0d8e62a2baaec1b75a866a9d9529188929a30fef
+  micromark-extension-llm-math@3.1.1-20250610: 50b27698882514e75266dbc609757cebc389f5f6fd4540d92d2bcc978be61015
   micromark@4.0.2: cb79edde7eca83bbcaaafb6ceb7b044b81b987314cde4910823b15257ecada67
   node-pty@1.2.0-beta.15: f1e680afec85f650699ea756f91f469844ec4c976f4f168492a45c6b3f67d651
   react-native-enriched-markdown@1.2.0-supacode.19: af701fcf25161cb0a7f5f0b4381e6bc58305be27163b2272bfd2d321506b1aa7
@@ -768,7 +769,7 @@ importers:
         version: 4.1.2(bufferutil@4.1.0)(effect@4.1.3)(redis@6.2.1)(utf-8-validate@6.0.6)
       '@effect/platform-node-shared':
         specifier: 4.1.2
-        version: 4.1.2(bufferutil@4.1.0)(effect@4.1.3)(utf-8-validate@6.0.6)
+        version: 4.1.2(patch_hash=06952843c6f431ca83c78762fd18d23cda76883801049ee311feced2438ecf14)(bufferutil@4.1.0)(effect@4.1.3)(utf-8-validate@6.0.6)
       '@ff-labs/fff-node':
         specifier: 0.11.0
         version: 0.11.0(patch_hash=7f7dcf03fe49f94d1540572e18425ff63c3ceaa5e0f4a434afe88f427d000a01)
@@ -1837,6 +1838,9 @@ importers:
       effect:
         specifier: 4.1.3
         version: 4.1.3
+      get-east-asian-width:
+        specifier: ^1.6.0
+        version: 1.6.0
       mdast-util-directive:
         specifier: 'catalog:'
         version: 3.1.0(supports-color@8.1.1)
@@ -12499,7 +12503,7 @@ snapshots:
     transitivePeerDependencies:
       - encoding
 
-  '@effect/platform-node-shared@4.1.2(bufferutil@4.1.0)(effect@4.1.3)(utf-8-validate@6.0.6)':
+  '@effect/platform-node-shared@4.1.2(patch_hash=06952843c6f431ca83c78762fd18d23cda76883801049ee311feced2438ecf14)(bufferutil@4.1.0)(effect@4.1.3)(utf-8-validate@6.0.6)':
     dependencies:
       '@types/ws': 8.18.2
       effect: 4.1.3
@@ -12510,7 +12514,7 @@ snapshots:
 
   '@effect/platform-node@4.1.2(bufferutil@4.1.0)(effect@4.1.3)(redis@6.2.1)(utf-8-validate@6.0.6)':
     dependencies:
-      '@effect/platform-node-shared': 4.1.2(bufferutil@4.1.0)(effect@4.1.3)(utf-8-validate@6.0.6)
+      '@effect/platform-node-shared': 4.1.2(patch_hash=06952843c6f431ca83c78762fd18d23cda76883801049ee311feced2438ecf14)(bufferutil@4.1.0)(effect@4.1.3)(utf-8-validate@6.0.6)
       effect: 4.1.3
       redis: 6.2.1
       undici: 8.12.4
@@ -19131,7 +19135,7 @@ snapshots:
       micromark-util-combine-extensions: 2.0.1
       micromark-util-types: 2.0.2
 
-  micromark-extension-llm-math@3.1.1-20250610(patch_hash=7dc8bf93bfe218e8ea712dcf0d8e62a2baaec1b75a866a9d9529188929a30fef):
+  micromark-extension-llm-math@3.1.1-20250610(patch_hash=50b27698882514e75266dbc609757cebc389f5f6fd4540d92d2bcc978be61015):
     dependencies:
       '@types/katex': 0.16.8
       devlop: 1.1.0
@@ -20419,7 +20423,7 @@ snapshots:
     dependencies:
       '@types/mdast': 4.0.4
       mdast-util-math: 3.0.0(patch_hash=afe6b2c89e1eaddfd3c90cf2723f12c9a17d513e65beff51653781486013251c)(supports-color@8.1.1)
-      micromark-extension-math: micromark-extension-llm-math@3.1.1-20250610(patch_hash=7dc8bf93bfe218e8ea712dcf0d8e62a2baaec1b75a866a9d9529188929a30fef)
+      micromark-extension-math: micromark-extension-llm-math@3.1.1-20250610(patch_hash=50b27698882514e75266dbc609757cebc389f5f6fd4540d92d2bcc978be61015)
       unified: 11.0.5
     transitivePeerDependencies:
       - supports-color

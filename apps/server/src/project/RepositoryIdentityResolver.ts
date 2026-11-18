@@ -2,6 +2,7 @@ import type { RepositoryIdentity, SourceControlProviderError } from "@supaterm/c
 import { parseGitRemoteHost } from "@supaterm/source-control-core/shared/definition";
 import { repositoryPathFromRemoteUrl } from "@supaterm/source-control-core/server/SourceControlProvider";
 import {
+  canonicalRepositoryPath,
   GH_RESOLVED_CONFIG_ARGS,
   normalizeGitRemoteUrl,
   parseGhResolvedRemotes,
@@ -77,8 +78,9 @@ function repositoryPathOf(canonicalKey: string, remoteUrl: string): string {
   if (displayPath === null) return canonicalPath;
   // A host that names repositories literally keeps the `.git` the display path drops.
   return (
-    [displayPath, `${displayPath}.git`].find((path) => path.toLowerCase() === canonicalPath) ??
-    canonicalPath
+    [displayPath, `${displayPath}.git`].find(
+      (path) => canonicalRepositoryPath(path) === canonicalRepositoryPath(canonicalPath),
+    ) ?? canonicalPath
   );
 }
 

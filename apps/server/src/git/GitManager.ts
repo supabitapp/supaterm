@@ -17,6 +17,7 @@ import * as PubSub from "effect/PubSub";
 import * as Ref from "effect/Ref";
 import * as Schema from "effect/Schema";
 import * as Scope from "effect/Scope";
+import * as Semaphore from "effect/Semaphore";
 import * as Stream from "effect/Stream";
 import {
   GitActionProgressEvent,
@@ -190,6 +191,9 @@ const PR_LOOKUP_FAILURE_MAX_TTL = Duration.minutes(15);
 const PR_LOOKUP_CACHE_CAPACITY = 2_048;
 const PR_LOOKUP_GIT_STATE_TTL = Duration.minutes(5);
 const DONE_PR_LOOKUP_RECHECK_INTERVAL = Duration.minutes(15);
+// Shared by every background caller (backfill, settlement, cleanup), so startup discovery
+// cannot fill the git and forge process slots that foreground work also needs.
+const BRANCH_PR_LOOKUP_CONCURRENCY = 4;
 const PR_THREAD_CONTEXT_BYTES = 16_000;
 const PR_THREAD_COMMAND_OUTPUT_CHARS = 2_000;
 const isSourceControlProviderError = Schema.is(SourceControlProviderError);
@@ -530,17 +534,30 @@ function summarizeGitActionResult(
   return { title: "Done" };
 }
 
-function sanitizeCommitMessage(generated: {
-  subject: string;
-  body: string;
-  branch?: string | undefined;
-}): {
+// A backstop for models that ignore the preset's lowercase instruction; acronyms and names like GitHub are left alone.
+const CONVENTIONAL_CAPITALIZED_DESCRIPTION =
+  /^([a-z]+(?:\([^)\n]*\))?!?: )([A-Z][a-z]*)(?![A-Za-z0-9])/;
+
+function sanitizeCommitMessage(
+  generated: {
+    subject: string;
+    body: string;
+    branch?: string | undefined;
+  },
+  conventionalCommits: boolean,
+): {
   subject: string;
   body: string;
   branch?: string | undefined;
 } {
   const rawSubject = generated.subject.trim().split(/\r?\n/g)[0]?.trim() ?? "";
-  const subject = rawSubject.replace(/[.]+$/g, "").trim();
+  const trimmedSubject = rawSubject.replace(/[.]+$/g, "").trim();
+  const subject = conventionalCommits
+    ? trimmedSubject.replace(
+        CONVENTIONAL_CAPITALIZED_DESCRIPTION,
+        (_, prefix: string, word: string) => prefix + word.toLowerCase(),
+      )
+    : trimmedSubject;
   const safeSubject = subject.length > 0 ? subject.slice(0, 72).trimEnd() : "Update project files";
   return {
     subject: safeSubject,
@@ -2226,7 +2243,11 @@ export const make = Effect.gen(function* () {
           modelSelection: input.settings.modelSelection,
           projectId: input.settings.projectId,
         })
-        .pipe(Effect.map((result) => sanitizeCommitMessage(result)));
+        .pipe(
+          Effect.map((result) =>
+            sanitizeCommitMessage(result, policy?.kind === "conventional_commits"),
+          ),
+        );
 
       return {
         subject: generated.subject,
@@ -2590,6 +2611,7 @@ export const make = Effect.gen(function* () {
     prLookupGitStateByKey.set(entryKey, { readAtMs, value });
     return value;
   });
+  const branchPrLookups = yield* Semaphore.make(BRANCH_PR_LOOKUP_CONCURRENCY);
   const donePrLookupByBranchKey = new Map<
     string,
     { readonly url: string; readonly fingerprint: string; readonly confirmedAtMs: number }
@@ -2893,7 +2915,7 @@ export const make = Effect.gen(function* () {
       });
     }
     return confirmed;
-  });
+  }, branchPrLookups.withPermits(1));
 
   const checkedOutPullRequest: GitManager["Service"]["checkedOutPullRequest"] = Effect.fn(
     "checkedOutPullRequest",
