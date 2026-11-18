@@ -143,7 +143,8 @@ vi.mock("@supaterm/client-runtime/environment", () => ({
   scopeProjectRef: (environmentId: string, projectId: string) => ({ environmentId, projectId }),
   scopeThreadRef: (environmentId: string, threadId: string) => ({ environmentId, threadId }),
 }));
-vi.mock("@supaterm/contracts", () => ({
+vi.mock("@supaterm/contracts", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@supaterm/contracts")>()),
   DEFAULT_RUNTIME_MODE: "default",
   DEFAULT_SERVER_SETTINGS: {},
 }));
@@ -200,7 +201,8 @@ vi.mock("../providerInstances", () => ({ resolveDefaultProviderModelSelection: (
 vi.mock("../lib/supatermProjectFileDefaults", () => ({
   readSupatermProjectFile: () => testState.projectFileRead,
 }));
-vi.mock("../lib/utils", () => ({
+vi.mock("../lib/utils", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../lib/utils")>()),
   newDraftId: () => "draft-delayed",
   newThreadId: () => "thread-delayed",
 }));
