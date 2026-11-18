@@ -32,7 +32,7 @@ vi.mock(import("../../chatPanes/actions"), async (original) => ({
 }));
 vi.mock(import("../../state/entities"), async (original) => ({
   ...(await original()),
-  useThreadProjection: ((ref: ScopedThreadRef | null) =>
+  useQuietThreadProjection: ((ref: ScopedThreadRef | null) =>
     ref === null
       ? undefined
       : {
