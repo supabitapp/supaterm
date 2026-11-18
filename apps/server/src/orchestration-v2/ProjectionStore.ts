@@ -471,6 +471,19 @@ export interface ActiveShellIndexEntry extends Pick<
   readonly mayBeLive: boolean;
 }
 
+/** What thread listings filter and order an active thread by, without building its shell. */
+export type ActiveThreadListEntry = Pick<
+  OrchestrationV2ThreadShell,
+  | "id"
+  | "projectId"
+  | "title"
+  | "lineage"
+  | "doneOverride"
+  | "doneAt"
+  | "snoozedUntil"
+  | "updatedAt"
+>;
+
 export interface OlderDoneThreadsQuery {
   readonly before: OrchestrationV2OlderDoneCursor;
   readonly projectIds?: ReadonlyArray<ProjectId> | undefined;
@@ -564,6 +577,10 @@ export interface ProjectionStoreV2Shape {
     ReadonlyArray<ActiveShellIndexEntry>,
     ProjectionStoreV2Error
   >;
+  /** Every active thread, or one project's. */
+  readonly listActiveThreads: (
+    projectId?: ProjectId,
+  ) => Effect.Effect<ReadonlyArray<ActiveThreadListEntry>, ProjectionStoreV2Error>;
   /** Older done thread ids below a cursor, newest done first, and per-project counts. */
   readonly listOlderDoneThreads: (
     query: OlderDoneThreadsQuery,
@@ -1126,6 +1143,21 @@ const encodeTimelineSources = Schema.encodeEffect(
     Schema.Array(Schema.Struct({ threadId: Schema.String, id: Schema.NullOr(Schema.String) })),
   ),
 );
+const shellIndexLineage = (row: {
+  readonly relationship_to_parent: string | null;
+  readonly parent_thread_id: string | null;
+  readonly root_thread_id: string;
+  readonly side_chat: number | null;
+}): OrchestrationV2ThreadShell["lineage"] => ({
+  parentThreadId: row.parent_thread_id === null ? null : ThreadId.make(row.parent_thread_id),
+  relationshipToParent:
+    row.relationship_to_parent === "fork" || row.relationship_to_parent === "subagent"
+      ? row.relationship_to_parent
+      : null,
+  rootThreadId: ThreadId.make(row.root_thread_id),
+  ...(row.side_chat === null ? {} : { sideChat: row.side_chat === 1 }),
+});
+
 const encodeIdList = Schema.encodeSync(Schema.fromJsonString(Schema.Array(Schema.String)));
 
 const matchesNothing = (...filters: ReadonlyArray<ReadonlyArray<unknown> | undefined>) =>
@@ -2097,7 +2129,9 @@ export const layer: Layer.Layer<ProjectionStoreV2, never, SqlClient.SqlClient> =
     const inlineWorkOutput = sql`item.type = 'dynamic_tool' AND (
       item.payload_json LIKE '%htmlRender%' OR item.payload_json LIKE ${`%${MCP_APP_OUTPUT_KEY}%`}
       OR item.payload_json LIKE '%"viewedImagePath"%'
-      OR item.payload_json LIKE '%"toolName":"%delegate_task"%')`;
+      OR item.payload_json LIKE '%"toolName":"%delegate_task"%'
+      OR item.payload_json LIKE '%"toolName":"%send_to_user"%'
+      OR item.payload_json LIKE '%sentMessage%')`;
 
     // SQLite uses the partial conversation index of migration 011 only for this exact predicate.
     const CONVERSATION_INDEX_EXCLUDED_TYPES = sql.literal(
@@ -8593,22 +8627,58 @@ export const layer: Layer.Layer<ProjectionStoreV2, never, SqlClient.SqlClient> =
       return rows.map((row): ActiveShellIndexEntry => ({
         id: ThreadId.make(row.thread_id),
         projectId: ProjectId.make(row.project_id),
-        lineage: {
-          parentThreadId:
-            row.parent_thread_id === null ? null : ThreadId.make(row.parent_thread_id),
-          relationshipToParent:
-            row.relationship_to_parent === "fork" || row.relationship_to_parent === "subagent"
-              ? row.relationship_to_parent
-              : null,
-          rootThreadId: ThreadId.make(row.root_thread_id),
-          ...(row.side_chat === null ? {} : { sideChat: row.side_chat === 1 }),
-        },
+        lineage: shellIndexLineage(row),
         doneOverride:
           row.done_override === "done" || row.done_override === "active" ? row.done_override : null,
         doneAt: row.done_at === null ? null : DateTime.makeUnsafe(row.done_at),
         pinnedAt: row.pinned_at === null ? null : DateTime.makeUnsafe(row.pinned_at),
         snoozedUntil: row.snoozed_until === null ? null : DateTime.makeUnsafe(row.snoozed_until),
         mayBeLive: row.may_be_live === 1,
+      }));
+    }, Effect.mapError(shellSnapshotReadError));
+
+    const listActiveThreads = Effect.fn("ProjectionStore.listActiveThreads")(function* (
+      projectId?: ProjectId,
+    ) {
+      const rows = yield* sql<{
+        readonly thread_id: string;
+        readonly project_id: string;
+        readonly title: string;
+        readonly updated_at: string;
+        readonly relationship_to_parent: string | null;
+        readonly parent_thread_id: string | null;
+        readonly root_thread_id: string;
+        readonly side_chat: number | null;
+        readonly done_override: string | null;
+        readonly done_at: string | null;
+        readonly snoozed_until: string | null;
+      }>`
+        SELECT
+          t.thread_id,
+          t.project_id,
+          t.title,
+          t.updated_at,
+          json_extract(t.payload_json, '$.lineage.relationshipToParent') AS relationship_to_parent,
+          json_extract(t.payload_json, '$.lineage.parentThreadId') AS parent_thread_id,
+          json_extract(t.payload_json, '$.lineage.rootThreadId') AS root_thread_id,
+          json_extract(t.payload_json, '$.lineage.sideChat') AS side_chat,
+          json_extract(t.payload_json, '$.doneOverride') AS done_override,
+          json_extract(t.payload_json, '$.doneAt') AS done_at,
+          json_extract(t.payload_json, '$.snoozedUntil') AS snoozed_until
+        FROM orchestration_v2_projection_threads t
+        WHERE t.deleted_at IS NULL
+          AND t.archived_at IS NULL${projectId === undefined ? sql`` : sql` AND t.project_id = ${projectId}`}
+      `;
+      return rows.map((row): ActiveThreadListEntry => ({
+        id: ThreadId.make(row.thread_id),
+        projectId: ProjectId.make(row.project_id),
+        title: row.title,
+        lineage: shellIndexLineage(row),
+        doneOverride:
+          row.done_override === "done" || row.done_override === "active" ? row.done_override : null,
+        doneAt: row.done_at === null ? null : DateTime.makeUnsafe(row.done_at),
+        snoozedUntil: row.snoozed_until === null ? null : DateTime.makeUnsafe(row.snoozed_until),
+        updatedAt: DateTime.makeUnsafe(row.updated_at),
       }));
     }, Effect.mapError(shellSnapshotReadError));
 
@@ -8791,6 +8861,7 @@ export const layer: Layer.Layer<ProjectionStoreV2, never, SqlClient.SqlClient> =
       getPullRequestSnapshot: readOnReader(getPullRequestSnapshot),
       listActiveSubagentThreadIds: readOnReader(listActiveSubagentThreadIds),
       listActiveShellIndex: readOnReader(listActiveShellIndex),
+      listActiveThreads: readOnReader(listActiveThreads),
       readShellSnapshot: readOnReader(readShellSnapshot),
       listOlderDoneThreads: readOnReader(listOlderDoneThreads),
       getThreadShell: readOnReader(getThreadShell),

@@ -213,6 +213,8 @@ const makeHarness = Effect.fn("test.make_boot_service_harness")(function* (
     lingerStartsManager: boolean;
     enabled: boolean;
     active: boolean;
+    /** systemd refuses starts until `reset-failed`, as after `StartLimitBurst` trips. */
+    startLimitHit: boolean;
   } = {
     failCommand: undefined,
     linger: "yes",
@@ -221,6 +223,7 @@ const makeHarness = Effect.fn("test.make_boot_service_harness")(function* (
     lingerStartsManager: true,
     enabled: true,
     active: true,
+    startLimitHit: false,
   };
   const runner = ProcessRunner.ProcessRunner.of({
     run: Effect.fn("test.run_boot_service_command")(function* (
@@ -230,13 +233,20 @@ const makeHarness = Effect.fn("test.make_boot_service_harness")(function* (
       commands.push(command);
       invocations.push(input);
       timeouts.set(command, input.timeout);
-      const failed = command === control.failCommand;
+      if (command === "systemctl --user reset-failed supaterm.service")
+        control.startLimitHit = false;
+      const refusedStart = control.startLimitHit && command.startsWith("systemctl --user restart ");
+      // `--no-block` only queues the job, so systemd reports success even when it refuses it.
+      const failed =
+        command === control.failCommand ||
+        (refusedStart && command === "systemctl --user restart supaterm.service");
       if (!failed && command.startsWith("loginctl enable-linger --no-ask-password ")) {
         control.linger = "yes";
         control.managerReachable ||= control.lingerStartsManager;
       }
       if (!failed && command === "systemctl --user enable supaterm.service") control.enabled = true;
-      if (!failed && command === "systemctl --user restart supaterm.service") control.active = true;
+      if (!refusedStart && !failed && command.startsWith("systemctl --user restart "))
+        control.active = true;
       // The manager loads units only from its own unit directory.
       const unitOutsideManager =
         command === "systemctl --user enable supaterm.service" &&
@@ -813,6 +823,7 @@ it.layer(NodeServices.layer)("boot service install", (it) => {
           platform === "linux"
             ? [
                 "systemctl --user stop supaterm.service",
+                "systemctl --user reset-failed supaterm.service",
                 "systemctl --user restart supaterm.service",
               ]
             : [
@@ -1147,6 +1158,7 @@ process.disconnect();
         "systemctl --user is-active supaterm.service",
         "systemctl --user stop supaterm.service",
         "repair",
+        "systemctl --user reset-failed supaterm.service",
         "systemctl --user restart supaterm.service",
       ]);
       expect(control.active).toBe(true);
@@ -1280,12 +1292,32 @@ process.disconnect();
         expect(commands).toEqual([
           "systemctl --user daemon-reload",
           "systemctl --user enable supaterm.service",
+          "systemctl --user reset-failed supaterm.service",
           "systemctl --user restart --no-block supaterm.service",
         ]);
         expect(outcome).toBe("queued");
         expect(yield* fs.readFileString(statePath)).toBe(state);
         expect(yield* fs.readFileString(marker)).toBe("1.2.3\n");
       }),
+  );
+
+  // regression: #36319
+  it.effect("starts a service whose systemd start limit tripped after repairing it", () =>
+    Effect.gen(function* () {
+      const { service, control, makeService } = yield* makeHarness();
+      yield* service.install();
+      control.active = false;
+      control.startLimitHit = true;
+
+      yield* service.install();
+      expect(control.active).toBe(true);
+
+      control.active = false;
+      control.startLimitHit = true;
+      const inside = yield* makeService(undefined, "1.2.3", undefined, true);
+      expect(yield* inside.restart).toBe("queued");
+      expect(control.active).toBe(true);
+    }),
   );
 
   it.effect("restarts an installed service when repair fails", () =>
@@ -1304,6 +1336,7 @@ process.disconnect();
       ).toEqual([
         "systemctl --user stop supaterm.service",
         "systemctl --user daemon-reload",
+        "systemctl --user reset-failed supaterm.service",
         "systemctl --user restart supaterm.service",
       ]);
     }),
@@ -1337,6 +1370,7 @@ process.disconnect();
           ),
         ).toEqual([
           "systemctl --user stop supaterm.service",
+          "systemctl --user reset-failed supaterm.service",
           "systemctl --user restart supaterm.service",
         ]);
       }
