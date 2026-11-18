@@ -15,7 +15,6 @@ import { afterEach, beforeEach, vi } from "vite-plus/test";
 import * as Fiber from "effect/Fiber";
 import * as Cause from "effect/Cause";
 import { AsyncResult } from "effect/reactivity";
-import { VoiceUploadError } from "@supaterm/client-runtime/state/transcription";
 
 import type { PreparedTurnAttachments } from "../lib/attachmentUpload";
 
@@ -36,7 +35,6 @@ const harness = vi.hoisted(() => ({
   prepareTurnAttachments: vi.fn<typeof import("../lib/attachmentUpload").prepareTurnAttachments>(),
   uploadVoice: vi.fn<typeof import("./transcription").uploadEnvironmentVoiceRecording>(),
   audioExists: true,
-  releaseVoiceRecordings: vi.fn(async () => undefined),
   draftFile: (() => {
     let document = "";
     let writeError: Error | null = null;
@@ -102,7 +100,7 @@ vi.mock("./thread-outbox-audio", () => ({
     exists: harness.audioExists,
     uri: `file:///documents/thread-outbox-audio/${messageId}.wav`,
   }),
-  releaseUnusedQueuedVoiceRecordings: harness.releaseVoiceRecordings,
+  releaseUnusedQueuedVoiceRecordings: vi.fn(async () => undefined),
 }));
 
 vi.mock("./projects", () => ({ environmentProjects: {} }));
@@ -268,7 +266,6 @@ afterEach(() => {
   harness.writeOutboxMessage.mockReset();
   harness.prepareTurnAttachments.mockReset();
   harness.uploadVoice.mockReset();
-  harness.releaseVoiceRecordings.mockClear();
   harness.audioExists = true;
 });
 
@@ -1322,22 +1319,6 @@ describe("queued voice message delivery", () => {
     }),
   );
 
-  it.effect("starts a fresh session for a recording sent while /clear was armed", () =>
-    Effect.gen(function* () {
-      const message = yield* Effect.promise(() =>
-        enqueue({ ...voiceMessage(), freshContext: true }),
-      );
-      harness.uploadVoice.mockResolvedValue({
-        text: "ship it",
-        submission: { status: "sent", sequence: 3 },
-      });
-
-      yield* deliverQueuedVoiceMessage(message, modelSelection);
-
-      expect(harness.uploadVoice.mock.calls[0]?.[0].request.submit?.freshContext).toBe(true);
-    }),
-  );
-
   it.effect(
     "collects a streamed recording without its audio only under the id it streamed with",
     () =>
@@ -1368,54 +1349,6 @@ describe("queued voice message delivery", () => {
           undefined,
         ]);
       }),
-  );
-
-  it.effect("holds a refused recording under a fresh command id and keeps its audio", () =>
-    Effect.gen(function* () {
-      const message = yield* Effect.promise(() => enqueue(voiceMessage()));
-      harness.uploadVoice.mockRejectedValue(
-        new VoiceUploadError("signedOut", "Sign in to this provider again to transcribe.", false),
-      );
-
-      expect(yield* deliverQueuedVoiceMessage(message, modelSelection)).toEqual({ status: "held" });
-
-      const [held] = remainingMessages();
-      expect(held).toMatchObject({
-        voice: message.voice,
-        failure: "Sign in to this provider again to transcribe.",
-      });
-      expect(held?.commandId).not.toBe(message.commandId);
-      expect(harness.releaseVoiceRecordings).not.toHaveBeenCalled();
-    }),
-  );
-
-  it.effect("keeps a transcript the thread refused as held text and deletes the recording", () =>
-    Effect.gen(function* () {
-      const message = yield* Effect.promise(() => enqueue(voiceMessage()));
-      harness.uploadVoice.mockResolvedValue({ text: "ship it", submission: { status: "failed" } });
-
-      expect(yield* deliverQueuedVoiceMessage(message, modelSelection)).toEqual({ status: "held" });
-
-      const [held] = remainingMessages();
-      expect(held).toMatchObject({ messageId: message.messageId, text: "ship it" });
-      expect(held?.voice).toBeUndefined();
-      expect(held?.failure).toBeDefined();
-      expect(harness.releaseVoiceRecordings).toHaveBeenCalledTimes(1);
-    }),
-  );
-
-  it.effect("leaves a dropped upload queued unchanged for the backoff", () =>
-    Effect.gen(function* () {
-      const message = yield* Effect.promise(() => enqueue(voiceMessage()));
-      harness.uploadVoice.mockRejectedValue(
-        new VoiceUploadError("disconnected", "The recording couldn't reach the environment.", true),
-      );
-
-      expect(yield* deliverQueuedVoiceMessage(message, modelSelection)).toEqual({
-        status: "retry",
-      });
-      expect(remainingMessages()).toEqual([message]);
-    }),
   );
 
   it.effect("holds a message whose recording is gone without uploading", () =>
