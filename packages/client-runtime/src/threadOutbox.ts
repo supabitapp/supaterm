@@ -324,8 +324,9 @@ export function createThreadOutboxManager<Message extends { readonly createdAt: 
       const current = currentMessages().find(
         (candidate) => identify(candidate).messageId === messageId,
       );
-      const next = current === undefined ? null : change(current);
-      if (current === undefined || next === null) return false;
+      if (current === undefined) return false;
+      const next = change(current);
+      if (next === null) return false;
       const revision = revisions.get(messageId) ?? 0;
       try {
         if ((await options.storage.write(next)) === false) {

@@ -36,12 +36,14 @@ const MOBILE_NATIVE =
   /^apps\/mobile\/.*\.(swift|kt|kts)$|^apps\/mobile\/(\.swiftlint\.yml|detekt\.yml|\.editorconfig|Brewfile)$|^scripts\/mobile-native-static-check\.ts$|^package\.json$|^\.github\/workflows\/ci\.yml$/;
 
 // quotePath=false keeps non-ASCII paths as real paths instead of quoted escapes.
-const git = (...args: Array<string>) =>
+const gitOutput = (...args: Array<string>) =>
   NodeChildProcess.execFileSync("git", ["-c", "core.quotePath=false", ...args], {
     cwd: root,
     encoding: "utf8",
     maxBuffer: 64 * 1024 * 1024,
-  })
+  });
+const git = (...args: Array<string>) =>
+  gitOutput(...args)
     .split("\n")
     .filter(Boolean);
 
@@ -53,15 +55,7 @@ const inNodeModules = /(^|\/)node_modules\//;
 // junctions in node_modules until MAX_PATH. `--directory` lists one without entering it.
 const ignoredCheckInputs = () => {
   const list = (...args: Array<string>) =>
-    NodeChildProcess.execFileSync(
-      "git",
-      ["-c", "core.quotePath=false", "ls-files", "-z", ...args],
-      {
-        cwd: root,
-        encoding: "utf8",
-        maxBuffer: 64 * 1024 * 1024,
-      },
-    )
+    gitOutput("ls-files", "-z", ...args)
       .split("\0")
       .filter(Boolean);
   const ignored = ["--others", "--ignored", "--exclude-standard"];
