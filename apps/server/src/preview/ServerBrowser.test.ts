@@ -375,6 +375,12 @@ function makeEncoderPage() {
     btoa,
     Blob,
     performance,
+    // Chromium pages have Uint8Array.fromBase64; Node 24 does not.
+    Uint8Array: class extends Uint8Array {
+      static fromBase64(base64: string) {
+        return new Uint8Array(Buffer.from(base64, "base64"));
+      }
+    },
   };
   sandbox.window = sandbox;
   const context = NodeVM.createContext(sandbox);
