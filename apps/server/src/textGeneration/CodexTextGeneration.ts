@@ -23,6 +23,7 @@ import {
   codexMcpListLaunchArgs,
   resolveCodexLaunchArgs,
 } from "../provider/codexLaunchArgs.ts";
+import { codexAppServerEnvironment } from "../provider/CodexProvider.ts";
 import * as TextGenerationOperations from "@supaterm/provider-core/server/textGenerationOperations";
 import {
   normalizeCliError,
@@ -308,7 +309,7 @@ export const makeCodexTextGeneration = Effect.fn("makeCodexTextGeneration")(func
         : [];
       const binary = effectiveConfig.binaryPath || "codex";
       const env = {
-        ...effectiveEnvironment,
+        ...codexAppServerEnvironment(effectiveEnvironment),
         ...(effectiveConfig.homePath
           ? {
               CODEX_HOME: expandHomePath(
