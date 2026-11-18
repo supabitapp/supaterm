@@ -139,7 +139,7 @@ function persistedLink(
 }
 
 describe("isAutoMarkDoneCandidate", () => {
-  it("marks done a thread with a command left running, but not one with a monitor", () => {
+  it("allows an unawaited command left running, but not a monitor or watch", () => {
     expect(
       ThreadDoneService.isAutoMarkDoneCandidate(
         shell({

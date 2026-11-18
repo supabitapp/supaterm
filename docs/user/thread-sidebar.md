@@ -209,8 +209,8 @@ Press `Escape` while dragging to cancel.
 By default, environments mark inactive threads as Done after seven days and mark threads whose
 pull request merged as Done. Turn off **Automatically mark merged threads as Done** to keep merged
 threads in the active list. A closed pull request can also mark an idle thread as Done. An empty thread's inactivity counts from when it was created.
-Pins, work in progress, pending questions or approvals, running monitors, and background work
-the agent is waiting on prevent automatic completion. An open pull request does not prevent inactivity
+Pins, work in progress, pending questions or approvals, running monitors, pull request watches,
+and background work the agent is waiting on prevent automatic completion. An open pull request does not prevent inactivity
 completion unless you turn on **Keep threads with an open PR**, but an old closed or merged pull request does not mark work as Done if you
 resumed it after it closed. Only your own messages count as resuming. A turn that
 finished background work or a pull request watch starts on its own does not.
