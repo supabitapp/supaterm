@@ -11,6 +11,7 @@ import {
   isOrchestrationV2RunSettled,
 } from "@supaterm/contracts";
 import { makeDrainableWorker } from "@supaterm/shared/DrainableWorker";
+import * as KeyedLock from "@supaterm/shared/KeyedLock";
 import {
   threadPullRequestKeyOf,
   normalizeThreadPullRequestKey,
@@ -47,6 +48,8 @@ export const QUIET_SYNC_INTERVAL_MS = 5 * 60 * 1_000;
 // A pull request closed this long ago is rarely reopened, so the sweep stops reading it, as it
 // does merged ones. A reader that sees it open, or a requested refresh, still reads it at once.
 const CLOSED_FINAL_AFTER_MS = 24 * 60 * 60 * 1_000;
+// A link whose host read failed waits a sweep, then twice as long after each further failure.
+const FAILED_READ_BACKOFF_MS = 60 * 1_000;
 
 const isChangeRequestCloseCommand = (command: string) =>
   sourceControlDefinitions.definitions.some(
@@ -370,6 +373,7 @@ export const make = Effect.gen(function* () {
 
   let requestedSweepQueued = false;
   const retryStacks = new Set<string>();
+  const failedReads = new Map<string, { readonly retryAtMs: number; readonly backoffMs: number }>();
   // Group keys the host answered not-found for, or this server cannot read (no CLI, signed out,
   // unsupported host); they are read on the slow cadence until a read succeeds.
   const missing = new Set<string>();
@@ -379,6 +383,7 @@ export const make = Effect.gen(function* () {
   const pausedUntil = new Map<string, number>();
 
   const isDue = (key: string, entries: ReadonlyArray<LinkEntry>, nowMs: number): boolean => {
+    if ((failedReads.get(key)?.retryAtMs ?? 0) > nowMs) return false;
     if (requested.has(key)) return true;
     // Done threads stop watching their pull requests. Reopening one makes its links due on
     // the next sweep, since the cadence clock below kept running while it was done.
@@ -428,12 +433,17 @@ export const make = Effect.gen(function* () {
     }
 
     for (const [key, entries] of groups) {
-      if (pendingRequests.has(threadPullRequestKeyOf(entries[0]!.link))) requested.add(key);
+      if (!pendingRequests.has(threadPullRequestKeyOf(entries[0]!.link))) continue;
+      requested.add(key);
+      // A new request reads at once; a failure after it backs off further, not from the start.
+      const failed = failedReads.get(key);
+      if (failed !== undefined) failedReads.set(key, { ...failed, retryAtMs: nowMs });
     }
     pendingRequests.clear();
 
     for (const key of lastSyncedAt.keys()) if (!groups.has(key)) lastSyncedAt.delete(key);
     for (const key of retryStacks) if (!groups.has(key)) retryStacks.delete(key);
+    for (const key of failedReads.keys()) if (!groups.has(key)) failedReads.delete(key);
     for (const key of missing) if (!groups.has(key)) missing.delete(key);
     for (const key of requested.keys()) if (!groups.has(key)) requested.delete(key);
 
@@ -604,6 +614,7 @@ export const make = Effect.gen(function* () {
       }
       // The host answered, so the cadence clock ticks even if a dispatch below is rejected.
       lastSyncedAt.set(key, nowMs);
+      failedReads.delete(key);
       requested.delete(key);
       yield* Effect.forEach(
         entries,
@@ -629,6 +640,13 @@ export const make = Effect.gen(function* () {
           const retryAt = rateLimitRetryAt(cause);
           if (retryAt !== undefined) {
             pausedUntil.set(pauseKey, Math.max(retryAt, pausedUntil.get(pauseKey) ?? 0));
+          } else {
+            const previous = failedReads.get(key);
+            const backoffMs =
+              previous === undefined
+                ? FAILED_READ_BACKOFF_MS
+                : Math.min(previous.backoffMs * 2, SLOW_SYNC_INTERVAL_MS);
+            failedReads.set(key, { retryAtMs: nowMs + backoffMs, backoffMs });
           }
           const reason = skipReason(cause);
           const skip = skips.get(reason);
@@ -804,7 +822,19 @@ export const make = Effect.gen(function* () {
     "PullRequestSyncReactor.start",
   )(function* () {
     const events = engine.streamDomainEvents;
-
+    // Linking and reopening dispatch under the thread's lock, so a busy thread delays only its
+    // own reactions. Refreshes queue with them, so each thread's reactions keep event order.
+    const threadReactions = yield* KeyedLock.makeRunner<ThreadId>();
+    const inThreadOrder = <E>(threadId: ThreadId, reaction: Effect.Effect<void, E>) =>
+      threadReactions.run(
+        threadId,
+        // The reactions log their own failures, so this sees only defects and shutdown.
+        Effect.catchCause(reaction, (cause) =>
+          Cause.hasInterruptsOnly(cause)
+            ? Effect.interrupt
+            : Effect.logWarning("pull request sync reaction failed", { threadId, cause }),
+        ),
+      );
     const stateChanges = Stream.merge(
       yield* pullRequests.subscribeStateChanges,
       yield* git.subscribePullRequestStateChanges,
@@ -831,24 +861,29 @@ export const make = Effect.gen(function* () {
           case "turn-item.updated": {
             const item = event.payload;
             if (item.type !== "command_execution") return Effect.void;
-            const linked = Effect.andThen(
+            let reaction = Effect.andThen(
               linkCreatedChangeRequests(event.threadId, item),
               reopenWatchedChecks(event.threadId, item),
             );
-            if (!isChangeRequestCloseCommand(item.input)) return linked;
-            const ended = closeCommands.get(event.threadId) ?? new Set<string>();
-            closeCommands.set(event.threadId, ended);
-            if (isOrchestrationV2WorkActive(item.status) || ended.has(item.id)) return linked;
-            ended.add(item.id);
-            return Effect.andThen(linked, refreshUnmergedLinks(event.threadId));
+            const active = isOrchestrationV2WorkActive(item.status);
+            if (isChangeRequestCloseCommand(item.input)) {
+              const ended = closeCommands.get(event.threadId) ?? new Set<string>();
+              closeCommands.set(event.threadId, ended);
+              if (!active && !ended.has(item.id)) {
+                ended.add(item.id);
+                reaction = Effect.andThen(reaction, refreshUnmergedLinks(event.threadId));
+              }
+            }
+            // Every reaction skips a running command, so only an ended one forks.
+            return active ? Effect.void : inThreadOrder(event.threadId, reaction);
           }
           // Done threads are not swept, so read their links once to keep fresh status.
           case "thread.marked-done":
-            return refreshUnmergedLinks(event.threadId);
+            return inThreadOrder(event.threadId, refreshUnmergedLinks(event.threadId));
           case "run.updated":
             return isOrchestrationV2RunSettled(event.payload.status) &&
               closeCommands.delete(event.threadId)
-              ? refreshUnmergedLinks(event.threadId)
+              ? inThreadOrder(event.threadId, refreshUnmergedLinks(event.threadId))
               : Effect.void;
           default:
             return Effect.void;

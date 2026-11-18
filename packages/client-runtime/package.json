@@ -31,6 +31,10 @@
       "types": "./src/previewZoom.ts",
       "default": "./src/previewZoom.ts"
     },
+    "./pull-request-diff-fold": {
+      "types": "./src/pullRequestDiffFold.ts",
+      "default": "./src/pullRequestDiffFold.ts"
+    },
     "./assembly-highlighting": {
       "types": "./src/assemblyHighlighting.ts",
       "default": "./src/assemblyHighlighting.ts"
@@ -194,6 +198,10 @@
     "./state/transcription": {
       "types": "./src/state/transcription.ts",
       "default": "./src/state/transcription.ts"
+    },
+    "./state/attachment-uploads": {
+      "types": "./src/state/attachmentUploads.ts",
+      "default": "./src/state/attachmentUploads.ts"
     },
     "./text-paste": {
       "types": "./src/textPaste.ts",
@@ -590,6 +598,10 @@
     "./pull-request-reviewers": {
       "types": "./src/pullRequestReviewers.ts",
       "default": "./src/pullRequestReviewers.ts"
+    },
+    "./pull-request-selection": {
+      "types": "./src/pullRequestSelection.ts",
+      "default": "./src/pullRequestSelection.ts"
     },
     "./provider-clients": {
       "types": "./src/providerClients.ts",

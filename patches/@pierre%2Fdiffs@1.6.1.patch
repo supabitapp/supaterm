@@ -875,7 +875,7 @@ index 6e7b486..5b7290f 100644
  		connectedCallback() {
  			const shadowRoot = this.shadowRoot ?? this.attachShadow({ mode: "open" });
 diff --git a/dist/editor/editor.js b/dist/editor/editor.js
-index bf17cea..4c1da1c 100644
+index bf17cea..c483a83 100644
 --- a/dist/editor/editor.js
 +++ b/dist/editor/editor.js
 @@ -103,6 +103,7 @@ var Editor = class {
@@ -925,7 +925,15 @@ index bf17cea..4c1da1c 100644
  		const replacementFocusTargetIsContent = (event) => {
  			const target = event.composedPath()[0];
  			return target instanceof Node && this.#contentElement?.contains(target) === true;
-@@ -1314,6 +1331,7 @@ var Editor = class {
+@@ -1046,6 +1063,7 @@ var Editor = class {
+ 		this.#editorEventDisposes = [
+ 			addEventListener(contentEl, "focus", () => {
+ 				this.#contentHasFocus = true;
++				this.#retainSearchPanelFocus = false;
+ 				onFocus?.();
+ 				if (!this.#isContentMouseDown && !this.#shouldIgnoreSelectionChange && this.#selections !== void 0 && this.#selections.length > 0) this.#setWindowSelection(this.#selections.at(-1));
+ 			}, { passive: true }),
+@@ -1314,6 +1332,7 @@ var Editor = class {
  		this.#resizeObserver = new ResizeObserver(this.#handleLayoutResize);
  		this.#resizeObserver.observe(contentEl);
  		this.#resizeObserver.observe(contentEl.parentElement);
@@ -933,7 +941,7 @@ index bf17cea..4c1da1c 100644
  		this.#computeContentOffset(contentEl);
  	}
  	#handleCustomPasteEvent = async () => {
-@@ -1772,7 +1790,9 @@ var Editor = class {
+@@ -1772,7 +1791,9 @@ var Editor = class {
  		const change = textDocument.applyEdits(edits, true, selections, nextSelections, true);
  		if (change !== void 0) this.#applyChange(change, nextSelections);
  	}
@@ -944,7 +952,7 @@ index bf17cea..4c1da1c 100644
  		const lineAnnotations = this.#lineAnnotations?.length ?? 0;
  		const prevGutterWidth = this.#gutterWidthCache;
  		const prevContentWidth = this.#contentWidthCache;
-@@ -1780,13 +1800,13 @@ var Editor = class {
+@@ -1780,13 +1801,13 @@ var Editor = class {
  		this.#contentWidthCache = void 0;
  		const gutterWidthChanged = this.#getGutterWidth() !== prevGutterWidth;
  		const contentWidthChanged = this.#getContentWidth() !== prevContentWidth;
@@ -961,7 +969,7 @@ index bf17cea..4c1da1c 100644
  		}
  		if (this.#selections !== void 0 || this.#matches !== void 0 || this.#markerRenderer !== void 0) {
  			this.#updateSelections(this.#selections ?? []);
-@@ -1903,7 +1923,11 @@ var Editor = class {
+@@ -1903,7 +1924,11 @@ var Editor = class {
  			changedDocumentLines: this.#isDiff && !didLineCountChange ? getChangedDocumentLines(textDocument, change) : void 0,
  			documentLineCount: textDocument.lineCount
  		});

@@ -539,9 +539,9 @@ if ! supaterm_runtime_ready; then
   supaterm_fetch "$SUPATERM_RELEASE_BASE_URL/v$SUPATERM_ARCHIVE_VERSION/$SUPATERM_ARCHIVE" "$SUPATERM_STAGING/$SUPATERM_ARCHIVE" @@SUPATERM_ARCHIVE_DOWNLOAD_SECONDS@@
   SUPATERM_EXPECTED="$(grep " \\*\\{0,1\\}$SUPATERM_ARCHIVE$" "$SUPATERM_STAGING/SHA256SUMS" | cut -d' ' -f1)"
   if command -v sha256sum >/dev/null 2>&1; then
-    SUPATERM_ACTUAL="$(sha256sum "$SUPATERM_STAGING/$SUPATERM_ARCHIVE" | cut -d' ' -f1)"
+    SUPATERM_ACTUAL="$(sha256sum < "$SUPATERM_STAGING/$SUPATERM_ARCHIVE" | cut -d' ' -f1)"
   else
-    SUPATERM_ACTUAL="$(shasum -a 256 "$SUPATERM_STAGING/$SUPATERM_ARCHIVE" | cut -d' ' -f1)"
+    SUPATERM_ACTUAL="$(shasum -a 256 < "$SUPATERM_STAGING/$SUPATERM_ARCHIVE" | cut -d' ' -f1)"
   fi
   if [ -z "$SUPATERM_EXPECTED" ] || [ "$SUPATERM_ACTUAL" != "$SUPATERM_EXPECTED" ]; then
     printf 'Checksum mismatch for %s.\\n' "$SUPATERM_ARCHIVE" >&2; exit 1
