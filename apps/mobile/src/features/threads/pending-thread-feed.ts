@@ -1,4 +1,4 @@
-import { isCompactionCommandMessage } from "@supaterm/contracts";
+import { isCompactionCommandMessage, type MessageId } from "@supaterm/contracts";
 import { threadHasCaughtUpTo } from "@supaterm/client-runtime/state/threads";
 import type { DraftComposerAttachment } from "../../lib/composerImages";
 import {
@@ -185,7 +185,7 @@ export function createPendingTurnAppender() {
   let activity: Extract<ThreadFeedEntry, { readonly type: "thinking" }> | null = null;
   return (
     feed: ReadonlyArray<PendingThreadFeedEntry>,
-    options: { readonly zen: boolean },
+    options: { readonly zen: boolean; readonly dispatchingMessageId: MessageId | null },
   ): ReadonlyArray<PendingThreadFeedEntry | PendingFoldFeedEntry> => {
     const last = feed.at(-1);
     if (
@@ -195,6 +195,8 @@ export function createPendingTurnAppender() {
       last.pendingMessage.creation !== undefined ||
       // A held message waits for the user and shows its own "Not sent" line.
       last.pendingMessage.failure !== undefined ||
+      // Offline or between retries nothing is sending it; it keeps its "Pending" line.
+      (!last.acknowledged && last.pendingMessage.messageId !== options.dispatchingMessageId) ||
       isCompactionCommandMessage(last.message) ||
       feed.some(
         (entry) =>

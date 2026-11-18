@@ -277,18 +277,20 @@ describe("pending timeline messages", () => {
   it("holds the run's rows after a sent message until the run shows", () => {
     const appendTurn = createPendingTurnAppender();
     const sent = appendPendingThreadMessages([], [], [pending("sent")]);
-    const held = appendTurn(sent, { zen: false });
+    // Offline or waiting to retry, the outbox is not sending it, so it keeps its Pending line.
+    expect(appendTurn(sent, { zen: false, dispatchingMessageId: null })).toBe(sent);
+    const sending = { zen: false, dispatchingMessageId: MessageId.make("sent") };
+    const held = appendTurn(sent, sending);
     expect(held.map((entry) => [entry.id, "label" in entry ? entry.label : null])).toEqual([
       ["sent", null],
       ["pending-fold:sent", null],
       ["live-activity-row", "Sending…"],
     ]);
-    expect(appendTurn(sent, { zen: false })[1]).toBe(held[1]);
+    expect(appendTurn(sent, sending)[1]).toBe(held[1]);
     const delivered = sent.map((entry) => ({ ...entry, acknowledged: true }));
-    expect(appendTurn(delivered, { zen: true }).map((entry) => entry.id)).toEqual([
-      "sent",
-      "live-activity-row",
-    ]);
+    expect(
+      appendTurn(delivered, { zen: true, dispatchingMessageId: null }).map((entry) => entry.id),
+    ).toEqual(["sent", "live-activity-row"]);
     // A working run already shows its own rows.
     const thinking = {
       type: "thinking",
@@ -297,7 +299,7 @@ describe("pending timeline messages", () => {
       createdAt: "2026-09-06T11:00:00.000Z",
     } as const;
     const working = appendPendingThreadMessages([thinking], [], [pending("queued")]);
-    expect(appendTurn(working, { zen: false })).toBe(working);
+    expect(appendTurn(working, sending)).toBe(working);
   });
 
   it("leaves a held voice message on its own status line", () => {
@@ -313,6 +315,6 @@ describe("pending timeline messages", () => {
         },
       ],
     );
-    expect(appendTurn(held, { zen: false })).toBe(held);
+    expect(appendTurn(held, { zen: false, dispatchingMessageId: null })).toBe(held);
   });
 });

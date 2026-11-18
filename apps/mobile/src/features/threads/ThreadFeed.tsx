@@ -3642,7 +3642,10 @@ export const ThreadFeed = memo(function ThreadFeed(props: ThreadFeedProps) {
         )?.id ?? null)
       : null;
   const [appendPendingTurn] = useState(createPendingTurnAppender);
-  const listFeed = appendPendingTurn(presentedFeed, { zen: false });
+  const listFeed = appendPendingTurn(presentedFeed, {
+    zen: false,
+    dispatchingMessageId: props.dispatchingMessageId,
+  });
   const pendingFoldMessageId =
     listFeed.findLast((entry) => entry.type === "pending-fold")?.messageId ?? null;
   const [groupFeed] = useState(createThreadFeedGrouping);
