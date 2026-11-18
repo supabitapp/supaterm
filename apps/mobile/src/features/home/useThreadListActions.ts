@@ -449,10 +449,8 @@ export function useThreadListActions(): {
       snoozeInFlightThreadKeys.current.delete(key);
     });
   };
-  const reopenThread = async (
-    thread: EnvironmentThreadShell,
-    restoreReopenedAt?: string | null,
-  ) => (await executeAction("reopen", thread, undefined, restoreReopenedAt)) === true;
+  const reopenThread = async (thread: EnvironmentThreadShell, restoreReopenedAt?: string | null) =>
+    (await executeAction("reopen", thread, undefined, restoreReopenedAt)) === true;
   const pinThread = async (thread: EnvironmentThreadShell, restoreOrderKey?: string) => {
     if (!checkThreadOperationPermission(thread, "Could not pin thread")) return false;
     if (!environmentConfigLoaded(thread.environmentId)) {
