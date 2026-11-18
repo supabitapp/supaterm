@@ -806,7 +806,10 @@ describe("supaterm pair", () => {
             if (String(input) === "http://127.0.0.1:3773/.well-known/supaterm/environment") {
               return Response.json(testDescriptor);
             }
-            assert.equal(String(input), "https://pair-test.tail.ts.net/.well-known/supaterm/environment");
+            assert.equal(
+              String(input),
+              "https://pair-test.tail.ts.net/.well-known/supaterm/environment",
+            );
             return new Response(null, { status: 503 });
           }),
           Effect.flip,

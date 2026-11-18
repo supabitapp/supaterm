@@ -1264,9 +1264,9 @@ export const layer: Layer.Layer<
           for (const threadId of new Set(threadIds)) {
             const stored = yield* input.loadUnsettledWork(
               threadId,
-              [...open.nodes.values(), ...open.subagents.values()]
-                .filter((record) => record.threadId === threadId)
-                .map((record) => record.id),
+              [...open.nodes.values(), ...open.subagents.values()].flatMap((record) =>
+                record.threadId === threadId ? [record.id] : [],
+              ),
             );
             for (const subagent of stored.subagents) {
               if (open.subagents.has(subagent.id) && !isSettledSubagentStatus(subagent.status)) {
