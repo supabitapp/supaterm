@@ -139,7 +139,7 @@ function persistedLink(
 }
 
 describe("isAutoMarkDoneCandidate", () => {
-  it("marks done a thread whose only background work is a command left running", () => {
+  it("allows an unawaited command left running, but not a monitor or watch", () => {
     expect(
       ThreadDoneService.isAutoMarkDoneCandidate(
         shell({
@@ -156,6 +156,16 @@ describe("isAutoMarkDoneCandidate", () => {
         shell({
           pendingBackgroundTasks: [
             { taskId: "pull-request-watch:github.com/acme/app#1", kind: "monitor" },
+          ],
+        }),
+        NOW_MS,
+      ),
+    ).toBe(false);
+    expect(
+      ThreadDoneService.isAutoMarkDoneCandidate(
+        shell({
+          pendingBackgroundTasks: [
+            { taskId: "bmon1", kind: "monitor", description: "nightly release run" },
           ],
         }),
         NOW_MS,
