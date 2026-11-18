@@ -458,7 +458,7 @@ describe("ssh tunnel scripts", () => {
         yield* fs.chmod(bash, 0o755);
         yield* fs.writeFileString(
           startupFile,
-          "if shopt -q login_shell; then export Supaterm_SSH_LOGIN_ENV=loaded; fi\n",
+          "if shopt -q login_shell; then export SUPATERM_SSH_LOGIN_ENV=loaded; fi\n",
         );
         const target = { alias: "login-test", hostname: "login-test", username: null, port: null };
         let remoteCommand = "";
@@ -474,7 +474,7 @@ describe("ssh tunnel scripts", () => {
         );
         yield* fs.writeFileString(
           `${directory}/.zprofile`,
-          "if [[ -o login ]]; then export Supaterm_SSH_LOGIN_ENV=loaded; fi\n",
+          "if [[ -o login ]]; then export SUPATERM_SSH_LOGIN_ENV=loaded; fi\n",
         );
         const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
         const cases = [
@@ -509,12 +509,12 @@ describe("ssh tunnel scripts", () => {
                 SHELL: shell,
                 BASH_ENV: startupFile,
                 ZDOTDIR: directory,
-                Supaterm_SSH_LOGIN_ENV: "",
+                SUPATERM_SSH_LOGIN_ENV: "",
               },
               stdin: {
                 stream: Stream.make(
                   new TextEncoder().encode(
-                    'printf "%s:%s" "${Supaterm_SSH_LOGIN_ENV:-missing}" "$1"',
+                    'printf "%s:%s" "${SUPATERM_SSH_LOGIN_ENV:-missing}" "$1"',
                   ),
                 ),
                 endOnDone: true,
