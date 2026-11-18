@@ -30,6 +30,7 @@ import { AppText as Text } from "../../components/ui/AppText";
 import { StatusPill } from "../../components/StatusPill";
 import { environmentCatalog } from "../../connection/catalog";
 import { cn } from "../../lib/cn";
+import { environmentPresentations } from "../../state/presentation";
 import { environmentSession } from "../../state/session";
 import { useAtomCommand } from "../../state/use-atom-command";
 import { connectionTone } from "../connection/connectionTone";
@@ -68,6 +69,8 @@ export function EnvironmentRoutesSection({
   const registry = useContext(RegistryContext);
   const entry = useAtomValue(environmentCatalog.catalogValueAtom).entries.get(environmentId);
   const prepared = useAtomValue(environmentSession.preparedConnectionValueAtom(environmentId));
+  const refusedRouteIds =
+    useAtomValue(environmentPresentations.presentationAtom(environmentId))?.refusedRouteIds ?? [];
   const sessionResult = useAtomValue(environmentSession.sessionStateAtom(environmentId));
   const session = AsyncResult.getOrElse(sessionResult, () => null);
   const [permissionsOpen, setPermissionsOpen] = useState(false);
@@ -220,6 +223,7 @@ export function EnvironmentRoutesSection({
             count={routes.length}
             inUse={id === activeRouteId}
             unused={unused}
+            refused={refusedRouteIds.includes(id)}
             editing={editing}
             offset={index === dragFrom ? (drag?.translation ?? 0) : shift}
             lifted={index === dragFrom}
@@ -260,6 +264,7 @@ function RouteRow(props: {
   readonly count: number;
   readonly inUse: boolean;
   readonly unused: boolean;
+  readonly refused: boolean;
   readonly editing: boolean;
   readonly offset: number;
   readonly lifted: boolean;
@@ -278,6 +283,10 @@ function RouteRow(props: {
     props.unused ? NO_LATENCY : environmentSession.routeLatencyAtoms(route).labelAtom,
   );
   const direct = useAtomValue(environmentSession.relayRouteTransportAtom(route)) === "direct";
+  const refusedHint =
+    props.refused && address !== null
+      ? "The host refused this device's sign-in. Pair this address again with Add route."
+      : null;
   const style = useAnimatedStyle(() => ({
     transform: [
       {
@@ -321,7 +330,9 @@ function RouteRow(props: {
           props.inUse ? "In use" : null,
           direct ? "Direct, encrypted" : null,
           props.unused ? "Not used" : `Latency: ${latency}`,
+          props.refused ? "Sign-in refused" : null,
           `Route ${props.position} of ${props.count}`,
+          refusedHint,
         ]
           .filter((part) => part !== null)
           .join(", ")}
@@ -356,11 +367,17 @@ function RouteRow(props: {
             {props.unused ? (
               <StatusPill {...connectionTone("unsupported")} label="Not used" size="compact" />
             ) : null}
+            {props.refused ? (
+              <StatusPill {...connectionTone("error")} label="Sign-in refused" size="compact" />
+            ) : null}
           </View>
           {address !== null ? (
             <Text numberOfLines={1} className="text-sm text-foreground-muted">
               {isLearned(route) ? `${address} · found automatically` : address}
             </Text>
+          ) : null}
+          {refusedHint !== null ? (
+            <Text className="text-sm text-foreground-muted">{refusedHint}</Text>
           ) : null}
         </View>
         {props.unused ? null : (

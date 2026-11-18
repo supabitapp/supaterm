@@ -1,6 +1,8 @@
+import type { EnvironmentId } from "@supaterm/contracts";
 import { describe, expect, it, vi } from "vite-plus/test";
 
-import { buildHomeListFilterMenu } from "./home-list-filter-menu";
+import type { WorkspaceEnvironment } from "../../state/workspaceModel";
+import { buildHomeListFilterMenu, homeListFilterEnvironments } from "./home-list-filter-menu";
 
 describe("buildHomeListFilterMenu", () => {
   it("adds a project scope submenu that selects and clears the same scope as the chips", () => {
@@ -40,4 +42,33 @@ describe("buildHomeListFilterMenu", () => {
     expect(onProjectChange).toHaveBeenNthCalledWith(1, null);
     expect(onProjectChange).toHaveBeenNthCalledWith(2, "environment-1:project-2");
   });
+});
+
+function environment(
+  environmentId: string,
+  environmentLabel: string,
+  isEnabled: boolean,
+): WorkspaceEnvironment {
+  return {
+    environmentId: environmentId as EnvironmentId,
+    environmentLabel,
+    displayUrl: "",
+    isEnabled,
+    connectionState: isEnabled ? "connected" : "available",
+    connectionError: null,
+    connectionErrorTraceId: null,
+  };
+}
+
+it("offers only switched-on environments, sorted by label", () => {
+  expect(
+    homeListFilterEnvironments([
+      environment("env-studio", "Studio", true),
+      environment("env-laptop", "Laptop", false),
+      environment("env-desk", "Desk", true),
+    ]),
+  ).toEqual([
+    { environmentId: "env-desk", label: "Desk", connectionState: "connected" },
+    { environmentId: "env-studio", label: "Studio", connectionState: "connected" },
+  ]);
 });

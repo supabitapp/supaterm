@@ -1,14 +1,17 @@
+import {
+  parsePullRequestAnchor,
+  pullRequestAnchorMatchesUrl,
+  pullRequestLinkCommit,
+  resolvePullRequestReviewAnchor,
+} from "@supaterm/shared/pullRequestAnchor";
 import { usePullRequestToolbarHeight } from "./usePullRequestToolbarHeight";
 import { Chip } from "../../components/ui/Chip";
 import { pullRequestTabOffset } from "./pullRequestTabScroll";
 import { PullRequestGuideContent } from "./guide/PullRequestGuideScreen";
 import { useReviewGuidesEnabled } from "./guide/useReviewGuide";
-import {
-  filterPullRequestActivity,
-  DEFAULT_ACTIVITY_FILTER,
-  type ActivityFilter,
-} from "./pullRequestActivityFilter";
+import { filterPullRequestActivity, type ActivityFilter } from "./pullRequestActivityFilter";
 import { PullRequestActivityFilters } from "./PullRequestActivityFilters";
+import { usePullRequestActivityFilter } from "./usePullRequestActivityFilter";
 import type { LegendListRef } from "@legendapp/list/react-native";
 import { AnimatedLegendList } from "@legendapp/list/reanimated";
 import Animated from "react-native-reanimated";
@@ -31,6 +34,7 @@ import { usePullRequestAction } from "./usePullRequestAction";
 import { useFocusEffect, useNavigation, type StaticScreenProps } from "@react-navigation/native";
 import { RegistryContext, useAtomRefresh, useAtomValue } from "@effect/atom-react";
 import {
+  pullRequestConversationThreads,
   type PullRequestDetail,
   type PullRequestListEntry,
   type PullRequestSummary,
@@ -38,8 +42,9 @@ import {
 import { PullRequestOverviewLoading } from "./PullRequestOverviewLoading";
 import { copyPullRequestLink, sharePullRequestLink } from "./pullRequestLink";
 import { pullRequestStatus } from "./pullRequestStatus";
-import { use, useRef, useState } from "react";
-import { Linking, Platform, Pressable, RefreshControl, StyleSheet, View } from "react-native";
+import { use, useEffect, useEffectEvent, useRef, useState } from "react";
+import { Linking, Platform, Pressable, StyleSheet, View } from "react-native";
+import { RefreshControl } from "../../components/ui/RefreshControl";
 import { NativeScrollView } from "../../native/NativeScrollViewMarker";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -95,15 +100,13 @@ function usePullRequestActivityRows(params: PullRequestParams, filter: ActivityF
   const filtered = result.data ? filterPullRequestActivity(result.data, filter) : null;
   const rows = (() => {
     if (!filtered) return [];
-    const rows = pullRequestTimelineRows(filtered.activity, params, navigation, {
-      permissions,
-      onChanged: result.refresh,
-    });
-    if (filter.newestFirst) {
-      const notice = rows.at(-1)?.key === "truncated" ? rows.pop() : undefined;
-      rows.reverse();
-      if (notice) rows.push(notice);
-    }
+    const rows = pullRequestTimelineRows(
+      filtered.activity,
+      params,
+      navigation,
+      { permissions, onChanged: result.refresh },
+      filter.newestFirst,
+    );
     if (!rows.length)
       rows.push({
         key: "empty",
@@ -116,8 +119,35 @@ function usePullRequestActivityRows(params: PullRequestParams, filter: ActivityF
       });
     return rows;
   })();
+  const location = parsePullRequestAnchor(params.navigationUrl);
+  const anchor =
+    location?.kind !== "timeline"
+      ? null
+      : result.data
+        ? resolvePullRequestReviewAnchor(
+            location.anchor,
+            result.data.comments,
+            result.data.reviewThreads,
+          )
+        : location.anchor;
+  const targetComment = anchor
+    ? result.data?.comments.find((comment) => pullRequestAnchorMatchesUrl(anchor, comment.url))
+    : null;
+  const targetThread = anchor
+    ? result.data &&
+      pullRequestConversationThreads(result.data).find((thread) =>
+        thread.comments.some((comment) => pullRequestAnchorMatchesUrl(anchor, comment.url)),
+      )
+    : null;
+  const targetKey = targetThread
+    ? `discussion:${targetThread.id}`
+    : targetComment
+      ? `comment:${targetComment.id}`
+      : null;
   return {
     rows,
+    targetKey,
+    targetThread,
     hiddenCount: filtered?.hiddenCount ?? 0,
     pending: result.isPending && !result.data,
     error: result.error,
@@ -280,7 +310,7 @@ function PullRequestOverview(props: {
 }
 
 export function PullRequestRouteScreen({ route }: StaticScreenProps<PullRequestParams>) {
-  const returnToList = useAndroidWorkspaceBack("pullRequests");
+  const returnToList = useAndroidWorkspaceBack();
   const { layout } = useAdaptiveWorkspaceLayout();
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
@@ -291,7 +321,10 @@ export function PullRequestRouteScreen({ route }: StaticScreenProps<PullRequestP
   const params = route.params;
   usePullRequestEnvironmentFallback(params);
   const connected = usePullRequestConnected(params.environmentId);
-  const [chosenSection, setSection] = useState<"overview" | "activity" | "guide">("overview");
+  const [chosenSection, setSection] = useState<"overview" | "activity" | "guide">(() => {
+    const kind = parsePullRequestAnchor(params.navigationUrl)?.kind;
+    return kind === "timeline" || kind === "commits" ? "activity" : "overview";
+  });
   const requestedSection = useRef(chosenSection);
   const [listAnimationsReady, setListAnimationsReady] = useState(false);
   const [descriptionExpanded, setDescriptionExpanded] = useState(false);
@@ -302,7 +335,8 @@ export function PullRequestRouteScreen({ route }: StaticScreenProps<PullRequestP
   const shown = (tab: typeof chosenSection) =>
     !guidesEnabled && tab === "guide" ? "overview" : tab;
   const section = shown(chosenSection);
-  const [activityFilter, setActivityFilter] = useState<ActivityFilter>(DEFAULT_ACTIVITY_FILTER);
+  const activity = usePullRequestActivityFilter(parsePullRequestAnchor(params.navigationUrl)?.kind);
+  const activityFilter = activity.filter;
   const activityContent = usePullRequestActivityRows(params, activityFilter);
   const scrollOffsets = useRef<Record<string, number>>({});
   // The offset of the tab last shown, and which tab that was: a tab standing in for a hidden guide
@@ -343,6 +377,74 @@ export function PullRequestRouteScreen({ route }: StaticScreenProps<PullRequestP
     scrollViews.current[next]?.scrollToOffset({ offset, animated: false });
     setSection(next);
   };
+  const followLink = useEffectEvent(() => {
+    const target = parsePullRequestAnchor(params.navigationUrl);
+    if (target?.kind === "diff" || target?.kind === "code") {
+      const commit = pullRequestLinkCommit(params.navigationUrl);
+      navigation.navigate("PullRequestFile", {
+        ...params,
+        path: "",
+        ...(commit ? { commit } : {}),
+      });
+    } else if (target?.kind === "timeline") {
+      selectSection("activity");
+      activity.showTimeline();
+    } else if (target?.kind === "commits") {
+      selectSection("activity");
+      activity.showCommits();
+    } else if (target?.kind === "checks") {
+      selectSection("overview");
+      // Checks head Overview, which a reused screen may have scrolled past.
+      scrollViews.current.overview?.scrollToOffset({ offset: -contentTopInset, animated: false });
+    } else if (target?.kind === "summary") {
+      selectSection("overview");
+    }
+  });
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- a link selects its native PR section or diff even when the route is reused
+  useEffect(() => {
+    // oxlint-disable-next-line react/set-state-in-effect -- URL navigation selects the PR section and makes its target visible
+    followLink();
+    // oxlint-disable-next-line react/exhaustive-effect-dependencies -- each clicked URL is a fresh navigation request
+  }, [params.navigationUrl, params.navigationId]);
+
+  const activityTargetIndex = activityContent.rows.findIndex(
+    (row) => row.key === activityContent.targetKey,
+  );
+  const openedDiscussion = useRef<string | null>(null);
+  const positionedActivity = useRef<string | null>(null);
+  // Rows above the target measure in after the first jump, so it is held until the user scrolls.
+  const heldActivityRow = useRef<number | null>(null);
+  const positionActivityRow = (index: number) =>
+    void scrollViews.current.activity?.scrollToIndex({
+      index,
+      viewPosition: 0,
+      viewOffset: contentTopInset + 12,
+      animated: false,
+    });
+  const revealActivity = useEffectEvent(() => {
+    const key = `${params.navigationUrl}:${params.navigationId ?? 0}`;
+    if (activityContent.targetThread && openedDiscussion.current !== key) {
+      openedDiscussion.current = key;
+      navigation.navigate("PullRequestDiscussion", {
+        ...params,
+        discussionId: activityContent.targetThread.id,
+      });
+      return;
+    }
+    // Later filter or refresh changes move the row; they must not pull the user back to it.
+    if (activityTargetIndex >= 0 && positionedActivity.current !== key) {
+      positionedActivity.current = key;
+      // Its top sits under the app bar; centering a long comment pushed its start off screen.
+      heldActivityRow.current = activityTargetIndex + 1;
+      positionActivityRow(activityTargetIndex + 1);
+    }
+  });
+  const targetThreadId = activityContent.targetThread?.id;
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- reveals the requested activity once its asynchronous rows arrive
+  useEffect(() => {
+    revealActivity();
+    // oxlint-disable-next-line react/exhaustive-effect-dependencies -- reruns when activity resolves the URL target, even a thread the filter hides
+  }, [params.navigationUrl, params.navigationId, activityTargetIndex, targetThreadId]);
   const tabContent = activityContent;
   const filesY = useRef(0);
   const descriptionY = useRef(0);
@@ -554,6 +656,13 @@ export function PullRequestRouteScreen({ route }: StaticScreenProps<PullRequestP
                   // The scroll view owns its resting offset. LegendList keeps the first
                   // initialScrollOffset it gets, and the first render has the window's top
                   // inset (0 on the folded iPhone Duo), not the header's.
+                  onScrollBeginDrag={
+                    tab === "activity"
+                      ? () => {
+                          heldActivityRow.current = null;
+                        }
+                      : undefined
+                  }
                   onScroll={(event) => {
                     const offset = event.nativeEvent.contentOffset.y;
                     scrollOffsets.current[tab] = offset;
@@ -577,6 +686,13 @@ export function PullRequestRouteScreen({ route }: StaticScreenProps<PullRequestP
                   alwaysBounceVertical
                   scrollsToTop={section === tab}
                   onItemSizeChanged={({ itemKey }) => {
+                    const held = heldActivityRow.current;
+                    if (tab === "activity" && held !== null) {
+                      // A filter or refresh that moved the row ends the hold.
+                      if (held !== activityTargetIndex + 1) heldActivityRow.current = null;
+                      else positionActivityRow(held);
+                      return;
+                    }
                     if (
                       tab !== "overview" ||
                       section !== "overview" ||
@@ -656,7 +772,7 @@ export function PullRequestRouteScreen({ route }: StaticScreenProps<PullRequestP
                           {tab === "activity" ? (
                             <PullRequestActivityFilters
                               value={activityFilter}
-                              onChange={setActivityFilter}
+                              onChange={activity.setFilter}
                               hiddenCount={tabContent.hiddenCount}
                             />
                           ) : null}

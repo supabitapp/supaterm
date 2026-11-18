@@ -31,6 +31,7 @@ import {
   type ProviderInteractionMode as ProviderInteractionModeType,
   type RuntimeMode as RuntimeModeType,
   type ServerProvider,
+  type ServerProviderModel,
 } from "@supaterm/contracts";
 import * as Schema from "effect/Schema";
 import { VoiceUploadError } from "@supaterm/client-runtime/state/transcription";
@@ -38,6 +39,7 @@ import type { VoiceRecordingHandOff } from "@supaterm/client-runtime/voice-input
 import type { TranscriptionUploadResult } from "@supaterm/contracts";
 
 import { DraftComposerAttachmentSchema } from "../lib/composer-image-schema";
+import { withImplicitFastModeSelection } from "../lib/providerOptions";
 import type { ComposerDispatchMode } from "@supaterm/client-runtime/state/composer-dispatch";
 import type { DraftComposerAttachment } from "../lib/composerImages";
 import { resolveProviderInteractionMode } from "./provider-interaction-mode";
@@ -148,9 +150,16 @@ export interface ThreadSettingsSnapshot {
 export function resolveQueuedThreadSettings(
   message: QueuedThreadMessage,
   thread: ThreadSettingsSnapshot,
-  providers: ReadonlyArray<Pick<ServerProvider, "instanceId" | "showInteractionModeToggle">> = [],
+  providers: ReadonlyArray<
+    Pick<ServerProvider, "instanceId" | "showInteractionModeToggle"> & {
+      readonly models: ReadonlyArray<Pick<ServerProviderModel, "slug" | "capabilities">>;
+    }
+  > = [],
 ): ThreadSettingsSnapshot {
-  const modelSelection = message.modelSelection ?? thread.modelSelection;
+  const modelSelection = withImplicitFastModeSelection(
+    message.modelSelection ?? thread.modelSelection,
+    providers,
+  );
   const provider = providers.find(
     (candidate) => candidate.instanceId === modelSelection.instanceId,
   );

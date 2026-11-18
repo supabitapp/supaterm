@@ -1,4 +1,6 @@
+import { toServerClock } from "@supaterm/client-runtime/clock";
 import { formatWorkingDurationLabel } from "@supaterm/client-runtime/state/thread-timing";
+import type { EnvironmentId } from "@supaterm/contracts";
 import { memo, useEffect, useState } from "react";
 import { AppState, Platform, Text as RNText } from "react-native";
 import { AppText } from "../../components/ui/AppText";
@@ -12,20 +14,25 @@ const TABULAR_DURATION_STYLE = {
 
 /** The clock updates only this label, leaving the row and its subscriptions idle. */
 export const ThreadListWorkingStatus = memo(function ThreadListWorkingStatus(props: {
+  readonly environmentId: EnvironmentId;
   readonly label: string;
   readonly startedAt: string | null;
   readonly className: string;
 }) {
   const startedMs = props.startedAt === null ? Number.NaN : Date.parse(props.startedAt);
+  const { environmentId } = props;
   const [duration, setDuration] = useState(() =>
-    Number.isFinite(startedMs) ? formatWorkingDurationLabel(Date.now() - startedMs) : null,
+    Number.isFinite(startedMs)
+      ? formatWorkingDurationLabel(toServerClock(environmentId, Date.now()) - startedMs)
+      : null,
   );
 
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- runs the duration clock interval only while AppState is active and follows app state changes
   useEffect(() => {
     if (!Number.isFinite(startedMs)) return;
     let timer: ReturnType<typeof setInterval> | undefined;
-    const update = () => setDuration(formatWorkingDurationLabel(Date.now() - startedMs));
+    const update = () =>
+      setDuration(formatWorkingDurationLabel(toServerClock(environmentId, Date.now()) - startedMs));
     const stop = () => {
       clearInterval(timer);
       timer = undefined;
@@ -42,7 +49,7 @@ export const ThreadListWorkingStatus = memo(function ThreadListWorkingStatus(pro
       stop();
       subscription.remove();
     };
-  }, [startedMs]);
+  }, [environmentId, startedMs]);
 
   return (
     <AppText className={props.className}>

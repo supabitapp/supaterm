@@ -19,7 +19,7 @@ import { StyleSheet } from "react-native";
 import { useUniwindTheme } from "../lib/useUniwindTheme";
 import { createNativeComposerTheme } from "../lib/nativeComposerTheme";
 import { SYSTEM_FONT_FAMILY } from "../lib/fonts";
-import { useScaledTextRole } from "../features/settings/appearance/useScaledTextRole";
+import { useComposerTextRole } from "../features/settings/appearance/useScaledTextRole";
 import {
   acknowledgeComposerNativeEvent,
   assumeComposerControlledState,
@@ -163,7 +163,7 @@ export function ComposerEditor({
   if (inlineTokens !== confirmedTokens.tokens) {
     setConfirmedTokens({ value: props.value, tokens: inlineTokens });
   }
-  const bodyText = useScaledTextRole("body");
+  const bodyText = useComposerTextRole();
   const theme = useUniwindTheme();
 
   const skillLabels = useMemo(() => composerSkillLabels(skills), [skills]);

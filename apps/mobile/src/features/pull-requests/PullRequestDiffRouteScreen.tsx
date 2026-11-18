@@ -1,3 +1,14 @@
+import {
+  isFileDiffCollapsed,
+  withFileDiffFold,
+  type FileDiffFoldChoices,
+} from "@supaterm/client-runtime/pull-request-diff-fold";
+import {
+  parsePullRequestAnchor,
+  pullRequestDiffPathMatches,
+  pullRequestLinkCommit,
+  resolvePullRequestAnchorRange,
+} from "@supaterm/shared/pullRequestAnchor";
 import { guideFocusedRows, type GuideDiffFocus } from "./guide/guideDiffFocus";
 
 import * as Clipboard from "expo-clipboard";
@@ -62,8 +73,6 @@ import * as Haptics from "expo-haptics";
 
 import { useContentTopInset } from "../../components/ui/useBarInset";
 
-const EMPTY_IDS: readonly string[] = [];
-
 type PullRequestFileRouteProps = StaticScreenProps<
   PullRequestDiffParams & {
     readonly path: string;
@@ -99,9 +108,20 @@ function PullRequestFileRouteContent({ route }: PullRequestFileRouteProps) {
     (detail.data ?? route.params.initialSummary)?.provider,
   ).changeRequest;
   const result = usePullRequestDiff(route.params, terminology);
+  // Other screens open files with the link's params spread in; only the link's own entry follows it.
+  const linkAnchor =
+    route.params.path === "" &&
+    (route.params.commit ?? null) === pullRequestLinkCommit(route.params.navigationUrl)
+      ? parsePullRequestAnchor(route.params.navigationUrl)
+      : null;
+  const linkPath =
+    linkAnchor?.kind === "diff" && result.parsed.kind === "files"
+      ? result.parsed.files.find((file) => pullRequestDiffPathMatches(linkAnchor.digest, file.path))
+          ?.path
+      : undefined;
   const filter = usePullRequestFileFilter(
     result.parsed,
-    route.params.focus ? route.params.path : undefined,
+    linkPath ?? (route.params.focus ? route.params.path : undefined),
   );
   const { refresh: refreshDetail } = detail;
   useFocusEffect(refreshDetail);
@@ -124,6 +144,7 @@ function PullRequestFileRouteContent({ route }: PullRequestFileRouteProps) {
     !staleDiff &&
     !detail.isPending &&
     !result.isPending &&
+    !result.withheldRefetching &&
     !result.error;
   const activity = useEnvironmentQuery(composerPullRequests.activity(requestTarget(route.params)));
   const baseData = useMemo(() => getCachedNativeReviewDiffData({ parsedDiff: parsed }), [parsed]);
@@ -173,26 +194,68 @@ function PullRequestFileRouteContent({ route }: PullRequestFileRouteProps) {
       code: row.content ?? "",
     });
   };
-  const [jumpPath, setJumpPath] = useState(route.params.path);
+  const [pickedPath, setJumpPath] = useState<string | null>(null);
+  const jumpPath = pickedPath ?? linkPath ?? route.params.path;
   const requestedFile =
     result.parsed.kind === "files"
       ? result.parsed.files.find((file) => file.path === jumpPath)
       : undefined;
   const targetFile =
     data.files.find((file) => file.path === jumpPath) ??
-    (!jumpPath || requestedFile ? data.files[0] : undefined);
-  const focus = route.params.focus;
+    (linkAnchor?.kind === "diff" && !linkPath
+      ? undefined
+      : !jumpPath || requestedFile
+        ? data.files[0]
+        : undefined);
+  const linkRange = pickedPath === null && linkAnchor?.kind === "diff" ? linkAnchor.range : null;
+  const range =
+    linkRange &&
+    resolvePullRequestAnchorRange(linkRange, (line) =>
+      data.rows.some(
+        (row) =>
+          row.fileId === targetFile?.id && row.change === "delete" && row.oldLineNumber === line,
+      ),
+    );
+  const focus =
+    route.params.focus ??
+    (range
+      ? {
+          side: range.side === "left" ? ("old" as const) : ("new" as const),
+          start: range.start,
+          end: range.end,
+          endSide: range.endSide === "left" ? ("old" as const) : ("new" as const),
+        }
+      : undefined);
   const focusedRows = guideFocusedRows(data.rows, targetFile?.id, focus);
   const focusIndex = focusedRows.length
     ? data.rows.findIndex((row) => row.id === focusedRows[0]?.id)
     : -1;
-  const [collapsedIds, setCollapsedIds] = useState<readonly string[]>(EMPTY_IDS);
+  const [foldChoices, setFoldChoices] = useState<FileDiffFoldChoices>(() => new Map());
+  const [foldScope, setFoldScope] = useState(`${scopeKey}:${commit ?? "all"}`);
+  const [revealedFileId, setRevealedFileId] = useState<string | null>(null);
+  if (foldScope !== `${scopeKey}:${commit ?? "all"}`) {
+    setFoldScope(`${scopeKey}:${commit ?? "all"}`);
+    setFoldChoices(new Map());
+    setRevealedFileId(null);
+  }
+  const requestedFileId =
+    (jumpPath ? data.files.find((file) => file.path === jumpPath)?.id : null) ?? null;
+  // A linked file must stay open if its Viewed response arrives after the first native draw.
+  if (requestedFileId !== revealedFileId) {
+    setRevealedFileId(requestedFileId);
+    if (requestedFileId)
+      setFoldChoices((current) => withFileDiffFold(current, requestedFileId, false));
+  }
+  const viewedIdSet = new Set(viewedIds);
+  const collapsedIds = data.files
+    .filter((file) => isFileDiffCollapsed(file.id, null, foldChoices, viewedIdSet.has(file.id)))
+    .map((file) => file.id);
   const [visibleFileId, setVisibleFileId] = useState<string | null>(null);
   const nativeView = useRef<NativeReviewDiffViewHandle>(null);
   // The filter the current jump was made under. Hiding or showing test files replaces the rows,
   // so a jump made under the other filter has to run again. Native applies the entry
   // destination before its first viewport, so the first one counts as made.
-  const jumpedUnder = useRef<boolean | null>(filter.hideTestFiles);
+  const jumpedUnder = useRef<boolean | null>(targetFile ? filter.hideTestFiles : null);
   const hasTestFiles =
     result.parsed.kind === "files" &&
     result.parsed.files.some((file) => isTestChangedFile(file.path));
@@ -214,7 +277,7 @@ function PullRequestFileRouteContent({ route }: PullRequestFileRouteProps) {
     jumpedUnder.current = null;
     const file = data.files.find((entry) => entry.path === path);
     if (!file) return;
-    setCollapsedIds((ids) => ids.filter((id) => id !== file.id));
+    setFoldChoices((current) => withFileDiffFold(current, file.id, false));
     scrollToFile(file.id);
   });
   // Subscribed for the whole screen, so a pick made while the diff is still loading is kept for
@@ -239,9 +302,14 @@ function PullRequestFileRouteContent({ route }: PullRequestFileRouteProps) {
   useEffect(() => {
     if (!targetFile) loadMore();
   }, [targetFile, loadMore]);
+  const lastFileRowIndex = data.rows.findLastIndex((row) => row.kind === "file");
+  const lastFileId = data.rows[lastFileRowIndex]?.fileId;
+  const lastShownRowIndex =
+    lastFileId && collapsedIds.includes(lastFileId) ? lastFileRowIndex : data.rows.length - 1;
   const onDebug: NonNullable<NativeReviewDiffViewProps["onDebug"]> = (event) =>
     handlePullRequestDiffDebugEvent(event, {
       rowCount: data.rows.length,
+      lastShownRowIndex,
       targetFileId: targetFile?.id,
       focusIndex,
       isIos: Platform.OS === "ios",
@@ -256,8 +324,8 @@ function PullRequestFileRouteContent({ route }: PullRequestFileRouteProps) {
   const onToggleFile: NonNullable<NativeReviewDiffViewProps["onToggleFile"]> = (event) => {
     const id = event.nativeEvent.fileId;
     if (!id) return;
-    setCollapsedIds((ids) =>
-      ids.includes(id) ? ids.filter((value) => value !== id) : [...ids, id],
+    setFoldChoices((current) =>
+      withFileDiffFold(current, id, !isFileDiffCollapsed(id, null, current, viewedIdSet.has(id))),
     );
   };
   const visibleFile = data.files.find((file) => file.id === visibleFileId) ?? targetFile;
@@ -371,7 +439,7 @@ function PullRequestFileRouteContent({ route }: PullRequestFileRouteProps) {
               setDiffHead({ scopeKey, sha: detail.data?.headSha ?? null });
               jumpedUnder.current = null;
               setSelectedRowId(null);
-              setCollapsedIds(EMPTY_IDS);
+              setFoldChoices(new Map());
             }}
           />
         </View>
@@ -413,16 +481,7 @@ function PullRequestFileRouteContent({ route }: PullRequestFileRouteProps) {
                   const file = data.files.find((file) => file.id === event.nativeEvent.fileId);
                   if (!file || (!commit && !viewed.canToggle)) return;
                   void Haptics.selectionAsync();
-                  const wasViewed = commit
-                    ? commitViewedPaths.has(file.path)
-                    : viewed.isViewed(file.path);
-                  setCollapsedIds((ids) =>
-                    wasViewed
-                      ? ids.filter((id) => id !== file.id)
-                      : ids.includes(file.id)
-                        ? ids
-                        : [...ids, file.id],
-                  );
+                  setFoldChoices((current) => withFileDiffFold(current, file.id, undefined));
                   if (commit)
                     setCommitViewedPaths((current) => {
                       const next = new Set(current);
@@ -431,6 +490,10 @@ function PullRequestFileRouteContent({ route }: PullRequestFileRouteProps) {
                       return next;
                     });
                   else void viewed.toggle(file.path);
+                }}
+                onPressNotice={(event) => {
+                  const file = data.files.find((file) => file.id === event.nativeEvent.fileId);
+                  if (file) result.loadWithheldFile(file.path);
                 }}
                 onToggleComment={(event) => {
                   const id = event.nativeEvent.commentId;

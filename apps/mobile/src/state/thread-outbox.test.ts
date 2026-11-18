@@ -490,8 +490,8 @@ describe("thread outbox", () => {
       options: [{ id: "native-option", value: "keep-this-choice" }],
     };
     const providers = [
-      { instanceId: codex.instanceId, showInteractionModeToggle: true },
-      { instanceId: antigravity.instanceId, showInteractionModeToggle: false },
+      { instanceId: codex.instanceId, showInteractionModeToggle: true, models: [] },
+      { instanceId: antigravity.instanceId, showInteractionModeToggle: false, models: [] },
     ];
     const message = {
       ...queuedMessage({ messageId: "queued-plan", createdAt: "2026-09-02T10:00:00.000Z" }),
@@ -533,7 +533,7 @@ describe("thread outbox", () => {
       resolveQueuedThreadSettings(
         queuedMessage({ messageId: "legacy-plan", createdAt: "2026-09-02T10:00:00.000Z" }),
         { modelSelection, runtimeMode: "approval-required", interactionMode: "plan" },
-        [{ instanceId: modelSelection.instanceId, showInteractionModeToggle: false }],
+        [{ instanceId: modelSelection.instanceId, showInteractionModeToggle: false, models: [] }],
       ).interactionMode,
     ).toBe("default");
   });
@@ -575,6 +575,42 @@ describe("thread outbox", () => {
     await Promise.all([first, second]);
     expect(order).toEqual(["first:start", "first:end", "second"]);
     registry.dispose();
+  });
+
+  // regression: #29729 Cursor runs its own Fast default when the turn carries no fastMode
+  it("sends the Fast off the picker shows for a model without a Fast selection", () => {
+    const cursor = { instanceId: ProviderInstanceId.make("cursor"), model: "composer-2.5" };
+    const providers = [
+      {
+        instanceId: cursor.instanceId,
+        showInteractionModeToggle: true,
+        models: [
+          {
+            slug: cursor.model,
+            capabilities: {
+              optionDescriptors: [
+                { id: "fastMode", label: "Fast", type: "boolean", currentValue: true } as const,
+              ],
+            },
+          },
+        ],
+      },
+    ];
+    const thread = {
+      modelSelection: cursor,
+      runtimeMode: "full-access",
+      interactionMode: "default",
+    } as const;
+    const message = queuedMessage({ messageId: "fast", createdAt: "2026-11-03T10:00:00.000Z" });
+    const fastOn = { ...cursor, options: [{ id: "fastMode", value: true }] };
+
+    expect(resolveQueuedThreadSettings(message, thread, providers).modelSelection.options).toEqual([
+      { id: "fastMode", value: false },
+    ]);
+    expect(
+      resolveQueuedThreadSettings({ ...message, modelSelection: fastOn }, thread, providers)
+        .modelSelection,
+    ).toEqual(fastOn);
   });
 
   it("holds the mutation queue while persisted messages are loading", async () => {
@@ -890,6 +926,42 @@ describe("thread outbox", () => {
     await expect(manager.update({ ...message, text: "stale flush" })).resolves.toBe(false);
     expect(registry.get(manager.queuedMessagesByThreadKeyAtom)).toEqual({});
     expect(stored.size).toBe(0);
+    registry.dispose();
+  });
+
+  it("composes concurrent modifications of one message instead of rejecting the later one", async () => {
+    const registry = AtomRegistry.make();
+    const stored = new Map<MessageId, QueuedThreadMessage>();
+    const manager = createThreadOutboxManager({
+      registry,
+      storage: {
+        load: async () => ({ messages: [], errors: [] }),
+        write: async (message) => {
+          stored.set(message.messageId, message);
+        },
+        remove: async () => undefined,
+      },
+    });
+    const message = queuedMessage({
+      messageId: "message-two-uploads",
+      createdAt: "2026-06-08T10:00:01.000Z",
+    });
+    await manager.enqueue(message);
+
+    // Two attachments finishing together each record their upload on the same message.
+    const results = await Promise.all([
+      manager.modify(message.messageId, (current) => ({ ...current, text: `${current.text} a` })),
+      manager.modify(message.messageId, (current) => ({ ...current, text: `${current.text} b` })),
+    ]);
+
+    expect(results).toEqual([true, true]);
+    const composed = { ...message, text: `${message.text} a b` };
+    expect(registry.get(manager.queuedMessagesByThreadKeyAtom)).toEqual({
+      "environment-1:thread-1": [composed],
+    });
+    expect(stored.get(message.messageId)).toEqual(composed);
+    await manager.remove(composed);
+    await expect(manager.modify(message.messageId, (current) => current)).resolves.toBe(false);
     registry.dispose();
   });
 

@@ -1,3 +1,4 @@
+import { threadPullRequestKeyOf } from "@supaterm/client-runtime/thread-pull-requests";
 import * as Dialog from "../../components/ui/Dialog";
 import type {
   EnvironmentId,
@@ -19,7 +20,7 @@ const EMPTY_THREAD_SHELLS: ReadonlyArray<EnvironmentThreadShell> = [];
 import { COMPOSER_CONTEXT_MAX_RECORDS } from "@supaterm/contracts";
 import { formatComposerContextReference } from "@supaterm/shared/composerContextReferences";
 import { pullRequestComposerContext } from "../../lib/composerContext";
-import { buildModelOptions } from "../../lib/modelOptions";
+import { buildModelOptions, serverConfigForCwd } from "../../lib/modelOptions";
 import { uuidv4 } from "../../lib/uuid";
 import {
   getComposerDraftSnapshot,
@@ -39,7 +40,6 @@ import {
   scoreQueryMatch,
 } from "@supaterm/shared/searchRanking";
 import {
-  createProviderWorkspaceSnapshotRefreshAtomFamily,
   dedupeProviderSkillsByName,
   getProviderSkillsForSlashMenu,
   getProviderSlashCommandsForSlashMenu,
@@ -53,7 +53,7 @@ import { useEffect, useState } from "react";
 
 import type { ComposerEditorSelection } from "../../components/ComposerEditor";
 import { showSkillsInSlashMenuAtom } from "../../state/preferences";
-import { serverEnvironment } from "../../state/server";
+import { providerWorkspaceSnapshotRefresh } from "../../state/provider-workspace-snapshot-refresh";
 import {
   useComposerPathSearch,
   useComposerPullRequestSearch,
@@ -61,11 +61,6 @@ import {
 } from "../../state/queries";
 import type { ComposerCommandItem } from "./ComposerCommandPopover";
 import { matchesCommandMenuSkillQuery } from "./composerCommandMenuSkillSearch";
-
-const providerWorkspaceSnapshotRefresh = createProviderWorkspaceSnapshotRefreshAtomFamily({
-  providers: serverEnvironment.providersValueAtom,
-  refreshProviders: serverEnvironment.refreshProviders,
-});
 
 const idleWorkspaceSnapshotRefreshAtom: Atom.Atom<unknown> = Atom.make<void>(undefined).pipe(
   Atom.withLabel("mobile:provider-workspace-snapshot-refresh:idle"),
@@ -241,6 +236,7 @@ export function useComposerCommandMenu({
   enabled = true,
   onChangeDraftMessage,
   onUsageLimits,
+  onOpenModelPicker,
   onFreshSession,
 }: {
   readonly draftMessage: string;
@@ -262,6 +258,8 @@ export function useComposerCommandMenu({
   readonly enabled?: boolean;
   readonly onChangeDraftMessage: (value: string) => void;
   readonly onUsageLimits?: () => void;
+  /** `/model` opens this picker instead of inserting text. */
+  readonly onOpenModelPicker: () => void;
   /** Arms a fresh session for the next message; absent where `/clear` is unavailable. */
   readonly onFreshSession?: () => void;
 }) {
@@ -339,7 +337,7 @@ export function useComposerCommandMenu({
 
     if (trigger.kind === "pull-request") {
       return pullRequestSearch.entries.map((entry) => ({
-        id: `pr:${entry.projectId}:${entry.repository}:${entry.number}`,
+        id: `pr:${entry.projectId}:${threadPullRequestKeyOf(entry)}`,
         type: "pull-request",
         pullRequest: {
           number: entry.number,
@@ -488,7 +486,10 @@ export function useComposerCommandMenu({
         : [];
       return [
         ...threadItems,
-        ...matchComposerModelItems(composerModelCandidates(serverConfig, projectId), trigger.query),
+        ...matchComposerModelItems(
+          composerModelCandidates(serverConfigForCwd(serverConfig, projectCwd), projectId),
+          trigger.query,
+        ),
         ...pathSearch.entries.map((entry) => {
           const parts = entry.path.split("/");
           return {
@@ -565,11 +566,18 @@ export function useComposerCommandMenu({
       return;
     }
 
-    if (item.type === "slash-command" && item.command === "clear" && onFreshSession) {
+    const clearTriggerThen = (action: () => void) => {
       const cleared = replaceTextRange(draftMessage, trigger.rangeStart, trigger.rangeEnd, "");
       setSelection({ start: cleared.cursor, end: cleared.cursor });
       onChangeDraftMessage(cleared.text);
-      onFreshSession();
+      action();
+    };
+    if (item.type === "slash-command" && item.command === "model") {
+      clearTriggerThen(onOpenModelPicker);
+      return;
+    }
+    if (item.type === "slash-command" && item.command === "clear" && onFreshSession) {
+      clearTriggerThen(onFreshSession);
       return;
     }
     if (
@@ -577,10 +585,7 @@ export function useComposerCommandMenu({
       item.command.name === USAGE_LIMITS_COMMAND.name &&
       onUsageLimits
     ) {
-      const cleared = replaceTextRange(draftMessage, trigger.rangeStart, trigger.rangeEnd, "");
-      setSelection({ start: cleared.cursor, end: cleared.cursor });
-      onChangeDraftMessage(cleared.text);
-      onUsageLimits();
+      clearTriggerThen(onUsageLimits);
       return;
     }
 

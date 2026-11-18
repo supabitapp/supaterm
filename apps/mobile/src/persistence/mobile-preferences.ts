@@ -11,7 +11,7 @@ import {
   PullRequestInvolvement,
   PullRequestListFilters,
   PullRequestListState,
-  type PullRequestMergeMethod,
+  PullRequestMergeMethod,
   type SidebarProjectGroupingMode,
 } from "@supaterm/contracts";
 import type { AndroidNavigationStyle } from "../lib/androidNavigationStyle";
@@ -77,7 +77,14 @@ const WorkspaceSelections = Schema.Struct({
 export type WorkspaceSelections = typeof WorkspaceSelections.Type;
 
 const isThreadGrouping = Schema.is(SidebarThreadGrouping);
+const PullRequestActivityVisibility = Schema.Struct({
+  bots: Schema.Boolean,
+  resolved: Schema.Boolean,
+});
+export type PullRequestActivityVisibility = typeof PullRequestActivityVisibility.Type;
+
 const isThreadListFilters = Schema.is(ThreadListFilters);
+const isPullRequestActivityVisibility = Schema.is(PullRequestActivityVisibility);
 const isWorkspaceSelections = Schema.is(WorkspaceSelections);
 const isPullRequestListPreferences = Schema.is(PullRequestListPreferences);
 
@@ -85,6 +92,8 @@ export interface Preferences {
   readonly navigationTabOrder?: readonly string[];
   readonly hiddenNavigationTabs?: readonly string[];
   readonly pullRequestHideTestFiles?: boolean;
+  /** Which hidden-by-default PR activity is shown: bot comments and resolved or dismissed ones. */
+  readonly pullRequestActivityVisibility?: PullRequestActivityVisibility;
   readonly pullRequestMergeMethod?: PullRequestMergeMethod;
   readonly lightThemeId?: MobileThemeId;
   readonly darkThemeId?: MobileThemeId;
@@ -153,11 +162,14 @@ export class MobilePreferencesStore extends Context.Service<
   }
 >()("@supaterm/mobile/persistence/MobilePreferencesStore") {}
 
+const isPullRequestMergeMethod = Schema.is(PullRequestMergeMethod);
+
 function sanitizePreferences(parsed: Preferences): Preferences {
   const preferences: {
     navigationTabOrder?: readonly string[];
     hiddenNavigationTabs?: readonly string[];
     pullRequestHideTestFiles?: boolean;
+    pullRequestActivityVisibility?: PullRequestActivityVisibility;
     pullRequestMergeMethod?: PullRequestMergeMethod;
     lightThemeId?: MobileThemeId;
     darkThemeId?: MobileThemeId;
@@ -204,11 +216,11 @@ function sanitizePreferences(parsed: Preferences): Preferences {
     preferences.pullRequestHideTestFiles = parsed.pullRequestHideTestFiles;
   }
 
-  if (
-    parsed.pullRequestMergeMethod === "squash" ||
-    parsed.pullRequestMergeMethod === "merge" ||
-    parsed.pullRequestMergeMethod === "rebase"
-  ) {
+  if (isPullRequestActivityVisibility(parsed.pullRequestActivityVisibility)) {
+    preferences.pullRequestActivityVisibility = parsed.pullRequestActivityVisibility;
+  }
+
+  if (isPullRequestMergeMethod(parsed.pullRequestMergeMethod)) {
     preferences.pullRequestMergeMethod = parsed.pullRequestMergeMethod;
   }
 

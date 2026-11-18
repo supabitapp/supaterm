@@ -1,4 +1,5 @@
 import { type EnvironmentConnectionPhase } from "@supaterm/client-runtime/connection";
+import type { EnvironmentThreadStatus } from "@supaterm/client-runtime/state/threads";
 
 export type ThreadContentPresentation =
   | { readonly kind: "ready" }
@@ -44,4 +45,12 @@ export function projectThreadContentPresentation(input: {
     title: "Messages not cached",
     detail: "Reconnect this environment to load the conversation.",
   };
+}
+
+export function threadSyncStatusLabel(
+  status: EnvironmentThreadStatus,
+  presentation: ThreadContentPresentation["kind"],
+): string | null {
+  if (status !== "empty" && status !== "cached" && status !== "synchronizing") return null;
+  return presentation === "ready" ? "Syncing messages…" : null;
 }

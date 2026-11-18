@@ -26,6 +26,7 @@ import type { EnvironmentThreadSearchMatch } from "@supaterm/client-runtime/stat
 import { AuthOrchestrationOperateScope, type EnvironmentMachineKind } from "@supaterm/contracts";
 import { resolveThreadListDurationStartedAt } from "@supaterm/client-runtime/state/thread-timing";
 import {
+  resolveThreadRowShownStatus,
   resolveThreadRowStatus,
   type ThreadRowStatus,
 } from "@supaterm/client-runtime/state/thread-row-status";
@@ -83,6 +84,7 @@ import {
   resolveThreadListV2ProviderDrivers,
   resolveThreadListV2SwipeActions,
   layoutThreadListV2RowMenuActions,
+  threadListV2RowAccessibilityLabel,
 } from "./threadListV2";
 import { QueuedMessageIcon } from "./queued-message-icon";
 import { UnsentDraftIcon } from "./unsent-draft-icon";
@@ -422,7 +424,6 @@ export const ThreadListV2PendingRow = memo(function ThreadListV2PendingRow(props
   readonly pendingTask: PendingNewTask;
   readonly selected?: boolean;
   readonly project: EnvironmentProject | null;
-  readonly projectTitle?: string;
   readonly environmentLabel: string | null;
   readonly environmentMachine?: EnvironmentMachineKind;
   readonly pane?: "screen" | "sidebar";
@@ -455,7 +456,6 @@ export const ThreadListV2PendingRow = memo(function ThreadListV2PendingRow(props
   const selected = props.selected ?? false;
   const rowAppearance = getThreadListV2RowAppearance(theme, sidebarPane, selected);
   const isDraft = pendingTask.kind === "draft";
-  const projectTitle = props.projectTitle ?? props.project?.title ?? pendingTask.projectTitle ?? "";
   const projectCwd = props.project?.workspaceRoot || null;
   // Drafts only; the reads are shared per-project atoms, and queued rows skip them.
   const projectDefaults = useNewTaskProjectDefaults(isDraft ? props.project : null);
@@ -501,7 +501,7 @@ export const ThreadListV2PendingRow = memo(function ThreadListV2PendingRow(props
               faviconPath={props.project.faviconPath}
               projectIcon={props.project.projectIcon}
               size={projectIconSize}
-              projectTitle={projectTitle}
+              projectTitle={props.project.title}
               workspaceRoot={props.project.workspaceRoot}
             />
           </View>
@@ -679,6 +679,7 @@ export const ThreadListV2PendingRow = memo(function ThreadListV2PendingRow(props
         enableTrackpadSwipe
         fullSwipeAction="primary"
         fullSwipeWidth={props.fullSwipeWidth ?? windowWidth - 32}
+        listAnimatesLayout
         onDelete={handleDelete}
         onSwipeableClose={props.onSwipeableClose}
         onSwipeableWillOpen={props.onSwipeableWillOpen}
@@ -831,17 +832,9 @@ export const ThreadListV2Row = memo(function ThreadListV2Row(props: {
   // The selected thread shows its own composer in the detail pane.
   const hasUnsentDraft = useThreadHasUnsentDraft(threadKey) && !selected;
   const isRegeneratingTitle = thread.titleRegeneration != null;
-  const rowAccessibilityLabel = [
-    thread.title,
-    providerNameLabel,
-    hasUnsentDraft ? "unsent draft" : null,
-    props.hasQueuedMessages ? "messages queued to send" : null,
-    isRegeneratingTitle ? "regenerating title" : null,
-  ]
-    .filter((part) => part !== null)
-    .join(", ");
 
-  const status = resolveThreadRowStatus(thread);
+  const rawStatus = resolveThreadRowStatus(thread);
+  const status = resolveThreadRowShownStatus(thread);
   const isUnread = status === "ready" && threadHasUnseenCompletion(thread);
   const showsWoke = environmentConnected && status === "ready" && props.wokeAt !== null;
   const rowStatusLabel = resolveThreadListV2RowStatusLabel({
@@ -875,8 +868,22 @@ export const ThreadListV2Row = memo(function ThreadListV2Row(props: {
   // The timestamp is precomputed on the list item (same stamps the done
   // tail sorts by) so a minute tick only re-renders rows that draw it.
   const timeLabel = props.timeLabel;
+  const rowAccessibilityLabel = threadListV2RowAccessibilityLabel({
+    title: thread.title,
+    variant,
+    woke: showsWoke,
+    statusLabel: statusLabel?.label,
+    // A row whose environment is not connected shows that state where its time would be.
+    timeLabel: environmentConnected ? timeLabel : (rowStatusLabel?.label ?? timeLabel),
+    snoozeWakeLabel: environmentConnected && snoozedRow ? props.snoozeWakeLabelText : undefined,
+    providerNameLabel,
+    hasUnsentDraft,
+    hasQueuedMessages: props.hasQueuedMessages === true,
+    regeneratingTitle: isRegeneratingTitle,
+  });
 
   const visitThread = useAtomCommand(threadEnvironment.visit, { reportFailure: false });
+  const markThreadUnread = useAtomCommand(threadEnvironment.markUnread, { reportFailure: false });
   const handleAcknowledgeWoke = useCallback(() => {
     if (props.wokeAt === null) return;
     void visitThread({
@@ -1023,6 +1030,7 @@ export const ThreadListV2Row = memo(function ThreadListV2Row(props: {
         supported: props.titleRegenerationSupported,
         isRegenerating: isRegeneratingTitle,
       }),
+      { id: "mark-unread", title: "Mark unread", image: "envelope.badge" },
       ...(canTurnIntoProject
         ? [
             {
@@ -1137,6 +1145,12 @@ export const ThreadListV2Row = memo(function ThreadListV2Row(props: {
       if (nativeEvent.event === "rename") handleRename();
       if (nativeEvent.event === "regenerate-title") handleRegenerateTitle();
       if (nativeEvent.event === "turn-into-project") void turnThreadIntoProject(thread);
+      if (nativeEvent.event === "mark-unread") {
+        void markThreadUnread({
+          environmentId: thread.environmentId,
+          input: { threadId: thread.id },
+        });
+      }
       if (nativeEvent.event === "copy-thread") {
         const target = threadChipCopyTarget(
           { environmentId: thread.environmentId, threadId: thread.id },
@@ -1183,6 +1197,7 @@ export const ThreadListV2Row = memo(function ThreadListV2Row(props: {
       handleUnpin,
       handleReopen,
       handleUnsnooze,
+      markThreadUnread,
       setCustomSnoozeOpen,
       snoozePresets,
       props.snoozePresets,
@@ -1356,6 +1371,7 @@ export const ThreadListV2Row = memo(function ThreadListV2Row(props: {
                   "text-xs font-supaterm-bold",
                   selected ? selectedThreadRowColors.foregroundClassName : statusLabel.className,
                 )}
+                environmentId={thread.environmentId}
                 label={statusLabel.label}
                 startedAt={durationStartedAt}
               />
@@ -1385,7 +1401,7 @@ export const ThreadListV2Row = memo(function ThreadListV2Row(props: {
         </View>
       ) : null}
       <View className="mt-1 flex-row items-center gap-2" style={{ paddingLeft: titleTextInset }}>
-        {(status === "failed" || status === "limited") && thread.runtime?.lastError ? (
+        {(rawStatus === "failed" || rawStatus === "limited") && thread.runtime?.lastError ? (
           <Text
             className={cn(
               "flex-1 text-xs",
@@ -1666,6 +1682,7 @@ export const ThreadListV2Row = memo(function ThreadListV2Row(props: {
         // Reopen / Wake), never the secondary action.
         fullSwipeAction="primary"
         fullSwipeWidth={props.fullSwipeWidth ?? windowWidth - 32}
+        listAnimatesLayout
         onDelete={handleDelete}
         onSwipeableClose={props.onSwipeableClose}
         onSwipeableWillOpen={props.onSwipeableWillOpen}
@@ -1676,7 +1693,12 @@ export const ThreadListV2Row = memo(function ThreadListV2Row(props: {
         threadTitle={thread.title}
       >
         {(close) => (
-          <Menu actions={menuActions} onPressAction={handleMenuAction} shouldOpenOnLongPress>
+          <Menu
+            accessibilityLabel={rowAccessibilityLabel}
+            actions={menuActions}
+            onPressAction={handleMenuAction}
+            shouldOpenOnLongPress
+          >
             {rowContent(close)}
           </Menu>
         )}

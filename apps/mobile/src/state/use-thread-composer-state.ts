@@ -1,4 +1,5 @@
 import { useComposerAttachmentActions } from "./use-composer-attachment-actions";
+import * as Effect from "effect/Effect";
 import * as Dialog from "../components/ui/Dialog";
 import { AuthOrchestrationOperateScope } from "@supaterm/contracts";
 import { readEnvironmentScope } from "./session";
@@ -7,11 +8,18 @@ import { threadRuntimeIsUnsettled } from "@supaterm/client-runtime/state/shell";
 import type { ThreadCheckpointSummary } from "@supaterm/client-runtime/state/thread-checkpoints";
 import { VoiceUploadError } from "@supaterm/client-runtime/state/transcription";
 import type { VoiceRecordingHandOff } from "@supaterm/client-runtime/voice-input";
+import { threadSteersDuringCompaction } from "@supaterm/client-runtime/state/thread-workflows";
 import { resolvePendingHandoff } from "@supaterm/client-runtime/handoff";
 import {
+  announcedRun,
+  isDetailBehindShell,
+} from "@supaterm/client-runtime/state/thread-activity-announcement";
+import {
+  canResumeThread,
   deriveProviderSubagentStatus,
   deriveProviderExtensionStatuses,
   deriveResumableRunId,
+  deriveLatestThreadRun,
   deriveRunlessWorkStartedAt,
   deriveThreadActivityRun,
   deriveThreadRuntime,
@@ -50,7 +58,7 @@ import { scopedThreadKey } from "../lib/scopedEntities";
 import { buildThreadFeed, createThreadFeedCache } from "../lib/threadActivity";
 import { acknowledgedThreadMessagesAtom } from "./acknowledged-thread-messages";
 import {
-  appendPendingThreadMessages,
+  appendAcceptedThreadMessages,
   retainPendingCreationAttachments,
   selectPendingAcknowledgedMessages,
 } from "../features/threads/pending-thread-feed";
@@ -60,6 +68,7 @@ import { pendingThreadCreationMessage } from "./pending-thread-creation";
 import {
   composerAttachmentUploadBlockReason,
   composerAttachmentUploadsAtom,
+  uploadComposerAttachmentShared,
 } from "./composer-attachment-uploads";
 import {
   appendComposerDraftAttachments,
@@ -78,8 +87,9 @@ import {
   useComposerDraftSettings,
 } from "./use-composer-drafts";
 import { selectThreadModel } from "./thread-model-selection";
-import { isClearComposerCommand } from "@supaterm/shared/composerTrigger";
+import { isClearComposerCommand, parseSideChatCommand } from "@supaterm/shared/composerTrigger";
 import {
+  compactionBlocksSteering,
   resolveComposerDispatchMode,
   type ActiveTurnComposerAction,
 } from "@supaterm/client-runtime/state/composer-dispatch";
@@ -87,7 +97,11 @@ import { Atom } from "effect/reactivity";
 import { AsyncResult } from "effect/reactivity";
 import { settlePromise, squashAtomCommandFailure } from "@supaterm/client-runtime/state/runtime";
 import { prepareTurnAttachments } from "../lib/attachmentUpload";
-import { DEFAULT_FOLLOW_UP_BEHAVIOR, type FollowUpBehavior } from "../lib/followUpBehavior";
+import {
+  DEFAULT_FOLLOW_UP_BEHAVIOR,
+  outboxFollowUpDispatchMode,
+  type FollowUpBehavior,
+} from "../lib/followUpBehavior";
 import { mobilePreferencesAtom } from "./preferences";
 import { environmentThreadDetails } from "./threads";
 import {
@@ -108,7 +122,7 @@ import {
 import { useThreadSelection } from "./use-thread-selection";
 import { enqueueThreadOutboxMessage } from "./thread-outbox";
 import { enqueueVoiceThreadOutboxMessage } from "./thread-outbox-audio";
-import { dispatchingQueuedMessageIdAtom, useThreadOutboxMessages } from "./use-thread-outbox";
+import { dispatchingQueuedMessageIdsAtom, useThreadOutboxMessages } from "./use-thread-outbox";
 import { threadEnvironment } from "./threads";
 import { useAtomCommand } from "./use-atom-command";
 
@@ -188,7 +202,7 @@ export function useThreadComposerState() {
   const selectedThreadVisibleTurnItems = useSelectedThreadVisibleTurnItems();
   const acknowledgedMessages = useAtomValue(acknowledgedThreadMessagesAtom);
   const queuedMessagesByThreadKey = useThreadOutboxMessages();
-  const dispatchingQueuedMessageId = useAtomValue(dispatchingQueuedMessageIdAtom);
+  const dispatchingQueuedMessageIds = useAtomValue(dispatchingQueuedMessageIdsAtom);
   const [feedbackSubmissionsByThreadKey, setFeedbackSubmissionsByThreadKey] = useState<
     Record<string, ReadonlyArray<CodexFeedbackSubmission>>
   >({});
@@ -210,6 +224,10 @@ export function useThreadComposerState() {
         (message) => message.creation === undefined,
       )
     : [];
+  // The thread sends one message at a time, the head of its queue.
+  const dispatchingQueuedMessageId =
+    selectedThreadQueuedMessages.find((message) => dispatchingQueuedMessageIds[message.messageId])
+      ?.messageId ?? null;
   const feedbackSubmissions = selectedThreadKey
     ? (feedbackSubmissionsByThreadKey[selectedThreadKey] ?? [])
     : [];
@@ -264,9 +282,10 @@ export function useThreadComposerState() {
       sequence: selectedThreadSequence,
       projectedMessages: selectedThreadMessages,
     });
-    if (pendingAcknowledgments.length === 0) return feed;
-    return appendPendingThreadMessages(feed, feed, pendingAcknowledgments).map((entry) =>
-      entry.pendingMessage ? { ...entry, acknowledged: true } : entry,
+    return appendAcceptedThreadMessages(
+      feed,
+      pendingAcknowledgments,
+      pendingCreation.length > 0 ? pendingCreationMessage : null,
     );
   })();
 
@@ -274,10 +293,12 @@ export function useThreadComposerState() {
   const followUpBehavior = AsyncResult.isSuccess(preferencesResult)
     ? (preferencesResult.value.followUpBehavior ?? DEFAULT_FOLLOW_UP_BEHAVIOR)
     : DEFAULT_FOLLOW_UP_BEHAVIOR;
+  const deferredSteering =
+    selectedEnvironmentRuntime?.serverConfig?.environment.capabilities.deferredSteering === true;
   const queueWorkflow = useAtomValue(
     selectedThreadRef === null
       ? EMPTY_QUEUE_WORKFLOW_ATOM
-      : environmentThreadDetails.queueWorkflowAtom(selectedThreadRef),
+      : environmentThreadDetails.queueWorkflowAtom(selectedThreadRef, { deferredSteering }),
   );
   const queuedRunEdit = useQueuedRunEdit(selectedThreadKey);
   const composerDraftKey =
@@ -309,8 +330,20 @@ export function useThreadComposerState() {
   const selectedThreadActivityRun = selectedThreadProjection
     ? deriveThreadActivityRun(selectedThreadProjection.projection)
     : (selectedThreadShell?.latestRun ?? null);
+  const selectedThreadAnnouncedRun = announcedRun(
+    selectedThreadActivityRun,
+    selectedThreadProjection?.projection.runs ?? [],
+  );
+  const selectedThreadDetailBehindShell = isDetailBehindShell(
+    selectedThreadProjection ? deriveLatestThreadRun(selectedThreadProjection.projection) : null,
+    selectedThreadShell?.latestRun ?? null,
+  );
 
-  const isCompacting = (() => {
+  const activeRunId =
+    selectedThreadRuntime?.activeRunId && threadRuntimeIsUnsettled(selectedThreadRuntime)
+      ? selectedThreadRuntime.activeRunId
+      : null;
+  const compactCommandIsActive = (() => {
     const queuedCompact = selectedThreadQueuedMessages.some(
       (message) =>
         message.messageId === dispatchingQueuedMessageId &&
@@ -318,16 +351,7 @@ export function useThreadComposerState() {
         message.attachments.length === 0,
     );
     if (queuedCompact) return true;
-    const activeRunId = selectedThreadRuntime?.activeRunId;
-    if (!activeRunId || !threadRuntimeIsUnsettled(selectedThreadRuntime)) return false;
-    if (
-      selectedThreadVisibleTurnItems.some(
-        ({ item }) =>
-          item.runId === activeRunId && item.type === "compaction" && item.status === "running",
-      )
-    ) {
-      return true;
-    }
+    if (!activeRunId) return false;
     const compactMessage = selectedThreadVisibleTurnItems.findLast(
       ({ item }) =>
         item.runId === activeRunId &&
@@ -346,13 +370,29 @@ export function useThreadComposerState() {
           item.status === "cancelled"),
     );
   })();
-  // A compacting turn cannot take steering input, so follow-ups queue meanwhile.
-  const canSteerActiveTurn = queueWorkflow?.canPromoteToSteer === true && !isCompacting;
+  const compactionRunning =
+    activeRunId !== null &&
+    selectedThreadVisibleTurnItems.some(
+      ({ item }) =>
+        item.runId === activeRunId && item.type === "compaction" && item.status === "running",
+    );
+  const isCompacting = compactCommandIsActive || compactionRunning;
+  const compactionBlocksSteer = compactionBlocksSteering({
+    compactCommandIsActive,
+    compactionRunning,
+    steersDuringCompaction: threadSteersDuringCompaction(selectedThreadProjection?.projection),
+    run: selectedThreadProjection?.projection.runs.find((run) => run.id === activeRunId),
+    messages: selectedThreadMessages,
+  });
+  const canSteerActiveTurn = queueWorkflow?.canPromoteToSteer === true && !compactionBlocksSteer;
 
   const queueHeld = queueWorkflow?.isHeld === true;
   const resumableRunId = selectedThreadProjection
     ? deriveResumableRunId(selectedThreadProjection.projection, selectedThreadRuntime)
     : null;
+  const canResume = selectedThreadProjection
+    ? canResumeThread(selectedThreadProjection.projection, resumableRunId, queueHeld)
+    : queueHeld;
 
   const runlessWorkStartedAt = selectedThreadProjection
     ? deriveRunlessWorkStartedAt(selectedThreadProjection.projection)
@@ -415,15 +455,27 @@ export function useThreadComposerState() {
       );
       return;
     }
+    // A queued message stays in its thread, so saving `/side` would send it to main.
+    if (parseSideChatCommand(text)) {
+      Dialog.alert(
+        "Queued message not updated",
+        "A queued message can't move to a side chat. Remove /side or /btw to save it.",
+      );
+      return;
+    }
     const finishSave = startQueuedRunEditSave(threadKey);
     if (finishSave === null) return;
     savingQueuedEditRef.current = true;
     setIsSavingQueuedEdit(true);
     const prepared = await settlePromise(() =>
-      prepareTurnAttachments({
-        environmentId: thread.environmentId,
-        attachments: draft.attachments,
-      }),
+      Effect.runPromise(
+        prepareTurnAttachments({
+          environmentId: thread.environmentId,
+          attachments: draft.attachments,
+          uploadAttachment: (attachment) =>
+            uploadComposerAttachmentShared(thread.environmentId, attachment),
+        }),
+      ),
     );
     if (AsyncResult.isFailure(prepared)) {
       savingQueuedEditRef.current = false;
@@ -481,8 +533,7 @@ export function useThreadComposerState() {
     scheduleUnusedComposerAttachmentCleanup(draft.attachments);
   };
 
-  // Resolved at send, not drain: the outbox can deliver minutes later. Steering travels as "auto"
-  // so a turn that ends meanwhile degrades to a queued run instead of bouncing to the draft.
+  // Resolved at send, not drain: the outbox can deliver minutes later.
   const resolveFollowUpDispatchMode = (
     activeTurnDefault: FollowUpBehavior,
     followUpOverride?: ActiveTurnComposerAction,
@@ -501,13 +552,7 @@ export function useThreadComposerState() {
       [selectedThreadActivityRun?.status, selectedThreadRuntime?.status].some(
         (status) => status === "preparing" || status === "starting",
       );
-    return setupRunning
-      ? "queue"
-      : followUpAction === "auto"
-        ? null
-        : followUpAction === "queue"
-          ? "queue"
-          : "auto";
+    return outboxFollowUpDispatchMode({ followUpAction, setupRunning, deferredSteering });
   };
 
   /** Queues a recording as the message; it is moved into the outbox before it shows as queued. */
@@ -626,7 +671,7 @@ export function useThreadComposerState() {
       clearComposerDraftContent(threadKey);
       return null;
     }
-    // A send-failure restore appends with allowOverflow so it never drops the
+    // A send-failure restore appends with restore: true so it never drops the
     // user's files, which can leave the draft over the cap. Sending it anyway
     // would enqueue a message that outbox recovery rejects forever, so block
     // here until the user removes attachments.
@@ -767,7 +812,7 @@ export function useThreadComposerState() {
           context: draft.context,
           attachments: [],
         });
-        appendComposerDraftAttachments(threadKey, attachments, { allowOverflow: true });
+        appendComposerDraftAttachments(threadKey, attachments, { restore: true });
         if (freshContext) setFreshSessionPending(threadKey, true);
         setThreadComposerError(
           threadKey,
@@ -817,6 +862,8 @@ export function useThreadComposerState() {
     dismissFeedback,
     selectedThreadFeed,
     selectedThreadActivityRun,
+    selectedThreadAnnouncedRun,
+    selectedThreadDetailBehindShell,
     selectedThreadQueueCount,
     selectedThreadQueuedMessages,
     dispatchingQueuedMessageId,
@@ -832,6 +879,7 @@ export function useThreadComposerState() {
     canSteerActiveTurn,
     queueHeld,
     resumableRunId,
+    canResume,
     queuedRunEdit,
     isSavingQueuedEdit,
     cancelQueuedRunEdit,

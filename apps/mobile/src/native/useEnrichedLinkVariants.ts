@@ -18,10 +18,10 @@ import type {
 import {
   enrichedContextLinkPresentation,
   enrichedLinkVariantPattern,
-  enrichedSkillDisplayName,
   enrichedSkillReference,
   enrichedThreadLinkPresentation,
 } from "../lib/enrichedLinkPresentation";
+import { formatProviderSkillDisplayName } from "@supaterm/shared/inlineSkills";
 
 function chipCustomization(
   chip: ReturnType<typeof enrichedContextLinkPresentation>,
@@ -73,7 +73,7 @@ function presentation(
   const skill = enrichedSkillReference(url, props.skills);
   if (skill)
     return {
-      label: enrichedSkillDisplayName(skill),
+      label: formatProviderSkillDisplayName(skill),
       icon: CONTEXT_CHIP_ICON_SOURCES.skill,
       chip: { accent: contextChipPresentation("skill").accent, tintsIcon: true },
     };

@@ -1,6 +1,6 @@
 import { useLayoutEffect } from "react";
 import { act, create, type ReactTestRenderer } from "react-test-renderer";
-import { afterEach, describe, expect, it } from "vite-plus/test";
+import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 import { useThreadFeedLoading } from "./use-thread-feed-loading";
 
 type Input = Parameters<typeof useThreadFeedLoading>[0];
@@ -28,6 +28,11 @@ function Probe(props: { input: Input }) {
   return null;
 }
 
+async function land(state = result) {
+  await act(async () => state.onListLoaded());
+  await act(async () => state.onListLanded());
+}
+
 async function render(input: Input) {
   await act(async () => {
     if (renderer) renderer.update(<Probe input={input} />);
@@ -43,11 +48,11 @@ afterEach(async () => {
 describe("thread feed loading handoff", () => {
   it("waits for the filled list to land even if the empty list already loaded", async () => {
     await render(initialInput);
-    await act(async () => result.onListLoaded());
+    await land();
     expect(result.loading).toBe(true);
     await render(filledInput);
     expect(result.loading).toBe(true);
-    await act(async () => result.onListLoaded());
+    await land();
     expect(result.loading).toBe(false);
     await render({ ...filledInput, listMountKey: "another-list-mount" });
     expect(result.loading).toBe(false);
@@ -56,17 +61,44 @@ describe("thread feed loading handoff", () => {
   it("holds a cached conversation until its list lands", async () => {
     await render(filledInput);
     expect(result.loading).toBe(true);
-    await act(async () => result.onListLoaded());
+    await land();
     expect(result.loading).toBe(false);
+  });
+
+  it("keeps a loaded list hidden until it reaches the end", async () => {
+    await render(filledInput);
+    await act(async () => result.onListLoaded());
+    expect(result.listLoaded).toBe(true);
+    expect(result.loading).toBe(true);
+    await act(async () => result.onListLanded());
+    expect(result.loading).toBe(false);
+  });
+
+  it("reveals a loaded list that stalls short of the end after a second", async () => {
+    vi.useFakeTimers();
+    try {
+      await render(filledInput);
+      await act(async () => result.onListLoaded());
+      await act(async () => {
+        vi.advanceTimersByTime(999);
+      });
+      expect(result.loading).toBe(true);
+      await act(async () => {
+        vi.advanceTimersByTime(1);
+      });
+      expect(result.loading).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("waits for a new list when the same thread loads again", async () => {
     await render(filledInput);
-    await act(async () => result.onListLoaded());
+    await land();
     await render(initialInput);
     await render(filledInput);
     expect(result.loading).toBe(true);
-    await act(async () => result.onListLoaded());
+    await land();
     expect(result.loading).toBe(false);
   });
 
@@ -96,11 +128,11 @@ describe("thread feed loading handoff", () => {
 
   it("ignores a replaced list's late load callback", async () => {
     await render(initialInput);
-    const replacedOnLoad = result.onListLoaded;
+    const replaced = result;
     await render(filledInput);
-    await act(async () => replacedOnLoad());
+    await land(replaced);
     expect(result.loading).toBe(true);
-    await act(async () => result.onListLoaded());
+    await land();
     expect(result.loading).toBe(false);
   });
 });

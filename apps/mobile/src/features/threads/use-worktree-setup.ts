@@ -9,7 +9,7 @@ export function useWorktreeSetup(input: {
   environmentId: EnvironmentId | null;
   threadId: ThreadId | null;
   preparing: boolean;
-  turnStarted: boolean;
+  runs: Parameters<typeof resolveVisibleWorktreeSetup>[0]["runs"];
   followUpSent: boolean;
 }) {
   const key = JSON.stringify([input.environmentId, input.threadId]);
@@ -30,7 +30,7 @@ export function useWorktreeSetup(input: {
   return resolveVisibleWorktreeSetup({
     live: snapshot,
     recorded: null,
-    turnStarted: input.turnStarted,
+    runs: input.runs,
     followUpSent: input.followUpSent,
   });
 }

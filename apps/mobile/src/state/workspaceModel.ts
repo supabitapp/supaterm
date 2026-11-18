@@ -1,4 +1,8 @@
-import { type EnvironmentShellSummary } from "@supaterm/client-runtime/state/shell";
+import {
+  EMPTY_SHELL_STATE,
+  type EnvironmentShellState,
+  type EnvironmentShellSummary,
+} from "@supaterm/client-runtime/state/shell";
 import type { EnvironmentId, ServerConfig } from "@supaterm/contracts";
 
 import {
@@ -40,6 +44,8 @@ export interface WorkspaceState extends Pick<
   "hasConnections" | "connectionState"
 > {
   readonly phase: WorkspacePhase;
+  /** Online, and an environment is connecting (failed attempts too) or a connected one syncs its shell. */
+  readonly catalogPending: boolean;
   /** Projects may still arrive: the catalog, a first snapshot, or an unfailed connection is pending. */
   readonly awaitingProjects: boolean;
   /** No snapshot is on its way. An environment that keeps failing to reconnect counts as settled. */
@@ -162,6 +168,9 @@ export function projectWorkspaceState(input: WorkspaceInput): WorkspaceState {
     hasConnections: connection.hasConnections,
     connectionState: connection.connectionState,
     phase,
+    catalogPending:
+      input.networkStatus !== "offline" &&
+      (connecting.length > 0 || input.hasSyncingConnectedEnvironment),
     awaitingProjects:
       !input.isReady ||
       (!input.shellSummary.hasSnapshot &&
@@ -187,6 +196,11 @@ export function workspaceHasShellSnapshot(phase: WorkspacePhase): boolean {
     case "connected":
       return phase.shell === "loaded" || phase.shell === "syncing";
   }
+}
+
+// The atom starts at EMPTY_SHELL_STATE itself; any state after the cache read is a new object.
+export function isEnvironmentShellPending(state: EnvironmentShellState): boolean {
+  return state === EMPTY_SHELL_STATE || state.status === "synchronizing";
 }
 
 export type ServerConfigByEnvironmentId = ReadonlyMap<EnvironmentId, ServerConfig>;

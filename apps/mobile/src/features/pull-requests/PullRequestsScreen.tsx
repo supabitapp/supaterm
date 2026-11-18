@@ -10,8 +10,9 @@ import { useNavigation } from "@react-navigation/native";
 import { use, useMemo, useRef, useState, type ReactNode } from "react";
 import { sortProjectsByGroupOrder } from "@supaterm/client-runtime/state/project-grouping";
 import { useAtomValue } from "@effect/atom-react";
-import { Keyboard, Platform, Pressable, RefreshControl, View } from "react-native";
+import { Keyboard, Platform, Pressable, View } from "react-native";
 import { AppActivityIndicator } from "../../components/ui/AppActivityIndicator";
+import { RefreshControl } from "../../components/ui/RefreshControl";
 import { NativeScrollView } from "../../native/NativeScrollViewMarker";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 

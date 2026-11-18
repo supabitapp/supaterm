@@ -32,7 +32,7 @@ import {
   sortInboxThreadsByReturn,
   sortWorkingThreadsBySend,
 } from "@supaterm/client-runtime/state/thread-inbox";
-import { resolveThreadRowStatus } from "@supaterm/client-runtime/state/thread-row-status";
+import { resolveThreadRowShownStatus } from "@supaterm/client-runtime/state/thread-row-status";
 import {
   sortActiveThreadsByOrderKey,
   resolveDoneThreadTimestamp,
@@ -222,6 +222,8 @@ export function threadHasUnseenCompletion(
 ): boolean {
   const completedAt = thread.latestRun?.completedAt;
   if (!completedAt) return false;
+  const status = thread.latestRun?.status;
+  if (status === "interrupted" || status === "cancelled") return false;
   const completedAtMs = Date.parse(completedAt);
   if (Number.isNaN(completedAtMs)) return false;
   if (!thread.lastVisitedAt) return false;
@@ -241,6 +243,37 @@ export function resolveThreadListV2WokeAt(
   return !Number.isNaN(wokeAtMs) && (Number.isNaN(lastVisitedAtMs) || lastVisitedAtMs < wokeAtMs)
     ? wokeAt
     : null;
+}
+
+export function threadListV2RowAccessibilityLabel(input: {
+  readonly title: string;
+  readonly variant: "card" | "slim";
+  readonly woke: boolean;
+  readonly statusLabel: string | undefined;
+  readonly timeLabel: string;
+  readonly snoozeWakeLabel: string | undefined;
+  readonly providerNameLabel: string | null;
+  readonly hasUnsentDraft: boolean;
+  readonly hasQueuedMessages: boolean;
+  readonly regeneratingTitle: boolean;
+}): string {
+  // Mirrors the row's meta line: a card shows Woke, else its status, else the time.
+  const meta =
+    input.variant === "slim"
+      ? (input.snoozeWakeLabel ?? input.timeLabel)
+      : input.woke
+        ? "Woke"
+        : (input.statusLabel ?? input.timeLabel);
+  return [
+    input.title,
+    meta,
+    input.providerNameLabel,
+    input.hasUnsentDraft ? "unsent draft" : null,
+    input.hasQueuedMessages ? "messages queued to send" : null,
+    input.regeneratingTitle ? "regenerating title" : null,
+  ]
+    .filter((part) => part !== null)
+    .join(", ");
 }
 
 function parseTimestampMs(isoDate: string): number {
@@ -517,7 +550,7 @@ function resolveThreadListV2ItemTimeLabel(
   if (showSnoozeWakeLabel) return "";
   if (
     variant === "card" &&
-    (resolveThreadRowStatus(thread) !== "ready" ||
+    (resolveThreadRowShownStatus(thread) !== "ready" ||
       item.wokeAt !== null ||
       threadHasUnseenCompletion(thread))
   )

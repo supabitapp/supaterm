@@ -6,6 +6,22 @@ interface WorkspaceEmptyState {
   readonly loading: boolean;
 }
 
+interface HomeEmptyState extends WorkspaceEmptyState {
+  readonly showsAddEnvironment: boolean;
+}
+
+const HOME_CONNECTING: WorkspaceEmptyState = {
+  title: "Connecting to environment",
+  detail: "Loading projects and threads from the saved environment.",
+  loading: true,
+};
+
+const NO_THREADS: WorkspaceEmptyState = {
+  title: "No threads yet",
+  detail: "Create a task to start a new coding runtime in one of your connected projects.",
+  loading: false,
+};
+
 const NO_PROJECTS: WorkspaceEmptyState = {
   title: "No projects found",
   detail: "The connected environment did not report any projects.",
@@ -50,23 +66,27 @@ function resolveMissingShellEmptyState(
   }
 }
 
-export function resolveHomeEmptyState(input: {
+interface HomeEmptyStateInput {
   readonly phase: WorkspacePhase;
+  readonly catalogPending: boolean;
   readonly projectCount: number;
-}): WorkspaceEmptyState {
-  return (
+}
+
+function resolveHomeContent(input: HomeEmptyStateInput): WorkspaceEmptyState {
+  const state =
     resolveMissingShellEmptyState(input.phase, {
       noEnvironments: "Add an environment to load projects and start coding sessions.",
-      connecting: "Loading projects and threads from the saved environment.",
+      connecting: HOME_CONNECTING.detail,
     }) ??
-    (input.projectCount === 0
-      ? NO_PROJECTS
-      : {
-          title: "No threads yet",
-          detail: "Create a task to start a new coding runtime in one of your connected projects.",
-          loading: false,
-        })
-  );
+    (input.catalogPending ? HOME_CONNECTING : input.projectCount === 0 ? NO_PROJECTS : NO_THREADS);
+  return state.loading && input.phase.type === "connected"
+    ? { ...state, title: "Loading threads" }
+    : state;
+}
+
+export function resolveHomeEmptyState(input: HomeEmptyStateInput): HomeEmptyState {
+  const state = resolveHomeContent(input);
+  return { ...state, showsAddEnvironment: !state.loading && input.phase.type !== "connected" };
 }
 
 export function resolveNewTaskProjectEmptyState(phase: WorkspacePhase): WorkspaceEmptyState {

@@ -7,6 +7,7 @@ import android.os.Build
 import android.text.Editable
 import android.text.InputType
 import android.text.TextWatcher
+import android.text.method.PasswordTransformationMethod
 import android.util.TypedValue
 import android.view.Gravity
 import android.view.KeyEvent
@@ -48,6 +49,9 @@ class SupatermSecretInputModule : Module() {
       Prop("editable") { view: SupatermSecretInputView, value: Boolean ->
         view.input.isEnabled =
           value
+      }
+      Prop("revealed") { view: SupatermSecretInputView, value: Boolean ->
+        view.setRevealed(value)
       }
       Events("onChangeText", "onSubmit")
     }
@@ -140,6 +144,20 @@ class SupatermSecretInputView(
     applyingValue = true
     input.setText(value)
     input.setSelection(input.text.length)
+    applyingValue = false
+  }
+
+  /**
+   * Swapping the transformation re-sets the text, so it neither echoes to JS nor moves the caret.
+   */
+  fun setRevealed(revealed: Boolean) {
+    val method = if (revealed) null else PasswordTransformationMethod.getInstance()
+    if (input.transformationMethod == method) return
+    val start = input.selectionStart
+    val end = input.selectionEnd
+    applyingValue = true
+    input.transformationMethod = method
+    if (start >= 0 && end >= 0) input.setSelection(start, end)
     applyingValue = false
   }
 

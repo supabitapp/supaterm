@@ -1,11 +1,15 @@
 import type { PullRequestDetail } from "@supaterm/contracts";
 import { sourceControlClients } from "@supaterm/client-runtime/source-control-clients";
+import { useAtomValue } from "@effect/atom-react";
+import { Atom } from "effect/reactivity";
 import { useMemo } from "react";
 import { useEnvironmentServerConfig, useNavigationThreadShells } from "../../state/entities";
 import { pullRequestStackAtom } from "../../state/pull-requests";
 import { useEnvironmentQuery } from "../../state/query";
 import { savedPullRequestStack } from "./pullRequestStack";
 import { pullRequestTarget, type PullRequestParams } from "./usePullRequestDiff";
+
+const NOT_ANSWERED = Atom.make(false);
 
 export function usePullRequestStack(params: PullRequestParams, pr: PullRequestDetail | null) {
   const target = pullRequestTarget(params);
@@ -34,11 +38,14 @@ export function usePullRequestStack(params: PullRequestParams, pr: PullRequestDe
   const query = useEnvironmentQuery(
     supported ? pullRequestStackAtom({ ...target, input: reference }) : null,
   );
+  const answered = useAtomValue(
+    supported ? pullRequestStackAtom.answered({ ...target, input: reference }) : NOT_ANSWERED,
+  );
   const stack = query.isSuccess ? query.data : (query.data ?? saved);
   return {
     ...query,
     stack,
-    isFresh: supported && query.isSuccess && !query.isPending,
+    isFresh: supported && query.isSuccess && !query.isPending && answered,
     supportsStackActions: supported && pr?.capabilities.stackActions === true,
   };
 }

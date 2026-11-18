@@ -1,5 +1,5 @@
-import type { ReactNode } from "react";
-import { ScrollView, View } from "react-native";
+import { useMemo, type ReactNode } from "react";
+import { ScrollView, Text as RNText, View } from "react-native";
 import type { EnvironmentId } from "@supaterm/contracts";
 import { withOccurrenceKeys } from "@supaterm/shared/occurrenceKeys";
 import { isJavaScriptReplTool } from "@supaterm/shared/toolActivity";
@@ -13,11 +13,16 @@ import {
   toolGroupAction,
   workEntryViewedImagePath,
 } from "@supaterm/client-runtime/work-log/presentation";
+import {
+  commandHighlightLanguage,
+  withVisibleControlCharacters,
+} from "@supaterm/client-runtime/work-log/command-label";
 
 import { AppText as Text } from "../../components/ui/AppText";
 import type { FilePreviewSource } from "../../components/ui/FilePreviewModal";
 import type { MarkdownImageRenderer } from "../../native/SelectableMarkdownText";
 import { cn } from "../../lib/cn";
+import { highlightCommand, type HighlightedLines } from "../../lib/highlights";
 import { formatItemFullDetail, type ThreadFeedActivity } from "../../lib/threadActivity";
 import { orchestrationEnvironment } from "../../state/orchestration";
 import { useTurnItemDetail } from "../../state/queries";
@@ -36,6 +41,31 @@ function ToolCodeText({
   readonly theme: "light" | "dark";
 }) {
   const lines = useMarkdownCodeHighlight({ code, language, theme, enabled: true });
+  return <HighlightedCodeText code={code} lines={lines} />;
+}
+
+function CommandCodeText({
+  command,
+  theme,
+}: {
+  readonly command: string;
+  readonly theme: "light" | "dark";
+}) {
+  const code = withVisibleControlCharacters(command.trim());
+  const lines = useMemo(
+    () => highlightCommand(code, commandHighlightLanguage(code), theme),
+    [code, theme],
+  );
+  return <HighlightedCodeText code={code} lines={lines} />;
+}
+
+function HighlightedCodeText({
+  code,
+  lines,
+}: {
+  readonly code: string;
+  readonly lines: HighlightedLines | null;
+}) {
   let offset = 0;
   const highlighted = lines?.flatMap((line, lineIndex) => {
     const separator = lineIndex > 0 ? "\n" : "";
@@ -45,10 +75,11 @@ function ToolCodeText({
       ...line.map((token) => {
         const start = offset;
         offset += token.content.length;
+        // Plain RN Text inherits the mono font; AppText would reset it to sans.
         return (
-          <Text key={start} style={token.color ? { color: token.color } : undefined}>
+          <RNText key={start} style={token.color ? { color: token.color } : undefined}>
             {token.content}
-          </Text>
+          </RNText>
         );
       }),
     ];
@@ -100,7 +131,7 @@ export function ThreadWorkLogDetail(props: {
       ? shownItem.exitCode
       : null;
   const fullDetail =
-    !reasoning && !call
+    !reasoning && !call && !row.workEntry.questionAnswer
       ? fetchedItem && !isRead
         ? formatItemFullDetail(row.projectedItem, fetchedItem)
         : row.getFullDetail()
@@ -160,49 +191,53 @@ export function ThreadWorkLogDetail(props: {
         {reasoning ? (
           props.renderReasoning(reasoning.text)
         ) : call ? (
-          withOccurrenceKeys(
-            [
-              call.command,
-              ...(call.args ?? []).map(([key, value]) => {
-                const language: "html" | "typescript" | "json" | null =
-                  key === "html"
-                    ? "html"
-                    : key === "code" && highlightsCode
-                      ? "typescript"
-                      : isJsonToolText(value)
-                        ? "json"
-                        : null;
-                return language ? { name: key, code: value, language } : `${key} ${value}`;
-              }),
-              call.argsText,
-            ].flatMap((line) => (line ? [line] : [])),
-            (line) => (typeof line === "string" ? line : `${line.name} ${line.code}`),
-          ).map(({ item: line, key }) =>
-            typeof line === "string" ? (
-              <Text
-                key={key}
-                selectable
-                className="font-mono text-2xs leading-normal text-foreground"
-              >
-                {isJsonToolText(line) ? (
-                  <ToolCodeText code={line} language="json" theme={props.themeAppearance} />
-                ) : (
-                  line
-                )}
-              </Text>
-            ) : (
-              <View key={key}>
-                <Text className="font-mono text-2xs leading-normal text-foreground-muted">
-                  {line.name}
+          [
+            call.command ? (
+              <CommandCodeText key="command" command={call.command} theme={props.themeAppearance} />
+            ) : null,
+            ...withOccurrenceKeys(
+              [
+                ...(call.args ?? []).map(([key, value]) => {
+                  const language: "html" | "typescript" | "json" | null =
+                    key === "html"
+                      ? "html"
+                      : key === "code" && highlightsCode
+                        ? "typescript"
+                        : isJsonToolText(value)
+                          ? "json"
+                          : null;
+                  return language ? { name: key, code: value, language } : `${key} ${value}`;
+                }),
+                call.argsText,
+              ].flatMap((line) => (line ? [line] : [])),
+              (line) => (typeof line === "string" ? line : `${line.name} ${line.code}`),
+            ).map(({ item: line, key }) =>
+              typeof line === "string" ? (
+                <Text
+                  key={key}
+                  selectable
+                  className="font-mono text-2xs leading-normal text-foreground"
+                >
+                  {isJsonToolText(line) ? (
+                    <ToolCodeText code={line} language="json" theme={props.themeAppearance} />
+                  ) : (
+                    line
+                  )}
                 </Text>
-                <ToolCodeText
-                  code={line.code}
-                  language={line.language}
-                  theme={props.themeAppearance}
-                />
-              </View>
+              ) : (
+                <View key={key}>
+                  <Text className="font-mono text-2xs leading-normal text-foreground-muted">
+                    {line.name}
+                  </Text>
+                  <ToolCodeText
+                    code={line.code}
+                    language={line.language}
+                    theme={props.themeAppearance}
+                  />
+                </View>
+              ),
             ),
-          )
+          ]
         ) : fullDetail ? (
           <Text selectable className="font-mono text-2xs leading-normal text-foreground-muted">
             {isJsonToolText(fullDetail) ? (

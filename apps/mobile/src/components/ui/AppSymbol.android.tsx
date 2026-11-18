@@ -33,6 +33,7 @@ const ANDROID_ICON_BY_SF_SYMBOL = {
   archivebox: IconNodes.Archive,
   "archivebox.fill": IconNodes.Archive,
   "bell.badge": IconNodes.BellRing,
+  "bolt.circle": IconNodes.Zap,
   "bolt.horizontal.circle": IconNodes.Zap,
   brain: IconNodes.Brain,
   "cable.connector": IconNodes.Plug,
@@ -48,6 +49,7 @@ const ANDROID_ICON_BY_SF_SYMBOL = {
   "circle.inset.filled": IconNodes.CircleDot,
   "circle.dashed.inset.filled": IconNodes.CircleDot,
   "calendar.badge.clock": IconNodes.CalendarClock,
+  alarm: IconNodes.AlarmClock,
   clock: IconNodes.Clock,
   timer: IconNodes.Clock,
   "face.smiling": IconNodes.SmilePlus,
@@ -69,6 +71,7 @@ const ANDROID_ICON_BY_SF_SYMBOL = {
   ellipsis: IconNodes.Ellipsis,
   moon: IconNodes.Moon,
   "ellipsis.circle": IconNodes.CircleEllipsis,
+  "envelope.badge": IconNodes.Mail,
   "exclamationmark.triangle": IconNodes.TriangleAlert,
   "exclamationmark.circle": IconNodes.CircleAlert,
   eye: IconNodes.Eye,
@@ -141,8 +144,9 @@ const ANDROID_ICON_BY_SF_SYMBOL = {
   "exclamationmark.shield": IconNodes.ShieldAlert,
   "bubble.left.and.bubble.right": IconNodes.MessageSquareText,
   "bubble.left": IconNodes.MessageSquareText,
-  sparkles: IconNodes.Sparkles,
   "plus.bubble": IconNodes.MessageSquarePlus,
+  "ellipsis.bubble": IconNodes.MessageSquareMore,
+  robot: IconNodes.Bot,
   "text.word.spacing": IconNodes.TextSize,
   "textformat.size": IconNodes.FontStyle,
   "textformat.size.larger": IconNodes.ZoomIn,
@@ -151,23 +155,33 @@ const ANDROID_ICON_BY_SF_SYMBOL = {
   trash: IconNodes.Trash,
   wifi: IconNodes.Wifi,
   "wifi.slash": IconNodes.CloudOff,
+  "wrench.and.screwdriver": IconNodes.Wrench,
   xmark: IconNodes.X,
   "xmark.circle.fill": IconNodes.CircleXFilled,
 } satisfies Partial<
   Record<
-    SFSymbol | "git.pull-request.closed" | "git.pull-request.draft" | "git.commit" | "file.diff",
+    | SFSymbol
+    | "git.pull-request.closed"
+    | "git.pull-request.draft"
+    | "git.commit"
+    | "file.diff"
+    | "robot",
     IconNode
   >
 >;
 const SF_ICON_LOOKUP: Partial<
   Record<
-    SFSymbol | "git.pull-request.closed" | "git.pull-request.draft" | "git.commit" | "file.diff",
+    | SFSymbol
+    | "git.pull-request.closed"
+    | "git.pull-request.draft"
+    | "git.commit"
+    | "file.diff"
+    | "robot",
     IconNode
   >
 > = ANDROID_ICON_BY_SF_SYMBOL;
 
 const ANDROID_ICON_BY_MATERIAL_NAME = {
-  auto_awesome: IconNodes.Sparkles,
   bolt: IconNodes.Zap,
   build: IconNodes.Wrench,
   chat: IconNodes.MessageSquareText,

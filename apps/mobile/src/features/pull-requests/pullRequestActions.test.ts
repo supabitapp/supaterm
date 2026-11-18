@@ -6,6 +6,7 @@ import {
   canPerformPullRequestAction,
   mergeUnavailableReason,
   pullRequestActionLabel,
+  resolveMergeMethod,
 } from "./pullRequestActions";
 
 const LISTED_ACTIONS = PullRequestListedAction.literals;
@@ -49,6 +50,22 @@ describe("mobile pull request actions", () => {
     const pr = detail({ mergeability: "conflicting" });
     expect(canPerformPullRequestAction(pr, "merge")).toBe(false);
     expect(mergeUnavailableReason(pr, true, GITHUB)).toContain("conflicts");
+  });
+
+  it("picks the chosen, project default, then last used merge method the repository allows", () => {
+    const pr = detail();
+    expect(resolveMergeMethod(pr, null, "merge", "squash")).toBe("merge");
+    expect(resolveMergeMethod(pr, "squash", "merge", "merge")).toBe("squash");
+    expect(resolveMergeMethod(pr, null, "rebase", "merge")).toBe("merge");
+    expect(resolveMergeMethod(pr, null, null, undefined)).toBe("squash");
+    expect(
+      resolveMergeMethod(
+        detail({ mergeCapabilities: { merge: true, squash: false, rebase: false } }),
+        null,
+        null,
+        "rebase",
+      ),
+    ).toBe("merge");
   });
 
   it("names the change request with its host's term", () => {

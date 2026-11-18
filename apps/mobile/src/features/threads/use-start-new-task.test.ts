@@ -6,6 +6,8 @@ vi.mock("../../state/atom-registry", () => ({}));
 vi.mock("../../state/projects", () => ({}));
 vi.mock("../../state/preferences", () => ({}));
 vi.mock("../../state/use-composer-drafts", () => ({}));
+vi.mock("../../state/use-remote-environment-registry", () => ({}));
+vi.mock("../../state/workspace", () => ({}));
 
 import { resolveStartNewTaskDestination } from "./use-start-new-task";
 
@@ -24,6 +26,7 @@ describe("resolveStartNewTaskDestination", () => {
     expect(
       resolveStartNewTaskDestination({
         stickyProject,
+        filteredProject: undefined,
         projects: [first, remembered],
         requestId: "request-1",
         useLastProject: undefined,
@@ -41,6 +44,7 @@ describe("resolveStartNewTaskDestination", () => {
     expect(
       resolveStartNewTaskDestination({
         stickyProject: sticky,
+        filteredProject: undefined,
         projects,
         requestId: "request-1",
         useLastProject,

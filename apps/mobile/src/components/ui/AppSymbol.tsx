@@ -17,6 +17,7 @@ const CUSTOM_ICONS = {
   "git.pull-request.closed": IconNodes.GitPullRequestClosed,
   "git.pull-request.draft": IconNodes.GitPullRequestDraft,
   "git.commit": IconNodes.GitCommit,
+  robot: IconNodes.Bot,
 };
 
 function AppSymbolView(props: AppSymbolViewProps) {
