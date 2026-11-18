@@ -85,7 +85,7 @@ export function filterFilesystemBrowseEntries(
     lowerQuery.length === 0
       ? candidates
       : candidates
-          .map((entry) => {
+          .flatMap((entry) => {
             const options = {
               // Position penalties stay under 1000 for 255-character names, so tiers never overlap.
               query: lowerNormalizedQuery,
@@ -111,10 +111,7 @@ export function filterFilesystemBrowseEntries(
                 : normalizedScore === null
                   ? rawScore
                   : Math.min(rawScore, normalizedScore);
-            return { entry, score };
-          })
-          .filter((match): match is { entry: FilesystemBrowseEntry; score: number } => {
-            return match.score !== null;
+            return score === null ? [] : [{ entry, score }];
           })
           .sort((left, right) => left.score - right.score)
           .map((match) => match.entry);

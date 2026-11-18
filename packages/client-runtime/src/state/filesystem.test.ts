@@ -147,10 +147,12 @@ describe("browse navigation", () => {
 });
 
 describe("browse entry filtering", () => {
-  const entries = ["my-supaterm", "supaterm", "cotton", "Supaterm-old", ".supaterm", "docs"].map((name) => ({
-    name,
-    fullPath: `~/code/${name}`,
-  }));
+  const entries = ["my-supaterm", "supaterm", "cotton", "Supaterm-old", ".supaterm", "docs"].map(
+    (name) => ({
+      name,
+      fullPath: `~/code/${name}`,
+    }),
+  );
   const names = (query: string) =>
     filterFilesystemBrowseEntries(entries, query).visibleEntries.map((entry) => entry.name);
 
@@ -159,9 +161,9 @@ describe("browse entry filtering", () => {
   });
 
   it("matches substrings and subsequences, best match first", () => {
-    expect(names("code")).toEqual(["supaterm", "Supaterm-old", "my-supaterm"]);
-    expect(names("t3c")).toEqual(["supaterm", "Supaterm-old", "my-supaterm"]);
-    expect(names("tcd")).toEqual(["supaterm", "Supaterm-old", "my-supaterm"]);
+    expect(names("term")).toEqual(["supaterm", "Supaterm-old", "my-supaterm"]);
+    expect(names("supa")).toEqual(["supaterm", "Supaterm-old", "my-supaterm"]);
+    expect(names("spt")).toEqual(["supaterm", "Supaterm-old", "my-supaterm"]);
     expect(names("xyz")).toEqual([]);
   });
 
