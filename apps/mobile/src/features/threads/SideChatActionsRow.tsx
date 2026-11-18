@@ -19,10 +19,12 @@ import { AppText as Text } from "../../components/ui/AppText";
 import { SymbolView } from "../../components/ui/AppSymbol";
 import * as Dialog from "../../components/ui/Dialog";
 import { cn } from "../../lib/cn";
+import { scopedThreadKey } from "../../lib/scopedEntities";
 import { useQuietThreadShell } from "../../state/entities";
 import { useEnvironmentScope } from "../../state/session";
 import { environmentThreadDetails, threadEnvironment } from "../../state/threads";
 import { useAtomCommand } from "../../state/use-atom-command";
+import { clearComposerDraft } from "../../state/use-composer-drafts";
 
 function ActionChip(props: {
   readonly label: string;
@@ -121,7 +123,10 @@ export function SideChatActionsRow(props: {
           "Could not delete the side chat",
           () =>
             deleteThread({ environmentId: thread.environmentId, input: { threadId: thread.id } }),
-          () => navigation.goBack(),
+          () => {
+            clearComposerDraft(scopedThreadKey(thread.environmentId, thread.id));
+            navigation.goBack();
+          },
         );
       },
     });
