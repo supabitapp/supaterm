@@ -15,6 +15,7 @@ import {
   ProviderInstanceId,
   RunId,
   ServerConfig,
+  type ServerConfigStreamEvent,
   ThreadId,
   TurnItemId,
   WS_METHODS,
@@ -338,6 +339,7 @@ let keybindings: ResolvedKeybindingsConfig = DEFAULT_RESOLVED_KEYBINDINGS;
 let projects: ReadonlyArray<OrchestrationProjectShell> = [project];
 let sequence = 1;
 let vcsStatusSubscriber: Queue.Queue<VcsStatusStreamEvent> | null = null;
+const serverConfigSubscribers = new Set<Queue.Queue<ServerConfigStreamEvent>>();
 
 const subscribe = <A>(first: ReadonlyArray<A>, register?: (queue: Queue.Queue<A>) => () => void) =>
   Stream.unwrap(
@@ -351,6 +353,30 @@ const subscribe = <A>(first: ReadonlyArray<A>, register?: (queue: Queue.Queue<A>
       return Stream.fromQueue(queue);
     }),
   );
+
+// The app's config subscription outlives a test's render, so a later fake pushes its keybindings.
+const subscribeServerConfig = () =>
+  subscribe<ServerConfigStreamEvent>(
+    [{ version: 1, type: "snapshot", config: serverConfig() }],
+    (queue) => {
+      serverConfigSubscribers.add(queue);
+      return () => serverConfigSubscribers.delete(queue);
+    },
+  );
+
+function setKeybindings(next: ResolvedKeybindingsConfig): void {
+  if (next === keybindings) return;
+  keybindings = next;
+  for (const queue of serverConfigSubscribers) {
+    Effect.runSync(
+      Queue.offer(queue, {
+        version: 1,
+        type: "keybindingsUpdated",
+        payload: { keybindings: next, issues: [] },
+      }),
+    );
+  }
+}
 
 const shellSnapshot = (): OrchestrationV2ShellSnapshot => ({
   schemaVersion: 1,
@@ -415,8 +441,7 @@ const handlers: Record<string, (input: never) => unknown> = {
         if (vcsStatusSubscriber === queue) vcsStatusSubscriber = null;
       };
     }),
-  [WS_METHODS.subscribeServerConfig]: () =>
-    subscribe([{ version: 1 as const, type: "snapshot" as const, config: serverConfig() }]),
+  [WS_METHODS.subscribeServerConfig]: subscribeServerConfig,
 };
 
 // Unanswered calls stay pending, like a server that has not replied yet.
@@ -433,8 +458,7 @@ const session: EnvironmentConnectionLease["session"] = {
   client: client as unknown as WsRpcProtocolClient,
   initialConfig: Effect.sync(serverConfig),
   configChanges: Stream.never,
-  subscribeServerConfig: () =>
-    subscribe([{ version: 1 as const, type: "snapshot" as const, config: serverConfig() }]),
+  subscribeServerConfig,
   opened: Effect.void,
   ready: Effect.void,
   probe: Effect.void,
@@ -482,7 +506,7 @@ export function installFakeEnvironment(
   },
 ): Disposable {
   threads = fixtures;
-  keybindings = options?.keybindings ?? DEFAULT_RESOLVED_KEYBINDINGS;
+  setKeybindings(options?.keybindings ?? DEFAULT_RESOLVED_KEYBINDINGS);
   dispatched = [];
   acceptCommands = options?.acceptCommands === true;
   projects = [
@@ -531,7 +555,7 @@ export function installFakeEnvironment(
     [Symbol.dispose]: () => {
       globalThis.fetch = realFetch;
       threads = [];
-      keybindings = DEFAULT_RESOLVED_KEYBINDINGS;
+      setKeybindings(DEFAULT_RESOLVED_KEYBINDINGS);
       dispatched = [];
       acceptCommands = false;
       projects = [project];
