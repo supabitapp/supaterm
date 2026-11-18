@@ -409,11 +409,21 @@ export function buildTiptapContent(
       openQuote.content.push(entry.quote.inline);
       continue;
     }
-    // The serializer separates a quote from the prose after it with one blank line; it is not an empty paragraph.
-    const quoteSeparator =
-      openQuote !== null && isProseLine(entry, true) && isProseLine(entries[entryIndex + 1], false);
+    // The serializer separates a quote or list from the prose after it with one blank line; it is not an empty paragraph.
+    // After a list it precedes any empty paragraphs the user left, so those survive.
+    let proseIndex = entryIndex + 1;
+    if (openQuote === null && rootLists.length > 0 && isProseLine(entry, true)) {
+      while (isProseLine(entries[proseIndex], true)) proseIndex += 1;
+    }
+    const blockSeparator =
+      (openQuote !== null || rootLists.length > 0) &&
+      isProseLine(entry, true) &&
+      isProseLine(entries[proseIndex], false);
     flushQuote();
-    if (quoteSeparator) continue;
+    if (blockSeparator) {
+      flushLists();
+      continue;
+    }
     if ("code" in entry) {
       flushLists();
       blocks.push(entry.code);
