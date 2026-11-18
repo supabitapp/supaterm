@@ -55,7 +55,7 @@ it.layer(NodeServices.layer)("root CLI commands", (it) => {
           path: yield* pathWithSupaterm,
         }),
       ).toBe('sudo env "PATH=$PATH" supaterm browser setup');
-    }).pipe(Effect.scoped),
+    }),
   );
 
   it.effect("runs the current script install when WSL has no global command or desktop shim", () =>
@@ -76,7 +76,7 @@ it.layer(NodeServices.layer)("root CLI commands", (it) => {
           env: { ELECTRON_RUN_AS_NODE: "1" },
         }),
       ).toBe(`sudo env ELECTRON_RUN_AS_NODE=1 /opt/runtime/electron '${entry}' browser setup`);
-    }).pipe(Effect.scoped),
+    }),
   );
 
   it.effect("keeps the arguments, so root runs setup on the same Supaterm home", () =>
@@ -98,7 +98,7 @@ it.layer(NodeServices.layer)("root CLI commands", (it) => {
           args,
         }),
       ).toBe("sudo /opt/supaterm/supaterm browser setup --base-dir '/srv/supaterm home'");
-    }).pipe(Effect.scoped),
+    }),
   );
 
   it.effect("names this install's launcher when supaterm is not on PATH", () =>
@@ -174,7 +174,7 @@ it.layer(NodeServices.layer)("root CLI commands", (it) => {
           env: { SUPATERM_CLI_SHIM_PATH: path.join(home, "gone") },
         }),
       ).toBe('sudo env "PATH=$PATH" supaterm browser setup');
-    }).pipe(Effect.scoped),
+    }),
   );
 });
 
@@ -227,7 +227,7 @@ it.layer(NodeServices.layer)("host CLI commands", (it) => {
       expect((yield* hostCommand("linux", { SUPATERM_CLI_SHIM_PATH: shim })).command).toMatch(
         / doctor --base-dir 'C:\\Users\\Jane Doe\\\.supaterm'$/,
       );
-    }).pipe(Effect.scoped),
+    }),
   );
 });
 
@@ -253,7 +253,7 @@ it.layer(NodeServices.layer)("host CLI commands through an Electron runtime", (i
       expect((yield* hostCommand("win32")).command).toBe(
         `$env:ELECTRON_RUN_AS_NODE=1; & "/opt/supaterm/supaterm" "${entry}" doctor "--base-dir" "/home/jane/.supaterm"`,
       );
-    }).pipe(Effect.scoped),
+    }),
   );
 });
 

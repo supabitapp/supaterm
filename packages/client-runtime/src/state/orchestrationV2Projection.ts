@@ -1,5 +1,6 @@
 import { applyThreadPullRequestLinkUpdate } from "../threadPullRequests.ts";
 import {
+  applyOrchestrationV2ThreadVisit,
   isOrchestrationV2RunUnsettled,
   type OrchestrationV2DomainEvent,
   type OrchestrationV2Run,
@@ -316,6 +317,11 @@ export function applyOrchestrationV2ProjectionEvent(
     case "thread.marked-unread":
     case "thread.pinned-messages-updated":
       return { ...projection, thread: event.payload };
+    case "thread.visit-recorded":
+      return {
+        ...projection,
+        thread: applyOrchestrationV2ThreadVisit(projection.thread, event.payload),
+      };
     case "run.created":
     case "run.updated": {
       const next = { ...base, runs: upsertEntity(base.runs, event.payload) };

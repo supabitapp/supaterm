@@ -165,7 +165,7 @@ describe("environment shell synchronization", () => {
       expect(states).toHaveLength(1);
       expect(states[0]?.status).toBe("live");
       expect(Option.getOrThrow(states[0]!.snapshot).projects[0]?.title).toBe("Renamed");
-    }).pipe(Effect.scoped),
+    }),
   );
 
   it.effect("resubscribes from the in-memory shell cursor when the app becomes active", () =>
@@ -467,7 +467,7 @@ describe("environment shell synchronization", () => {
       expect(Option.getOrThrow(resetState.snapshot).threads).toEqual([
         { ...resetRow, title: "After completion" },
       ]);
-    }).pipe(Effect.scoped),
+    }),
   );
 
   it.effect("skips unchanged shell writes, persists resets and flushes changed rows", () =>

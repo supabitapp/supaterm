@@ -36,7 +36,7 @@ lines.on("line", (line) => {
       }) + "\n",
     );
   if (message.request?.subtype === "initialize") {
-    reply({
+    return reply({
       commands: [{ name: "review", description: "Review changes", argumentHint: "[path]" }],
       agents: [],
       output_style: "default",
@@ -47,7 +47,7 @@ lines.on("line", (line) => {
     });
   }
   if (message.request?.subtype === "get_usage") {
-    reply({
+    return reply({
       session: {},
       subscription_type: "pro",
       rate_limits_available: true,
@@ -55,6 +55,16 @@ lines.on("line", (line) => {
       behaviors: null,
     });
   }
+  process.stdout.write(
+    JSON.stringify({
+      type: "control_response",
+      response: {
+        subtype: "error",
+        request_id: message.request_id,
+        error: `Unsupported control request subtype: ${message.request?.subtype}`,
+      },
+    }) + "\n",
+  );
 });
 // Stay alive for follow-up control requests, but never outlive the
 // parent: the probe aborts the SDK without awaiting the child, so an

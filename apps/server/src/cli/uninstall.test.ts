@@ -156,7 +156,7 @@ it.layer(NodeServices.layer)("supaterm uninstall launcher", (it) => {
         ),
         [cmd],
       );
-    }).pipe(Effect.scoped, Effect.provideService(HostProcess.Platform, "linux")),
+    }).pipe(Effect.provideService(HostProcess.Platform, "linux")),
   );
 });
 

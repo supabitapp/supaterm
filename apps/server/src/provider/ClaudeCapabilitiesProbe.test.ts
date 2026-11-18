@@ -120,7 +120,7 @@ it.layer(NodeServices.layer)("Claude capability probe SDK boundary", (it) => {
         readonly disableAllHooks?: boolean;
       };
       assert.equal(flagSettings.disableAllHooks, true);
-    }).pipe(Effect.scoped),
+    }),
   );
 });
 

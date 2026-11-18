@@ -311,6 +311,13 @@ export const layer: Layer.Layer<
                 obsolete.push(row.sequence);
               } else retainedReadStateThreadIds.add(row.stream_id);
             } else if (
+              row.event_type === "thread.visit-recorded" &&
+              (retainedThreadIds.has(row.stream_id) ||
+                retainedReadStateThreadIds.has(row.stream_id))
+            ) {
+              // A visit carries read state only, so only a newer whole-thread payload covers it.
+              obsolete.push(row.sequence);
+            } else if (
               row.event_type === "thread.pull-request-link-updated" &&
               retainedThreadIds.has(row.stream_id)
             ) {

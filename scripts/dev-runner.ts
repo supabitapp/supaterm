@@ -227,11 +227,6 @@ const optionalBooleanConfig = (name: string): Config.Config<boolean | undefined>
     Config.option,
     Config.map((value) => Option.getOrUndefined(value)),
   );
-const optionalPortConfig = (name: string): Config.Config<number | undefined> =>
-  Config.Port(name).pipe(
-    Config.option,
-    Config.map((value) => Option.getOrUndefined(value)),
-  );
 const optionalIntegerConfig = (name: string): Config.Config<number | undefined> =>
   Config.Int(name).pipe(
     Config.option,
@@ -390,12 +385,15 @@ export const createDevRunnerEnv = Effect.fn("dev-runner.createDevRunnerEnv")(fun
     delete output.SUPATERM_SINGLE_ORIGIN_DEV;
     delete output.SUPATERM_MODE;
     delete output.SUPATERM_NO_BROWSER;
-    delete output.SUPATERM_HOST;
     delete output.SUPATERM_DEV_AUTH_TOKEN;
   }
 
+  // Agent shells inherit the parent Supaterm server's bind settings; only --host widens the dev server.
+  delete output.SUPATERM_LAN;
   if (!isDesktopMode && host !== undefined) {
     output.SUPATERM_HOST = host;
+  } else {
+    delete output.SUPATERM_HOST;
   }
 
   if (!isDesktopMode) {
@@ -970,13 +968,19 @@ const devRunnerCli = Command.make("dev-runner", {
     Flag.withFallbackConfig(optionalBooleanConfig("SUPATERM_LOG_WS_EVENTS")),
   ),
   host: Flag.String("host").pipe(
-    Flag.withDescription("Server host/interface override (forwards to SUPATERM_HOST)."),
-    Flag.withFallbackConfig(optionalStringConfig("SUPATERM_HOST")),
+    Flag.withDescription(
+      "Server host/interface override (forwards to SUPATERM_HOST). Ambient SUPATERM_HOST is ignored: agent shells inherit it from the Supaterm server that spawned them.",
+    ),
+    Flag.optional,
+    Flag.map(Option.getOrUndefined),
   ),
   port: Flag.Int("port").pipe(
     Flag.withSchema(Schema.Int.check(Schema.isBetween({ minimum: 1, maximum: 65535 }))),
-    Flag.withDescription("Server port override (forwards to SUPATERM_PORT)."),
-    Flag.withFallbackConfig(optionalPortConfig("SUPATERM_PORT")),
+    Flag.withDescription(
+      "Server port override (forwards to SUPATERM_PORT). Ambient SUPATERM_PORT is ignored: agent shells inherit it from the Supaterm server that spawned them.",
+    ),
+    Flag.optional,
+    Flag.map(Option.getOrUndefined),
   ),
   devUrl: Flag.String("dev-url").pipe(
     Flag.withSchema(Schema.URLFromString),

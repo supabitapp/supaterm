@@ -1496,7 +1496,7 @@ it.layer(NodeServices.layer)("effect-acp client", (it) => {
         ]),
       );
       assert.deepEqual(yield* Fiber.join(prompt), { stopReason: "error", error });
-    }).pipe(Effect.scoped),
+    }),
   );
 
   it.effect("routes MCP-over-ACP connect, message, notification, and disconnect callbacks", () =>
@@ -1718,7 +1718,7 @@ it.effect.each(["accept", "decline", "cancel"] as const)(
             method === "elicitation/create" ? response : { action: answer, _meta: response._meta },
         });
       }
-    }).pipe(Effect.scoped),
+    }),
 );
 
 it.effect.each(["elicitation/complete", "session/elicitation/complete"])(
@@ -1740,7 +1740,7 @@ it.effect.each(["elicitation/complete", "session/elicitation/complete"])(
         }),
       );
       assert.deepEqual(yield* Deferred.await(received), { elicitationId: "elicitation-1" });
-    }).pipe(Effect.scoped),
+    }),
 );
 
 it.effect("rejects malformed SDK elicitation without calling the question handler", () =>
@@ -1765,7 +1765,7 @@ it.effect("rejects malformed SDK elicitation without calling the question handle
     const response = yield* decodeWireError(yield* Queue.take(output));
     assert.equal(response.error.code, -32602);
     assert.equal(calls, 0);
-  }).pipe(Effect.scoped),
+  }),
 );
 
 it.effect("returns method-not-found when SDK elicitation has no question handler", () =>
@@ -1784,5 +1784,5 @@ it.effect("returns method-not-found when SDK elicitation has no question handler
     );
     const response = yield* decodeWireError(yield* Queue.take(output));
     assert.equal(response.error.code, -32601);
-  }).pipe(Effect.scoped),
+  }),
 );

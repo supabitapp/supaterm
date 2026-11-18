@@ -79,6 +79,11 @@ const parseDarwinPs = (output: string): ReadonlyArray<ObservedProcess> =>
     ];
   });
 
+// A wrapper's forked child keeps the wrapper's command line until it execs; the
+// serve arguments survive the exec, so they identify the server either way.
+const runsServe = (observed: ObservedProcess, args: ReadonlyArray<string>) =>
+  observed.command.endsWith(` ${args.join(" ")}`);
+
 const signalGroup = (pgid: number, signal: NodeJS.Signals) => {
   try {
     signalProcessGroup(pgid, signal);
@@ -200,9 +205,7 @@ export const make = Effect.fn("OpenCodeServerLedger.make")(function* (input: {
         leader !== undefined && !leader.zombie && leader.pgid === pgid
           ? [leader]
           : (yield* observeGroup(pgid)).filter((candidate) => !candidate.zombie);
-      const member =
-        members.find((candidate) => candidate.command.endsWith(` ${server.args.join(" ")}`)) ??
-        members[0];
+      const member = members.find((candidate) => runsServe(candidate, server.args)) ?? members[0];
       if (owner === undefined || member === undefined) {
         if (groupExists(pgid)) {
           yield* Effect.logWarning(
@@ -247,7 +250,8 @@ export const make = Effect.fn("OpenCodeServerLedger.make")(function* (input: {
   );
 
   // Signals only a group whose recorded member still has the same pid, start
-  // time, group, and server command line, so a recycled pid is never touched.
+  // time, and group and still has the same command line or serve arguments, so
+  // a recycled pid is never touched.
   const stopOrphan = Effect.fn("OpenCodeServerLedger.stopOrphan")(function* (
     entry: OpenCodeServerEntry,
   ) {
@@ -257,9 +261,8 @@ export const make = Effect.fn("OpenCodeServerLedger.make")(function* (input: {
       observed.zombie ||
       observed.startTime !== entry.startTime ||
       observed.pgid !== entry.pgid ||
-      (entry.args === undefined
-        ? observed.command !== entry.command
-        : !observed.command.endsWith(` ${entry.args.join(" ")}`))
+      (observed.command !== entry.command &&
+        (entry.args === undefined || !runsServe(observed, entry.args)))
     ) {
       return;
     }

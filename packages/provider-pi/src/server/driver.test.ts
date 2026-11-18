@@ -179,7 +179,7 @@ it.layer(layerTest)("PiDriver workspace discovery", (it) => {
           ["--offline"],
         );
       }
-    }).pipe(Effect.scoped),
+    }),
   );
 
   it.effect("does not run a disabled provider's workspace probe", () =>
@@ -194,7 +194,7 @@ it.layer(layerTest)("PiDriver workspace discovery", (it) => {
       const workspace = yield* instance.snapshotForCwd!("/first");
       assert.isFalse(workspace.enabled);
       assert.deepEqual(workspace.skills, []);
-    }).pipe(Effect.scoped),
+    }),
   );
 
   it.effect.each([true, false])(
@@ -233,7 +233,7 @@ it.layer(layerTest)("PiDriver workspace discovery", (it) => {
             ["test/other", []],
           ],
         );
-      }).pipe(Effect.scoped),
+      }),
   );
 
   it.effect(
@@ -253,6 +253,6 @@ it.layer(layerTest)("PiDriver workspace discovery", (it) => {
           (yield* instance.snapshot.getSnapshot).skills.map((skill) => skill.name),
           ["personal"],
         );
-      }).pipe(Effect.scoped),
+      }),
   );
 });
