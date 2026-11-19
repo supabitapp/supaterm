@@ -1,0 +1,13 @@
+diff --git a/dist/style.mjs b/dist/style.mjs
+index f875fcd7ea4ce4a6f312aef0d069cd9f3a8d13f8..34157552c1153705f46e94505593d8a60f3b428a 100644
+--- a/dist/style.mjs
++++ b/dist/style.mjs
+@@ -13,6 +13,8 @@ const directives = [
+ 	/^\/\s*<(?:reference|amd-module|amd-dependency)\s/u,
+ 	/^#\s*source(?:Mapping)?URL=/u,
+ 	/^nosemgrep(?:\s|:|$)/u,
++	/^@effect-diagnostics(?:-next-line)?\s/u,
++	/^@public$/u,
+ 	/^(?:SPDX-License-Identifier:|@license\b)/mu
+ ];
+ function isDirective(comment) {

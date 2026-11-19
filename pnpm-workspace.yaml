@@ -120,6 +120,7 @@ overrides:
   # Pin every patched package, including transitive dependencies, so lockfile-free
   # release installs cannot drift past the patch. Update these with patchedDependencies.
   react-native-image-viewing: 0.2.2
+  "@interfere/landmines": 0.1.1
   mdast-util-math: 3.0.0
   micromark-extension-llm-math: 3.1.1-20250610
   micromark: 4.0.2
@@ -281,6 +282,8 @@ patchedDependencies:
   react-native-svg@15.16.1: patches/react-native-svg@15.16.1.patch
   # Android: double-tap zoom no longer cancels itself, and taps near a link open it.
   react-native-pdf-jsi@6.1.0: patches/react-native-pdf-jsi@6.1.0.patch
+  # no-comments keeps Effect language-service and knip directives.
+  "@interfere/landmines@0.1.1": patches/@interfere__landmines@0.1.1.patch
 
 peerDependencyRules:
   allowAny:
