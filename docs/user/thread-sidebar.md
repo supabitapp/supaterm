@@ -65,7 +65,12 @@ open, it uses your primary machine if that supports it, or else the first connec
 machine that does. On mobile, Settings asks which machine when more than one can.
 
 If the app cannot open, run `supaterm triage` in a terminal on the affected machine
-instead.
+instead. It starts Claude Code, Codex, or Antigravity there with the same
+instructions. If more than one is installed, it asks which to use; pass
+`--agent antigravity` or `--agent codex` to choose. Antigravity needs Google's
+standalone `agy` CLI on your `PATH` and its own sign-in. The ACP runtime installed
+through Supaterm does not include this terminal CLI. Pass `--model <model-id>` to
+choose a model, or leave it out to use the CLI's default.
 
 ### Start in the background
 
