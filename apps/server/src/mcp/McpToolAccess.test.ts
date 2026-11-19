@@ -171,6 +171,7 @@ const probeHandlers: McpToolAccess.Handlers<typeof ProbeToolkit.tools> = {
   starts_threads: McpToolAccess.startsThreads(
     (input) => input,
     (_, modes) => Effect.succeed({ ran: `${modes.runtimeMode}/${modes.interactionMode}` }),
+    "stamped",
   ),
   writes_environment: McpToolAccess.writesEnvironment(() => ran),
 };
@@ -262,6 +263,15 @@ const mismatchedProvider = {
 const supervisedClient = clientCaller("approval-required");
 const fullAccessClient = clientCaller("full-access");
 const readOnlyClient = clientCaller("read-only");
+const linkedClient: McpInvocationContext.McpInvocationScope = {
+  ...supervisedClient,
+  client: { ...supervisedClient.client!, linked: true },
+};
+// A full-access link's agents can do anything this environment's user can.
+const fullAccessLinkedClient: McpInvocationContext.McpInvocationScope = {
+  ...fullAccessClient,
+  client: { ...fullAccessClient.client!, linked: true },
+};
 const previewOnly = { ...fullAccess, capabilities: new Set(["preview"] as const) };
 
 it.effect.each([
@@ -294,6 +304,10 @@ it.effect.each([
   ["writes_with_capability", previewOnly, {}, "ran"],
   ["writes_with_capability", readOnlyClient, {}, "capability_denied"],
   ["writes_with_capability", ended, {}, "parent_not_active"],
+  ["writes", linkedClient, {}, "capability_denied"],
+  ["writes_with_capability", linkedClient, {}, "capability_denied"],
+  ["writes", fullAccessLinkedClient, {}, "ran"],
+  ["writes_with_capability", fullAccessLinkedClient, {}, "ran"],
 
   ["writes_threads", supervised, {}, "ran"],
   ["writes_threads", supervised, { threadId: planThreadId }, "ran"],

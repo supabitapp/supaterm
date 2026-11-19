@@ -44,7 +44,10 @@ import * as SessionStore from "./SessionStore.ts";
 import { REUSABLE_DEV_SESSION_EXPIRES_AT, resolveReusableDevAuth } from "./ReusableDevAuth.ts";
 import { DESKTOP_RENDERER_ORIGINS } from "../httpCors.ts";
 import * as SqlitePersistence from "../persistence/Sqlite.ts";
-import { MCP_APPROVAL_SUBJECT_PREFIX } from "../persistence/AuthPairingLinks.ts";
+import {
+  MCP_APPROVAL_SUBJECT_PREFIX,
+  PEER_LINK_PAIRING_SUBJECT_PREFIX,
+} from "../persistence/AuthPairingLinks.ts";
 import { requestUrl } from "../requestUrl.ts";
 
 const DEFAULT_SESSION_SUBJECT = "cli-issued-session";
@@ -96,6 +99,7 @@ export interface McpClientSession {
   readonly sessionId: AuthSessionId;
   readonly label: string;
   readonly access: AuthMcpClientAccess;
+  readonly peerLink: boolean;
 }
 
 export interface AuthenticatedSession {
@@ -433,6 +437,7 @@ export class EnvironmentAuth extends Context.Service<
     readonly issueMcpClientSession: (input: {
       readonly label: string;
       readonly access: AuthMcpClientAccess;
+      readonly peerLink: boolean;
       readonly client: AuthClientMetadata;
     }) => Effect.Effect<
       {
@@ -449,6 +454,7 @@ export class EnvironmentAuth extends Context.Service<
     readonly consumeMcpApprovalCode: (
       code: string,
       access: AuthMcpClientAccess,
+      peerLink?: boolean,
     ) => Effect.Effect<
       AuthMcpClientAccess,
       ServerAuthMcpApprovalCodeError | ServerAuthInternalError
@@ -751,8 +757,7 @@ export const make = Effect.gen(function* () {
     input?: {
       readonly requestedScopes?: ReadonlyArray<AuthEnvironmentScope>;
       readonly requiredScopes?: ReadonlyArray<AuthEnvironmentScope>;
-      /** Only an agent sign-in opts in to spending a code issued for it. */
-      readonly mcpApproval?: AuthMcpClientAccess;
+      readonly allowedSubject?: string;
     },
   ): Effect.Effect<
     ResolvedBootstrapGrant,
@@ -849,14 +854,15 @@ export const make = Effect.gen(function* () {
     readonly subject?: string;
     readonly label?: string;
     readonly purpose?: "startup";
-    readonly mcpApproval?: AuthMcpClientAccess;
+    readonly access?: AuthMcpClientAccess;
+    readonly peerLink?: boolean;
   }) =>
     createPairingLink({
       scopes: input.scopes,
       ...(input.subject ? { subject: input.subject } : {}),
       ...(input.label ? { label: input.label } : {}),
       ...(input.purpose ? { purpose: input.purpose } : {}),
-      ...(input.mcpApproval ? { mcpApproval: input.mcpApproval } : {}),
+      ...(input.access && !input.peerLink ? { mcpApproval: input.access } : {}),
     }).pipe(
       Effect.map(
         (issued) =>
@@ -866,7 +872,8 @@ export const make = Effect.gen(function* () {
             subject: issued.subject,
             ...(issued.label ? { label: issued.label } : {}),
             expiresAt: issued.expiresAt,
-            ...(input.mcpApproval ? { access: input.mcpApproval } : {}),
+            ...(input.access ? { access: input.access } : {}),
+            ...(input.access && input.peerLink ? { purpose: "peer-link" as const } : {}),
           }) satisfies AuthPairingCredentialResult,
       ),
     );
@@ -977,8 +984,11 @@ export const make = Effect.gen(function* () {
       scopes: input?.access
         ? mcpClientScopes(input.access)
         : (input?.scopes ?? AuthStandardClientScopes),
+      ...(input?.purpose === "peer-link"
+        ? { subject: `${PEER_LINK_PAIRING_SUBJECT_PREFIX}${input.access}`, peerLink: true }
+        : {}),
       ...(input?.label ? { label: input.label } : {}),
-      ...(input?.access ? { mcpApproval: input.access } : {}),
+      ...(input?.access ? { access: input.access } : {}),
     }).pipe(Effect.withSpan("EnvironmentAuth.issuePairingCredential"));
 
   const issueStartupPairingCredential: EnvironmentAuth["Service"]["issueStartupPairingCredential"] =
@@ -1114,6 +1124,7 @@ export const make = Effect.gen(function* () {
               access: session.scopes.includes(AuthOrchestrationOperateScope)
                 ? (session.runtimeModeCeiling ?? "approval-required")
                 : "read-only",
+              peerLink: session.peerLink === true,
             } satisfies McpClientSession)
           : Effect.fail(
               new ServerAuthInvalidCredentialError({
@@ -1133,6 +1144,7 @@ export const make = Effect.gen(function* () {
         scopes: mcpClientScopes(input.access),
         ttl: MCP_CLIENT_SESSION_TTL,
         ...(input.access === "read-only" ? {} : { runtimeModeCeiling: input.access }),
+        peerLink: input.peerLink,
         client: { ...input.client, label: input.label, deviceType: "bot" },
       })
       .pipe(
@@ -1164,10 +1176,11 @@ export const make = Effect.gen(function* () {
   const consumeMcpApprovalCode: EnvironmentAuth["Service"]["consumeMcpApprovalCode"] = (
     code,
     access,
+    peerLink = false,
   ) =>
     resolveBootstrapGrant(code.trim(), {
       requiredScopes: mcpClientScopes(access),
-      mcpApproval: access,
+      allowedSubject: `${peerLink ? PEER_LINK_PAIRING_SUBJECT_PREFIX : MCP_APPROVAL_SUBJECT_PREFIX}${access}`,
     }).pipe(
       Effect.catchTags({
         ServerAuthInvalidCredentialError: () =>

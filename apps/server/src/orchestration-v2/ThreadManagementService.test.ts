@@ -60,6 +60,13 @@ it("stamps authoritative provenance on commands that create threads or messages"
     interactionMode: "default",
     branch: null,
     worktreePath: null,
+    // A client cannot claim a linked environment's origin, or a parent there.
+    linkOrigin: { sessionId: "forged", label: "Somewhere else" },
+    delegatedFrom: {
+      environmentId: EnvironmentId.make("environment:elsewhere"),
+      threadId: ThreadId.make("thread:elsewhere"),
+      title: "Somewhere else",
+    },
     // A client's message goes through intake; only the server folds one into the creation.
     initialMessage: {
       messageId: MessageId.make("message:thread-management:forged"),
@@ -76,6 +83,8 @@ it("stamps authoritative provenance on commands that create threads or messages"
     createdBy: "user",
     creationSource: "web",
   });
+  expect(stamped).not.toHaveProperty("linkOrigin");
+  expect(stamped).not.toHaveProperty("delegatedFrom");
   expect(stamped).not.toHaveProperty("initialMessage");
 });
 

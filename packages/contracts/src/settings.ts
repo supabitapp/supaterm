@@ -1354,6 +1354,11 @@ export const ServerSettings = Schema.Struct({
     Schema.withDecodingDefault(Effect.succeed(null)),
   ),
   reviewGuidesEnabled: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
+  /**
+   * Beta: links to the user's other machines, both ways. Off refuses new links, calls over links
+   * and tasks on another machine; tasks already running there finish.
+   */
+  linkedEnvironmentsEnabled: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
   reviewGuideModelSelection: Schema.NullOr(ModelSelection).pipe(
     Schema.withDecodingDefault(Effect.succeed(null)),
   ),
@@ -1619,6 +1624,7 @@ export const ServerSettingsPatch = Schema.Struct({
   ),
   sourceControlWriterModelSelection: Schema.optionalKey(Schema.NullOr(ModelSelection)),
   reviewGuidesEnabled: Schema.optionalKey(Schema.Boolean),
+  linkedEnvironmentsEnabled: Schema.optionalKey(Schema.Boolean),
   reviewGuideModelSelection: Schema.optionalKey(Schema.NullOr(ModelSelection)),
   reviewGuideInstructions: Schema.optionalKey(TrimmedString),
   pullRequestMergeMethod: Schema.optionalKey(Schema.NullOr(PullRequestMergeMethod)),

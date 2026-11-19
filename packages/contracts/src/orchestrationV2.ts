@@ -14,6 +14,7 @@ import {
   CommandId,
   ContextHandoffId,
   ContextTransferId,
+  EnvironmentId,
   EventId,
   IsoDateTime,
   MessageId,
@@ -38,6 +39,7 @@ import {
   TrimmedNonEmptyString,
   TurnItemId,
 } from "./baseSchemas.ts";
+import { AuthMcpClientAccess } from "./auth.ts";
 import { ChatAttachment } from "./chatAttachment.ts";
 import { ThreadTitleRegenerationOutcome } from "./threadTitle.ts";
 import {
@@ -93,6 +95,51 @@ const OrchestrationV2CreationFields = {
   createdBy: OrchestrationV2Actor,
   creationSource: OrchestrationV2CreationSource,
 } as const;
+
+/**
+ * The linked environment whose agent started this work here: the MCP client
+ * session it signed in with, that session's label, and the access it was
+ * paired with. Set when the thread is created and never changed; work derived
+ * from it carries the same origin.
+ */
+export const OrchestrationV2LinkOrigin = Schema.Struct({
+  sessionId: TrimmedNonEmptyString,
+  label: Schema.String,
+  access: Schema.optional(AuthMcpClientAccess),
+});
+export type OrchestrationV2LinkOrigin = typeof OrchestrationV2LinkOrigin.Type;
+
+/**
+ * Work from a link paired below full access may change only work from the same
+ * link. A full-access link's agents already run as this environment's user,
+ * so fencing Supaterm's own tools would stop nothing they could not do anyway. An
+ * origin stamped before access was recorded stays fenced.
+ */
+export const linkOriginIsFenced = (origin: OrchestrationV2LinkOrigin) =>
+  origin.access !== "full-access";
+
+/**
+ * The thread in a linked environment that delegated this one, when it did:
+ * this thread is that parent's subagent, run here instead of there.
+ */
+export const OrchestrationV2DelegatedFrom = Schema.Struct({
+  environmentId: EnvironmentId,
+  threadId: ThreadId,
+  title: Schema.String,
+});
+export type OrchestrationV2DelegatedFrom = typeof OrchestrationV2DelegatedFrom.Type;
+
+/**
+ * The thread in a linked environment whose agent sent this message here, and its title
+ * then, for a client that cannot reach that environment. `senderThreadId` names only a
+ * thread in this environment.
+ */
+export const OrchestrationV2LinkedSender = Schema.Struct({
+  environmentId: EnvironmentId,
+  threadId: ThreadId,
+  title: Schema.String,
+});
+export type OrchestrationV2LinkedSender = typeof OrchestrationV2LinkedSender.Type;
 
 export const OrchestrationV2NativeRefStrength = Schema.Literals(["strong", "weak", "none"]);
 export type OrchestrationV2NativeRefStrength = typeof OrchestrationV2NativeRefStrength.Type;
@@ -444,6 +491,8 @@ export const OrchestrationV2AppThread = Schema.Struct({
   branchPullRequest: Schema.optional(Schema.NullOr(ThreadLinkedPullRequest)),
   activeProviderThreadId: Schema.NullOr(ProviderThreadId),
   historyOrigin: Schema.optional(OrchestrationV2ThreadHistoryOrigin),
+  linkOrigin: Schema.optional(OrchestrationV2LinkOrigin),
+  delegatedFrom: Schema.optional(OrchestrationV2DelegatedFrom),
   lineage: OrchestrationV2AppThreadLineage,
   forkedFrom: Schema.NullOr(
     Schema.Union([
@@ -1394,6 +1443,7 @@ export const OrchestrationV2ConversationMessage = Schema.Struct({
   /** A scheduled delivery that named no model; it runs on the thread's selection at start. */
   followsThreadSelection: Schema.optional(Schema.Literal(true)),
   senderThreadId: Schema.optional(ThreadId),
+  linkedSender: Schema.optional(OrchestrationV2LinkedSender),
   /**
    * The message is the script a provider-native workflow run executes, not prose. Clients show
    * the workflow's opening instead and keep the script behind a disclosure.
@@ -1693,6 +1743,7 @@ export const OrchestrationV2TurnItem = Schema.Union([
     messageId: MessageId,
     scheduledTaskId: Schema.optional(ScheduledTaskId),
     senderThreadId: Schema.optional(ThreadId),
+    linkedSender: Schema.optional(OrchestrationV2LinkedSender),
     workflowScript: OrchestrationV2ConversationMessage.fields.workflowScript,
     freshContext: OrchestrationV2Run.fields.freshContext,
     inputIntent: OrchestrationV2UserMessageInputIntent,
@@ -2184,6 +2235,8 @@ export const OrchestrationV2ThreadShell = Schema.Struct({
   forkedFrom: Schema.NullOr(OrchestrationV2AppThread.fields.forkedFrom),
   activeProviderThreadId: Schema.NullOr(ProviderThreadId),
   historyOrigin: Schema.optional(OrchestrationV2ThreadHistoryOrigin),
+  linkOrigin: Schema.optional(OrchestrationV2LinkOrigin),
+  delegatedFrom: Schema.optional(OrchestrationV2DelegatedFrom),
   latestRunId: Schema.NullOr(RunId),
   latestRunRequestedAt: Schema.optional(Schema.NullOr(Schema.DateTimeUtc)),
   latestRunStartedAt: Schema.optional(Schema.NullOr(Schema.DateTimeUtc)),
@@ -2606,6 +2659,7 @@ export const OrchestrationV2TurnItemJson = Schema.Union([
     messageId: MessageId,
     scheduledTaskId: Schema.optional(ScheduledTaskId),
     senderThreadId: Schema.optional(ThreadId),
+    linkedSender: Schema.optional(OrchestrationV2LinkedSender),
     workflowScript: OrchestrationV2ConversationMessage.fields.workflowScript,
     freshContext: OrchestrationV2Run.fields.freshContext,
     inputIntent: OrchestrationV2UserMessageInputIntent,
@@ -3095,6 +3149,10 @@ export const OrchestrationV2Command = Schema.Union([
     interactionMode: ProviderInteractionMode,
     branch: Schema.NullOr(TrimmedNonEmptyString),
     worktreePath: Schema.NullOr(TrimmedNonEmptyString),
+    /** Only the server sets this; a client's thread.create never carries one. */
+    linkOrigin: Schema.optional(OrchestrationV2LinkOrigin),
+    /** Only the server sets this, with `linkOrigin`, for a linked environment's delegated task. */
+    delegatedFrom: Schema.optional(OrchestrationV2DelegatedFrom),
     importedNativeThread: Schema.optional(
       Schema.Struct({
         ref: Schema.Struct({
@@ -3349,6 +3407,7 @@ export const OrchestrationV2Command = Schema.Union([
     ...OrchestrationV2CreationFields,
     scheduledTaskId: Schema.optional(ScheduledTaskId),
     senderThreadId: Schema.optional(ThreadId),
+    linkedSender: Schema.optional(OrchestrationV2LinkedSender),
     /** Start a new provider session without the thread's earlier context. Never steers. */
     freshContext: Schema.optional(Schema.Boolean),
     commandId: CommandId,

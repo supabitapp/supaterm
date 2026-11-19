@@ -1,4 +1,5 @@
 import {
+  type OrchestrationV2LinkOrigin,
   OrchestratorMcpFailure,
   type ProviderInteractionMode,
   type RuntimeMode,
@@ -17,6 +18,7 @@ import {
   DispatchModeLimit,
   type DispatchModeRefusal,
 } from "../orchestration-v2/DispatchModeLimit.ts";
+import { assertNotLinked, assertSameLink, callerLinkOrigin } from "./linkOrigin.ts";
 import * as McpInvocationContext from "./McpInvocationContext.ts";
 import { resolveInteractionMode, resolveRuntimeMode } from "./delegatedTaskModes.ts";
 import {
@@ -40,9 +42,18 @@ const refuseOutsideConstruction = (token: symbol) => {
 
 let declare: <P, A, E, R>(
   handle: (params: P) => Effect.Effect<A, E, R>,
-  actsAsThread?: boolean,
+  remote: RemoteCheck<P> | undefined,
 ) => Declaration<(params: P) => Effect.Effect<A, E, R>>;
-let actsAsThreadOf: <Handler>(declaration: Declaration<Handler>) => boolean;
+
+/**
+ * What a call bound for a linked environment checks here before it goes: the
+ * caller, not the thread or project it names, which live there and are
+ * checked there. `undefined` for tools that act as the calling thread itself.
+ */
+type RemoteCheck<P> = (
+  params: P,
+) => Effect.Effect<unknown, OrchestratorMcpFailure, Effect.Services<typeof writingCaller>>;
+let remoteCheckOf: <Handler>(declaration: Declaration<Handler>) => RemoteCheck<never> | undefined;
 
 type CheckedHandlerOf<D> = D extends Declaration<infer Handler> ? Handler : never;
 
@@ -59,16 +70,20 @@ let handlersLayer: <Tools extends Record<string, Tool.Any>, EX, RX>(
 /** supaterm/no-raw-mcp-registration confines Effect's unchecked registration API to McpHttpServer. */
 export class Declaration<out Handler> {
   readonly #handle: Handler;
-  readonly #actsAsThread: boolean;
-  private constructor(token: typeof builtHere, handle: Handler, actsAsThread: boolean) {
+  readonly #remote: RemoteCheck<never> | undefined;
+  private constructor(
+    token: typeof builtHere,
+    handle: Handler,
+    remote: RemoteCheck<never> | undefined,
+  ) {
     refuseOutsideConstruction(token);
     this.#handle = handle;
-    this.#actsAsThread = actsAsThread;
+    this.#remote = remote;
   }
   static {
-    declare = (handle, actsAsThread = false) => new Declaration(builtHere, handle, actsAsThread);
+    declare = (handle, remote) => new Declaration(builtHere, handle, remote);
     checkedHandler = Struct.lambda<CheckedHandler>((declaration) => declaration.#handle);
-    actsAsThreadOf = (declaration) => declaration.#actsAsThread;
+    remoteCheckOf = (declaration) => declaration.#remote;
   }
 }
 
@@ -111,11 +126,17 @@ const requireThreadCaller = McpInvocationContext.McpInvocationContext.pipe(
   Effect.flatMap((scope) => McpInvocationContext.requireThreadScope(scope, "This tool")),
 );
 
+/** A side chat reaches a linked environment only to read, as it does here. */
+const writingCallerOutsideSideChat = writingCaller.pipe(Effect.tap(refuseSideChat));
+
 export const reads = <P, A, E, R>(handle: (params: P) => Effect.Effect<A, E, R>) =>
-  declare((params: P) => handle(params));
+  declare(
+    (params: P) => handle(params),
+    () => Effect.void,
+  );
 
 export const readsAsCaller = <P, A, E, R>(handle: (params: P) => Effect.Effect<A, E, R>) =>
-  declare((params: P) => requireThreadCaller.pipe(Effect.flatMap(() => handle(params))), true);
+  declare((params: P) => requireThreadCaller.pipe(Effect.flatMap(() => handle(params))), undefined);
 
 export const actsAsCaller = <P, A, E, R>(handle: (params: P) => Effect.Effect<A, E, R>) =>
   declare(
@@ -124,7 +145,7 @@ export const actsAsCaller = <P, A, E, R>(handle: (params: P) => Effect.Effect<A,
         Effect.andThen(writingCaller),
         Effect.flatMap(() => handle(params)),
       ),
-    true,
+    undefined,
   );
 
 /**
@@ -139,15 +160,47 @@ export const actsAsFullThread = <P, A, E, R>(handle: (params: P) => Effect.Effec
         Effect.tap(refuseSideChat),
         Effect.flatMap(() => handle(params)),
       ),
-    true,
+    undefined,
   );
 
-export const writes = <P, A, E, R>(handle: (params: P) => Effect.Effect<A, E, R>) =>
-  declare((params: P) => orchestratingCaller.pipe(Effect.flatMap(() => handle(params))));
+/**
+ * Changes something that belongs to no thread, such as a pending upload or a
+ * scheduled task. Work a linked environment started may not: none of it
+ * carries the link's origin, so none of it is that link's.
+ */
+export const writes = <P, A, E, R>(
+  handle: (params: P) => Effect.Effect<A, E, R>,
+  options?: {
+    /** Whether a linked caller may make it, as for uploads its own sends need. */
+    readonly linkedCallers?: "allowed" | { readonly refused: string };
+  },
+) =>
+  declare(
+    (params: P) =>
+      orchestratingCaller.pipe(
+        Effect.tap((caller) =>
+          options?.linkedCallers === "allowed"
+            ? Effect.void
+            : assertNotLinked(
+                caller,
+                options?.linkedCallers?.refused ?? "change this environment's scheduled tasks",
+              ),
+        ),
+        Effect.flatMap(() => handle(params)),
+      ),
+    () => orchestratingCaller,
+  );
 
-/** Requires handler capability checks, not thread control. */
+/** Requires handler capability checks, not thread control; linked work is refused the same way. */
 export const writesWithCapability = <P, A, E, R>(handle: (params: P) => Effect.Effect<A, E, R>) =>
-  declare((params: P) => writingCaller.pipe(Effect.flatMap(() => handle(params))));
+  declare(
+    (params: P) =>
+      writingCaller.pipe(
+        Effect.tap((caller) => assertNotLinked(caller, "start work here that is not its link's")),
+        Effect.flatMap(() => handle(params)),
+      ),
+    () => writingCallerOutsideSideChat,
+  );
 
 const writeThreads = Effect.fn("mcp.writeThreads")(function* <A, E, R>(
   caller: Caller,
@@ -162,6 +215,7 @@ const writeThreads = Effect.fn("mcp.writeThreads")(function* <A, E, R>(
       .pipe(Effect.mapError(unavailable));
     if (target !== null && target.deletedAt === null) {
       yield* assertTargetWithinLimits(caller.limits, target);
+      yield* assertSameLink(caller, target);
     }
   }
   // Modes can rise after this check; the orchestrator rechecks under lock and records refusal before handlers wrap errors.
@@ -182,16 +236,18 @@ export const writesThreads = <P, A, E, R>(
   threads: (params: P) => ReadonlyArray<ThreadId | undefined>,
   handle: (params: P) => Effect.Effect<A, E, R>,
 ) =>
-  declare((params: P) =>
-    writingCaller.pipe(
-      Effect.flatMap((caller) =>
-        writeThreads(
-          caller,
-          threads(params),
-          Effect.suspend(() => handle(params)),
+  declare(
+    (params: P) =>
+      writingCaller.pipe(
+        Effect.flatMap((caller) =>
+          writeThreads(
+            caller,
+            threads(params),
+            Effect.suspend(() => handle(params)),
+          ),
         ),
       ),
-    ),
+    () => writingCallerOutsideSideChat,
   );
 
 /** A fork is a new thread, so side chats are refused even when forking themselves. */
@@ -199,17 +255,19 @@ export const forksThreads = <P, A, E, R>(
   threads: (params: P) => ReadonlyArray<ThreadId | undefined>,
   handle: (params: P) => Effect.Effect<A, E, R>,
 ) =>
-  declare((params: P) =>
-    writingCaller.pipe(
-      Effect.tap(refuseSideChat),
-      Effect.flatMap((caller) =>
-        writeThreads(
-          caller,
-          threads(params),
-          Effect.suspend(() => handle(params)),
+  declare(
+    (params: P) =>
+      writingCaller.pipe(
+        Effect.tap(refuseSideChat),
+        Effect.flatMap((caller) =>
+          writeThreads(
+            caller,
+            threads(params),
+            Effect.suspend(() => handle(params)),
+          ),
         ),
       ),
-    ),
+    () => writingCallerOutsideSideChat,
   );
 
 /** One tool with two access rules, picked per call, such as create versus update. */
@@ -217,10 +275,23 @@ export const either = <P, A, E, R, A2, E2, R2>(
   useFirst: (params: P) => boolean,
   first: Declaration<(params: P) => Effect.Effect<A, E, R>>,
   second: Declaration<(params: P) => Effect.Effect<A2, E2, R2>>,
-) =>
-  declare((params: P): Effect.Effect<A | A2, E | E2, R | R2> =>
-    useFirst(params) ? checkedHandler(first)(params) : checkedHandler(second)(params),
+) => {
+  const remotes = [remoteCheckOf(first), remoteCheckOf(second)] as ReadonlyArray<
+    RemoteCheck<P> | undefined
+  >;
+  return declare(
+    (params: P): Effect.Effect<A | A2, E | E2, R | R2> =>
+      useFirst(params) ? checkedHandler(first)(params) : checkedHandler(second)(params),
+    (params) =>
+      remotes[useFirst(params) ? 0 : 1]?.(params) ??
+      Effect.fail(
+        new OrchestratorMcpFailure({
+          code: "invalid_request",
+          message: "This action acts as the calling thread, which is here. Omit environmentId.",
+        }),
+      ),
   );
+};
 
 const escalationDenied = (refusal: DispatchModeRefusal) =>
   new OrchestratorMcpFailure({
@@ -234,31 +305,45 @@ const escalationDenied = (refusal: DispatchModeRefusal) =>
 export interface StartedModes {
   readonly runtimeMode: RuntimeMode;
   readonly interactionMode: ProviderInteractionMode;
+  /** The linked environment the caller acts for. The thread must carry it. */
+  readonly linkOrigin: OrchestrationV2LinkOrigin | undefined;
 }
 
+/**
+ * Starts threads with the modes `modes` requests, which may not be broader
+ * than the caller's. `linked` says what a linked caller gets: threads stamped
+ * with its `linkOrigin`, or a refusal where the tool cannot carry one.
+ */
 export const startsThreads = <P, A, E, R>(
   modes: (params: P) => {
     readonly runtimeMode?: RuntimeMode | undefined;
     readonly interactionMode?: ProviderInteractionMode | undefined;
   },
   handle: (params: P, modes: StartedModes) => Effect.Effect<A, E, R>,
-) =>
-  declare((params: P) =>
-    Effect.gen(function* () {
-      const caller = yield* writingCaller;
-      yield* refuseSideChat(caller);
-      const { limits } = caller;
-      const requested = modes(params);
-      const started: StartedModes = {
-        runtimeMode: yield* resolveRuntimeMode(limits.runtimeMode, requested.runtimeMode),
-        interactionMode: yield* resolveInteractionMode(
-          limits.interactionMode,
-          requested.interactionMode,
-        ),
-      };
-      return yield* handle(params, started);
-    }),
+  linked: "stamped" | { readonly refused: string },
+) => {
+  const started = Effect.fn("McpToolAccess.started")(function* (caller: Caller, params: P) {
+    const requested = modes(params);
+    return {
+      runtimeMode: yield* resolveRuntimeMode(caller.limits.runtimeMode, requested.runtimeMode),
+      interactionMode: yield* resolveInteractionMode(
+        caller.limits.interactionMode,
+        requested.interactionMode,
+      ),
+      linkOrigin: callerLinkOrigin(caller),
+    } satisfies StartedModes;
+  });
+  return declare(
+    (params: P) =>
+      Effect.gen(function* () {
+        const caller = yield* writingCallerOutsideSideChat;
+        if (linked !== "stamped") yield* assertNotLinked(caller, linked.refused);
+        return yield* handle(params, yield* started(caller, params));
+      }),
+    (params: P) =>
+      Effect.flatMap(writingCallerOutsideSideChat, (caller) => started(caller, params)),
   );
+};
 
 const fullAccessRequired =
   "Changing projects or environment settings needs a live full-access/default calling thread or a full-access client.";
@@ -269,11 +354,30 @@ export const writesEnvironment = <P, A, E, R>(
     params: P,
     check: Effect.Effect<Caller, OrchestratorMcpFailure, CheckServices>,
   ) => Effect.Effect<A, E, R>,
+  options?: {
+    /**
+     * Whether a linked caller may make it, as for adding a project: it leaves
+     * everything already here as it was.
+     */
+    readonly linkedCallers?: "allowed";
+  },
 ) => {
   const check = orchestratingCaller.pipe(
+    Effect.tap((caller) =>
+      options?.linkedCallers === "allowed"
+        ? Effect.void
+        : assertNotLinked(caller, "change projects or environment settings"),
+    ),
     Effect.tap((caller) => assertFullAccess(caller, fullAccessRequired)),
   );
-  return declare((params: P) => check.pipe(Effect.flatMap(() => handle(params, check))));
+  return declare(
+    (params: P) => check.pipe(Effect.flatMap(() => handle(params, check))),
+    // Linked work never reaches a link at all; that is checked as the call goes.
+    () =>
+      orchestratingCaller.pipe(
+        Effect.tap((caller) => assertFullAccess(caller, fullAccessRequired)),
+      ),
+  );
 };
 
 type CheckServices = Effect.Services<typeof orchestratingCaller>;
@@ -321,7 +425,7 @@ const hiddenFromOutsideClientsWhenThreadBound = Effect.fn(
     const tool = toolkit.tools[name];
     if (
       tool !== undefined &&
-      actsAsThreadOf(declaration) &&
+      remoteCheckOf(declaration) === undefined &&
       Context.getOrUndefined(tool.annotations, McpSchema.EnabledWhen) !==
         McpInvocationContext.hiddenFromOutsideClients
     )

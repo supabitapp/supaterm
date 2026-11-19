@@ -26,6 +26,7 @@ import {
   type OrchestrationV2ServerCommand,
   type OrchestrationV2ConversationMessage,
   type OrchestrationV2CreationSource,
+  type OrchestrationV2LinkedSender,
   type OrchestrationV2Run,
   type OrchestrationV2ThreadShellSnapshot,
   type OrchestrationV2ThreadProjection,
@@ -87,8 +88,13 @@ export function withCreationProvenance(
 ): OrchestrationV2Command {
   switch (command.type) {
     case "thread.create": {
-      // Only the server folds in a first message, so a client cannot.
-      const { initialMessage: _initialMessage, ...rest } = command;
+      // Only the server stamps a link's origin or folds in a first message, so a client cannot.
+      const {
+        linkOrigin: _linkOrigin,
+        delegatedFrom: _delegatedFrom,
+        initialMessage: _initialMessage,
+        ...rest
+      } = command;
       return { ...rest, ...provenance };
     }
     case "message.dispatch":
@@ -108,6 +114,7 @@ export interface ThreadManagementSendInput {
   readonly messageId: MessageId;
   readonly scheduledTaskId?: ScheduledTaskId;
   readonly senderThreadId?: ThreadId;
+  readonly linkedSender?: OrchestrationV2LinkedSender;
   readonly text: string;
   readonly attachments: ReadonlyArray<ChatAttachment>;
   readonly modelSelection?: ModelSelection;
@@ -799,6 +806,7 @@ const make = Effect.gen(function* () {
       messageId: input.messageId,
       ...(input.scheduledTaskId === undefined ? {} : { scheduledTaskId: input.scheduledTaskId }),
       ...(input.senderThreadId === undefined ? {} : { senderThreadId: input.senderThreadId }),
+      ...(input.linkedSender === undefined ? {} : { linkedSender: input.linkedSender }),
       text: input.text,
       attachments: input.attachments,
       ...(input.modelSelection === undefined ? {} : { modelSelection: input.modelSelection }),

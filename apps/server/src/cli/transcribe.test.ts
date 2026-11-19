@@ -165,6 +165,7 @@ const withServer = <A, E, R>(
       Layer.mergeAll(
         NodeHttpServer.layerTest,
         FetchHttpClient.layer,
+        ServerSettings.layerTest(),
         AssetSigner.layer.pipe(
           Layer.provideMerge(ServerSecretStore.layer),
           Layer.provideMerge(
