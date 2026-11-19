@@ -132,7 +132,6 @@ function environmentsRow(count: number): SettingsListRow {
 function SettingsList(props: { readonly connections: readonly SettingsListRow[] }) {
   // UIKit's scroll-edge material takes the scroll view's own color; like the chat list, match
   // the sidebar's surface so the bar doesn't darken over content at rest.
-  // Grouped cards only lift off the screen surface; the drawer is as dark as they are.
   const listSurface = use(SettingsSidebarContext)
     ? "ios:bg-transparent android:bg-drawer"
     : "bg-screen";

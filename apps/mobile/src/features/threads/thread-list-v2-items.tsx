@@ -671,7 +671,7 @@ export const ThreadListV2PendingRow = memo(function ThreadListV2PendingRow(props
       <ThreadSwipeable
         dormant={dormant}
         threadKey={pendingTask.key}
-        backgroundColor={theme[sidebarPane ? "--color-drawer" : "--color-screen"]}
+        backgroundColor={rowAppearance.swipeBackgroundColor}
         containerStyle={
           sidebarPane ? { borderRadius: SIDEBAR_V2_ROW_RADIUS, overflow: "hidden" } : undefined
         }

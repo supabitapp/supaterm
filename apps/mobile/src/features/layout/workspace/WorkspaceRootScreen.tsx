@@ -4,6 +4,7 @@ import { WorkspaceExtraTab } from "./WorkspaceExtraTab";
 import { WorkspaceSettingsList } from "../../settings/SettingsRouteScreen";
 import { WorkspaceSectionToolbar } from "./WorkspaceSectionToolbar";
 import { useNavigation } from "@react-navigation/native";
+import { usePaneRole } from "../../../components/ui/Pane";
 import { use } from "react";
 import { View, useWindowDimensions } from "react-native";
 import { useKeyboardState } from "react-native-keyboard-controller";
@@ -73,6 +74,7 @@ function WorkspaceRootContent() {
   const deviceType = useDeviceType();
   const systemTabBar = useSystemWorkspaceTabBar();
   const enabled = useEnabledNavigationTabs();
+  const nativeSidebar = usePaneRole() === "sidebar" && primaryColumn !== null;
   const sidebarTabs = useSidebarWorkspaceTabs();
   const sidebarPicker = sidebarTabs === "picker" || (deviceType === "pad" && layout.usesSplitView);
   const sidebarNavigation =
@@ -113,11 +115,7 @@ function WorkspaceRootContent() {
 
   return (
     <WorkspaceTabsContext value={context}>
-      <View
-        className={
-          sidebarPicker ? "flex-1 ios:bg-transparent android:bg-drawer" : "flex-1 bg-screen"
-        }
-      >
+      <View className={nativeSidebar ? "flex-1 bg-transparent" : "flex-1 bg-screen"}>
         <NativeStackScreenOptions
           optionsVersion={[
             settingsOpen,
