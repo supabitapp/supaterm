@@ -261,6 +261,39 @@ it.each([
   },
 );
 
+it("keeps a deleted ACP session out of a pending page only", async () => {
+  setup();
+  commands.list.mockResolvedValueOnce({
+    _tag: "Success",
+    value: { sessions: [session], nextCursor: "page-2" },
+  });
+  let finishPage!: (value: unknown) => void;
+  commands.list.mockReturnValueOnce(
+    new Promise((resolve) => {
+      finishPage = resolve;
+    }),
+  );
+  const otherSession = { ...session, sessionId: `${session.sessionId}0` };
+  await using screen = await renderSection();
+  const deletedRow = screen.getByText(session.sessionId, { exact: true });
+  await screen.click("List sessions");
+  await screen.click("Load more");
+  await screen.confirmInline("Delete");
+  await expect.element(deletedRow).not.toBeInTheDocument();
+
+  await act(async () =>
+    finishPage({
+      _tag: "Success",
+      value: { sessions: [session, otherSession], nextCursor: null },
+    }),
+  );
+  await expect.element(screen.getByText(otherSession.sessionId, { exact: true })).toBeVisible();
+  await expect.element(deletedRow).not.toBeInTheDocument();
+
+  await screen.click("Refresh");
+  await expect.element(deletedRow).toBeVisible();
+});
+
 it.each(["Save", "Disable"])("keeps other provider edits through a %s refetch", async (action) => {
   setup();
   const providers: AcpRegistryConfigurableProvider[] = ["google", "other"].map((providerId) => ({

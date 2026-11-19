@@ -112,10 +112,12 @@ function InstanceSessionManagement(
   const canRead = useEnvironmentScope(props.environmentId, AuthOrchestrationReadScope);
   const { projectId } = props;
   const projectGeneration = useRef(0);
+  const deletionsDuringList = useRef<Set<string> | null>(null);
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Late continuations must not act on a replaced project scope.
   useLayoutEffect(() => {
     return () => {
       projectGeneration.current += 1;
+      deletionsDuringList.current = null;
     };
     // oxlint-disable-next-line react/exhaustive-effect-dependencies -- Retiring a project invalidates its pending operations even when the instance stays mounted.
   }, [projectId]);
@@ -184,6 +186,8 @@ function InstanceSessionManagement(
     const generation = projectGeneration.current;
     const operation = { type: "listing" } as const;
     if (projectId === null || !canStart(operation)) return;
+    const deletedSessionIds = new Set<string>();
+    deletionsDuringList.current = deletedSessionIds;
     const result = await track(
       operation,
       listSessions({
@@ -196,9 +200,14 @@ function InstanceSessionManagement(
       }),
     );
     if (generation !== projectGeneration.current) return;
+    deletionsDuringList.current = null;
     if (result._tag === "Success") {
+      // A pending list can return a snapshot taken before a deletion completed.
+      const listedSessions = result.value.sessions.filter(
+        (session) => !deletedSessionIds.has(session.sessionId),
+      );
       setSessions((current) =>
-        cursor === undefined ? result.value.sessions : [...current, ...result.value.sessions],
+        cursor === undefined ? listedSessions : [...current, ...listedSessions],
       );
       setNextCursor(result.value.nextCursor);
       return;
@@ -260,6 +269,7 @@ function InstanceSessionManagement(
     );
     if (generation !== projectGeneration.current) return;
     if (result._tag === "Success") {
+      deletionsDuringList.current?.add(session.sessionId);
       setSessions((current) =>
         current.filter((candidate) => candidate.sessionId !== session.sessionId),
       );
