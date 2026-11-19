@@ -16,7 +16,7 @@ import { useAppearancePreferences } from "../../features/settings/appearance/App
 import { GlassBackdrop } from "./GlassBackdrop";
 
 // Explicit mappings keep the native glassEffectStyle enum out of style-array conversion.
-export const ThemedGlassView = withUniwind(GlassView, {
+const ThemedGlassView = withUniwind(GlassView, {
   style: { fromClassName: "className" },
   tintColor: { fromClassName: "tintColorClassName", styleProperty: "accentColor" },
 });
