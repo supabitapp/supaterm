@@ -35,8 +35,6 @@ export type BrowserSessionPartitionNamespace = "profile";
 // page "Copy" buttons fail with "Write permission denied".
 const ALLOWED_PREVIEW_PERMISSIONS: ReadonlySet<string> = new Set([
   "clipboard-sanitized-write",
-  "geolocation",
-
   "fullscreen",
   "pointerLock",
   // Loopback requests already succeed in Electron 44; permission-aware sign-in widgets query first.
@@ -311,7 +309,7 @@ export const make = Effect.gen(function* BrowserSessionMake() {
             message: prompt.message,
             ...(prompt.detail === undefined ? {} : { detail: prompt.detail }),
           },
-          previewHostWindow(requester),
+          platform === "win32" ? undefined : previewHostWindow(requester),
         )
         .pipe(
           Effect.map(({ response }): boolean | undefined => response === 0),
@@ -597,19 +595,25 @@ export const make = Effect.gen(function* BrowserSessionMake() {
       return Effect.try({
         try: () => {
           const browserSession = session.fromPartition(partition);
-          // Like Chrome, clipboard reads ask once per origin; both answers last for the session.
-          const clipboardReadDecisions = new Map<string, boolean>();
-          const confirmClipboardRead = (
+          // Location and clipboard decisions are remembered separately for each origin.
+          const permissionDecisions = {
+            "clipboard-read": new Map<string, boolean>(),
+            geolocation: new Map<string, boolean>(),
+          };
+          const confirmOriginPermission = (
             requester: WebContents,
+            permission: keyof typeof permissionDecisions,
             rawUrl: string | undefined,
             callback: (granted: boolean) => void,
           ): void => {
             const origin = permissionOrigin(rawUrl);
             if (origin === null) {
+              // A frame URL such as about:srcdoc cannot establish whether its origin is inherited or opaque.
               callback(false);
               return;
             }
-            const remembered = clipboardReadDecisions.get(origin);
+            const decisions = permissionDecisions[permission];
+            const remembered = decisions.get(origin);
             if (remembered !== undefined) {
               callback(remembered);
               return;
@@ -618,10 +622,13 @@ export const make = Effect.gen(function* BrowserSessionMake() {
               requester,
               {
                 buttons: ["Allow", "Block"],
-                message: `${truncateForPrompt(origin)} wants to see text and images copied to the clipboard`,
+                message:
+                  permission === "geolocation"
+                    ? `${truncateForPrompt(origin)} wants to know your location`
+                    : `${truncateForPrompt(origin)} wants to see text and images copied to the clipboard`,
               },
               (answer) => {
-                if (answer !== undefined) clipboardReadDecisions.set(origin, answer);
+                if (answer !== undefined) decisions.set(origin, answer);
                 callback(answer === true);
               },
             );
@@ -639,9 +646,10 @@ export const make = Effect.gen(function* BrowserSessionMake() {
                 );
                 return;
               }
-              if (permission === "clipboard-read") {
-                confirmClipboardRead(
+              if (permission === "clipboard-read" || permission === "geolocation") {
+                confirmOriginPermission(
                   webContents,
+                  permission,
                   "requestingUrl" in details ? details.requestingUrl : undefined,
                   callback,
                 );
@@ -651,8 +659,9 @@ export const make = Effect.gen(function* BrowserSessionMake() {
             },
           );
           browserSession.setPermissionCheckHandler((_webContents, permission, requestingOrigin) =>
-            permission === "clipboard-read"
-              ? clipboardReadDecisions.get(permissionOrigin(requestingOrigin) ?? "") === true
+            permission === "clipboard-read" || permission === "geolocation"
+              ? permissionDecisions[permission].get(permissionOrigin(requestingOrigin) ?? "") ===
+                true
               : ALLOWED_PREVIEW_PERMISSIONS.has(permission),
           );
           browserSession.webRequest.onBeforeSendHeaders(
