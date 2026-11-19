@@ -43,6 +43,7 @@ import {
   createProviderVersionAdvisory,
   resolveLatestProviderVersion,
 } from "@supaterm/provider-core/server/maintenanceResolver";
+import { codexAppServerArgs } from "../codexLaunchArgs.ts";
 import { CodexDriver } from "./CodexDriver.ts";
 import * as CodexAdapterV2 from "../../orchestration-v2/Adapters/CodexAdapterV2.ts";
 import * as IdAllocator from "@supaterm/provider-core/server/IdAllocator";
@@ -395,6 +396,72 @@ it.layer(layerTest)("CodexDriver", (it) => {
           env: { CODEX_HOME: sharedHome },
         });
       }).pipe(Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, noSpawn)),
+  );
+
+  it.effect("points a shadow home's bundled marketplace at the shadow CODEX_HOME", () =>
+    Effect.gen(function* () {
+      const fs = yield* FileSystem.FileSystem;
+      const tempDir = yield* fs.makeTempDirectoryScoped({ prefix: "supatermx-driver-" });
+      const sharedHome = NodePath.join(tempDir, "codex home");
+      const shadowHome = NodePath.join(tempDir, "codex shadow");
+      const launches: Array<
+        Parameters<CodexAdapterV2.CodexAppServerClientFactoryShape["open"]>[0]
+      > = [];
+      const instance = yield* CodexDriver.create({
+        instanceId: ProviderInstanceId.make("codex-shadow"),
+        displayName: "Codex test",
+        enabled: false,
+        environment: [],
+        config: {
+          ...CodexDriver.defaultConfig(),
+          homePath: sharedHome,
+          shadowHomePath: shadowHome,
+          launchArgs: "-c model_auto_compact_token_limit=250000",
+        },
+      }).pipe(
+        Effect.provideService(
+          CodexAdapterV2.CodexAppServerClientFactory,
+          CodexAdapterV2.CodexAppServerClientFactory.of({
+            open: (launch) =>
+              Effect.sync(() => launches.push(launch)).pipe(
+                Effect.andThen(Effect.die("The fixture stops after recording the launch")),
+              ),
+          }),
+        ),
+      );
+
+      yield* instance.orchestrationAdapter
+        .openSession({
+          threadId: ThreadId.make("shadow-home-thread"),
+          providerSessionId: ProviderSessionId.make("shadow-home-session"),
+          modelSelection: { instanceId: instance.instanceId, model: "gpt-5.4" },
+          runtimePolicy: ProviderAdapter.ProviderAdapterV2RuntimePolicy.make({
+            runtimeMode: "full-access",
+            interactionMode: "default",
+            cwd: tempDir,
+          }),
+        })
+        .pipe(Effect.scoped, Effect.exit);
+
+      expect(launches).toHaveLength(1);
+      const settings = launches[0]!.settings;
+      expect(settings.homePath).toBe(shadowHome);
+      const bundledSource = NodePath.join(
+        shadowHome,
+        ".tmp",
+        "bundled-marketplaces",
+        "openai-bundled",
+      );
+      expect(codexAppServerArgs(settings.launchArgs)).toEqual([
+        "app-server",
+        "-c",
+        "thread_unload_delay_secs=0",
+        "-c",
+        `marketplaces.openai-bundled.source=${JSON.stringify(bundledSource)}`,
+        "-c",
+        "model_auto_compact_token_limit=250000",
+      ]);
+    }).pipe(Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, noSpawn), Effect.scoped),
   );
 
   it.effect.skipIf(windowsHost)(
