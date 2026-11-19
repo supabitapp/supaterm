@@ -33,6 +33,7 @@ import { usePullRequestDescription } from "./usePullRequestDescription";
 import { usePullRequestAction } from "./usePullRequestAction";
 import { useFocusEffect, useNavigation, type StaticScreenProps } from "@react-navigation/native";
 import { RegistryContext, useAtomRefresh, useAtomValue } from "@effect/atom-react";
+import { runAtomCommand } from "@supaterm/client-runtime/state/runtime";
 import {
   pullRequestConversationThreads,
   type PullRequestDetail,
@@ -493,12 +494,12 @@ export function PullRequestRouteScreen({ route }: StaticScreenProps<PullRequestP
   const refresh = () =>
     pullRefresh.onRefresh(async (signal) => {
       const target = requestTarget(params);
-      await composerPullRequests.invalidate
-        .run(registry, {
-          environmentId: target.environmentId,
-          input: { reference: target.input },
-        })
-        .catch(() => undefined);
+      await runAtomCommand(
+        registry,
+        composerPullRequests.invalidate,
+        { environmentId: target.environmentId, input: { reference: target.input } },
+        { reportFailure: false },
+      );
       if (signal.aborted) return;
       if (guidesEnabled) refreshGuide();
       stack.refresh();

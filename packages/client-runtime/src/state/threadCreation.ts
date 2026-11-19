@@ -4,7 +4,9 @@ import type {
   OrchestrationV2ThreadShell,
 } from "@supaterm/contracts";
 import * as DateTime from "effect/DateTime";
-import { AsyncResult, Atom } from "effect/reactivity";
+import * as Effect from "effect/Effect";
+import * as Exit from "effect/Exit";
+import { Atom } from "effect/reactivity";
 
 import type { StartThreadTurnInput } from "../operations/commands.ts";
 import type { AtomCommand } from "./runtime.ts";
@@ -100,52 +102,51 @@ export function createOptimisticThreadCreation(
   ): typeof command {
     return {
       label: command.label,
-      run: async (registry, target) => {
-        const input = target.input;
-        const creation = input.bootstrap?.createThread;
-        if (creation === undefined) return command.run(registry, target);
-        const source = sourceSnapshotAtom(target.environmentId);
-        const current = registry.get(source);
-        if (
-          current?.threads.some((thread) => thread.id === input.threadId) ||
-          current?.archivedThreads.some((thread) => thread.id === input.threadId)
-        ) {
-          return command.run(registry, target);
-        }
-        const thread = optimisticThreadCreationShell(
-          input,
-          creation,
-          input.createdAt === undefined
-            ? DateTime.nowUnsafe()
-            : DateTime.makeUnsafe(input.createdAt),
-        );
-        const pending = pendingAtom(target.environmentId);
-        const remove = () =>
-          registry.update(pending, (threads) => threads.filter((item) => item !== thread));
-        registry.update(pending, (threads) => [...threads, thread]);
-        const reconcile = (snapshot: OrchestrationV2ShellSnapshot | null) => {
+      run: (registry, target) =>
+        Effect.suspend(() => {
+          const input = target.input;
+          const creation = input.bootstrap?.createThread;
+          if (creation === undefined) return command.run(registry, target);
+          const source = sourceSnapshotAtom(target.environmentId);
+          const current = registry.get(source);
           if (
-            snapshot?.threads.some((item) => item.id === thread.id) ||
-            snapshot?.archivedThreads.some((item) => item.id === thread.id)
+            current?.threads.some((thread) => thread.id === input.threadId) ||
+            current?.archivedThreads.some((thread) => thread.id === input.threadId)
           ) {
-            remove();
-            unsubscribe();
+            return command.run(registry, target);
           }
-        };
-        const unsubscribe = registry.subscribe(source, reconcile);
-        reconcile(registry.get(source));
-        let accepted = false;
-        try {
-          const result = await command.run(registry, target);
-          accepted = AsyncResult.isSuccess(result);
-          return result;
-        } finally {
-          if (!accepted) {
-            remove();
-            unsubscribe();
-          }
-        }
-      },
+          const thread = optimisticThreadCreationShell(
+            input,
+            creation,
+            input.createdAt === undefined
+              ? DateTime.nowUnsafe()
+              : DateTime.makeUnsafe(input.createdAt),
+          );
+          const pending = pendingAtom(target.environmentId);
+          const remove = () =>
+            registry.update(pending, (threads) => threads.filter((item) => item !== thread));
+          registry.update(pending, (threads) => [...threads, thread]);
+          const reconcile = (snapshot: OrchestrationV2ShellSnapshot | null) => {
+            if (
+              snapshot?.threads.some((item) => item.id === thread.id) ||
+              snapshot?.archivedThreads.some((item) => item.id === thread.id)
+            ) {
+              remove();
+              unsubscribe();
+            }
+          };
+          const unsubscribe = registry.subscribe(source, reconcile);
+          reconcile(registry.get(source));
+          return command.run(registry, target).pipe(
+            Effect.onExit((exit) =>
+              Effect.sync(() => {
+                if (Exit.isSuccess(exit)) return;
+                remove();
+                unsubscribe();
+              }),
+            ),
+          );
+        }),
     };
   }
 

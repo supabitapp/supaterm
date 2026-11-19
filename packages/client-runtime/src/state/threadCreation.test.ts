@@ -4,13 +4,14 @@ import {
   ThreadId,
   type OrchestrationV2ShellSnapshot,
 } from "@supaterm/contracts";
+import * as Effect from "effect/Effect";
 import { AsyncResult, Atom, AtomRegistry } from "effect/reactivity";
 import * as Option from "effect/Option";
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 
 import type { StartThreadTurnInput } from "../operations/commands.ts";
 import { v2Now, v2ShellSnapshot, v2ThreadShell } from "./orchestrationV2TestFixtures.ts";
-import type { AtomCommandResult } from "./runtime.ts";
+import { runAtomCommand, type AtomCommandResult } from "./runtime.ts";
 import { createOptimisticThreadCreation } from "./threadCreation.ts";
 import { isThreadWorking } from "./threadInbox.ts";
 import { resolveThreadListDurationStartedAt } from "./threadTiming.ts";
@@ -65,13 +66,21 @@ function makeHarness() {
   const reply = Promise.withResolvers<AtomCommandResult<{ sequence: number }, Error>>();
   const command = {
     label: "start-turn",
-    run: vi.fn(() => reply.promise),
+    run: vi.fn(() =>
+      Effect.promise(() => reply.promise).pipe(
+        Effect.flatMap((result) =>
+          result._tag === "Success" ? Effect.succeed(result.value) : Effect.failCause(result.cause),
+        ),
+      ),
+    ),
   };
   const start = (turnInput = input, targetEnvironmentId = environmentId) =>
-    creation.wrap(command).run(registry, {
-      environmentId: targetEnvironmentId,
-      input: turnInput,
-    });
+    runAtomCommand(
+      registry,
+      creation.wrap(command),
+      { environmentId: targetEnvironmentId, input: turnInput },
+      { reportFailure: false },
+    );
   return { registry, source, sidebar, reply, command, start, creation };
 }
 
@@ -184,7 +193,15 @@ describe("optimistic thread creation", () => {
   it("shows retries as one row and preserves the remaining launch after a rejection", async () => {
     const h = makeHarness();
     const secondReply = Promise.withResolvers<AtomCommandResult<{ sequence: number }, Error>>();
-    h.command.run.mockReturnValueOnce(h.reply.promise).mockReturnValueOnce(secondReply.promise);
+    const replyOf = (promise: Promise<AtomCommandResult<{ sequence: number }, Error>>) =>
+      Effect.promise(() => promise).pipe(
+        Effect.flatMap((result) =>
+          result._tag === "Success" ? Effect.succeed(result.value) : Effect.failCause(result.cause),
+        ),
+      );
+    h.command.run
+      .mockReturnValueOnce(replyOf(h.reply.promise))
+      .mockReturnValueOnce(replyOf(secondReply.promise));
     const first = h.start();
     const second = h.start();
     expect(h.registry.get(h.sidebar)?.threads).toHaveLength(2);

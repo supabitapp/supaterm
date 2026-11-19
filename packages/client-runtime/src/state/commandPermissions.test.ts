@@ -30,7 +30,7 @@ import * as Layer from "effect/Layer";
 import { Atom, AtomRegistry, AsyncResult } from "effect/reactivity";
 import { EnvironmentRegistry } from "../connection/registry.ts";
 import { createCommandPermissions } from "./commandPermissions.ts";
-import { createEnvironmentRpcCommand } from "./runtime.ts";
+import { createEnvironmentRpcCommand, runAtomCommand } from "./runtime.ts";
 
 vi.mock("./session.ts", () => ({
   createEnvironmentSessionAtoms: () => ({ sessionStateAtom: sessions }),
@@ -339,9 +339,10 @@ describe("command permissions", () => {
     });
     const target = { environmentId: env, input: { id: ScheduledTaskId.make("task") } };
     try {
-      const first = command.run(registry, target);
+      const quiet = { reportFailure: false, reportDefect: false };
+      const first = runAtomCommand(registry, command, target, quiet);
       await entered;
-      const second = command.run(registry, target);
+      const second = runAtomCommand(registry, command, target, quiet);
       registry.set(sessions(env), AsyncResult.success(grant(false)));
       release();
       expect((await first)._tag).toBe("Success");

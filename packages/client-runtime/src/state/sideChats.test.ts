@@ -1,6 +1,7 @@
 import { EnvironmentId, ThreadId } from "@supaterm/contracts";
-import * as Cause from "effect/Cause";
-import { AsyncResult, AtomRegistry } from "effect/reactivity";
+import * as Data from "effect/Data";
+import * as Effect from "effect/Effect";
+import { AtomRegistry } from "effect/reactivity";
 import { describe, expect, it } from "vite-plus/test";
 
 import { scopedThreadKey } from "../environment/scoped.ts";
@@ -120,6 +121,8 @@ describe("sendSideChatFirstMessage", () => {
   const parentRef = { environmentId, threadId: ThreadId.make("parent") };
   const targetThreadId = ThreadId.make("side-chat");
 
+  class ForkRefused extends Data.TaggedError("ForkRefused")<{ readonly message: string }> {}
+
   const harness = (options: { readonly refuse?: string; readonly landsOnFork?: boolean } = {}) => {
     const shells = new Map<string, { lineage: { parentThreadId: ThreadId } }>();
     const forks: Array<ThreadId> = [];
@@ -129,18 +132,19 @@ describe("sendSideChatFirstMessage", () => {
         registry: AtomRegistry.make(),
         forkSideChat: {
           label: "fork-side-chat",
-          run: async (_registry, { input }) => {
-            forks.push(input.targetThreadId);
-            if (options.refuse !== undefined) {
-              return AsyncResult.failure(Cause.fail(new Error(options.refuse)));
-            }
-            if (options.landsOnFork === true) {
-              shells.set(scopedThreadKey({ environmentId, threadId: input.targetThreadId }), {
-                lineage: { parentThreadId: input.sourceThreadId },
-              });
-            }
-            return AsyncResult.success(undefined);
-          },
+          run: (_registry, { input }) =>
+            Effect.suspend(() => {
+              forks.push(input.targetThreadId);
+              if (options.refuse !== undefined) {
+                return Effect.fail(new ForkRefused({ message: options.refuse }));
+              }
+              if (options.landsOnFork === true) {
+                shells.set(scopedThreadKey({ environmentId, threadId: input.targetThreadId }), {
+                  lineage: { parentThreadId: input.sourceThreadId },
+                });
+              }
+              return Effect.void;
+            }),
         },
         readThread: (ref) => shells.get(scopedThreadKey(ref)) ?? null,
         waitForThread: async () => false,
