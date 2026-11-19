@@ -602,10 +602,12 @@ it.effect("a latest-run read keeps the newest runs and older runs its statuses m
       });
     }
     assert.equal(yield* store.getRunCount(threadId), 5);
-    // The newest runs by ordinal, whatever their status, plus older runs the statuses match.
+    // The newest runs by ordinal, whatever their status, or the run that ended last, plus older runs
+    // the statuses match.
     for (const [filter, expected] of [
       [{ latestRunLimit: 2 }, [4, 5]],
       [{ latestRunLimit: 2, runStatuses: ["rolled_back"] as const }, [1, 4, 5]],
+      [{ includeLatestExecutedRun: true, runStatuses: ["rolled_back"] as const }, [1, 4]],
     ] as const) {
       const traced = traceSqlStatements();
       const recent = yield* store
