@@ -1140,6 +1140,15 @@ export const SETTINGS_SEARCH_ITEMS = [
     wslAvailableOnly: true,
   },
   {
+    id: "preview-tunnel",
+    title: "Preview tunnel",
+    to: "/settings/access",
+    targetId: "connections-environment",
+    searchTerms: [
+      "localhost loopback port forwarding open on this device browser tabs stream security",
+    ],
+  },
+  {
     id: "connections-environment",
     title: "This machine",
     to: "/settings/access",

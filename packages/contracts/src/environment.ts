@@ -110,6 +110,8 @@ export const ExecutionEnvironmentCapabilities = Schema.Struct({
   localServerStop: Schema.optionalKey(Schema.Boolean),
   /** The server accepts queued-run.start, which sends one held message now. */
   queuedRunStart: Schema.optionalKey(Schema.Boolean),
+  /** Honors `enablePreviewTunnel`; hide the switch where absent, since the tunnel stays on there. */
+  previewTunnelSetting: Schema.optionalKey(Schema.Boolean),
   /** Server answers server.getNpmRelease using its configured npm registry. */
   npmReleaseLookup: Schema.optionalKey(Schema.Boolean),
   /** Manual commands must update this install, not the host's default global prefix. */

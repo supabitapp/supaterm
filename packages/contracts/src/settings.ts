@@ -1,5 +1,6 @@
 import { EasDeviceHostConfigs, SshDeviceHostConfigs } from "./device.ts";
 import {
+  AuthAccessWriteScope,
   AuthOrchestrationOperateScope,
   AuthSettingsWriteScope,
   AuthProvidersManageScope,
@@ -1238,6 +1239,8 @@ export const ServerSettings = Schema.Struct({
   /** Holds an OS sleep inhibitor while any run is active; closing a laptop lid still sleeps it. */
   keepAwakeWhileAgentsWork: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(true))),
   enableAgentBrowserAccess: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(true))),
+  /** Lets clients reach this machine's loopback ports over `/api/preview/tunnel`. */
+  enablePreviewTunnel: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(true))),
   defaultAutoPull: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(true))),
   defaultProjectScripts: Schema.Array(ProjectScript).pipe(
     Schema.withDecodingDefault(Effect.succeed([])),
@@ -1556,6 +1559,7 @@ export const ServerSettingsPatch = Schema.Struct({
   continueThreadsAfterServerUpdate: Schema.optionalKey(Schema.Boolean),
   keepAwakeWhileAgentsWork: Schema.optionalKey(Schema.Boolean),
   enableAgentBrowserAccess: Schema.optionalKey(Schema.Boolean),
+  enablePreviewTunnel: Schema.optionalKey(Schema.Boolean),
   defaultAutoPull: Schema.optionalKey(Schema.Boolean),
   defaultProjectScripts: Schema.optionalKey(Schema.Array(ProjectScript)),
   defaultModelSelection: Schema.optionalKey(Schema.NullOr(ModelSelection)),
@@ -1672,17 +1676,21 @@ export function requiredScopesForServerSettingsPatch(
     (entry) => entry === null || entry?.providerInstances !== undefined,
   );
   let changesSettings = false;
+  let changesAccess = false;
   for (const [key, value] of Object.entries(patch)) {
     if (value === undefined) continue;
-    if (key === "providerInstances") {
+    if (key === "enablePreviewTunnel") {
+      changesAccess = true;
+    } else if (key === "providerInstances") {
       changesProviders = true;
     } else {
       changesSettings = true;
     }
   }
   return [
-    ...(changesSettings || !changesProviders ? [AuthSettingsWriteScope] : []),
+    ...(changesSettings || (!changesProviders && !changesAccess) ? [AuthSettingsWriteScope] : []),
     ...(changesProviders ? [AuthProvidersManageScope] : []),
+    ...(changesAccess ? [AuthAccessWriteScope] : []),
   ];
 }
 

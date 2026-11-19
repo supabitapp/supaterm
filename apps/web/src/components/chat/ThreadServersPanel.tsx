@@ -11,10 +11,14 @@ import {
   isAtomCommandInterrupted,
   squashAtomCommandFailure,
 } from "@supaterm/client-runtime/state/runtime";
+import { isLoopbackHost } from "@supaterm/shared/preview";
 import { CableIcon, ChevronDownIcon, ChevronUpIcon, GlobeIcon, SquareIcon } from "@supaterm/icons";
 import { type MouseEvent, useState } from "react";
 
-import { resolveExternalServerUrl } from "../../browser/browserTargetResolver";
+import {
+  resolveExternalServerUrl,
+  tunnelsEnvironmentLoopback,
+} from "../../browser/browserTargetResolver";
 import { readLocalApi } from "../../localApi";
 import { cn, isMacPlatform } from "../../lib/utils";
 import { useThreadDiscoveredPorts } from "../../portDiscoveryState";
@@ -65,7 +69,7 @@ function ThreadServersList(props: ThreadServersPanelProps) {
   const forwardable =
     useEnvironmentScope(props.environmentId, AuthTerminalOperateScope) &&
     environment?.connection.phase === "connected" &&
-    canForwardPorts(environment.entry.target);
+    canForwardPorts(environment);
   const locality = useForwardLocality(forwardable ? props.environmentId : null);
   const canForward = locality === "remote";
   const openPreview = useAtomCommand(previewEnvironment.open, { reportFailure: false });
@@ -109,6 +113,20 @@ function ThreadServersList(props: ThreadServersPanelProps) {
             )
           : resolveExternalServerUrl(props.environmentId, server.url);
       if (url === null) return;
+      // Without a forward, a remote environment's localhost would open this machine's instead.
+      if (
+        locality !== "local" &&
+        tunnelsEnvironmentLoopback(environment?.entry.target) &&
+        isLoopbackHost(new URL(url).hostname)
+      ) {
+        reportFailure(
+          "Unable to open in browser",
+          new Error(
+            `localhost:${server.port} runs on another machine, and port forwarding isn't available for it right now.`,
+          ),
+        );
+        return;
+      }
       await readLocalApi()
         ?.shell.openExternal(url)
         .catch((error: unknown) => reportFailure("Unable to open in browser", error));

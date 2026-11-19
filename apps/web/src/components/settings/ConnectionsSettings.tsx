@@ -23,7 +23,7 @@ import {
   squashAtomCommandFailure,
 } from "@supaterm/client-runtime/state/runtime";
 import * as Cause from "effect/Cause";
-import { useUpdatePrimarySettings } from "../../hooks/useSettings";
+import { useUpdateEnvironmentSettings, useUpdatePrimarySettings } from "../../hooks/useSettings";
 import { PublicRelaySettings, usePublicRelayStatus } from "./PublicRelaySettings";
 import { isLocalEnvironmentDisabled } from "../../localEnvironment";
 import { resolvePairingShareValue } from "./pairingUrls";
@@ -387,6 +387,7 @@ function ConnectionsSettingsContent({
   );
   const canReadAccess = useEnvironmentScope(accessEnvironmentId, AuthAccessReadScope);
   const canWriteAccess = useEnvironmentScope(accessEnvironmentId, AuthAccessWriteScope);
+  const updateAccessSettings = useUpdateEnvironmentSettings(accessEnvironmentId);
   const canMaintain = useEnvironmentScope(accessEnvironmentId, AuthEnvironmentMaintainScope);
   const canManageLocalBackend = isPrimaryAccess && !isLocalEnvironmentDisabled() && canMaintain;
   const updatePrimarySettings = useUpdatePrimarySettings();
@@ -1305,6 +1306,22 @@ function ConnectionsSettingsContent({
                   ) : primaryServerUpdateState.status === "idle" && primaryServerConfig ? (
                     <LocalVersionStatusLabel />
                   ) : undefined
+                }
+              />
+            ) : null}
+            {accessServerConfig?.environment.capabilities.previewTunnelSetting ? (
+              <SettingsRow
+                title={searchableSetting("preview-tunnel").title}
+                description="Lets other devices open this machine's local servers: browser tabs loaded on the device, Open on this device, and port forwarding. Off: browser tabs stream from this machine."
+                control={
+                  <Switch
+                    checked={accessServerConfig.settings.enablePreviewTunnel}
+                    disabled={!canWriteAccess}
+                    aria-label="Allow the preview tunnel"
+                    onCheckedChange={(enabled) =>
+                      void updateAccessSettings({ enablePreviewTunnel: enabled })
+                    }
+                  />
                 }
               />
             ) : null}

@@ -1,4 +1,5 @@
 import {
+  AuthAccessWriteScope,
   AuthEnvironmentMaintainScope,
   AuthDiagnosticsReadScope,
   AuthFilesystemReadScope,
@@ -241,6 +242,35 @@ describe("settings mutation authorization", () => {
           providerInstanceMutation,
         }).pipe(Effect.flip),
       ).toMatchObject({ requiredScope: AuthSettingsWriteScope });
+      expect(handled).toBe(1);
+    }),
+  );
+
+  it.effect("switches the preview tunnel only with access:write", () =>
+    Effect.gen(function* () {
+      let handled = 0;
+      const makeClient = (scopes: Parameters<typeof RpcAuthorization.layer>[0]) =>
+        RpcTest.makeClient(group).pipe(
+          Effect.provide(
+            Layer.mergeAll(
+              group.toLayerHandler(WS_METHODS.serverUpdateSettings, () =>
+                Effect.sync(() => {
+                  handled++;
+                  return DEFAULT_SERVER_SETTINGS;
+                }),
+              ),
+              RpcAuthorization.layer(scopes),
+            ),
+          ),
+        );
+      const patch = { enablePreviewTunnel: false };
+      const settingsWriter = yield* makeClient([AuthSettingsWriteScope]);
+      expect(
+        yield* settingsWriter[WS_METHODS.serverUpdateSettings]({ patch }).pipe(Effect.flip),
+      ).toMatchObject({ requiredScope: AuthAccessWriteScope });
+      expect(handled).toBe(0);
+      const accessWriter = yield* makeClient([AuthAccessWriteScope]);
+      yield* accessWriter[WS_METHODS.serverUpdateSettings]({ patch });
       expect(handled).toBe(1);
     }),
   );

@@ -85,7 +85,11 @@ import { PreviewFileNotShown, PreviewUnreachable } from "./PreviewUnreachable";
 import { revealInFileExplorerLabel } from "./fileExplorerLabel";
 import { Badge } from "~/components/ui/badge";
 import { BrowserSurfaceSlot } from "~/browser/BrowserSurfaceSlot";
-import { alternatePreviewRuntime, useRendersServerTabNatively } from "~/browser/previewRuntime";
+import {
+  alternatePreviewRuntime,
+  useDesktopLoadsLoopback,
+  useRendersServerTabNatively,
+} from "~/browser/previewRuntime";
 import { ServerBrowserSurface, type ServerBrowserHandle } from "~/browser/ServerBrowserSurface";
 import { cn } from "~/lib/utils";
 import { useBrowserSurfaceStore } from "~/browser/browserSurfaceStore";
@@ -192,6 +196,7 @@ export function PreviewView({
   const environmentLabel = useEnvironment(threadRef.environmentId)?.label ?? "the environment";
   const primaryEnvironmentId = usePrimaryEnvironmentId();
   const serverBrowser = useEnvironmentSupportsServerBrowser(threadRef.environmentId);
+  const desktopLoadsLoopback = useDesktopLoadsLoopback(threadRef.environmentId);
   const adjust = useAtomCommand(previewEnvironment.adjust, "preview appearance or zoom");
   const findShortcutLabel = useShortcutLabel("preview.find", { context: { previewFocus: true } });
 
@@ -462,6 +467,7 @@ export function PreviewView({
     threadRef.environmentId,
     primaryEnvironmentId,
     serverBrowser,
+    desktopLoadsLoopback,
     snapshot,
   );
   const moveLabel =
