@@ -253,8 +253,8 @@ export function QuestionAttachments(props: {
       ) : null}
       <FilePreviewModal source={previewFile} onRequestClose={() => setPreviewFile(null)} />
       <VideoPreviewModal source={previewVideo} onRequestClose={() => setPreviewVideo(null)} />
-      <View className="flex-row items-center gap-1">
-        <TextInputWrapper onPaste={paste} style={{ flex: 1 }}>
+      <View className="relative">
+        <TextInputWrapper onPaste={paste}>
           <TextInput
             key={seed.revision}
             ref={inputRef}
@@ -276,21 +276,23 @@ export function QuestionAttachments(props: {
               onInputFocusChange?.(false);
             }}
             placeholder="Or type a custom answer"
-            className="min-h-[54px] rounded-2xl border border-input-border bg-input px-3.5 py-3 font-sans text-base text-foreground"
+            className="pr-12"
           />
         </TextInputWrapper>
-        {showsDictation ? null : (
-          <ComposerDictationStartAction
-            state={voice.state}
-            isAvailable={voice.isAvailable}
-            disabled={props.disabled}
-            onStart={() => {
-              props.onStartDictation();
-              voice.start();
-            }}
-            onCancel={voice.cancel}
-          />
-        )}
+        {voice.isAvailable && !showsDictation ? (
+          <View className="absolute right-1 bottom-[5px]">
+            <ComposerDictationStartAction
+              state={voice.state}
+              isAvailable={voice.isAvailable}
+              disabled={props.disabled}
+              onStart={() => {
+                props.onStartDictation();
+                voice.start();
+              }}
+              onCancel={voice.cancel}
+            />
+          </View>
+        ) : null}
       </View>
       {showsDictation ? (
         <TextFieldDictationToolbar
