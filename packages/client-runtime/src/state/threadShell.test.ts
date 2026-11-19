@@ -154,7 +154,7 @@ describe("v2 thread shell lists", () => {
     registry.dispose();
   });
 
-  it("flags the parent while a live subagent waits on a secret card", () => {
+  it("flags the parent while a subagent waits on a card only the user can answer", () => {
     const { registry, threads, snapshotAtom } = makeHarness();
     const root = v2ThreadShell;
     const child = {
@@ -177,10 +177,16 @@ describe("v2 thread shell lists", () => {
       },
     };
     registry.set(snapshotAtom(environmentId), { ...v2ShellSnapshot, threads: [root, child] });
-    expect(
+    const parentRequest = () =>
       registry.get(threads.threadShellAtom({ environmentId, threadId: root.id }))
-        ?.pendingSubagentRequest,
-    ).toBe("user_input");
+        ?.pendingSubagentRequest;
+    expect(parentRequest()).toBe("user_input");
+    // A link card outlives the run that asked, and still needs the user.
+    registry.set(snapshotAtom(environmentId), {
+      ...v2ShellSnapshot,
+      threads: [root, { ...child, status: "completed" as const, activityRunStatus: null }],
+    });
+    expect(parentRequest()).toBe("user_input");
     registry.dispose();
   });
 

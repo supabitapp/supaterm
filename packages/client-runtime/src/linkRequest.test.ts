@@ -99,8 +99,8 @@ const presentation = (
   label: string,
   options: {
     readonly saved?: ReadonlyArray<string>;
-    /** The relay server its relay addresses were saved with. */
-    readonly relayUrl?: string;
+    /** The relay server its relay addresses were saved with, or one for each saved address. */
+    readonly relayUrl?: string | ReadonlyArray<string | undefined>;
     readonly reported?: ReadonlyArray<string>;
     readonly connected?: boolean;
   } = {},
@@ -108,6 +108,8 @@ const presentation = (
   const environmentId = EnvironmentId.make(id);
   const [first, ...rest] = (options.saved ?? []).map((httpBaseUrl, index) => {
     const connectionId = `${id}-${index}`;
+    const relayUrl =
+      typeof options.relayUrl === "string" ? options.relayUrl : options.relayUrl?.[index];
     return {
       target: new BearerConnectionTarget({ environmentId, label, connectionId }),
       profile: Option.some(
@@ -117,7 +119,7 @@ const presentation = (
           label,
           httpBaseUrl,
           wsBaseUrl: httpBaseUrl,
-          ...(options.relayUrl === undefined ? {} : { relayUrl: options.relayUrl }),
+          ...(relayUrl === undefined ? {} : { relayUrl }),
         }),
       ),
     };
@@ -207,6 +209,19 @@ describe("linkableMachines", () => {
         links: [],
       })[0],
     ).toMatchObject({ urls: [relayAddress], relayUrl: "wss://relay.example.com" });
+    // A link holds one relay server, so an address saved with another is left out.
+    const otherRelayAddress = relayAddress.replace("a".repeat(32), "c".repeat(32));
+    const twice = presentation("environment-twice", "Twice", {
+      saved: [relayAddress, otherRelayAddress, "https://twice.ts.net"],
+      relayUrl: [undefined, "wss://relay.example.com", undefined],
+    });
+    const listed = linkableMachines({
+      environments: [here, twice],
+      threadEnvironmentId: here.environmentId,
+      links: [],
+    })[0];
+    expect(listed?.urls).toEqual([relayAddress, "https://twice.ts.net"]);
+    expect(listed).not.toHaveProperty("relayUrl");
     // A direct address saved with no relay server names none.
     const vps = presentation("environment-vps", "VPS", { saved: ["https://vps.ts.net"] });
     expect(

@@ -125,17 +125,20 @@ export function linkableMachines(input: {
         (endpoint) => endpoint.httpBaseUrl,
       );
       const routes = connectionRoutes(environment.entry);
-      const saved = routes.flatMap((route) => routeHttpBaseUrl(route) ?? []);
-      const relayUrl = routes
-        .flatMap((route) => {
-          const profile = Option.getOrNull(route.profile);
-          return connectionRouteKind(route) === "relay" &&
-            profile?._tag === "BearerConnectionProfile" &&
-            profile.relayUrl !== undefined
-            ? (normalizeRelayServerUrl(profile.relayUrl) ?? [])
-            : [];
-        })
-        .at(0);
+      const isRelay = (route: (typeof routes)[number]) => connectionRouteKind(route) === "relay";
+      // The relay server a route was saved with; undefined is the default one.
+      const relayServerOf = (route: (typeof routes)[number]) => {
+        const profile = Option.getOrNull(route.profile);
+        return profile?._tag === "BearerConnectionProfile" && profile.relayUrl !== undefined
+          ? (normalizeRelayServerUrl(profile.relayUrl) ?? undefined)
+          : undefined;
+      };
+      const firstRelay = routes.find(isRelay);
+      const relayUrl = firstRelay === undefined ? undefined : relayServerOf(firstRelay);
+      // A link holds one relay server, so a relay route saved with another is left out.
+      const saved = routes.flatMap((route) =>
+        isRelay(route) && relayServerOf(route) !== relayUrl ? [] : (routeHttpBaseUrl(route) ?? []),
+      );
       return {
         environmentId: environment.environmentId,
         label: environment.entry.target.label,
