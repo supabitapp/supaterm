@@ -1,4 +1,4 @@
-import { useAtomSet, useAtomValue } from "@effect/atom-react";
+import { useAtomValue } from "@effect/atom-react";
 import { AsyncResult } from "effect/reactivity";
 import { useAdaptiveWorkspaceLayout } from "../layout/adaptive-workspace-context";
 import { Platform, View } from "react-native";
@@ -13,7 +13,8 @@ import { IconButton } from "../../components/ui/IconButton";
 import { Button } from "../../components/ui/Button";
 import { ScreenScrollView } from "../../components/ui/ScreenScrollView";
 import { SymbolView } from "../../components/ui/AppSymbol";
-import { mobilePreferencesAtom, updateMobilePreferencesAtom } from "../../state/preferences";
+import { mobilePreferencesAtom, saveMobilePreferences } from "../../state/preferences";
+import { useAtomCommand } from "../../state/use-atom-command";
 import {
   NAVIGATION_TAB_ICONS,
   WORKSPACE_TAB_LABELS,
@@ -35,7 +36,7 @@ export function SettingsNavigationRouteScreen() {
   const preferences = useAtomValue(mobilePreferencesAtom);
   const customizable = navigationCustomizationAvailable();
   const ready = customizable && AsyncResult.isSuccess(preferences) && !preferences.waiting;
-  const save = useAtomSet(updateMobilePreferencesAtom);
+  const save = useAtomCommand(saveMobilePreferences);
   return (
     <SettingsScreen title="Navigation tabs">
       <ScreenScrollView
@@ -70,23 +71,23 @@ export function SettingsNavigationRouteScreen() {
                 icon={hidden.includes(tab) ? "eye.slash" : "eye"}
                 accessibilityLabel={`${hidden.includes(tab) ? "Show" : "Hide"} ${WORKSPACE_TAB_LABELS[tab]}`}
                 disabled={!ready}
-                onPress={() =>
-                  save({
+                onPress={() => {
+                  void save({
                     transform: (current) => ({
                       hiddenNavigationTabs: toggleNavigationTabVisibility(
                         current.hiddenNavigationTabs,
                         tab,
                       ),
                     }),
-                  })
-                }
+                  });
+                }}
               />
               <IconButton
                 icon="arrow.up"
                 accessibilityLabel={`Move ${WORKSPACE_TAB_LABELS[tab]} up`}
                 disabled={!ready || index === 0}
-                onPress={() =>
-                  save({
+                onPress={() => {
+                  void save({
                     transform: (current) => ({
                       navigationTabOrder: moveNavigationTab(
                         resolveWorkspaceTabOrder(current.navigationTabOrder),
@@ -94,15 +95,15 @@ export function SettingsNavigationRouteScreen() {
                         index - 1,
                       ),
                     }),
-                  })
-                }
+                  });
+                }}
               />
               <IconButton
                 icon="arrow.down"
                 accessibilityLabel={`Move ${WORKSPACE_TAB_LABELS[tab]} down`}
                 disabled={!ready || index === order.length - 1}
-                onPress={() =>
-                  save({
+                onPress={() => {
+                  void save({
                     transform: (current) => ({
                       navigationTabOrder: moveNavigationTab(
                         resolveWorkspaceTabOrder(current.navigationTabOrder),
@@ -110,8 +111,8 @@ export function SettingsNavigationRouteScreen() {
                         index + 1,
                       ),
                     }),
-                  })
-                }
+                  });
+                }}
               />
             </View>
           ))}
@@ -120,7 +121,9 @@ export function SettingsNavigationRouteScreen() {
           label="Reset tabs"
           tone="text"
           disabled={!ready}
-          onPress={() => save({ navigationTabOrder: [], hiddenNavigationTabs: [] })}
+          onPress={() => {
+            void save({ navigationTabOrder: [], hiddenNavigationTabs: [] });
+          }}
         />
       </ScreenScrollView>
     </SettingsScreen>

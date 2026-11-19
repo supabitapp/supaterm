@@ -1,18 +1,19 @@
-import { useAtomSet, useAtomValue } from "@effect/atom-react";
+import { useAtomValue } from "@effect/atom-react";
 import { AsyncResult } from "effect/reactivity";
-import { mobilePreferencesAtom, updateMobilePreferencesAtom } from "../../state/preferences";
+import { mobilePreferencesAtom, saveMobilePreferences } from "../../state/preferences";
+import { useAtomCommand } from "../../state/use-atom-command";
 import { DEFAULT_PR_LIST_CONTROLS, type PullRequestListControls } from "./pullRequestList";
 export function usePullRequestListControls() {
   const preferences = useAtomValue(mobilePreferencesAtom);
-  const savePreferences = useAtomSet(updateMobilePreferencesAtom);
+  const savePreferences = useAtomCommand(saveMobilePreferences);
   const saved = AsyncResult.isSuccess(preferences)
     ? preferences.value.pullRequestListFilters
     : undefined;
   const environmentId = saved?.environmentId ?? null;
   const controlsFor = (environment: string | null) =>
     saved?.controls[environment ?? ""] ?? DEFAULT_PR_LIST_CONTROLS;
-  const setEnvironmentId = (next: string | null) =>
-    savePreferences({
+  const setEnvironmentId = (next: string | null) => {
+    void savePreferences({
       transform: (current) => ({
         pullRequestListFilters: {
           controls: current.pullRequestListFilters?.controls ?? {},
@@ -20,8 +21,9 @@ export function usePullRequestListControls() {
         },
       }),
     });
-  const setControls = (environment: string | null, controls: PullRequestListControls) =>
-    savePreferences({
+  };
+  const setControls = (environment: string | null, controls: PullRequestListControls) => {
+    void savePreferences({
       transform: (current) => ({
         pullRequestListFilters: {
           environmentId: current.pullRequestListFilters?.environmentId ?? null,
@@ -33,13 +35,15 @@ export function usePullRequestListControls() {
         },
       }),
     });
-  const reset = () =>
-    savePreferences({
+  };
+  const reset = () => {
+    void savePreferences({
       pullRequestListFilters: {
         environmentId: null,
         controls: {},
       },
     });
+  };
   return {
     environmentId,
     controlsFor,

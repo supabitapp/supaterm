@@ -1,9 +1,11 @@
 import { describe, expect, it } from "@effect/vitest";
+import * as Deferred from "effect/Deferred";
 import * as Effect from "effect/Effect";
+import * as Fiber from "effect/Fiber";
 import * as Layer from "effect/Layer";
 import { AsyncResult, Atom, AtomRegistry } from "effect/reactivity";
 import { vi } from "vite-plus/test";
-import { RegistryContext, useAtomSet } from "@effect/atom-react";
+import { RegistryContext } from "@effect/atom-react";
 import { createElement } from "react";
 import { renderToString } from "react-dom/server";
 
@@ -25,6 +27,7 @@ vi.mock("../lib/runtime", async () => {
 });
 
 import { createMobilePreferencesState } from "./preferences";
+import { useAtomCommand } from "./use-atom-command";
 import * as MobilePreferences from "../persistence/mobile-preferences";
 
 function deferred<A>() {
@@ -71,9 +74,8 @@ describe("mobile preferences state", () => {
       });
       const registry = AtomRegistry.make();
       const unmountPreferences = registry.mount(state.preferencesAtom);
-      const unmountUpdate = registry.mount(state.updatePreferencesAtom);
 
-      registry.set(state.updatePreferencesAtom, {
+      const save = state.savePreferences.run(registry, {
         collapsedProjectGroups: ["project:new"],
       });
       pendingLoad.resolve({
@@ -84,6 +86,7 @@ describe("mobile preferences state", () => {
       const preferences = yield* AtomRegistry.getResult(registry, state.preferencesAtom, {
         suspendOnWaiting: true,
       });
+      const saveResult = yield* Effect.promise(() => save);
       expect(preferences).toEqual({
         baseFontSize: 18,
         collapsedProjectGroups: ["project:new"],
@@ -91,15 +94,14 @@ describe("mobile preferences state", () => {
       expect(savePatch).toHaveBeenCalledWith({
         collapsedProjectGroups: ["project:new"],
       });
-      expect(AsyncResult.isFailure(registry.get(state.updatePreferencesAtom))).toBe(false);
+      expect(AsyncResult.isFailure(saveResult)).toBe(false);
 
-      unmountUpdate();
       unmountPreferences();
       registry.dispose();
     }),
   );
 
-  it.effect("keeps both updates when the React setter sends them before a render", () =>
+  it.effect("keeps both updates when the React command sends them before a render", () =>
     Effect.gen(function* () {
       let persisted: MobilePreferences.Preferences = { collapsedProjectGroups: [] };
       const state = makePreferencesState({
@@ -117,52 +119,82 @@ describe("mobile preferences state", () => {
       });
       const registry = AtomRegistry.make();
       const unmountPreferences = registry.mount(state.preferencesAtom);
-      const unmountUpdate = registry.mount(state.updatePreferencesAtom);
       yield* AtomRegistry.getResult(registry, state.preferencesAtom, { suspendOnWaiting: true });
 
       function useSavePreferences() {
-        return useAtomSet(state.updatePreferencesAtom);
+        return useAtomCommand(state.savePreferences, { reportFailure: false });
       }
       const setters: Array<ReturnType<typeof useSavePreferences>> = [];
       function CaptureSetter() {
         setters.push(useSavePreferences());
         return null;
       }
-      // Use the React setter; registry.set bypasses bare-function update semantics.
       renderToString(
         createElement(RegistryContext.Provider, { value: registry }, createElement(CaptureSetter)),
       );
       const savePreferences = setters[0]!;
-      savePreferences({
+      const first = savePreferences({
         transform: (current) => ({
           collapsedProjectGroups: [...(current.collapsedProjectGroups ?? []), "astra"],
         }),
       });
-      savePreferences({
+      const second = savePreferences({
         transform: (current) => ({
           collapsedProjectGroups: [...(current.collapsedProjectGroups ?? []), "sol"],
         }),
       });
-      yield* AtomRegistry.getResult(registry, state.updatePreferencesAtom, {
-        suspendOnWaiting: true,
-      });
+      yield* Effect.promise(() => Promise.all([first, second]));
 
       expect(persisted.collapsedProjectGroups).toEqual(["astra", "sol"]);
 
-      savePreferences({
-        transform: (current) => ({
-          collapsedProjectGroups: (current.collapsedProjectGroups ?? []).filter(
-            (group) => group !== "astra",
-          ),
+      yield* Effect.promise(() =>
+        savePreferences({
+          transform: (current) => ({
+            collapsedProjectGroups: (current.collapsedProjectGroups ?? []).filter(
+              (group) => group !== "astra",
+            ),
+          }),
         }),
-      });
-      yield* AtomRegistry.getResult(registry, state.updatePreferencesAtom, {
-        suspendOnWaiting: true,
-      });
+      );
       expect(persisted.collapsedProjectGroups).toEqual(["sol"]);
 
-      unmountUpdate();
       unmountPreferences();
+      registry.dispose();
+    }),
+  );
+
+  it.effect("clears the optimistic patch when a save is interrupted", () =>
+    Effect.gen(function* () {
+      const started = yield* Deferred.make<void>();
+      const store = {
+        load: Effect.succeed({ baseFontSize: 16 }),
+        savePatch: () => Deferred.succeed(started, undefined).pipe(Effect.andThen(Effect.never)),
+      };
+      const state = makePreferencesState(store);
+      const registry = AtomRegistry.make();
+      const unmount = registry.mount(state.preferencesAtom);
+      yield* AtomRegistry.getResult(registry, state.preferencesAtom, { suspendOnWaiting: true });
+
+      const fiber = yield* Effect.forkChild(
+        state.save({ baseFontSize: 20 }, registry).pipe(
+          Effect.provide(
+            Layer.succeed(
+              MobilePreferences.MobilePreferencesStore,
+              MobilePreferences.MobilePreferencesStore.of({
+                ...store,
+                update: () => Effect.die("unexpected"),
+              }),
+            ),
+          ),
+        ),
+      );
+      yield* Deferred.await(started);
+      yield* Fiber.interrupt(fiber);
+
+      expect(AsyncResult.getOrElse(registry.get(state.preferencesAtom), () => ({}))).toEqual({
+        baseFontSize: 16,
+      });
+      unmount();
       registry.dispose();
     }),
   );

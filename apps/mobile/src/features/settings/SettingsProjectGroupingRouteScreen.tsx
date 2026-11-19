@@ -1,7 +1,7 @@
 import { THREAD_GROUPING_OPTIONS } from "@supaterm/client-runtime/state/thread-grouping";
 import { useMobileThreadGrouping } from "../../state/thread-grouping";
 import { ScreenScrollView as ScrollView } from "../../components/ui/ScreenScrollView";
-import { useAtomSet, useAtomValue } from "@effect/atom-react";
+import { useAtomValue } from "@effect/atom-react";
 import type { SidebarProjectGroupingMode } from "@supaterm/contracts";
 import { AsyncResult } from "effect/reactivity";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -11,7 +11,8 @@ import {
   mobileProjectGroupingModePatch,
   resolveMobileProjectGroupingSettings,
 } from "../../state/project-grouping";
-import { mobilePreferencesAtom, updateMobilePreferencesAtom } from "../../state/preferences";
+import { mobilePreferencesAtom, saveMobilePreferences } from "../../state/preferences";
+import { useAtomCommand } from "../../state/use-atom-command";
 import { ListChoiceRow as SettingsChoiceRow } from "../../components/ui/ListChoiceRow";
 import { SettingsSection } from "./components/SettingsSection";
 import { NewThreadSettingsSection } from "./ThreadSettingsSections";
@@ -42,7 +43,7 @@ export function SettingsProjectGroupingRouteScreen() {
   const insets = useSafeAreaInsets();
   const { grouping, setGrouping, loaded } = useMobileThreadGrouping();
   const preferencesResult = useAtomValue(mobilePreferencesAtom);
-  const savePreferences = useAtomSet(updateMobilePreferencesAtom);
+  const savePreferences = useAtomCommand(saveMobilePreferences);
   const preferencesReady = AsyncResult.isSuccess(preferencesResult) && !preferencesResult.waiting;
   const selectedMode = AsyncResult.isSuccess(preferencesResult)
     ? resolveMobileProjectGroupingSettings(preferencesResult.value).sidebarProjectGroupingMode
@@ -78,7 +79,9 @@ export function SettingsProjectGroupingRouteScreen() {
               selected={selectedMode === option.mode}
               separated={index > 0}
               disabled={!preferencesReady}
-              onPress={() => savePreferences(mobileProjectGroupingModePatch(option.mode))}
+              onPress={() => {
+                void savePreferences(mobileProjectGroupingModePatch(option.mode));
+              }}
             />
           ))}
         </SettingsSection>

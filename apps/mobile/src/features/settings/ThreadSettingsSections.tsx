@@ -1,6 +1,6 @@
 import { Button } from "../../components/ui/Button";
 import { AutoMarkDoneDaysField } from "./components/AutoMarkDoneDaysField";
-import { useAtomSet, useAtomValue } from "@effect/atom-react";
+import { useAtomValue } from "@effect/atom-react";
 import { AsyncResult } from "effect/reactivity";
 import { View } from "react-native";
 
@@ -9,8 +9,9 @@ import { AppText as Text } from "../../components/ui/AppText";
 import {
   mobilePreferencesAtom,
   showSkillsInSlashMenuAtom,
-  updateMobilePreferencesAtom,
+  saveMobilePreferences,
 } from "../../state/preferences";
+import { useAtomCommand } from "../../state/use-atom-command";
 import { SettingsSection } from "./components/SettingsSection";
 import { SettingsSwitchRow } from "./components/SettingsSwitchRow";
 import {
@@ -144,7 +145,7 @@ export function ThreadBehaviorSettingsRows(props: {
 }
 
 export function ComposerSettingsSection() {
-  const savePreferences = useAtomSet(updateMobilePreferencesAtom);
+  const savePreferences = useAtomCommand(saveMobilePreferences);
   const showSkillsInSlashMenu = useAtomValue(showSkillsInSlashMenuAtom);
 
   return (
@@ -161,7 +162,7 @@ export function ComposerSettingsSection() {
 }
 
 export function NewThreadSettingsSection() {
-  const savePreferences = useAtomSet(updateMobilePreferencesAtom);
+  const savePreferences = useAtomCommand(saveMobilePreferences);
   const preferences = useAtomValue(mobilePreferencesAtom);
   const useLastProject =
     AsyncResult.isSuccess(preferences) && preferences.value.useLastProjectForNewThreads !== false;
@@ -173,7 +174,9 @@ export function NewThreadSettingsSection() {
         label="Use last project"
         subtitle="Start new threads in the last project you used on this device."
         value={useLastProject}
-        onValueChange={(value) => savePreferences({ useLastProjectForNewThreads: value })}
+        onValueChange={(value) => {
+          void savePreferences({ useLastProjectForNewThreads: value });
+        }}
       />
     </SettingsSection>
   );

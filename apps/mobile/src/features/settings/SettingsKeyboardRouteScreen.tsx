@@ -1,5 +1,5 @@
 import { ScreenScrollView as ScrollView } from "../../components/ui/ScreenScrollView";
-import { useAtomSet, useAtomValue } from "@effect/atom-react";
+import { useAtomValue } from "@effect/atom-react";
 import { AsyncResult } from "effect/reactivity";
 import { Platform } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -9,7 +9,8 @@ import {
   DEFAULT_COMPOSER_ENTER_BEHAVIOR,
   type ComposerEnterBehavior,
 } from "../../lib/composerEnterBehavior";
-import { mobilePreferencesAtom, updateMobilePreferencesAtom } from "../../state/preferences";
+import { mobilePreferencesAtom, saveMobilePreferences } from "../../state/preferences";
+import { useAtomCommand } from "../../state/use-atom-command";
 import { ListChoiceRow as SettingsChoiceRow } from "../../components/ui/ListChoiceRow";
 import { SettingsScreen } from "./components/SettingsScreen";
 import { SettingsSection } from "./components/SettingsSection";
@@ -36,7 +37,7 @@ const ENTER_BEHAVIOR_OPTIONS: ReadonlyArray<{
 export function SettingsKeyboardRouteScreen() {
   const insets = useSafeAreaInsets();
   const preferencesResult = useAtomValue(mobilePreferencesAtom);
-  const savePreferences = useAtomSet(updateMobilePreferencesAtom);
+  const savePreferences = useAtomCommand(saveMobilePreferences);
   const preferencesReady = AsyncResult.isSuccess(preferencesResult) && !preferencesResult.waiting;
   const selectedBehavior = AsyncResult.isSuccess(preferencesResult)
     ? (preferencesResult.value.composerEnterBehavior ?? DEFAULT_COMPOSER_ENTER_BEHAVIOR)
@@ -60,7 +61,9 @@ export function SettingsKeyboardRouteScreen() {
               selected={selectedBehavior === option.behavior}
               separated={index > 0}
               disabled={!preferencesReady}
-              onPress={() => savePreferences({ composerEnterBehavior: option.behavior })}
+              onPress={() => {
+                void savePreferences({ composerEnterBehavior: option.behavior });
+              }}
             />
           ))}
         </SettingsSection>

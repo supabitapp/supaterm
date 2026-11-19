@@ -19,7 +19,7 @@ import {
 } from "../../lib/mobileTheme";
 import { rootNavigationRef } from "../../lib/rootNavigation";
 import { appAtomRegistry } from "../../state/atom-registry";
-import { mobilePreferencesAtom, updateMobilePreferencesAtom } from "../../state/preferences";
+import { mobilePreferencesAtom, saveMobilePreferences } from "../../state/preferences";
 import { environmentProjects } from "../../state/projects";
 import { enqueueThreadOutboxMessage } from "../../state/thread-outbox";
 import { environmentThreads, environmentThreadShells } from "../../state/threads";
@@ -249,7 +249,7 @@ export function installShowcaseCapture(
       launchRequestRead && storedPreferences
         ? showcaseThemePatch({ themeMode, themeIds, requestedTheme })
         : null;
-    if (themePatch) appAtomRegistry.set(updateMobilePreferencesAtom, themePatch);
+    if (themePatch) void runAtomCommand(appAtomRegistry, saveMobilePreferences, themePatch);
 
     const projects = appAtomRegistry.get(environmentProjects.projectsAtom);
     const threads = appAtomRegistry.get(environmentThreadShells.threadShellsAtom);
