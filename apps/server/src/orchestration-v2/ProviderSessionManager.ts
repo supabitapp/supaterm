@@ -277,6 +277,9 @@ interface LiveSessionEntry {
     ThreadId,
     { readonly runtimeKey: string; readonly loadKey: string }
   >;
+  /** null marks an unreadable setting; undefined means MCP is not configured for sessions. */
+  readonly openedWithLinkedEnvironments: boolean | null | undefined;
+  readonly linkedEnvironmentsByThread: ReadonlyMap<ThreadId, boolean | null>;
   /**
    * Revocation on detach/release is scoped to these ids so tearing down a
    * superseded session cannot revoke a replacement session's credential for the
@@ -473,6 +476,13 @@ export const layerWithOptions = (
           );
         },
       );
+      const readLinkedEnvironments = Effect.gen(function* () {
+        if (options.configureMcp === false || Option.isNone(serverSettings)) return undefined;
+        return yield* serverSettings.value.getSettings.pipe(
+          Effect.map((settings) => settings.linkedEnvironmentsEnabled),
+          Effect.orElseSucceed(() => null),
+        );
+      });
       const layerScope = yield* Effect.scope;
       // Ctrl+C, or a stop that signals the whole process group, reaches the
       // provider CLIs with the server. They report their own background work
@@ -1655,11 +1665,14 @@ export const layerWithOptions = (
           attachedThreadIds.delete(input.threadId);
           const loadedProviderThreadsByThread = new Map(entry.loadedProviderThreadsByThread);
           loadedProviderThreadsByThread.delete(input.threadId);
+          const linkedEnvironmentsByThread = new Map(entry.linkedEnvironmentsByThread);
+          linkedEnvironmentsByThread.delete(input.threadId);
           const updated = new Map(current);
           updated.set(key, {
             ...entry,
             attachedThreadIds,
             loadedProviderThreadsByThread,
+            linkedEnvironmentsByThread,
           });
           return updated;
         });
@@ -1683,11 +1696,13 @@ export const layerWithOptions = (
           return new Map(current).set(key, { ...entry, loadedProviderThreadsByThread });
         });
 
+      /** Pass the setting read before a native load; a thread still loaded keeps its record. */
       const markProviderThreadLoaded = (input: {
         readonly providerSessionId: ProviderSessionId;
         readonly threadId: ThreadId;
         readonly providerThread: OrchestrationV2ProviderThread;
         readonly providerThreadKey: string;
+        readonly linkedEnvironments: boolean | null | undefined;
       }) =>
         Ref.update(sessions, (current) => {
           const key = sessionKey(input.providerSessionId);
@@ -1700,10 +1715,24 @@ export const layerWithOptions = (
             runtimeKey: providerThreadRuntimeKey(input.providerThread),
             loadKey: input.providerThreadKey,
           });
+          const linkedEnvironmentsByThread = new Map(entry.linkedEnvironmentsByThread);
+          if (
+            input.linkedEnvironments !== undefined &&
+            !linkedEnvironmentsByThread.has(input.threadId)
+          ) {
+            linkedEnvironmentsByThread.set(input.threadId, input.linkedEnvironments);
+          }
           const updated = new Map(current);
-          updated.set(key, { ...entry, loadedProviderThreadsByThread });
+          updated.set(key, { ...entry, loadedProviderThreadsByThread, linkedEnvironmentsByThread });
           return updated;
         });
+
+      const loadNatively = <A, E>(load: Effect.Effect<A, E>) =>
+        readLinkedEnvironments.pipe(
+          Effect.flatMap((linkedEnvironments) =>
+            load.pipe(Effect.map((loaded) => ({ loaded, linkedEnvironments }))),
+          ),
+        );
 
       const attachThreadToSession = (input: {
         readonly providerSessionId: ProviderSessionId;
@@ -1972,6 +2001,19 @@ export const layerWithOptions = (
         (effect) => effect.pipe(Effect.orElseSucceed(() => undefined)),
       );
 
+      const forgetLinkedEnvironmentsLoad = (
+        key: string,
+        runtime: ProviderAdapter.ProviderAdapterV2SessionRuntime,
+        threadId: ThreadId,
+      ) =>
+        Ref.update(sessions, (current) => {
+          const latest = current.get(key);
+          if (latest?.runtime !== runtime) return current;
+          const linkedEnvironmentsByThread = new Map(latest.linkedEnvironmentsByThread);
+          linkedEnvironmentsByThread.delete(threadId);
+          return new Map(current).set(key, { ...latest, linkedEnvironmentsByThread });
+        });
+
       const unloadIdleThread = Effect.fn("ProviderSessionManager.unloadIdleThread")(
         function* (input: {
           readonly providerSessionId: ProviderSessionId;
@@ -2048,6 +2090,7 @@ export const layerWithOptions = (
                       }).pipe(Effect.andThen(unload(false)))
                     : Effect.fail(cause),
                 ),
+                Effect.tap(() => forgetLinkedEnvironmentsLoad(key, entry.runtime, input.threadId)),
                 Effect.catchCause((cause) =>
                   Effect.logWarning("orchestration-v2.driver-session.idle-unload-failed", {
                     providerSessionId: input.providerSessionId,
@@ -2067,6 +2110,133 @@ export const layerWithOptions = (
           }
         },
       );
+
+      /**
+       * A shared runtime reloads only this idle thread so the others keep their processes.
+       * The caller holds the thread's attachment lock.
+       */
+      const unloadForLinkedEnvironments = Effect.fn(
+        "ProviderSessionManager.unloadForLinkedEnvironments",
+      )(function* (input: {
+        readonly providerSessionId: ProviderSessionId;
+        readonly threadId: ThreadId;
+        readonly providerThread: OrchestrationV2ProviderThread;
+      }) {
+        const key = sessionKey(input.providerSessionId);
+        const entry = (yield* Ref.get(sessions)).get(key);
+        const loadedWith = entry?.linkedEnvironmentsByThread.get(input.threadId);
+        const unloadThread = entry?.runtime.unloadThread;
+        if (
+          entry === undefined ||
+          !entry.supportsMultipleProviderThreads ||
+          unloadThread === undefined ||
+          loadedWith === undefined ||
+          input.providerThread.nativeThreadRef === null
+        ) {
+          return;
+        }
+        const linkedEnvironments = yield* readLinkedEnvironments;
+        if (typeof linkedEnvironments !== "boolean" || linkedEnvironments === loadedWith) return;
+        if (hasBusyTurn(entry, input.providerThread.id)) return;
+        // Unloading ends the thread's background work; a failed probe keeps it loaded too.
+        const hasPendingWork =
+          entry.runtime.hasPendingBackgroundWorkForThread === undefined
+            ? false
+            : yield* entry.runtime
+                .hasPendingBackgroundWorkForThread(input.providerThread, { includeSubagents: true })
+                .pipe(Effect.catchCause(() => Effect.succeed(true)));
+        if (hasPendingWork) return;
+        // Forget the load first so a timed-out unload still resumes natively next turn.
+        const unloading = yield* Ref.modify(sessions, (current) => {
+          const latest = current.get(key);
+          if (
+            latest?.runtime !== entry.runtime ||
+            latest.linkedEnvironmentsByThread.get(input.threadId) !== loadedWith ||
+            hasBusyTurn(latest, input.providerThread.id)
+          ) {
+            return [false, current] as const;
+          }
+          const loadedProviderThreadsByThread = new Map(latest.loadedProviderThreadsByThread);
+          loadedProviderThreadsByThread.delete(input.threadId);
+          return [
+            true,
+            new Map(current).set(key, { ...latest, loadedProviderThreadsByThread }),
+          ] as const;
+        });
+        if (!unloading) return;
+        yield* unloadThread({ providerThread: input.providerThread }).pipe(
+          Effect.timeout(UNLOAD_THREAD_TIMEOUT_MS),
+          Effect.tap(() => forgetLinkedEnvironmentsLoad(key, entry.runtime, input.threadId)),
+          Effect.catchCause((cause) =>
+            Effect.logWarning("orchestration-v2.driver-session.links-unload-failed", {
+              providerSessionId: input.providerSessionId,
+              threadId: input.threadId,
+              cause,
+            }),
+          ),
+        );
+      });
+
+      /** An exclusive runtime configures MCP at open, so it reopens once nothing would be lost. */
+      const releaseForLinkedEnvironments = Effect.fn(
+        "ProviderSessionManager.releaseForLinkedEnvironments",
+      )(function* (entry: LiveSessionEntry) {
+        if (
+          entry.supportsMultipleProviderThreads ||
+          entry.runtime.canResumeAfterRestart === false ||
+          entry.openedWithLinkedEnvironments === undefined ||
+          entry.busyTurns.size > 0
+        ) {
+          return;
+        }
+        const linkedEnvironments = yield* readLinkedEnvironments;
+        if (
+          typeof linkedEnvironments !== "boolean" ||
+          linkedEnvironments === entry.openedWithLinkedEnvironments
+        ) {
+          return;
+        }
+        const providerSessionId = entry.runtime.providerSessionId;
+        // Any activity during these reads bumps the generation and keeps the runtime.
+        const generation = entry.idleGeneration;
+        const hasPendingWork =
+          entry.runtime.hasPendingBackgroundWork === undefined
+            ? false
+            : yield* entry.runtime.hasPendingBackgroundWork.pipe(
+                Effect.catchCause(() => Effect.succeed(true)),
+              );
+        if (hasPendingWork) return;
+        // Checked under the request permit so a runless request mid-persist is not cancelled.
+        const hasUnfinishedRecords = Effect.forEach(entry.attachedThreadIds, (threadId) =>
+          projectionStore.getThreadRecords(threadId, ["runtimeRequests", "providerThreads"], {
+            runtimeRequestStatuses: ["pending"],
+          }),
+        ).pipe(
+          Effect.map((projections) =>
+            projections.some(
+              (projection) =>
+                projection.runtimeRequests.some(
+                  (request) =>
+                    request.responseCapability.type === "live" &&
+                    request.responseCapability.providerSessionId === providerSessionId,
+                ) ||
+                projection.providerThreads.some(
+                  (providerThread) =>
+                    providerThread.providerSessionId === providerSessionId &&
+                    (providerThread.pendingBackgroundTasks ?? []).length > 0,
+                ),
+            ),
+          ),
+          Effect.orElseSucceed(() => true),
+        );
+        yield* releaseEntry({
+          providerSessionId,
+          reason: "idle_timeout",
+          detail: "Linked environments changed; reopening the provider session.",
+          onlyIfIdleGeneration: generation,
+          keepIf: hasUnfinishedRecords,
+        }).pipe(logReleaseFailure(providerSessionId));
+      });
 
       const observeActivity = (
         providerSessionId: ProviderSessionId,
@@ -2157,13 +2327,16 @@ export const layerWithOptions = (
               ? loaded?.runtimeKey === providerThreadRuntimeKey(input.providerThread)
               : loaded?.loadKey === providerThreadKey;
           if (alreadyLoaded) return input.providerThread;
-          const providerThread = yield* runtime.resumeThread(input);
+          const { loaded: providerThread, linkedEnvironments } = yield* loadNatively(
+            runtime.resumeThread(input),
+          );
           yield* currentEntry(input.threadId);
           yield* markProviderThreadLoaded({
             providerSessionId,
             threadId: input.threadId,
             providerThread,
             providerThreadKey: providerThreadLoadKey({ ...input, runtime, providerThread }),
+            linkedEnvironments,
           });
           return providerThread;
         });
@@ -2261,8 +2434,8 @@ export const layerWithOptions = (
                 providerInstanceId: runtime.instanceId,
               }),
             ).pipe(
-              Effect.andThen(runtime.ensureThread(input)),
-              Effect.tap((providerThread) =>
+              Effect.andThen(loadNatively(runtime.ensureThread(input))),
+              Effect.tap(({ loaded: providerThread, linkedEnvironments }) =>
                 markProviderThreadLoaded({
                   providerSessionId,
                   threadId: input.threadId,
@@ -2273,8 +2446,10 @@ export const layerWithOptions = (
                     modelSelection: input.modelSelection,
                     runtimePolicy: input.runtimePolicy,
                   }),
+                  linkedEnvironments,
                 }),
               ),
+              Effect.map(({ loaded }) => loaded),
             ),
           resumeThread: (input) => {
             const threadId = input.threadId ?? input.providerThread.appThreadId;
@@ -2289,6 +2464,9 @@ export const layerWithOptions = (
                 Effect.andThen(
                   holdThreadLoaded({ ...target, providerThread: input.providerThread }),
                 ),
+                Effect.andThen(
+                  unloadForLinkedEnvironments({ ...target, providerThread: input.providerThread }),
+                ),
                 Effect.andThen(resumeProviderThread({ ...input, threadId })),
               ),
             );
@@ -2302,8 +2480,8 @@ export const layerWithOptions = (
                 providerInstanceId: runtime.instanceId,
               }),
             ).pipe(
-              Effect.andThen(runtime.forkThread(input)),
-              Effect.tap((providerThread) =>
+              Effect.andThen(loadNatively(runtime.forkThread(input))),
+              Effect.tap(({ loaded: providerThread, linkedEnvironments }) =>
                 markProviderThreadLoaded({
                   providerSessionId,
                   threadId: input.targetThreadId,
@@ -2318,8 +2496,10 @@ export const layerWithOptions = (
                       ? {}
                       : { runtimePolicy: input.runtimePolicy }),
                   }),
+                  linkedEnvironments,
                 }),
               ),
+              Effect.map(({ loaded }) => loaded),
             ),
           startTurn: (input) => {
             const target = { providerSessionId, threadId: input.threadId };
@@ -2839,6 +3019,8 @@ export const layerWithOptions = (
                 }
               }
               const key = sessionKey(input.providerSessionId);
+              const live = (yield* Ref.get(sessions)).get(key);
+              if (live !== undefined) yield* releaseForLinkedEnvironments(live);
               const existing = (yield* Ref.get(sessions)).get(key);
               if (existing !== undefined) {
                 const attached = existing.attachedThreadIds.has(input.threadId);
@@ -2869,6 +3051,7 @@ export const layerWithOptions = (
                     }),
                 ),
               );
+              const openedWithLinkedEnvironments = yield* readLinkedEnvironments;
               const prepared = yield* prepareMcpSession(
                 input.threadId,
                 input.modelSelection.instanceId,
@@ -2943,6 +3126,8 @@ export const layerWithOptions = (
               const entry: LiveSessionEntry = {
                 attachedThreadIds: new Set([input.threadId]),
                 loadedProviderThreadsByThread: new Map(),
+                openedWithLinkedEnvironments,
+                linkedEnvironmentsByThread: new Map(),
                 mcpCredentialIdByThread:
                   mcpCredentialId === undefined
                     ? new Map()
@@ -3172,6 +3357,8 @@ export const layerWithOptions = (
               attachedThreadIds.delete(input.threadId);
               const loadedProviderThreadsByThread = new Map(entry.loadedProviderThreadsByThread);
               loadedProviderThreadsByThread.delete(input.threadId);
+              const linkedEnvironmentsByThread = new Map(entry.linkedEnvironmentsByThread);
+              linkedEnvironmentsByThread.delete(input.threadId);
               const mcpCredentialIdByThread =
                 input.revokeMcpCredential === true
                   ? (() => {
@@ -3187,6 +3374,7 @@ export const layerWithOptions = (
                 ...entry,
                 attachedThreadIds,
                 loadedProviderThreadsByThread,
+                linkedEnvironmentsByThread,
                 mcpCredentialIdByThread,
                 idleThreadUnloads,
               };
