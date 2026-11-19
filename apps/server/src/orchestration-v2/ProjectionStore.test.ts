@@ -1199,6 +1199,155 @@ it.effect("user-only message reads find ordinals through the user-message index"
   }).pipe(Effect.provide(layerTest)),
 );
 
+it.effect("record reads filter notification sources without dropping matching message bodies", () =>
+  Effect.gen(function* () {
+    const store = yield* ProjectionStore.ProjectionStoreV2;
+    const threadId = yield* addRolledBackRecoveryCandidate("notification-filter");
+    const now = yield* DateTime.now;
+    for (const [id, role, kind] of [
+      ["ordinary", "user", null],
+      ["monitor", "user", "monitor"],
+      ["system", "user", "system"],
+      ["assistant-monitor", "assistant", "monitor"],
+      ["wake", "user", "wake"],
+    ] as const) {
+      yield* store.apply({
+        id: EventId.make(`notification-filter:${id}`),
+        type: "message.updated",
+        threadId,
+        occurredAt: now,
+        payload: {
+          id: MessageId.make(id),
+          threadId,
+          runId: null,
+          nodeId: null,
+          createdBy: "agent",
+          creationSource: "server",
+          role,
+          text: `Complete body for ${id}`,
+          attachments: [],
+          streaming: false,
+          createdAt: now,
+          updatedAt: now,
+          ...(kind === null
+            ? {}
+            : kind === "wake"
+              ? {
+                  delegatedCompletion: {
+                    parentRunId: RunId.make("run:wake-parent"),
+                    generation: 1,
+                    taskIds: [],
+                  },
+                }
+              : {
+                  notification: {
+                    source: { kind },
+                    outcome: "updated",
+                    summary: "Background notification",
+                  },
+                }),
+        },
+      });
+    }
+    const matching = yield* store.getThreadRecords(threadId, ["messages"], {
+      messageRoles: ["user"],
+      monitorNotificationsOnly: true,
+    });
+    assert.deepEqual(
+      matching.messages.map((message) => [message.id, message.text]),
+      [["monitor", "Complete body for monitor"]],
+    );
+    const delegatedTaskMessages = yield* store.getThreadRecords(threadId, ["messages"], {
+      messageRoles: ["user"],
+      delegatedTaskMessagesOnly: true,
+    });
+    assert.deepEqual(
+      delegatedTaskMessages.messages.map((message) => message.id),
+      ["monitor", "wake"],
+    );
+    const { statements, tracer } = traceSqlStatements();
+    const userMessages = yield* store
+      .getThreadRecords(threadId, ["messages"], { messageRoles: ["user"] })
+      .pipe(Effect.withTracer(tracer));
+    assert.lengthOf(userMessages.messages, 4);
+    const ordinalLookup = statements.find((statement) => statement.includes("MIN(ordinal)"));
+    // User-only reads must seek the message-ordinal index instead of scanning every turn item.
+    yield* assertReadsThroughMessageOrdinalIndex(ordinalLookup, ["thread_id=?", "<expr>=?"]);
+    // With every user item loaded, the items give the order and the lookup does not run.
+    const withItems = traceSqlStatements();
+    const ordered = yield* store
+      .getThreadRecords(threadId, ["messages", "turnItems"], {
+        messageRoles: ["user"],
+        turnItemTypes: ["user_message"],
+      })
+      .pipe(Effect.withTracer(withItems.tracer));
+    assert.deepEqual(ordered.messages, userMessages.messages);
+    assert.isFalse(withItems.statements.some((statement) => statement.includes("MIN(ordinal)")));
+    assert.lengthOf((yield* store.getThreadRecords(threadId, ["messages"])).messages, 5);
+    assert.lengthOf(
+      (yield* store.getThreadRecords(threadId, ["messages"], {
+        monitorNotificationsOnly: true,
+      })).messages,
+      2,
+    );
+    assert.lengthOf(
+      (yield* store.getThreadRecords(threadId, ["messages"], {
+        monitorNotificationsOnly: false,
+      })).messages,
+      5,
+    );
+  }).pipe(Effect.provide(layerTest)),
+);
+
+it.effect("reads a delegated child's recent, unfinished and task runs without its history", () =>
+  Effect.gen(function* () {
+    const store = yield* ProjectionStore.ProjectionStoreV2;
+    const threadId = yield* addRolledBackRecoveryCandidate("delegated-child-runs");
+    const first = (yield* store.getThreadRecords(threadId, ["runs"])).runs[0]!;
+    const at = (minutes: number) => DateTime.add(first.requestedAt, { minutes: minutes + 60 });
+    const id = (ordinal: number) => RunId.make(`run:delegated-child-runs:${ordinal}`);
+    const unstartedCancel = { status: "cancelled", startedAt: null } as const;
+    for (const [ordinal, patch] of [
+      [3, { status: "running", completedAt: null }],
+      // Unstarted cancelled runs are outside the window's index: one ends after the floor.
+      [4, { ...unstartedCancel, completedAt: at(20) }],
+      [5, { ...unstartedCancel, completedAt: at(1) }],
+      ...[2, 6, 7, 8, 9, 10, 11, 12].map((ordinal) => [ordinal, {}] as const),
+    ] as const) {
+      yield* store.apply({
+        id: EventId.make(`event:delegated-child-runs:${ordinal}`),
+        type: "run.created",
+        threadId,
+        runId: id(ordinal),
+        occurredAt: first.requestedAt,
+        payload: {
+          ...first,
+          id: id(ordinal),
+          ordinal,
+          status: "completed",
+          startedAt: at(ordinal),
+          completedAt: at(ordinal),
+          delegatedTaskId: NodeId.make(`node:delegated-child-runs:task:${ordinal}`),
+          ...patch,
+        },
+      });
+    }
+    const taskIds = [NodeId.make("node:delegated-child-runs:task:2")];
+    const bounded = yield* store.getDelegatedChildControls(threadId, { taskIds, windowSize: 3 });
+    assert.equal(bounded.runsFloor?.id, id(11));
+    assert.deepEqual(
+      bounded.runs.map((run) => run.id),
+      [2, 3, 4, 11, 12].map(id),
+    );
+    const whole = yield* store.getDelegatedChildControls(threadId, { taskIds, windowSize: 100 });
+    assert.isUndefined(whole.runsFloor);
+    assert.deepEqual(
+      whole.runs.map((run) => run.id),
+      (yield* store.getThreadRecords(threadId, ["runs"])).runs.map((run) => run.id),
+    );
+  }).pipe(Effect.provide(layerTest)),
+);
+
 it.effect("shells flag a latest run triggered by a provider background wake", () =>
   Effect.gen(function* () {
     const store = yield* ProjectionStore.ProjectionStoreV2;
