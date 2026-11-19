@@ -70,7 +70,7 @@ import {
   formatReadToolLabel,
   formatSearchToolLabel,
 } from "@supaterm/shared/toolActivity";
-import { isWindowsAbsolutePath } from "@supaterm/shared/path";
+import { isHostPath } from "@supaterm/shared/path";
 import {
   type WorkGroupDisclosure,
   type WorkGroupDisclosures,
@@ -234,7 +234,7 @@ export function workEntryReadOutput(
       workEntryReadRawPaths(entry as WorkLogEntry)
         .map((path) => {
           const trimmed = path.trim().replaceAll("\\", "/");
-          if (!workspaceRoot || trimmed.startsWith("/") || isWindowsAbsolutePath(trimmed)) {
+          if (!workspaceRoot || isHostPath(trimmed)) {
             return trimmed;
           }
           const root = workspaceRoot.replaceAll("\\", "/").replace(/\/+$/, "");
