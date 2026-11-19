@@ -145,14 +145,17 @@ also what keeps restart recovery from treating them as abandoned provider work.
 - **The task is recorded before its launch is sent** (`remoteLaunch`), with the
   key the launch carries. A lost answer or a restart sends the same launch
   again and finds the thread it already started. A link made again has another
-  session there that does not know the key, so the follower abandons the launch
-  instead of starting a second thread.
+  session there that does not know the key, so the launch is bound to the link
+  it was recorded under and refused at the credential lookup instead of
+  starting a second thread. A task that ended here first asks which thread its
+  launch started (`replayOnly`) instead of sending it, so cancelled work never
+  starts there. A launch still on its way when that question arrives can.
 - **Mark Done and Reopen on the parent are owed to the thread there**
   (`remoteChild.doneOwed`), recorded in the same transaction on the latest task
-  of each thread so one follower sends them in order. The follower retries
-  while the peer does not answer. It drops a Done that new work here undid, or
-  that the thread there refuses while it still answers reads, because that
-  thread is in use there.
+  of each thread. Sends to one thread there take turns, so they arrive in
+  order. The follower retries while the peer gives no answer. It drops a Done
+  that new work here undid, or that the thread there answers with a refusal,
+  because that thread is in use there.
 
 Clients list a delegated thread under its parent only when they also list the
 parent ([`threadShell.ts`](../../packages/client-runtime/src/state/threadShell.ts)),
