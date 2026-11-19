@@ -213,14 +213,6 @@ export function QuestionAttachments(props: {
   };
   return (
     <View className="gap-2">
-      {canAttach ? (
-        <ComposerAttachmentButton
-          disabled={props.disabled}
-          supportsFiles
-          onPickMedia={() => pick("media")}
-          onPickFiles={() => pick("files")}
-        />
-      ) : null}
       {attachments.length > 0 ? (
         <Animated.View entering={FadeIn.duration(140)} exiting={FadeOut.duration(120)}>
           <ComposerAttachmentStrip
@@ -276,9 +268,19 @@ export function QuestionAttachments(props: {
               onInputFocusChange?.(false);
             }}
             placeholder="Or type a custom answer"
-            className="min-h-[54px] pr-12"
+            className={canAttach ? "min-h-[54px] pl-12 pr-12" : "min-h-[54px] pr-12"}
           />
         </TextInputWrapper>
+        {canAttach ? (
+          <View className="absolute bottom-[5px] left-1">
+            <ComposerAttachmentButton
+              disabled={props.disabled}
+              supportsFiles
+              onPickMedia={() => pick("media")}
+              onPickFiles={() => pick("files")}
+            />
+          </View>
+        ) : null}
         {voice.isAvailable && !showsDictation ? (
           <View className="absolute right-1 bottom-[5px]">
             <ComposerDictationStartAction
