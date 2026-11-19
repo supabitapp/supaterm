@@ -126,14 +126,14 @@ interface ThreadLifecycleInput {
   readonly requestFrame?: (callback: () => void) => void;
 }
 
+const requestWindowFrame = (callback: FrameRequestCallback) =>
+  window.requestAnimationFrame(callback);
+
 /**
  * Thread state the chat shows and changes outside a normal send: snooze and Done with
  * their status line, the local checkout's branch, background work, child-thread and goal
  * banners, opening related threads, and standalone slash commands.
  */
-const requestWindowFrame = (callback: FrameRequestCallback) =>
-  window.requestAnimationFrame(callback);
-
 export function useThreadLifecycle(input: ThreadLifecycleInput) {
   const {
     environmentId,
