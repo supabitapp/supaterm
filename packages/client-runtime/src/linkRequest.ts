@@ -9,7 +9,7 @@ import {
   resolveEnvironmentMachineKind,
   type ServerConfig,
 } from "@supaterm/contracts";
-import { isLocalLoopbackHost } from "@supaterm/shared/hostClassification";
+import { isLocalLoopbackHost, isTailnetHost } from "@supaterm/shared/hostClassification";
 import * as Option from "effect/Option";
 
 import type { EnvironmentPresentation } from "./connection/presentation.ts";
@@ -81,20 +81,26 @@ export interface LinkableMachine {
   /** Whether the thread's environment already has a link to it. */
   readonly linked: boolean;
   /**
-   * Where the client knows it answers, most preferred first: the addresses it
-   * reports, then its saved routes, its Encrypted Relay address among them. The
-   * server keeps only those that answer as this machine. Empty for a machine
-   * reached only over SSH or loopback, which name this client's device.
+   * Where the client knows it answers and a server may link it, most preferred first: the
+   * addresses it reports, then its saved routes, its Encrypted Relay address among them. The
+   * server keeps only those that answer as this machine. Empty for a machine reached only
+   * over SSH, loopback or plain http off the tailnet.
    */
   readonly urls: ReadonlyArray<string>;
   /** The relay server its relay address goes through, when the client saved one. */
   readonly relayUrl?: string;
 }
 
-/** A loopback address names whichever machine opens it: the linking server, not this one. */
-const isLoopbackUrl = (url: string) => {
-  const hostname = parsedUrl(url)?.hostname;
-  return hostname !== undefined && isLocalLoopbackHost(hostname);
+/**
+ * An address a linking server sends credentials to: https, which covers a relay address, or
+ * the tailnet by name. A loopback address names whichever machine opens it, so never that.
+ */
+const isLinkableUrl = (url: string) => {
+  const parsed = parsedUrl(url);
+  if (parsed === undefined || isLocalLoopbackHost(parsed.hostname)) return false;
+  return (
+    parsed.protocol === "https:" || (parsed.protocol === "http:" && isTailnetHost(parsed.hostname))
+  );
 };
 
 /**
@@ -136,7 +142,7 @@ export function linkableMachines(input: {
         machine: resolveEnvironmentMachineKind(environment.serverConfig),
         connected: environment.connection.phase === "connected",
         linked: linkedIds.has(environment.environmentId),
-        urls: [...new Set([...reported, ...saved])].filter((url) => !isLoopbackUrl(url)),
+        urls: [...new Set([...reported, ...saved])].filter(isLinkableUrl),
         ...(relayUrl === undefined ? {} : { relayUrl }),
       };
     });

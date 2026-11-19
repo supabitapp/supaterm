@@ -55,8 +55,14 @@ import { searchableSetting } from "./settingsSearch";
 const UNLINK_COMMAND_LABEL = "unlink environment";
 const LINK_COMMAND_LABEL = "link environment";
 
-const failureToast = (title: string, description: string) =>
-  toastManager.add(stackedThreadToast({ type: "error", title, description }));
+const failureToast = (title: string, failure: unknown) =>
+  toastManager.add(
+    stackedThreadToast({
+      type: "error",
+      title,
+      description: failure instanceof Error ? failure.message : String(failure),
+    }),
+  );
 
 /** A section for each connected environment that can link to others. */
 export function LinkedEnvironmentsSections() {
@@ -99,8 +105,6 @@ function LinkedEnvironmentsSettings({
       }
     >
       <SettingsRow
-        serverScoped
-        settingKeys={["linkedEnvironmentsEnabled"]}
         title="Let agents work on your other machines"
         description="Agents here can work on machines you link, and theirs here. Turn it on for each machine, then link them. While off, nothing new starts over a link; running tasks finish."
         control={
@@ -178,7 +182,7 @@ function LinkedEnvironmentRow({
     const result = await unlink({ environmentId, input: { environmentId: link.environmentId } });
     setBusy(false);
     if (result._tag === "Failure" && !isAtomCommandInterrupted(result)) {
-      failureToast("Could not forget the link", String(squashAtomCommandFailure(result)));
+      failureToast("Could not forget the link", squashAtomCommandFailure(result));
     }
   };
   const status =
@@ -323,7 +327,7 @@ function LinkEnvironmentAction({ environmentId }: { readonly environmentId: Envi
       });
       handleOpenChange(false);
     } else if (!isAtomCommandInterrupted(result)) {
-      failureToast("Could not link the environment", String(squashAtomCommandFailure(result)));
+      failureToast("Could not link the environment", squashAtomCommandFailure(result));
     }
   };
   return (

@@ -154,10 +154,17 @@ const presentation = (
 describe("linkableMachines", () => {
   it("lists the other machines with reported addresses before saved ones, once each", () => {
     const here = presentation("environment-here", "Here", { saved: ["http://localhost:3773"] });
-    // A loopback address would name the linking server itself, so it is no address of the VPS.
+    // A loopback address would name the linking server itself, and a server sends no
+    // credentials over plain http off the tailnet, so neither is an address of the VPS.
     const vps = presentation("environment-vps", "VPS", {
-      saved: ["https://vps.example.com", "https://vps.ts.net", "http://127.0.0.1:3773"],
-      reported: ["https://vps.ts.net", "http://localhost:3773"],
+      saved: [
+        "https://vps.example.com",
+        "https://vps.ts.net",
+        "http://127.0.0.1:3773",
+        "http://100.64.0.7:3773",
+        "http://192.168.1.20:3773",
+      ],
+      reported: ["https://vps.ts.net", "http://localhost:3773", "http://vps.tail1234.ts.net:3773"],
     });
     // Reached only over SSH, which names this client's device: no address a server could use.
     const mini = presentation("environment-mini", "Mini", { connected: false });
@@ -174,7 +181,7 @@ describe("linkableMachines", () => {
         machine: "laptop",
         connected: true,
         linked: false,
-        urls: ["https://vps.ts.net", "https://vps.example.com"],
+        urls: ["https://vps.ts.net", "http://vps.tail1234.ts.net:3773", "https://vps.example.com"],
       },
       {
         environmentId: mini.environmentId,

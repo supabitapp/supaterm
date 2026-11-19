@@ -9,7 +9,7 @@ import type { EnvironmentId } from "@supaterm/contracts";
 import { Atom } from "effect/reactivity";
 
 import { connectionAtomRuntime } from "../connection/runtime";
-import { useEnvironmentIdentities, useEnvironments } from "./environments";
+import { useEnvironmentIdentities, useEnvironments, usePrimaryEnvironmentId } from "./environments";
 import { environmentPresentations } from "./presentation";
 import { useEnvironmentQuery } from "./query";
 
@@ -47,15 +47,23 @@ export function useLinkedEnvironments(
   });
 }
 
-/** The connected environments that can link, each with whether Linked environments is on there. */
+/** The connected environments that can link, this app's own first, each with whether Linked environments is on there. */
 export function usePeerLinkHosts() {
   const { environments } = useEnvironments();
-  return environments.flatMap((environment) =>
-    environment.connection.phase === "connected" &&
-    environment.serverConfig?.environment.capabilities.peerLinks === true
-      ? [{ environment, enabled: offersLinkedEnvironments(environment.serverConfig) }]
-      : [],
-  );
+  const primaryEnvironmentId = usePrimaryEnvironmentId();
+  const isPrimary = (environment: (typeof environments)[number]) =>
+    Number(environment.environmentId === primaryEnvironmentId);
+  return environments
+    .filter(
+      (environment) =>
+        environment.connection.phase === "connected" &&
+        environment.serverConfig?.environment.capabilities.peerLinks === true,
+    )
+    .toSorted((left, right) => isPrimary(right) - isPrimary(left))
+    .map((environment) => ({
+      environment,
+      enabled: offersLinkedEnvironments(environment.serverConfig),
+    }));
 }
 
 /**
