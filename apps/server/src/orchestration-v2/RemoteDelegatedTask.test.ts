@@ -420,7 +420,7 @@ it.layer(layerTest)("a delegated task in a linked environment", (it) => {
       assert.equal(offered[0]?.threadId, parent.threadId);
     }),
   );
-  const launchOf = (name: string) => ({
+  const launchOf = (name: string, completionWake: "always" | "settled_only") => ({
     environmentId: remoteChild.environmentId,
     label: "Box",
     linkedAt: "2026-11-01T00:00:00.000Z",
@@ -428,10 +428,10 @@ it.layer(layerTest)("a delegated task in a linked environment", (it) => {
     key: `key:${name}`,
     projectId: ProjectId.make("project:on-the-box"),
     title: "Run the suite there.",
-    completionWake: "always" as const,
+    completionWake,
   });
 
-  const recordLaunch = (name: string) =>
+  const recordLaunch = (name: string, completionWake: "always" | "settled_only" = "always") =>
     Effect.gen(function* () {
       const orchestrator = yield* Orchestrator.OrchestratorV2;
       const parent = yield* seedLiveParent(name);
@@ -444,7 +444,7 @@ it.layer(layerTest)("a delegated task in a linked environment", (it) => {
         task: "Run the suite there.",
         driver: ProviderDriverKind.make("remote"),
         modelSelection,
-        remote: { remoteLaunch: launchOf(name) },
+        remote: { remoteLaunch: launchOf(name, completionWake) },
       });
       const taskOf = orchestrator
         .getThreadProjection(parent.threadId)
@@ -563,6 +563,9 @@ it.layer(layerTest)("a delegated task in a linked environment", (it) => {
         open.filter((entry) => entry.parentThreadId === parent.threadId),
         [],
       );
+      // Nothing runs there for it, so it keeps its parent in no trimmed list.
+      const index = yield* projections.listActiveShellIndex();
+      assert.isFalse(index.find((entry) => entry.id === parent.threadId)?.hasRemoteTasks);
       const attach = yield* orchestrator
         .dispatch({
           type: "delegated_task.remote.attach",
@@ -574,6 +577,69 @@ it.layer(layerTest)("a delegated task in a linked environment", (it) => {
         })
         .pipe(Effect.flip);
       assert.equal(attach._tag, "OrchestratorDispatchError");
+    }),
+  );
+
+  it.effect("answered after a timed-out wait keeps the wake that wait asked for", () =>
+    Effect.gen(function* () {
+      const { orchestrator, parent, taskOf, taskId } = yield* recordLaunch(
+        "launch-waited",
+        "settled_only",
+      );
+      yield* orchestrator.dispatch({
+        type: "delegated_task.wake-policy",
+        commandId: CommandId.make("command:wake-policy:launch-waited"),
+        parentThreadId: parent.threadId,
+        taskId,
+        completionWake: "always",
+      });
+      yield* orchestrator.dispatch({
+        type: "delegated_task.remote.attach",
+        commandId: CommandId.make("command:remote-task-attach:launch-waited"),
+        parentThreadId: parent.threadId,
+        taskId,
+        remoteChild,
+        modelSelection,
+      });
+      assert.equal((yield* taskOf).completionWake, "always");
+    }),
+  );
+
+  it.effect("answered after its parent was marked Done owes that Done to its thread there", () =>
+    Effect.gen(function* () {
+      const sink = yield* EventSink.EventSinkV2;
+      const { orchestrator, parent, taskOf, taskId } = yield* recordLaunch("launch-done");
+      const now = yield* DateTime.now;
+      const run = (yield* orchestrator.getThreadProjection(parent.threadId)).runs[0]!;
+      yield* sink.write({
+        commandId: CommandId.make("command:seed:launch-done:run-ended"),
+        events: [
+          {
+            id: EventId.make("event:seed-run-ended:launch-done"),
+            type: "run.updated",
+            threadId: parent.threadId,
+            runId: parent.runId,
+            nodeId: parent.rootNodeId,
+            providerInstanceId: instanceId,
+            occurredAt: now,
+            payload: { ...run, status: "completed", completedAt: now },
+          },
+        ],
+      });
+      yield* orchestrator.dispatch({
+        type: "thread.mark-done",
+        commandId: CommandId.make("command:mark-done:launch-done"),
+        threadId: parent.threadId,
+      });
+      yield* orchestrator.dispatch({
+        type: "delegated_task.remote.attach",
+        commandId: CommandId.make("command:remote-task-attach:launch-done"),
+        parentThreadId: parent.threadId,
+        taskId,
+        remoteChild,
+        modelSelection,
+      });
+      assert.equal((yield* taskOf).remoteChild?.doneOwed, "mark_done");
     }),
   );
 

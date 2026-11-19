@@ -40,19 +40,27 @@ export class PeerMcpClient extends Context.Service<
   PeerMcpClient,
   {
     /** Calls `tool` on the peer and decodes its structured result with `success`. */
-    readonly call: <S extends Schema.Decoder<unknown>>(input: {
-      readonly environmentId: EnvironmentId;
-      readonly tool: string;
-      readonly arguments: Record<string, unknown>;
-      readonly limits: PeerCallLimits;
-      /** The thread here the call is made for, sent as `Supaterm-Sender-Thread`. */
-      readonly sender?: OrchestrationV2LinkedSender;
-      /** Sends only under the link made then, as `PeerLinks.resolve` does. */
-      readonly linkedAt?: string;
-      readonly success: S;
-    }) => Effect.Effect<S["Type"], OrchestratorMcpFailure>;
+    readonly call: <S extends Schema.Decoder<unknown>>(
+      input: PeerCall<S>,
+    ) => Effect.Effect<S["Type"], OrchestratorMcpFailure>;
+    /** As `call`, but the peer's own refusal is the result's failure; a failed effect is no answer. */
+    readonly answer: <S extends Schema.Decoder<unknown>>(
+      input: PeerCall<S>,
+    ) => Effect.Effect<Result.Result<S["Type"], OrchestratorMcpFailure>, OrchestratorMcpFailure>;
   }
 >()("supaterm/peer/PeerMcpClient") {}
+
+interface PeerCall<S> {
+  readonly environmentId: EnvironmentId;
+  readonly tool: string;
+  readonly arguments: Record<string, unknown>;
+  readonly limits: PeerCallLimits;
+  /** The thread here the call is made for, sent as `Supaterm-Sender-Thread`. */
+  readonly sender?: OrchestrationV2LinkedSender;
+  /** Sends only under the link made then, as `PeerLinks.resolve` does. */
+  readonly linkedAt?: string;
+  readonly success: S;
+}
 
 const ToolCallResponse = Schema.Struct({
   result: Schema.optional(
@@ -166,7 +174,7 @@ const make = Effect.gen(function* () {
     (effect, { address }) => Effect.timeout(effect, PeerLinks.probeTimeout(address)),
   );
 
-  const call: PeerMcpClient["Service"]["call"] = Effect.fn("PeerMcpClient.call")(
+  const answer: PeerMcpClient["Service"]["answer"] = Effect.fn("PeerMcpClient.answer")(
     function* (input) {
       const resolved = yield* links
         .resolve(
@@ -298,11 +306,14 @@ const make = Effect.gen(function* () {
           HttpClientError: () => Effect.fail(stoppedAnswering),
           TimeoutError: () => Effect.fail(stoppedAnswering),
         }),
-        Effect.flatMap(Effect.fromResult),
       ),
   );
 
-  return PeerMcpClient.of({ call });
+  const call: PeerMcpClient["Service"]["call"] = Effect.fn("PeerMcpClient.call")(function* (input) {
+    return yield* Effect.fromResult(yield* answer(input));
+  });
+
+  return PeerMcpClient.of({ call, answer });
 });
 
 export const layer = Layer.effect(PeerMcpClient, make);

@@ -11,7 +11,6 @@ import {
   type OrchestratorMcpThreadSendInput,
   type OrchestratorMcpThreadSendResult,
   type OrchestratorMcpThreadTimelineItem,
-  type OrchestrationV2AppThread,
   type OrchestrationV2RemoteTaskChild,
   type OrchestrationV2RemoteTaskLaunch,
   type OrchestrationV2Subagent,
@@ -36,6 +35,7 @@ import * as Scope from "effect/Scope";
 import * as Stream from "effect/Stream";
 import * as Tool from "effect/ai/Tool";
 import { withExecutedModelNote } from "@supaterm/provider-core/server/subagentProjection";
+import * as KeyedLock from "@supaterm/shared/KeyedLock";
 
 import type * as McpInvocationContext from "../mcp/McpInvocationContext.ts";
 import { ProjectToolkit } from "../mcp/toolkits/project/tools.ts";
@@ -174,6 +174,7 @@ const make = Effect.gen(function* () {
   const hereId = yield* ServerEnvironment.ServerEnvironment.pipe(
     Effect.flatMap((environment) => environment.getEnvironmentId),
   );
+  const doneThere = yield* KeyedLock.make<string>();
   // Followers live as long as this service, so shutting down stops them.
   const followers = yield* Scope.Scope;
 
@@ -947,7 +948,12 @@ const make = Effect.gen(function* () {
         return yield* settled(parentThreadId, taskId);
       }
       if (remote.doneOwed === undefined) return true;
-      yield* passOnDone(thread, taskId, remote, remote.doneOwed);
+      // Tasks that share a thread there send one at a time, so a Done still on its way never
+      // lands after the Reopen that replaced it.
+      yield* doneThere.withLock(
+        `${remote.environmentId}\n${remote.threadId}`,
+        passOnDone(parentThreadId, taskId, remote, remote.doneOwed),
+      );
       // The next look sends one owed since.
       return false;
     }
@@ -1052,41 +1058,36 @@ const make = Effect.gen(function* () {
   /**
    * Passes the parent's Mark Done or Reopen on to the task's thread there, once the task has
    * its result. A Done that new work here undid since is dropped. So is one the thread there
-   * refuses while it still answers reads: it is in use there and stays as its users left it.
-   * An environment that does not answer is asked again, across restarts.
+   * refuses: it is in use there and stays as its users left it. An environment that gives no
+   * answer is asked again, across restarts.
    */
   const passOnDone = Effect.fn("RemoteDelegation.passOnDone")(function* (
-    parent: OrchestrationV2AppThread,
+    parentThreadId: ThreadId,
     taskId: NodeId,
     remote: OrchestrationV2RemoteTaskChild,
     owed: "mark_done" | "reopen",
   ) {
+    const { thread: parent, task } = yield* readTask(parentThreadId, taskId);
+    // Another task for the same thread there took this over while this one waited its turn.
+    if (task?.remoteChild?.doneOwed !== owed) return;
     if (owed === "reopen" || parent.doneOverride === "done") {
       const scope = followScope(
         { threadId: parent.id, providerInstanceId: parent.providerInstanceId },
         remote,
       );
-      yield* forwarding
+      const answer = yield* forwarding
         .setThreadDone(scope, remote.environmentId, { threadId: remote.threadId, action: owed })
         .pipe(
-          Effect.catch(
-            Effect.fn("RemoteDelegation.doneRefused")(function* (error) {
-              const final =
-                isModeRefusal(error) ||
-                (yield* finalReason(parent.id, taskId, error)) !== undefined;
-              if (!final) {
-                yield* forwarding
-                  .readThread(scope, remote.environmentId, { threadId: remote.threadId, limit: 1 })
-                  .pipe(Effect.mapError(() => error));
-              }
-              yield* Effect.logInfo("A linked environment kept a delegated thread as it was", {
-                taskId,
-                owed,
-                reason: error.message,
-              });
-            }),
-          ),
+          // Refused here before anything was sent: the link is gone, or no longer accepted.
+          Effect.catchIf(isRefusal, (error) => Effect.succeed(Result.fail(error))),
         );
+      if (Result.isFailure(answer)) {
+        yield* Effect.logInfo("A linked environment kept a delegated thread as it was", {
+          taskId,
+          owed,
+          reason: answer.failure.message,
+        });
+      }
     }
     const attempt = yield* random.uuidV4();
     yield* threads

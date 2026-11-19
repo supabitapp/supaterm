@@ -2951,6 +2951,46 @@ it.effect.each([
   ).pipe(Effect.provide(NodeHttpServer.layerTest)),
 );
 
+it.effect("a Done whose answer is lost is sent again, though the box answers reads", () =>
+  Effect.scoped(
+    Effect.gen(function* () {
+      const thread = yield* makeBoxThread;
+      const b = yield* serveBox(thread);
+      const offers = yield* SubscriptionRef.make<
+        ReadonlyArray<ProviderContinuationRequests.ProviderContinuationRequest>
+      >([]);
+      const database = yield* SqlitePersistence.layerMemory.pipe(Layer.build);
+      const retries = yield* steppedRetries;
+      const a = yield* makeLaptop(database, offers).pipe(
+        Effect.provideService(RemoteDelegation.FollowRetrySchedule, retries.schedule),
+      );
+      yield* a.remote.start();
+      yield* linkTo(a.links, b, "full-access");
+      yield* seedParent(a);
+      const delegated = yield* delegateToBox(a);
+      yield* Ref.set(thread.status, "completed");
+      yield* Deferred.succeed(thread.finished, undefined);
+      yield* taskResult(a, delegated.taskId);
+      yield* endParentRun(a);
+      yield* Ref.set(b.loseReply, true);
+      const marked = yield* a.threads.markThreadDone({
+        threadId: parentThreadId,
+        commandId: CommandId.make("command:mark-done:laptop-parent"),
+        byOwnAgent: false,
+      });
+      const after = "sequence" in marked ? marked.sequence : 0;
+      const outcome = yield* Effect.raceFirst(
+        Queue.take(retries.failed).pipe(Effect.as("sent again")),
+        nothingOwedThere(a, delegated.taskId, after).pipe(Effect.as("dropped")),
+      );
+      expect(outcome).toBe("sent again");
+      yield* Queue.offer(retries.retry, undefined);
+      yield* nothingOwedThere(a, delegated.taskId, after);
+      expect(yield* Queue.size(thread.organized)).toBe(2);
+    }),
+  ).pipe(Effect.provide(NodeHttpServer.layerTest)),
+);
+
 it.effect("a task whose thread there has no run ends with its last reply", () =>
   Effect.scoped(
     Effect.gen(function* () {

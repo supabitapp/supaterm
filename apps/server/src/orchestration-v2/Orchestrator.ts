@@ -9877,11 +9877,16 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
       occurredAt: now,
       payload: {
         ...task,
-        remoteChild: command.remoteChild,
+        // A parent marked Done while the launch was unanswered owes that Done to the thread named now.
+        remoteChild:
+          parentProjection.thread.doneOverride === "done"
+            ? { ...command.remoteChild, doneOwed: "mark_done" }
+            : command.remoteChild,
         providerInstanceId: command.modelSelection.instanceId,
         model: command.modelSelection.model,
         modelSelection: command.modelSelection,
-        completionWake: remoteLaunch.completionWake,
+        // A wait that timed out meanwhile asked for a wake, which the launch's own policy must not undo.
+        completionWake: task.completionWake === "always" ? "always" : remoteLaunch.completionWake,
         updatedAt: now,
       },
     });

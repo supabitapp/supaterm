@@ -9078,6 +9078,8 @@ export const layer: Layer.Layer<ProjectionStoreV2, never, SqlClient.SqlClient> =
             SELECT subagent.thread_id
             FROM orchestration_v2_projection_subagents subagent ${REMOTE_TASKS_INDEX}
             WHERE ${remoteTask(sql`subagent`)}
+              -- A launch that started nothing there has no thread to show under this one.
+              AND json_type(subagent.payload_json, '$.remoteLaunch.abandoned') IS NOT 'true'
           ) AS has_remote_tasks
         FROM orchestration_v2_projection_threads t
         WHERE t.deleted_at IS NULL

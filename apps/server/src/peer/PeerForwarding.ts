@@ -19,6 +19,7 @@ import * as Effect from "effect/Effect";
 import * as Hex from "effect/encoding/Hex";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
+import * as Result from "effect/Result";
 import * as Schema from "effect/Schema";
 import type * as Tool from "effect/ai/Tool";
 
@@ -68,12 +69,15 @@ export class PeerForwarding extends Context.Service<
       environmentId: EnvironmentId,
       input: OrchestratorMcpThreadInterruptInput,
     ) => Effect.Effect<OrchestratorMcpThreadInterruptResult, OrchestratorMcpFailure>;
-    /** Marks a thread there Done, or reopens it, as `supaterm_thread_organize` does. */
+    /**
+     * Marks a thread there Done, or reopens it, as `supaterm_thread_organize` does. A refusal
+     * from the thread there is the result's failure; a failed effect is no answer from there.
+     */
     readonly setThreadDone: (
       scope: Scope,
       environmentId: EnvironmentId,
       input: { readonly threadId: ThreadId; readonly action: "mark_done" | "reopen" },
-    ) => Effect.Effect<void, OrchestratorMcpFailure>;
+    ) => Effect.Effect<Result.Result<void, OrchestratorMcpFailure>, OrchestratorMcpFailure>;
     /** `supaterm_thread_wait` there, bounded like a local wait. */
     readonly waitForThread: (
       scope: Scope,
@@ -160,12 +164,14 @@ const make = Effect.gen(function* () {
     });
   });
 
-  /** Tool and contract schemas are plain data: they encode and decode without services. */
-  const forward = Effect.fn("PeerForwarding.forward")(function* <A>(
+  /**
+   * The call a forwarded tool makes there. Tool and contract schemas are plain data: they
+   * encode and decode without services. Untraced: its two callers span the whole call.
+   */
+  const request = Effect.fnUntraced(function* (
     scope: Scope,
     toolName: string,
     parameters: Schema.Top,
-    success: Schema.Top,
     environmentId: EnvironmentId,
     params: unknown,
     linkedAt?: string,
@@ -195,13 +201,27 @@ const make = Effect.gen(function* () {
             threadId: caller.id,
             title: caller.title,
           };
-    return yield* peers.call({
+    return {
       environmentId,
       tool: toolName,
       arguments: args,
       limits,
       ...(sender === undefined ? {} : { sender }),
       ...(linkedAt === undefined ? {} : { linkedAt }),
+    };
+  });
+
+  const forward = Effect.fn("PeerForwarding.forward")(function* <A>(
+    scope: Scope,
+    toolName: string,
+    parameters: Schema.Top,
+    success: Schema.Top,
+    environmentId: EnvironmentId,
+    params: unknown,
+    linkedAt?: string,
+  ) {
+    return yield* peers.call({
+      ...(yield* request(scope, toolName, parameters, environmentId, params, linkedAt)),
       success: success as Schema.Decoder<A>,
     });
   });
@@ -230,15 +250,15 @@ const make = Effect.gen(function* () {
       input,
     );
 
-  const setThreadDone: PeerForwarding["Service"]["setThreadDone"] = (scope, environmentId, input) =>
-    forward<unknown>(
-      scope,
-      "supaterm_thread_organize",
-      ThreadDoneInput,
-      Schema.Unknown,
-      environmentId,
-      input,
-    ).pipe(Effect.asVoid);
+  const setThreadDone: PeerForwarding["Service"]["setThreadDone"] = Effect.fn(
+    "PeerForwarding.setThreadDone",
+  )(function* (scope, environmentId, input) {
+    const answer = yield* peers.answer({
+      ...(yield* request(scope, "supaterm_thread_organize", ThreadDoneInput, environmentId, input)),
+      success: Schema.Unknown,
+    });
+    return Result.map(answer, () => undefined);
+  });
 
   const waitForThread: PeerForwarding["Service"]["waitForThread"] = (scope, environmentId, input) =>
     forward<OrchestratorMcpThreadWaitResult>(
