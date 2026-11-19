@@ -54,6 +54,7 @@ export class PeerForwarding extends Context.Service<
       tool: T,
       environmentId: EnvironmentId,
       params: Tool.Parameters<T>,
+      options?: { readonly linkedAt?: string },
     ) => Effect.Effect<Tool.Success<T>, OrchestratorMcpFailure>;
     /** `supaterm_thread_read` there. */
     readonly readThread: (
@@ -167,6 +168,7 @@ const make = Effect.gen(function* () {
     success: Schema.Top,
     environmentId: EnvironmentId,
     params: unknown,
+    linkedAt?: string,
   ) {
     const { caller, limits } = yield* forwardingCaller(scope);
     const encoded = (yield* Schema.encodeUnknownEffect(parameters as Schema.Encoder<unknown>)(
@@ -199,6 +201,7 @@ const make = Effect.gen(function* () {
       arguments: args,
       limits,
       ...(sender === undefined ? {} : { sender }),
+      ...(linkedAt === undefined ? {} : { linkedAt }),
       success: success as Schema.Decoder<A>,
     });
   });
@@ -259,7 +262,7 @@ const make = Effect.gen(function* () {
     Effect.flatMap((enabled) => (enabled ? Effect.void : Effect.fail(linkedEnvironmentsOff))),
   );
 
-  const call: PeerForwarding["Service"]["call"] = (scope, tool, environmentId, params) => {
+  const call: PeerForwarding["Service"]["call"] = (scope, tool, environmentId, params, options) => {
     const forwarded: Effect.Effect<
       Tool.Success<typeof tool>,
       OrchestratorMcpFailure
@@ -269,7 +272,15 @@ const make = Effect.gen(function* () {
           environmentId,
           params as OrchestratorMcpThreadWaitInput,
         ) as Effect.Effect<Tool.Success<typeof tool>, OrchestratorMcpFailure>)
-      : forward(scope, tool.name, tool.parametersSchema, tool.successSchema, environmentId, params);
+      : forward(
+          scope,
+          tool.name,
+          tool.parametersSchema,
+          tool.successSchema,
+          environmentId,
+          params,
+          options?.linkedAt,
+        );
     return Effect.andThen(requireEnabled, forwarded);
   };
 

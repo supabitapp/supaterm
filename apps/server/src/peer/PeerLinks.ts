@@ -121,9 +121,13 @@ export class PeerLinks extends Context.Service<
     ) => Effect.Effect<Option.Option<PeerLink>, PeerLinkError>;
     /** Forgets the link here. The peer still lists the session until it is revoked there. */
     readonly unlink: (environmentId: EnvironmentId) => Effect.Effect<boolean, PeerLinkError>;
-    /** An address that answers as the linked peer, with its token, ready to call. */
+    /**
+     * An address that answers as the linked peer, with its token, ready to call. With `linkedAt`,
+     * only the link made then resolves: one made again since has another session there.
+     */
     readonly resolve: (
       environmentId: EnvironmentId,
+      options?: { readonly linkedAt?: string },
     ) => Effect.Effect<ResolvedPeerLink, PeerLinkError>;
     /** Records the outcome of a call, so listing shows whether the peer answered last time. */
     readonly recordOutcome: (
@@ -706,7 +710,7 @@ const make = Effect.gen(function* () {
   );
 
   const resolve: PeerLinks["Service"]["resolve"] = Effect.fn("PeerLinks.resolve")(
-    function* (environmentId) {
+    function* (environmentId, options) {
       const notLinked = new PeerLinkError({
         reason: "unknown_link",
         message: `This environment is not linked to ${environmentId}. supaterm_environment_links lists the linked ones.`,
@@ -714,6 +718,15 @@ const make = Effect.gen(function* () {
       const row = yield* readRow(environmentId);
       if (Option.isNone(row)) return yield* notLinked;
       const link = yield* toLink(row.value);
+      if (
+        options?.linkedAt !== undefined &&
+        DateTime.formatIso(link.linkedAt) !== options.linkedAt
+      ) {
+        return yield* new PeerLinkError({
+          reason: "unknown_link",
+          message: `The link to ${link.label} was made again since this was first sent, so it is not sent under the new link.`,
+        });
+      }
       if (DateTime.isLessThanOrEqualTo(link.expiresAt, yield* DateTime.now)) {
         return yield* new PeerLinkError({
           reason: "expired",

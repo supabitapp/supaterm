@@ -47,6 +47,8 @@ export class PeerMcpClient extends Context.Service<
       readonly limits: PeerCallLimits;
       /** The thread here the call is made for, sent as `Supaterm-Sender-Thread`. */
       readonly sender?: OrchestrationV2LinkedSender;
+      /** Sends only under the link made then, as `PeerLinks.resolve` does. */
+      readonly linkedAt?: string;
       readonly success: S;
     }) => Effect.Effect<S["Type"], OrchestratorMcpFailure>;
   }
@@ -167,7 +169,10 @@ const make = Effect.gen(function* () {
   const call: PeerMcpClient["Service"]["call"] = Effect.fn("PeerMcpClient.call")(
     function* (input) {
       const resolved = yield* links
-        .resolve(input.environmentId)
+        .resolve(
+          input.environmentId,
+          input.linkedAt === undefined ? undefined : { linkedAt: input.linkedAt },
+        )
         .pipe(Effect.mapError(fromLinkError));
       const limitHeader = {
         [McpInvocationContext.MODE_LIMIT_HEADER]: `${input.limits.runtimeMode}/${input.limits.interactionMode}`,

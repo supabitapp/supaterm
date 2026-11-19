@@ -27,6 +27,7 @@ import * as SecureRandom from "effect/crypto/SecureRandom";
 import * as DateTime from "effect/DateTime";
 import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
+import * as Fiber from "effect/Fiber";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import * as Result from "effect/Result";
@@ -284,6 +285,22 @@ const make = Effect.gen(function* () {
     task: OrchestrationV2Subagent,
     launch: OrchestrationV2RemoteTaskLaunch,
   ) {
+    const link = yield* links
+      .get(launch.environmentId)
+      .pipe(
+        Effect.mapError(
+          (error) =>
+            new OrchestratorMcpFailure({ code: "orchestration_error", message: error.message }),
+        ),
+      );
+    // A link made again has another session there, which would not know this launch's key
+    // and would start a second thread beside one the first session may have started.
+    if (Option.isNone(link) || DateTime.formatIso(link.value.linkedAt) !== launch.linkedAt) {
+      return yield* new OrchestratorMcpFailure({
+        code: "invalid_request",
+        message: `The link to ${launch.label} was ${Option.isNone(link) ? "forgotten" : "made again"} before this task's launch there was answered, so the task is not followed. If it started there, stop it in ${launch.label}.`,
+      });
+    }
     const launched = yield* forwarding.call(
       launchScope(parent, task.id, launch),
       ProjectToolkit.tools.supaterm_thread_launch,
@@ -304,6 +321,8 @@ const make = Effect.gen(function* () {
         // The thread there shows it is this thread's subagent, with a way back.
         delegatedFrom: { environmentId: hereId, threadId: parent.id, title: parent.title },
       },
+      // The check above can pass just before the link is made again; this one cannot.
+      { linkedAt: launch.linkedAt },
     );
     const attached = yield* threads
       .dispatch({
@@ -356,6 +375,7 @@ const make = Effect.gen(function* () {
 
   const delegate: RemoteDelegation["Service"]["delegate"] = Effect.fn("RemoteDelegation.delegate")(
     function* (scope, input) {
+      if (!(yield* links.enabled)) return yield* PeerForwarding.linkedEnvironmentsOff;
       const parent = yield* threads.getThreadRecords(scope.thread.threadId, ["runs"]).pipe(
         Effect.mapError(
           () =>
@@ -447,103 +467,102 @@ const make = Effect.gen(function* () {
       const commandId = CommandId.make(
         `command:mcp:${encodeURIComponent(scope.requestNamespace)}:remote-delegate:${encodeURIComponent(key)}`,
       );
-      // The task is recorded before its launch is sent, so a launch whose answer is lost,
-      // or that a restart here cuts short, is sent again and finds the thread it started.
-      const recorded = yield* threads
-        .dispatch({
-          type: "delegated_task.remote.request",
-          commandId,
-          parentThreadId: scope.thread.threadId,
-          parentRunId: parentRun.id,
-          parentNodeId,
-          task: taskPrompt(input),
-          ...(input.title === undefined ? {} : { title: input.title }),
-          // The driver runs there; this side only labels the task with it.
-          driver: ProviderDriverKind.make("remote"),
-          modelSelection: { instanceId, model, ...(options === undefined ? {} : { options }) },
-          remote: {
-            remoteLaunch: {
-              environmentId: target.environmentId,
-              label: link.label,
-              linkedAt: DateTime.formatIso(link.linkedAt),
-              requestNamespace: scope.requestNamespace,
-              key,
-              projectId,
-              title: input.title ?? parent.thread.title,
-              ...(runtimeMode === undefined ? {} : { runtimeMode }),
-              ...(interactionMode === undefined ? {} : { interactionMode }),
-              completionWake: input.mode === "wait" ? "settled_only" : "always",
-            },
-          },
-        })
-        .pipe(
-          // The cause goes to the log; the caller learns only that recording failed.
-          Effect.tapError((cause) =>
-            Effect.logWarning("remote-delegation.record-failed", {
-              parentThreadId: scope.thread.threadId,
-              cause,
-            }),
-          ),
-          Effect.mapError(
-            () =>
-              new OrchestratorMcpFailure({
-                code: "orchestration_error",
-                message: "Unable to record the delegated task.",
-              }),
-          ),
-        );
-      const taskEvent = recorded.storedEvents.find(
-        (stored) => stored.event.type === "subagent.updated",
-      );
-      const task =
-        taskEvent?.event.type === "subagent.updated"
-          ? taskEvent.event.payload
-          : // A replayed request recorded the task the first time.
-            yield* threads.getThreadRecords(scope.thread.threadId, ["subagents"]).pipe(
-              Effect.map(({ subagents }) =>
-                subagents.find(
-                  (task) =>
-                    task.remoteLaunch?.key === key &&
-                    task.remoteLaunch.requestNamespace === scope.requestNamespace,
-                ),
-              ),
-              Effect.orElseSucceed(() => undefined),
-            );
-      if (task?.remoteLaunch === undefined) {
-        return yield* new OrchestratorMcpFailure({
-          code: "orchestration_error",
-          message: "The delegated task was not recorded.",
-        });
-      }
-      if (task.remoteChild === undefined) {
-        // A retry of a launch the other side refused hears that refusal again.
-        if (task.remoteLaunch.abandoned === true) {
-          return yield* new OrchestratorMcpFailure({
-            code: "invalid_request",
-            message: task.result ?? "The task was not started in the linked environment.",
-          });
-        }
-        const launched = yield* launchThere(parent.thread, task, task.remoteLaunch).pipe(
-          Effect.result,
-        );
-        if (Result.isFailure(launched)) {
-          // Refused there: nothing runs, and the caller hears why from this call.
-          if (isRefusal(launched.failure)) {
-            yield* abandon(scope.thread.threadId, task.id, launched.failure.message).pipe(
-              Effect.ignoreCause({ log: true }),
-            );
-            return yield* launched.failure;
-          }
-          // No answer about the launch: its follower sends it again until one comes.
-          yield* Effect.logWarning("remote-delegation.launch-unanswered", {
+      const recordAndLaunch = Effect.gen(function* () {
+        // The task is recorded before its launch is sent, so a launch whose answer is lost,
+        // or that a restart here cuts short, is sent again and finds the thread it started.
+        yield* threads
+          .dispatch({
+            type: "delegated_task.remote.request",
+            commandId,
             parentThreadId: scope.thread.threadId,
-            taskId: task.id,
-            reason: launched.failure.message,
+            parentRunId: parentRun.id,
+            parentNodeId,
+            task: taskPrompt(input),
+            ...(input.title === undefined ? {} : { title: input.title }),
+            // The driver runs there; this side only labels the task with it.
+            driver: ProviderDriverKind.make("remote"),
+            modelSelection: { instanceId, model, ...(options === undefined ? {} : { options }) },
+            remote: {
+              remoteLaunch: {
+                environmentId: target.environmentId,
+                label: link.label,
+                linkedAt: DateTime.formatIso(link.linkedAt),
+                requestNamespace: scope.requestNamespace,
+                key,
+                projectId,
+                title: input.title ?? parent.thread.title,
+                ...(runtimeMode === undefined ? {} : { runtimeMode }),
+                ...(interactionMode === undefined ? {} : { interactionMode }),
+                completionWake: input.mode === "wait" ? "settled_only" : "always",
+              },
+            },
+          })
+          .pipe(
+            // The cause goes to the log; the caller learns only that recording failed.
+            Effect.tapError((cause) =>
+              Effect.logWarning("remote-delegation.record-failed", {
+                parentThreadId: scope.thread.threadId,
+                cause,
+              }),
+            ),
+            Effect.mapError(
+              () =>
+                new OrchestratorMcpFailure({
+                  code: "orchestration_error",
+                  message: "Unable to record the delegated task.",
+                }),
+            ),
+          );
+        // A request sent again answers with the task as first recorded, so it is read as it is now.
+        const task = yield* threads.getThreadRecords(scope.thread.threadId, ["subagents"]).pipe(
+          Effect.map(({ subagents }) =>
+            subagents.find(
+              (task) =>
+                task.remoteLaunch?.key === key &&
+                task.remoteLaunch.requestNamespace === scope.requestNamespace,
+            ),
+          ),
+          Effect.orElseSucceed(() => undefined),
+        );
+        if (task?.remoteLaunch === undefined) {
+          return yield* new OrchestratorMcpFailure({
+            code: "orchestration_error",
+            message: "The delegated task was not recorded.",
           });
         }
-      }
-      yield* followOne(scope.thread.threadId, task.id).pipe(Effect.forkIn(followers));
-      return { taskId: task.id };
+        if (task.remoteChild === undefined) {
+          // A retry of a launch the other side refused hears that refusal again.
+          if (task.remoteLaunch.abandoned === true) {
+            return yield* new OrchestratorMcpFailure({
+              code: "invalid_request",
+              message: task.result ?? "The task was not started in the linked environment.",
+            });
+          }
+          const launched = yield* launchThere(parent.thread, task, task.remoteLaunch).pipe(
+            Effect.result,
+          );
+          if (Result.isFailure(launched)) {
+            // Refused there: nothing runs, and the caller hears why from this call.
+            if (isRefusal(launched.failure)) {
+              yield* abandon(scope.thread.threadId, task.id, launched.failure.message).pipe(
+                Effect.ignoreCause({ log: true }),
+              );
+              return yield* launched.failure;
+            }
+            // No answer about the launch: its follower sends it again until one comes.
+            yield* Effect.logWarning("remote-delegation.launch-unanswered", {
+              parentThreadId: scope.thread.threadId,
+              taskId: task.id,
+              reason: launched.failure.message,
+            });
+          }
+        }
+        yield* followOne(scope.thread.threadId, task.id).pipe(Effect.forkIn(followers));
+        return { taskId: task.id };
+      });
+      // Owned by this service, not the call: a provider that gives up on its tool call must not
+      // leave a recorded launch with no one to send it.
+      return yield* recordAndLaunch.pipe(Effect.forkIn(followers), Effect.flatMap(Fiber.join));
     },
   );
 
@@ -883,24 +902,6 @@ const make = Effect.gen(function* () {
       const launch = task.remoteLaunch;
       if (launch === undefined || launch.abandoned === true) return true;
       // Its launch has no answer yet: send it again, then follow the thread it names.
-      const link = yield* links
-        .get(launch.environmentId)
-        .pipe(
-          Effect.mapError(
-            (error) =>
-              new OrchestratorMcpFailure({ code: "orchestration_error", message: error.message }),
-          ),
-        );
-      // A link made again has another session there, which would not know this launch's key
-      // and would start a second thread beside one the first session may have started.
-      if (Option.isNone(link) || DateTime.formatIso(link.value.linkedAt) !== launch.linkedAt) {
-        yield* abandon(
-          parentThreadId,
-          taskId,
-          `The link to ${launch.label} was ${Option.isNone(link) ? "forgotten" : "made again"} before this task's launch there was answered, so the task is not followed. If it started there, stop it in ${launch.label}.`,
-        );
-        return true;
-      }
       return yield* launchThere(thread, task, launch).pipe(
         Effect.as(false),
         Effect.catchIf(isRefusal, (error) =>

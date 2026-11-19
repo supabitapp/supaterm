@@ -1210,20 +1210,24 @@ it.effect(
         const delegated = yield* delegateToBox(a);
 
         yield* a.settings.updateSettings({ linkedEnvironmentsEnabled: false });
-        const refused = yield* a.call("delegate_task", {
-          task: "Run the linter on the box.",
-          target: {
-            environmentId: box.environmentId,
-            providerInstanceId: instanceId,
-            model: "gpt-5.4",
-          },
-          mode: "async",
-          clientRequestId: "lint-on-box",
-        });
-        expect(refused.isError).toBe(true);
-        expect(JSON.stringify(refused.content)).toContain(
-          PeerForwarding.linkedEnvironmentsOff.message,
-        );
+        // Naming the project skips the lookups there, which must not skip the setting.
+        for (const projectId of [undefined, boxProject]) {
+          const refused = yield* a.call("delegate_task", {
+            task: "Run the linter on the box.",
+            target: {
+              environmentId: box.environmentId,
+              providerInstanceId: instanceId,
+              model: "gpt-5.4",
+              ...(projectId === undefined ? {} : { projectId }),
+            },
+            mode: "async",
+            clientRequestId: `lint-on-box-${projectId ?? "unnamed"}`,
+          });
+          expect(refused.isError).toBe(true);
+          expect(JSON.stringify(refused.content)).toContain(
+            PeerForwarding.linkedEnvironmentsOff.message,
+          );
+        }
         expect((yield* a.orchestrator.getThreadProjection(parentThreadId)).subagents).toHaveLength(
           1,
         );
@@ -1464,6 +1468,94 @@ it.effect("a launch the box refuses ends the task, and the caller hears why from
       expect(yield* openTasks(a)).toEqual([]);
       // Nothing wakes the parent for a refusal its own call already returned.
       expect(yield* SubscriptionRef.get(offers)).toEqual([]);
+
+      // The same call again hears the same refusal, even once the box would take the task.
+      yield* linkTo(a.links, b, "full-access");
+      const again = yield* a.call("delegate_task", {
+        task: "Run the full suite on the box.",
+        target: { environmentId: box.environmentId, providerInstanceId: instanceId },
+        runtimeMode: "full-access",
+        mode: "async",
+        clientRequestId: "suite-refused",
+      });
+      expect(again.isError).toBe(true);
+      expect(again.content).toEqual([
+        {
+          type: "text",
+          text: JSON.stringify({
+            _tag: "OrchestratorMcpFailure",
+            code: "invalid_request",
+            message: subagents[0]?.result,
+          }),
+        },
+      ]);
+      expect(yield* Ref.get(thread.launched)).toBeNull();
+    }),
+  ).pipe(Effect.provide(NodeHttpServer.layerTest)),
+);
+
+it.effect("the same call again for a task that runs there starts nothing more", () =>
+  Effect.scoped(
+    Effect.gen(function* () {
+      const thread = yield* makeBoxThread;
+      const b = yield* serveBox(thread);
+      const offers = yield* SubscriptionRef.make<
+        ReadonlyArray<ProviderContinuationRequests.ProviderContinuationRequest>
+      >([]);
+      const database = yield* SqlitePersistence.layerMemory.pipe(Layer.build);
+      const a = yield* makeLaptop(database, offers);
+      yield* linkTo(a.links, b, "full-access");
+      yield* seedParent(a);
+      const launches = yield* Ref.make(0);
+      yield* Ref.set(
+        thread.afterLaunch,
+        Ref.update(launches, (count) => count + 1),
+      );
+      const delegated = yield* delegateToBox(a);
+      // The link is made again, so the launch's key means nothing to its new session there.
+      yield* TestClock.adjust(Duration.seconds(1));
+      yield* linkTo(a.links, b, "full-access");
+
+      expect((yield* delegateToBox(a)).taskId).toBe(delegated.taskId);
+      expect(yield* Ref.get(launches)).toBe(1);
+    }),
+  ).pipe(Effect.provide(NodeHttpServer.layerTest)),
+);
+
+it.effect("a call cancelled while its launch is sent leaves the task followed", () =>
+  Effect.scoped(
+    Effect.gen(function* () {
+      const thread = yield* makeBoxThread;
+      const b = yield* serveBox(thread);
+      const offers = yield* SubscriptionRef.make<
+        ReadonlyArray<ProviderContinuationRequests.ProviderContinuationRequest>
+      >([]);
+      const database = yield* SqlitePersistence.layerMemory.pipe(Layer.build);
+      const a = yield* makeLaptop(database, offers);
+      yield* linkTo(a.links, b, "full-access");
+      yield* seedParent(a);
+      const reached = yield* Deferred.make<void>();
+      const answer = yield* Deferred.make<void>();
+      yield* Ref.set(
+        thread.afterLaunch,
+        Deferred.succeed(reached, undefined).pipe(Effect.andThen(Deferred.await(answer))),
+      );
+
+      // The provider gives up on its tool call after the task is recorded and before the box answers.
+      const call = yield* delegateToBox(a).pipe(Effect.forkScoped);
+      yield* Deferred.await(reached);
+      yield* Fiber.interrupt(call);
+      yield* Deferred.succeed(answer, undefined);
+      yield* Ref.set(thread.reply, "Done on the box.");
+      yield* Ref.set(thread.status, "completed");
+      yield* Deferred.succeed(thread.finished, undefined);
+
+      const { subagents } = yield* a.orchestrator.getThreadProjection(parentThreadId);
+      expect(subagents).toHaveLength(1);
+      expect(yield* taskResult(a, subagents[0]!.id)).toMatchObject({
+        status: "completed",
+        result: "Done on the box.",
+      });
     }),
   ).pipe(Effect.provide(NodeHttpServer.layerTest)),
 );
